@@ -61,6 +61,7 @@ const PS=[{id:'nobi',n:'ノビ○',c:'#4CAF50',p:.12},{id:'heavy',n:'重い球',
 const BS=[{id:'avg',n:'アベレージ',c:'#4CAF50',p:.10},{id:'spray',n:'広角打法',c:'#4CAF50',p:.09},{id:'co',n:'チャンス◎',c:'#66BB6A',p:.09},{id:'cx',n:'チャンス×',c:'#EF5350',p:.08},{id:'eye',n:'選球眼○',c:'#42A5F5',p:.09},{id:'pull',n:'プルヒッター',c:'#FF7043',p:.08},{id:'run',n:'走塁センス',c:'#FF9800',p:.08},{id:'sb',n:'盗塁○',c:'#FF9800',p:.07},{id:'bnt',n:'バント○',c:'#90A4AE',p:.08},{id:'oppo',n:'流し打ち',c:'#AB47BC',p:.07},{id:'fbo',n:'初球○',c:'#66BB6A',p:.08},{id:'fbx',n:'初球×',c:'#EF5350',p:.07}];
 const CS2=[{id:'iron',n:'鉄人',c:'#9E9E9E',p:.06},{id:'win',n:'勝負強さ',c:'#FF9800',p:.08},{id:'ace',n:'対エース○',c:'#FFD700',p:.06}];
 const CATCH_SP=[{id:'ld_art',n:'配球の妙',c:'#CE93D8',p:.06},{id:'strong_arm',n:'強肩',c:'#78909C',p:.10}];
+const ALL_SPECIALS=[...PS,...BS,...CS2,...CATCH_SP];
 const PARAM_JA={vel:'球速',ctrl:'制球',stam:'スタミナ',nobi:'ノビ',fld:'守備(投)',cf:'直球対応',cb:'変化対応',pw:'長打力',dc:'選球眼',sp:'走力',df:'守備力',arm:'肩力',ld:'配球'};
 const pja=k=>PARAM_JA[k]||k;
 
@@ -937,9 +938,10 @@ function PlayerDetailModal({player,accumulated,careerAccumulated,onClose,yearlyS
     </div>
   </div>;
 }
-function RosterTable({players,accumulated,teamColor,onOpenPlayer}){
+function RosterTable({players,accumulated,teamColor,onOpenPlayer,debugMode=false,onDebugUpdatePlayer}){
   const [sortKey,setSortKey]=useState('ovr');
   const [role,setRole]=useState('all');
+  const [debugPlayerId,setDebugPlayerId]=useState(null);
   const filtered=[...players].filter(p=>role==='all'?true:role==='pit'?p.isP:!p.isP);
   const getValue=(p)=>{
     const s=accumulated[p.id]||{};
@@ -956,6 +958,26 @@ function RosterTable({players,accumulated,teamColor,onOpenPlayer}){
     if(sortKey==='name') return String(av).localeCompare(String(bv),'ja');
     return sortKey==='era' ? av-bv : bv-av;
   });
+  const editingPlayer=rows.find(p=>p.id===debugPlayerId)||null;
+  const applyDebugValue=(player,key,val)=>onDebugUpdatePlayer&&onDebugUpdatePlayer(player.id,d=>({...d,p:{...(d.p||{}),[key]:cl(Number(val)||0,1,130)}}));
+  const applyDebugMat=(player,mat)=>onDebugUpdatePlayer&&onDebugUpdatePlayer(player.id,d=>({...d,mat}));
+  const toggleDebugSpecial=(player,sp)=>onDebugUpdatePlayer&&onDebugUpdatePlayer(player.id,d=>{
+    const has=(d.specials||[]).some(s=>s.id===sp.id);
+    return {...d,specials:has?(d.specials||[]).filter(s=>s.id!==sp.id):[...(d.specials||[]),sp]};
+  });
+  const addDebugPos=(player,pos)=>onDebugUpdatePlayer&&onDebugUpdatePlayer(player.id,d=>{
+    if(d.isP) return d;
+    const cur=d.positions&&d.positions.length?d.positions:[{pos:d.pos,apt:100}];
+    if(cur.some(x=>x.pos===pos)) return d;
+    return {...d,positions:[...cur,{pos,apt:60}]};
+  });
+  const removeDebugPos=(player,pos)=>onDebugUpdatePlayer&&onDebugUpdatePlayer(player.id,d=>{
+    if(d.isP) return d;
+    const cur=(d.positions&&d.positions.length?d.positions:[{pos:d.pos,apt:100}]).filter(x=>x.pos!==pos);
+    if(cur.length===0) return d;
+    const nextPrimary=cur.some(x=>x.pos===d.pos)?d.pos:cur[0].pos;
+    return {...d,pos:nextPrimary,positions:cur};
+  });
   return <Card style={{background:'#0b1d2d',borderColor:'#1e4c73'}}>
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
       <SectionTitle style={{color:'#55c7ff'}}>選手一覧</SectionTitle>
@@ -967,7 +989,7 @@ function RosterTable({players,accumulated,teamColor,onOpenPlayer}){
       <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
         <thead><tr style={{borderBottom:'1px solid #1e4c73'}}>{[['name','選手'],['age','年齢'],['ovr','OVR'],['mastery','習熟'],['avg','打率'],['era','防御率'],['pos','守備/役割'],['policy','育成']].map(([k,l])=><th key={k} onClick={()=>k!=='pos'&&k!=='policy'&&setSortKey(k)} style={{padding:'6px 8px',textAlign:k==='name'||k==='pos'||k==='policy'?'left':'center',color:sortKey===k?'#55c7ff':'#8eb3d6',cursor:k!=='pos'&&k!=='policy'?'pointer':'default',whiteSpace:'nowrap'}}>{l}</th>)}</tr></thead>
         <tbody>
-          {rows.map(p=>{const s=accumulated[p.id]||{}; return <tr key={p.id} style={{borderBottom:'1px solid #08131e'}}>
+          {rows.map(p=>{const s=accumulated[p.id]||{}; return <tr key={p.id} onClick={()=>debugMode&&setDebugPlayerId(p.id)} style={{borderBottom:'1px solid #08131e',cursor:debugMode?'pointer':'default',background:debugMode&&debugPlayerId===p.id?teamColor+'1a':'transparent'}}>
             <td style={{padding:'6px 8px',fontWeight:600}}><PlayerName player={p} onOpen={onOpenPlayer}/></td>
             <td style={{padding:'6px 8px',textAlign:'center'}}>{p.age}</td>
             <td style={{padding:'6px 8px',textAlign:'center',fontWeight:800,color:ovrColor(p.isP===true?calcOVR(p):effOVR(p,p.pos))}}>{p.isP===true?calcOVR(p):effOVR(p,p.pos)}</td>
@@ -980,6 +1002,36 @@ function RosterTable({players,accumulated,teamColor,onOpenPlayer}){
         </tbody>
       </table>
     </div>
+    {debugMode&&editingPlayer&&<div style={{marginTop:10,paddingTop:10,borderTop:'1px solid #6a3a1a'}}>
+      <div style={{fontSize:11,color:'#ffb74d',fontWeight:800,marginBottom:8}}>デバッグ編集: {editingPlayer.name}</div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div style={{background:'#1c140a',border:'1px solid #6a3a1a',borderRadius:8,padding:8}}>
+          <div style={{fontSize:10,color:'#ffcc80',marginBottom:6}}>能力・成長タイプ</div>
+          {(editingPlayer.isP?['vel','ctrl','stam','nobi','fld']:['cf','cb','pw','dc','sp','df','arm','stam',...(editingPlayer.pos==='捕手'?['ld']:[])]).map(k=><label key={k} style={{display:'grid',gridTemplateColumns:'40px 1fr 42px',gap:6,alignItems:'center',fontSize:10,marginBottom:4}}>
+            <span style={{color:'#ffcc80'}}>{pja(k)}</span>
+            <input type='range' min='1' max='130' value={Math.round(editingPlayer.p?.[k]||0)} onChange={e=>applyDebugValue(editingPlayer,k,e.target.value)} />
+            <input type='number' min='1' max='130' value={Math.round(editingPlayer.p?.[k]||0)} onChange={e=>applyDebugValue(editingPlayer,k,e.target.value)} style={{background:'#0a1218',color:'#fff',border:'1px solid #6a3a1a',borderRadius:4,padding:'2px 4px',fontSize:10}}/>
+          </label>)}
+          <div style={{display:'flex',alignItems:'center',gap:8,marginTop:6}}>
+            <span style={{fontSize:10,color:'#ffcc80'}}>成長型</span>
+            <select value={editingPlayer.mat||'通常'} onChange={e=>applyDebugMat(editingPlayer,e.target.value)} style={{background:'#0a1218',color:'#fff',border:'1px solid #6a3a1a',borderRadius:5,padding:'5px 8px',fontSize:11}}>
+              {MATURITY.map(m=><option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={{background:'#1c140a',border:'1px solid #6a3a1a',borderRadius:8,padding:8}}>
+          <div style={{fontSize:10,color:'#ffcc80',marginBottom:6}}>守備位置・特殊能力</div>
+          {!editingPlayer.isP&&<div style={{marginBottom:8}}>
+            <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:4}}>{(editingPlayer.positions||[{pos:editingPlayer.pos,apt:100}]).map(pp=><button key={pp.pos} onClick={()=>removeDebugPos(editingPlayer,pp.pos)} style={{background:'#0a1218',color:'#90CAF9',border:'1px solid #244d71',borderRadius:999,padding:'3px 8px',fontSize:10,cursor:'pointer'}}>{pp.pos} ×</button>)}</div>
+            <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>{FPOS.filter(pos=>!(editingPlayer.positions||[]).some(pp=>pp.pos===pos)).map(pos=><button key={pos} onClick={()=>addDebugPos(editingPlayer,pos)} style={{background:'#10273b',color:'#8eb3d6',border:'1px solid #244d71',borderRadius:999,padding:'3px 8px',fontSize:10,cursor:'pointer'}}>+{pos}</button>)}</div>
+          </div>}
+          <div style={{display:'flex',gap:4,flexWrap:'wrap',maxHeight:160,overflowY:'auto'}}>
+            {ALL_SPECIALS.map(sp=>{const active=(editingPlayer.specials||[]).some(s=>s.id===sp.id);return <button key={sp.id} onClick={()=>toggleDebugSpecial(editingPlayer,sp)} style={{background:active?sp.c+'33':'#10273b',color:active?sp.c:'#8eb3d6',border:`1px solid ${active?sp.c:'#244d71'}`,borderRadius:999,padding:'3px 8px',fontSize:10,cursor:'pointer'}}>{sp.n}</button>;})}
+          </div>
+        </div>
+      </div>
+    </div>}
+    {debugMode&&<div style={{marginTop:8,fontSize:10,color:'#ffcc80'}}>行をクリックすると編集対象を切替できます。</div>}
   </Card>;
 }
 
@@ -992,7 +1044,7 @@ function AllLeagueStats({leagueAccumulated,teams,playerTeam,onOpenPlayer}){const
 </tbody></table>:<table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}><thead><tr style={{borderBottom:'1px solid #1e3044'}}>{[['name','選手名'],['tk','球団'],['age','年齢'],['g','登板'],['gs','先発'],['sv','S'],['ip3','投球回'],['k','奪三振'],['era','防御率']].map(([k,l])=>thP(k,l))}</tr></thead><tbody>{pit.map(r=>{const tc=TINFO[r.player.tk]?.c||'#7a98ba';return <tr key={r.player.id} style={{borderBottom:'1px solid #08131e',background:r.player.tk===playerTeam?TINFO[playerTeam].c+'1a':'transparent'}}><td style={{padding:'6px 8px',fontWeight:600}}><PlayerName player={r.player} onOpen={onOpenPlayer}/></td><td style={{padding:'4px 8px',textAlign:'center'}}><span style={{background:tc+'22',color:tc,border:`1px solid ${tc}55`,borderRadius:4,padding:'1px 6px',fontSize:10,fontWeight:700}}>{TINFO[r.player.tk]?.ab||'-'}</span></td><td style={{padding:'6px 8px',textAlign:'center'}}>{r.player.age}</td><td style={{padding:'6px 8px',textAlign:'center'}}>{r.stats.g||0}</td><td style={{padding:'6px 8px',textAlign:'center'}}>{r.stats.gs||0}</td><td style={{padding:'6px 8px',textAlign:'center',color:(r.stats.sv||0)>0?'#ffd400':'#f3f7ff'}}>{r.stats.sv||0}</td><td style={{padding:'6px 8px',textAlign:'center'}}>{fmtIP(r.stats.ip3||0)}</td><td style={{padding:'6px 8px',textAlign:'center'}}>{r.stats.k||0}</td><td style={{padding:'6px 8px',textAlign:'center',fontWeight:700}}>{era(r.stats.ip3||0,r.stats.er||0)}</td></tr>;})}
 </tbody></table>}</div></Card>;}
 function LeagueLeaders({leagueAccumulated,teams,playerTeam,onOpenPlayer}){const [league,setLeague]=useState('central');const allPlayers=Object.values(teams||{}).filter(t=>TINFO[t.key]?.lg===league).flatMap(t=>[...(t?.fielders||[]),...(t?.pitchers||[])]).filter(Boolean);const rows=allPlayers.map(p=>({player:p,stats:leagueAccumulated[p.id]||{}}));const bat=rows.filter(r=>!r.player.isP&&(r.stats.pa||0)>=20);const pit=rows.filter(r=>r.player.isP&&(r.stats.ip3||0)>=9);const sp=pit.filter(r=>(r.stats.gs||0)>=Math.max(5,Math.round((r.stats.g||0)*0.45))&&(r.stats.ip3||0)>=45);const categories=[{id:'avg',label:'打率',data:[...bat].sort((a,b)=>(b.stats.h/(b.stats.ab||1))-(a.stats.h/(a.stats.ab||1))).slice(0,10),fmt:r=>avg(r.stats.ab||0,r.stats.h||0)},{id:'h',label:'安打',data:[...bat].sort((a,b)=>(b.stats.h||0)-(a.stats.h||0)).slice(0,10),fmt:r=>String(r.stats.h||0)},{id:'hr',label:'本塁打',data:[...bat].sort((a,b)=>(b.stats.hr||0)-(a.stats.hr||0)).slice(0,10),fmt:r=>String(r.stats.hr||0)},{id:'rbi',label:'打点',data:[...bat].sort((a,b)=>(b.stats.rbi||0)-(a.stats.rbi||0)).slice(0,10),fmt:r=>String(r.stats.rbi||0)},{id:'era',label:'防御率',data:[...sp].sort((a,b)=>((a.stats.er||0)/Math.max((a.stats.ip3||1)/3,1e-9))-((b.stats.er||0)/Math.max((b.stats.ip3||1)/3,1e-9))).slice(0,10),fmt:r=>era(r.stats.ip3||0,r.stats.er||0)},{id:'k',label:'奪三振',data:[...pit].sort((a,b)=>(b.stats.k||0)-(a.stats.k||0)).slice(0,10),fmt:r=>String(r.stats.k||0)},{id:'sv',label:'セーブ',data:[...pit].sort((a,b)=>(b.stats.sv||0)-(a.stats.sv||0)).slice(0,10),fmt:r=>String(r.stats.sv||0)},{id:'hld',label:'ホールド',data:[...pit].sort((a,b)=>(b.stats.hld||0)-(a.stats.hld||0)).slice(0,10),fmt:r=>String(r.stats.hld||0)}];return <div><div style={{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap'}}>{[['central','セ・リーグ'],['pacific','パ・リーグ']].map(([id,l])=><button key={id} onClick={()=>setLeague(id)} style={{background:league===id?TINFO[playerTeam].c+'33':'#10273b',color:league===id?TINFO[playerTeam].c:'#8eb3d6',border:`1px solid ${league===id?TINFO[playerTeam].c:'#244d71'}`,borderRadius:999,padding:'7px 14px',fontSize:11,cursor:'pointer',fontWeight:700}}>{l}</button>)}</div><div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:16}}>{categories.map(cat=><Card key={cat.id}><SectionTitle>{cat.label}ランキング</SectionTitle><div style={{display:'flex',flexDirection:'column',gap:6}}>{cat.data.length===0?<div style={{fontSize:12,color:'#5a7898'}}>まだ対象成績がありません</div>:cat.data.map((r,idx)=><div key={r.player.id} style={{display:'grid',gridTemplateColumns:'24px 1fr 52px',gap:8,padding:'8px 10px',background:idx===0?'#1a1400':r.player.tk===playerTeam?TINFO[playerTeam].c+'18':'#101e2e',border:idx===0?'1px solid #f0c04044':'1px solid #162030',borderRadius:8,fontSize:11}}><div style={{color:idx===0?'#FFD700':'#8eb3d6',fontWeight:800,textAlign:'center'}}>{idx+1}</div><div><div style={{fontWeight:600}}><PlayerName player={r.player} onOpen={onOpenPlayer}/></div><div style={{fontSize:10,color:'#8eb3d6'}}>{TINFO[r.player.tk]?.ab} / {r.player.isP?r.player.role:r.player.pos}</div></div><div style={{textAlign:'right',fontWeight:800}}>{cat.fmt(r)}</div></div>)}</div></Card>)}</div></div>;}
-function StandingsTable({standings,league,highlight}){
+function StandingsTable({standings,league,highlight,onTeamClick,selectedTeam}){
   const rows=[...league].sort((a,b)=>(standings[a]?.rank||99)-(standings[b]?.rank||99));
   return <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
     <thead><tr style={{borderBottom:'1px solid #1a2535'}}>
@@ -1001,7 +1053,9 @@ function StandingsTable({standings,league,highlight}){
     <tbody>
       {rows.map((k,i)=>{const r=standings[k]||{w:0,l:0,d:0,g:0,gb:'-'};const isHL=k===highlight;return <tr key={k} style={{borderBottom:'1px solid #050a12',background:i<=2?TINFO[k].c+'18':isHL?TINFO[k].c+'2e':'transparent'}}>
         <td style={{padding:'6px 8px',textAlign:'center',color:i===0?'#ffd400':i===1?'#dce8f7':i===2?'#ff9c46':'#8eb3d6',fontWeight:700}}>{i+1}</td>
-        <td style={{padding:'6px 8px',fontWeight:isHL?700:400,color:isHL?TINFO[k].c:'white'}}>{TINFO[k].ab}</td>
+        <td style={{padding:'6px 8px',fontWeight:isHL?700:400,color:isHL?TINFO[k].c:'white'}}>
+          <button onClick={()=>onTeamClick&&onTeamClick(k)} style={{background:'transparent',border:'none',padding:0,color:selectedTeam===k?'#7fd0ff':(isHL?TINFO[k].c:'white'),cursor:'pointer',fontWeight:selectedTeam===k?800:(isHL?700:500),textDecoration:selectedTeam===k?'underline':'none'}}>{TINFO[k].ab}</button>
+        </td>
         <td style={{padding:'6px 8px',textAlign:'center'}}>{r.w||0}</td>
         <td style={{padding:'6px 8px',textAlign:'center'}}>{r.l||0}</td>
         <td style={{padding:'6px 8px',textAlign:'center',fontWeight:isHL?700:400}}>{pct2(r.w||0,r.l||0)}</td>
@@ -1131,11 +1185,12 @@ function TradeScreen({offers, onAccept, onSkip, playerTeam}){
   return <div><Card style={{marginBottom:16}}><SectionTitle>トレード交渉</SectionTitle><div style={{fontSize:13,fontWeight:700,marginBottom:10}}>{offer.summary}</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}><div style={{padding:12,background:'#0f2233',border:'1px solid #1d3a52',borderRadius:8}}><div style={{fontSize:11,color:'#4a6a8a',marginBottom:6}}>あなたが放出</div><div style={{fontWeight:700}}>{offer.receive.name}</div><div style={{fontSize:11,color:'#4a6a8a'}}>{offer.receive.isP?offer.receive.role:offer.receive.pos} / OVR {Math.round(offer.receive.isP?calcOVR(offer.receive):effOVR(offer.receive,offer.receive.pos))}</div></div><div style={{padding:12,background:'#0f2233',border:'1px solid #1d3a52',borderRadius:8}}><div style={{fontSize:11,color:'#4a6a8a',marginBottom:6}}>あなたが獲得</div><div style={{fontWeight:700}}>{offer.give.name}</div><div style={{fontSize:11,color:'#4a6a8a'}}>{offer.give.isP?offer.give.role:offer.give.pos} / OVR {Math.round(offer.give.isP?calcOVR(offer.give):effOVR(offer.give,offer.give.pos))} {offer.cash?` / 金銭 ${offer.cash}万円`:''}</div></div></div></Card><div style={{display:'flex',justifyContent:'space-between'}}><div style={{display:'flex',gap:8}}><Btn onClick={()=>setIdx(i=>Math.min(offers.length-1,i+1))} sm style={{background:'#1a2535'}} disabled={idx>=offers.length-1}>次のオファー</Btn><Btn onClick={onSkip} sm style={{background:'#1a2535'}}>ドラフトへ</Btn></div><Btn onClick={()=>onAccept(offer)} color={TINFO[playerTeam].c}>この条件で成立</Btn></div></div>;
 }
 
-function DraftScreen({teams,playerTeam,onComplete}){
+function DraftScreen({teams,playerTeam,onComplete,debugMode=false}){
   const [round,setRound]=useState(1);
   const [prospects,setProspects]=useState(()=>genDraftProspects());
   const [selected,setSelected]=useState(null);
   const [drafted,setDrafted]=useState([]);
+  const [draftDebugMode,setDraftDebugMode]=useState(!!debugMode);
   const order=useMemo(()=>[...CENTRAL,...PACIFIC].sort((a,b)=>teamOVR(teams[a])-teamOVR(teams[b])),[teams]);
   const myPicks=drafted.filter(p=>p.teamKey===playerTeam);
   const visibleProspects=[...prospects].slice(0,40);
@@ -1183,11 +1238,28 @@ function DraftScreen({teams,playerTeam,onComplete}){
   const picksByRound=useMemo(()=>{
     const m={}; for(let r=1;r<=6;r++) m[r]=order.map(tk=>drafted.find(p=>p.round===r&&p.teamKey===tk)||null); return m;
   },[drafted,order]);
+  useEffect(()=>{if(!selected)return;const fresh=prospects.find(p=>p.id===selected.id);if(fresh)setSelected(fresh);},[prospects]);
+  const updateProspect=(playerId,updater)=>setProspects(prev=>prev.map(p=>p.id===playerId?updater({...p}):p));
+  const applyDraftValue=(key,val)=>selected&&updateProspect(selected.id,p=>({...p,p:{...(p.p||{}),[key]:cl(Number(val)||0,1,130)}}));
+  const applyDraftMat=mat=>selected&&updateProspect(selected.id,p=>({...p,mat}));
+  const toggleDraftSpecial=sp=>selected&&updateProspect(selected.id,p=>{const has=(p.specials||[]).some(s=>s.id===sp.id);return {...p,specials:has?(p.specials||[]).filter(s=>s.id!==sp.id):[...(p.specials||[]),sp]};});
+  const addDraftPos=pos=>selected&&updateProspect(selected.id,p=>{if(p.isP) return p;const cur=p.positions&&p.positions.length?p.positions:[{pos:p.pos,apt:100}];if(cur.some(x=>x.pos===pos))return p;return {...p,positions:[...cur,{pos,apt:60}]};});
+  const removeDraftPos=pos=>selected&&updateProspect(selected.id,p=>{if(p.isP)return p;const cur=(p.positions&&p.positions.length?p.positions:[{pos:p.pos,apt:100}]).filter(x=>x.pos!==pos);if(cur.length===0)return p;return {...p,pos:cur.some(x=>x.pos===p.pos)?p.pos:cur[0].pos,positions:cur};});
   return <div style={{minHeight:'100vh',background:'#050a12',color:'white',fontFamily:"'Noto Sans JP',sans-serif",padding:24}}><Font/><div style={{maxWidth:1260,margin:'0 auto'}}>
-    <div style={{display:'flex',justifyContent:'space-between',alignItems:'end',marginBottom:16}}><div><div style={{fontSize:28,fontWeight:900}}>ドラフト会議</div><div style={{fontSize:12,color:'#4a6a8a'}}>第{round}巡指名 / いつでも以降を自動指名で終了可能</div></div><div style={{display:'flex',gap:8}}><Btn onClick={()=>finishDraft(true)} sm style={{background:'#1a2535'}}>以降は自動指名で終了</Btn><Btn onClick={handleMyPick} color={TINFO[playerTeam].c} disabled={!selected}>この選手を指名</Btn></div></div>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'end',marginBottom:16}}><div><div style={{fontSize:28,fontWeight:900}}>ドラフト会議</div><div style={{fontSize:12,color:'#4a6a8a'}}>第{round}巡指名 / いつでも以降を自動指名で終了可能</div></div><div style={{display:'flex',gap:8}}><Btn onClick={()=>setDraftDebugMode(v=>!v)} sm style={{background:draftDebugMode?'#6a3a1a':'#10273b',border:'1px solid '+(draftDebugMode?'#ffb74d':'#244d71'),color:draftDebugMode?'#ffcc80':'#8eb3d6'}}>ドラフトデバッグ {draftDebugMode?'ON':'OFF'}</Btn><Btn onClick={()=>finishDraft(true)} sm style={{background:'#1a2535'}}>以降は自動指名で終了</Btn><Btn onClick={handleMyPick} color={TINFO[playerTeam].c} disabled={!selected}>この選手を指名</Btn></div></div>
     <div style={{display:'grid',gridTemplateColumns:'1.3fr 1fr',gap:18}}>
       <div>
         <Card style={{marginBottom:14}}><SectionTitle>候補選手</SectionTitle><div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:8}}>{visibleProspects.map(p=>{const isSel=selected?.id===p.id;const ovr=Math.round(p.isP?calcOVR(p):calcOVR(p,p.pos));return <div key={p.id} onClick={()=>setSelected(isSel?null:p)} style={{padding:'10px 12px',background:isSel?TINFO[playerTeam].c+'22':'#0a1218',border:`1px solid ${isSel?TINFO[playerTeam].c:'#1a2535'}`,borderRadius:8,cursor:'pointer'}}><div style={{display:'flex',justifyContent:'space-between',gap:8}}><div><div style={{fontSize:13,fontWeight:700}}>{p.name}</div><div style={{fontSize:10,color:'#4a6a8a'}}>{p.isP?p.role:p.pos} / {p.age}歳 / {p.note}</div></div><div style={{fontSize:16,fontWeight:900,color:ovrColor(ovr)}}>{ovr}</div></div></div>;})}</div></Card>
+        {draftDebugMode&&selected&&<Card style={{marginBottom:14,borderColor:'#6a3a1a',background:'#1c140a'}}>
+          <SectionTitle style={{color:'#ffb74d'}}>ドラフト候補デバッグ編集</SectionTitle>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+            <div>{(selected.isP?['vel','ctrl','stam','nobi','fld']:['cf','cb','pw','dc','sp','df','arm','stam',...(selected.pos==='捕手'?['ld']:[])]).map(k=><label key={k} style={{display:'grid',gridTemplateColumns:'40px 1fr 40px',gap:6,alignItems:'center',fontSize:10,marginBottom:4}}><span style={{color:'#ffcc80'}}>{pja(k)}</span><input type='range' min='1' max='130' value={Math.round(selected.p?.[k]||0)} onChange={e=>applyDraftValue(k,e.target.value)} /><input type='number' min='1' max='130' value={Math.round(selected.p?.[k]||0)} onChange={e=>applyDraftValue(k,e.target.value)} style={{background:'#0a1218',color:'#fff',border:'1px solid #6a3a1a',borderRadius:4,padding:'2px 4px',fontSize:10}}/></label>)}
+            <div style={{display:'flex',alignItems:'center',gap:8,marginTop:6}}><span style={{fontSize:10,color:'#ffcc80'}}>成長型</span><select value={selected.mat||'通常'} onChange={e=>applyDraftMat(e.target.value)} style={{background:'#0a1218',color:'#fff',border:'1px solid #6a3a1a',borderRadius:5,padding:'4px 8px',fontSize:11}}>{MATURITY.map(m=><option key={m} value={m}>{m}</option>)}</select></div></div>
+            <div>{!selected.isP&&<div style={{marginBottom:8}}><div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:4}}>{(selected.positions||[{pos:selected.pos,apt:100}]).map(pp=><button key={pp.pos} onClick={()=>removeDraftPos(pp.pos)} style={{background:'#0a1218',color:'#90CAF9',border:'1px solid #244d71',borderRadius:999,padding:'2px 7px',fontSize:10,cursor:'pointer'}}>{pp.pos} ×</button>)}</div><div style={{display:'flex',gap:4,flexWrap:'wrap'}}>{FPOS.filter(pos=>!(selected.positions||[]).some(pp=>pp.pos===pos)).map(pos=><button key={pos} onClick={()=>addDraftPos(pos)} style={{background:'#10273b',color:'#8eb3d6',border:'1px solid #244d71',borderRadius:999,padding:'2px 7px',fontSize:10,cursor:'pointer'}}>+{pos}</button>)}</div></div>}
+              <div style={{display:'flex',gap:4,flexWrap:'wrap',maxHeight:160,overflowY:'auto'}}>{ALL_SPECIALS.map(sp=>{const active=(selected.specials||[]).some(s=>s.id===sp.id);return <button key={sp.id} onClick={()=>toggleDraftSpecial(sp)} style={{background:active?sp.c+'33':'#10273b',color:active?sp.c:'#8eb3d6',border:`1px solid ${active?sp.c:'#244d71'}`,borderRadius:999,padding:'2px 7px',fontSize:10,cursor:'pointer'}}>{sp.n}</button>;})}</div>
+            </div>
+          </div>
+        </Card>}
         <Card><SectionTitle>あなたの指名</SectionTitle>{myPicks.length===0?<div style={{fontSize:12,color:'#4a6a8a'}}>まだ指名していません</div>:<div style={{display:'flex',flexDirection:'column',gap:6}}>{myPicks.map((p,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',padding:'8px 10px',background:'#0f2233',border:'1px solid #1d3a52',borderRadius:7}}><div><b>{p.round}巡</b> {p.name}</div><div style={{color:'#4a6a8a'}}>{p.isP?p.role:p.pos}</div></div>)}</div>}</Card>
       </div>
       <Card><SectionTitle>全球団指名一覧</SectionTitle><div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}><thead><tr style={{borderBottom:'1px solid #1a2535'}}><th style={{padding:'6px 8px',textAlign:'left',color:'#4a6a8a'}}>巡</th>{order.map(tk=><th key={tk} style={{padding:'6px 8px',textAlign:'left',color:TINFO[tk].c}}>{TINFO[tk].ab}</th>)}</tr></thead><tbody>{Object.entries(picksByRound).map(([r,row])=><tr key={r} style={{borderBottom:'1px solid #050a12'}}><td style={{padding:'6px 8px',color:'#4a6a8a'}}>{r}</td>{row.map((p,idx)=><td key={idx} style={{padding:'6px 8px'}}>{p?<><div style={{fontWeight:600,color:p.teamKey===playerTeam?TINFO[playerTeam].c:'white'}}>{p.name}</div><div style={{fontSize:10,color:'#4a6a8a'}}>{p.isP?p.role:p.pos}</div></>:'—'}</td>)}</tr>)}</tbody></table></div></Card>
@@ -1236,7 +1308,7 @@ function PostseasonScreen({teams,standings,onComplete}){
   return <div style={{minHeight:'100vh',background:'#050a12',color:'white',fontFamily:"'Noto Sans JP',sans-serif",padding:24}}><Font/><div style={{maxWidth:980,margin:'0 auto'}}><div style={{display:'flex',alignItems:'center',gap:12,marginBottom:16}}><div><div style={{fontSize:24,fontWeight:900}}>ポストシーズン</div><div style={{fontSize:12,color:'#4a6a8a',marginTop:4}}>{stage==='start'?'CS開始前':stage==='league_done'?'日本シリーズ待ち':'ポストシーズン終了'}</div></div><div style={{marginLeft:'auto',display:'flex',gap:8}}>{stage!=='done'&&<Btn onClick={simulateRound}>{stage==='start'?'CSをシミュレート':'日本シリーズをシミュレート'}</Btn>}{stage==='done'&&<Btn onClick={onComplete}>オフシーズンへ</Btn>}</div></div>{stage==='start'&&<Card><SectionTitle>出場球団</SectionTitle><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}><div><div style={{fontSize:13,fontWeight:700,marginBottom:8}}>セ・リーグ</div>{rankLeague(CENTRAL).map((k,i)=><div key={k} style={{padding:'6px 0',fontSize:12}}>{i+1}. {TINFO[k].n}</div>)}</div><div><div style={{fontSize:13,fontWeight:700,marginBottom:8}}>パ・リーグ</div>{rankLeague(PACIFIC).map((k,i)=><div key={k} style={{padding:'6px 0',fontSize:12}}>{i+1}. {TINFO[k].n}</div>)}</div></div></Card>}{results.central&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginTop:16}}><div><SeriesCard title="セ・リーグ CS 1st" series={results.central.first}/><SeriesCard title="セ・リーグ CS Final" series={results.central.final}/></div><div><SeriesCard title="パ・リーグ CS 1st" series={results.pacific.first}/><SeriesCard title="パ・リーグ CS Final" series={results.pacific.final}/></div></div>}{results.japan&&<div style={{marginTop:16}}><SeriesCard title="日本シリーズ" series={results.japan}/></div>}</div></div>;
 }
 
-function OffseasonScreen({teams,playerTeam,season,onComplete,retiredPlayers}){
+function OffseasonScreen({teams,playerTeam,season,onComplete,retiredPlayers,debugMode=false}){
   const [phase,setPhase]=useState('growth');
   const [growthData,setGrowthData]=useState(null);
   const [retireList,setRetireList]=useState([]);
@@ -1274,7 +1346,7 @@ function OffseasonScreen({teams,playerTeam,season,onComplete,retiredPlayers}){
   {phase==='fa'&&<MarketScreen title='FA市場' players={faMarket} teamKey={playerTeam} accent={pInfo.c} subtitle='国内FA候補です。獲得するとすぐに自チームへ加入します。' onSign={signFA} onNext={()=>{const sim=cpuAutoSignMarketRounds(workTeams,faMarket,'fa',4); setWorkTeams(sim.teams); setFaMarket(sim.remaining); setPhase('foreign');}} />}
   {phase==='foreign'&&<MarketScreen title='外国人補強' players={foreignMarket} teamKey={playerTeam} accent={pInfo.c} subtitle='外国人候補です。長打力やパワー、救援の即戦力が出やすくなっています。' onSign={signForeign} onNext={()=>{const sim=cpuAutoSignMarketRounds(workTeams,foreignMarket,'foreign',4); const traded=cpuAutoTradeBetweenTeams(sim.teams,playerTeam,8); setWorkTeams(traded); setForeignMarket(sim.remaining); setTradeOffers(genTradeOffers(traded,playerTeam)); setPhase('trade');}} />}
   {phase==='trade'&&<TradeScreen offers={tradeOffers} onAccept={acceptTrade} onSkip={()=>{const traded=cpuAutoTradeBetweenTeams(workTeams,playerTeam,3); setWorkTeams(traded); setPhase('draft');}} playerTeam={playerTeam} />}
-  {phase==='draft'&&<DraftScreen teams={workTeams} playerTeam={playerTeam} onComplete={(draftedTeams,drafted)=>onComplete(draftedTeams,drafted,{awakeEvents:growthData.awakeEvents.filter(e=>e.tk===playerTeam)},newRetiredList)} />}
+  {phase==='draft'&&<DraftScreen teams={workTeams} playerTeam={playerTeam} debugMode={debugMode} onComplete={(draftedTeams,drafted)=>onComplete(draftedTeams,drafted,{awakeEvents:growthData.awakeEvents.filter(e=>e.tk===playerTeam)},newRetiredList)} />}
   </div></div>;
 }
 
@@ -1285,25 +1357,28 @@ function BoxScore({game,playerTeam,onOpenPlayer}){if(!game)return null;const hom
    APP
 ═══════════════════════════════════════════════════════ */
 function NPBSimulator(){
-  const [loading,setLoading]=useState(true);const [screen,setScreen]=useState('init');const [seasonView,setSeasonView]=useState('home');const [teams,setTeams]=useState(null);const [playerTeam,setPlayerTeam]=useState(null);const [lineup,setLineup]=useState(null);const [season,setSeason]=useState({year:2026,schedule:[]});const [rotN,setRotN]=useState({});const [standings,setStandings]=useState(calcStandings([]));const [accumulated,setAccumulated]=useState({});const [leagueAccumulated,setLeagueAccumulated]=useState({});const [careerAccumulated,setCareerAccumulated]=useState({});const [leagueCareerAccumulated,setLeagueCareerAccumulated]=useState({});const [yearlyStats,setYearlyStats]=useState({});const [retiredPlayers,setRetiredPlayers]=useState([]);const [saveStatus,setSaveStatus]=useState('');const [lastGame,setLastGame]=useState(null);const [notices,setNotices]=useState([]);const [inspectPlayer,setInspectPlayer]=useState(null);const [debugMode,setDebugMode]=useState(false);
-  useEffect(()=>{(async()=>{const sv=await loadGame();if(sv){setTeams(sv.teams);setPlayerTeam(sv.playerTeam);setSeason(sv.season);setRotN(sv.rotN);setLineup(sv.lineup);setStandings(sv.standings);setAccumulated(sv.accumulated||{});setLeagueAccumulated(sv.leagueAccumulated||{});setCareerAccumulated(sv.careerAccumulated||{});setLeagueCareerAccumulated(sv.leagueCareerAccumulated||{});setYearlyStats(sv.yearlyStats||{});setRetiredPlayers(sv.retiredPlayers||[]);setNotices(sv.notices||[]);setScreen(sv.playerTeam?'season':'teamSelect');}setLoading(false);})();},[]);
+  const [loading,setLoading]=useState(true);const [screen,setScreen]=useState('init');const [seasonView,setSeasonView]=useState('home');const [teams,setTeams]=useState(null);const [playerTeam,setPlayerTeam]=useState(null);const [viewTeam,setViewTeam]=useState(null);const [lineup,setLineup]=useState(null);const [season,setSeason]=useState({year:2026,schedule:[]});const [rotN,setRotN]=useState({});const [standings,setStandings]=useState(calcStandings([]));const [accumulated,setAccumulated]=useState({});const [leagueAccumulated,setLeagueAccumulated]=useState({});const [careerAccumulated,setCareerAccumulated]=useState({});const [leagueCareerAccumulated,setLeagueCareerAccumulated]=useState({});const [yearlyStats,setYearlyStats]=useState({});const [retiredPlayers,setRetiredPlayers]=useState([]);const [saveStatus,setSaveStatus]=useState('');const [lastGame,setLastGame]=useState(null);const [notices,setNotices]=useState([]);const [inspectPlayer,setInspectPlayer]=useState(null);const [debugMode,setDebugMode]=useState(false);
+  useEffect(()=>{(async()=>{const sv=await loadGame();if(sv){setTeams(sv.teams);setPlayerTeam(sv.playerTeam);setViewTeam(sv.viewTeam||sv.playerTeam);setSeason(sv.season);setRotN(sv.rotN);setLineup(sv.lineup);setStandings(sv.standings);setAccumulated(sv.accumulated||{});setLeagueAccumulated(sv.leagueAccumulated||{});setCareerAccumulated(sv.careerAccumulated||{});setLeagueCareerAccumulated(sv.leagueCareerAccumulated||{});setYearlyStats(sv.yearlyStats||{});setRetiredPlayers(sv.retiredPlayers||[]);setNotices(sv.notices||[]);setScreen(sv.playerTeam?'season':'teamSelect');}setLoading(false);})();},[]);
   const nextGame=useMemo(()=>season.schedule.find(g=>!g.played&&(g.homeKey===playerTeam||g.awayKey===playerTeam)),[season,playerTeam]);
   const myRecord=playerTeam?standings[playerTeam]:null;
+  const activeViewTeam=viewTeam||playerTeam;
   const teamPlayers=useMemo(()=>playerTeam&&teams?[...teams[playerTeam].fielders,...teams[playerTeam].pitchers]:[],[teams,playerTeam]);
+  const viewedTeamPlayers=useMemo(()=>activeViewTeam&&teams?[...teams[activeViewTeam].fielders,...teams[activeViewTeam].pitchers]:[],[teams,activeViewTeam]);
   const allPlayersIndex=useMemo(()=>{const m={};Object.values(teams||{}).forEach(t=>{[...(t.fielders||[]),...(t.pitchers||[])].forEach(p=>{m[p.id]=p;});});return m;},[teams]);
   const battingStats=useMemo(()=>Object.entries(accumulated).filter(([,s])=>s.type==='bat').map(([id,s])=>({id,...s,avg:avg(s.ab,s.h)})).sort((a,b)=>b.h-a.h),[accumulated]);
   const pitchingStats=useMemo(()=>Object.entries(accumulated).filter(([,s])=>s.type==='pit').map(([id,s])=>({id,...s,era:era(s.ip3,s.er)})).sort((a,b)=>a.er-b.er),[accumulated]);
   accumulatedGlobal=accumulated;
   useEffect(()=>{ if(typeof window!=='undefined') window.__openPlayerDetail=(p)=>setInspectPlayer(p); return ()=>{ if(typeof window!=='undefined') delete window.__openPlayerDetail; }; },[]);
   useEffect(()=>{if(!teams||!playerTeam)return;setLineup(prev=>reconcileLineup(teams[playerTeam],prev));},[teams,playerTeam]);
+  useEffect(()=>{if(playerTeam&&!viewTeam)setViewTeam(playerTeam);},[playerTeam,viewTeam]);
 
   const handleInit=()=>{setTeams(initTeams());setScreen('teamSelect');};
-  const handleChooseTeam=tk=>{setLoading(true);setTimeout(()=>{const t=initTeams();const sched=generateSchedule(2026);const prep=simCpuUntilNext(sched,{...t,_accumulated:{}},Object.fromEntries(Object.keys(TINFO).map(k=>[k,0])),tk);setTeams(t);setPlayerTeam(tk);setLineup(reconcileLineup(t[tk],null));setSeason({year:2026,schedule:prep.sched});setRotN(prep.rotN);setStandings(calcStandings(prep.sched));setAccumulated({});setLeagueAccumulated(prep.leagueDistStats||{});setCareerAccumulated({});setLeagueCareerAccumulated(prep.leagueDistStats||{});setLastGame(null);setNotices([{title:`${TINFO[tk].ab}で新規開始`,body:'球団選択を完了しました。まずは編成を確認してから試合準備へ進めます。',tone:'good'}]);setScreen('season');setLoading(false);},10);};
+  const handleChooseTeam=tk=>{setLoading(true);setTimeout(()=>{const t=initTeams();const sched=generateSchedule(2026);const prep=simCpuUntilNext(sched,{...t,_accumulated:{}},Object.fromEntries(Object.keys(TINFO).map(k=>[k,0])),tk);setTeams(t);setPlayerTeam(tk);setViewTeam(tk);setLineup(reconcileLineup(t[tk],null));setSeason({year:2026,schedule:prep.sched});setRotN(prep.rotN);setStandings(calcStandings(prep.sched));setAccumulated({});setLeagueAccumulated(prep.leagueDistStats||{});setCareerAccumulated({});setLeagueCareerAccumulated(prep.leagueDistStats||{});setLastGame(null);setNotices([{title:`${TINFO[tk].ab}で新規開始`,body:'球団選択を完了しました。まずは編成を確認してから試合準備へ進めます。',tone:'good'}]);setScreen('season');setLoading(false);},10);};
   const handleSimGame=useCallback(()=>{if(!teams||!playerTeam||!nextGame)return;setLoading(true);setTimeout(()=>{const simTeams={...teams,_accumulated:accumulated};const gr=simulateGame(nextGame.homeKey,nextGame.awayKey,simTeams,nextGame.homeKey===playerTeam?lineup:null,nextGame.awayKey===playerTeam?lineup:null,rotN[nextGame.homeKey]||0,rotN[nextGame.awayKey]||0);const sched=season.schedule.map(g=>g.id===nextGame.id?{...g,played:true,hs:gr.score.home,as:gr.score.away}:g);const nr={...rotN,[nextGame.homeKey]:(rotN[nextGame.homeKey]||0)+1,[nextGame.awayKey]:(rotN[nextGame.awayKey]||0)+1};const newAcc=accumulateStats(gr,playerTeam,accumulated);let newLeagueAcc=accumulateStatsAll(gr,leagueAccumulated);const newCareerAcc=accumulateStats(gr,playerTeam,careerAccumulated);let newLeagueCareerAcc=accumulateStatsAll(gr,leagueCareerAccumulated);const fatiguedTeams=applyTeamFatigue(teams,gr,playerTeam);const injuredTeams=applyInjuriesFromFatigue(fatiguedTeams,1);const nextTeams={...injuredTeams};const playerAwEvents=[];Object.keys(injuredTeams).forEach(tk=>{if(!injuredTeams[tk]?.pitchers)return;const aw=applyInSeasonAwakening(injuredTeams[tk]);nextTeams[tk]=aw.team;if(tk===playerTeam)playerAwEvents.push(...aw.events);});const injuryNotices=collectNewInjuryNotices(teams,nextTeams,playerTeam).map(n=>({...n,date:fmtD(nextGame.date)}));const cpu=simCpuUntilNext(sched,nextTeams,nr,playerTeam);newLeagueAcc=mergeStatMaps(newLeagueAcc,cpu.leagueDistStats);newLeagueCareerAcc=mergeStatMaps(newLeagueCareerAcc,cpu.leagueDistStats);// 時々CPU間トレード
 let finalTeams=nextTeams;if(_r()<0.08){const res=applyCpuTrades(nextTeams,playerTeam);finalTeams=res.teams;}setTeams(finalTeams);setLineup(prev=>reconcileLineup(finalTeams[playerTeam],prev));setSeason(s=>({...s,schedule:cpu.sched}));setRotN(cpu.rotN);setStandings(calcStandings(cpu.sched));setAccumulated(newAcc);setLeagueAccumulated(newLeagueAcc);setCareerAccumulated(newCareerAcc);setLeagueCareerAccumulated(newLeagueCareerAcc);if(playerAwEvents.length||injuryNotices.length){setNotices(prev=>[...injuryNotices,...playerAwEvents.map(e=>({...awakeningNotice(e,e.isBreakthrough?'大化け':'覚醒'),date:fmtD(nextGame.date)})),...prev].slice(0,12));}setLastGame(gr);setScreen('season');setLoading(false);},30);},[teams,playerTeam,nextGame,lineup,rotN,season,accumulated,leagueAccumulated,careerAccumulated,leagueCareerAccumulated]);
   const handleSkip=useCallback((mode)=>{if(!teams||!playerTeam)return;setLoading(true);setTimeout(()=>{const span=mode==='month'?30:mode==='week'?7:1;const restedTeams=recoverTeamsStatus(teams,mode==='month'?11:mode==='week'?12:14,mode==='month'?7:mode==='week'?7:6,span);const x=skipGames(season.schedule,{...restedTeams,_accumulated:accumulated},rotN,playerTeam,mode);const merged=mergeStatMaps(accumulated,x.distStats);const mergedLeague=mergeStatMaps(leagueAccumulated,x.leagueDistStats);const mergedCareer=mergeStatMaps(careerAccumulated,x.distStats);const mergedLeagueCareer=mergeStatMaps(leagueCareerAccumulated,x.leagueDistStats);const wornTeams=applySkipFatigue(restedTeams,season.schedule,x.sched);const injuredTeams=applyInjuriesFromFatigue(wornTeams,span);const nextTeams={...injuredTeams};const playerAwEvents=[];Object.keys(injuredTeams).forEach(tk=>{if(!injuredTeams[tk]||typeof injuredTeams[tk]!=='object'||!injuredTeams[tk].pitchers)return;const aw=applyInSeasonAwakening(injuredTeams[tk]);nextTeams[tk]=aw.team;if(tk===playerTeam)playerAwEvents.push(...aw.events);});const injuryNotices=collectNewInjuryNotices(teams,nextTeams,playerTeam);// 1週/1ヶ月スキップ時にCPU間トレード
 let finalTeams=nextTeams;const tradeNotices=[];if(mode==='month'||(_r()<0.35&&mode==='week')){const res=applyCpuTrades(nextTeams,playerTeam);finalTeams=res.teams;if(res.count>0)tradeNotices.push({title:`他球団間トレード成立`,body:`${res.count}件のトレードが交わされました`,tone:'info',date:fmtD(x.sched.find(g=>g.played&&(g.homeKey===playerTeam||g.awayKey===playerTeam))?.date||'')});}const skippedDate=x.sched.filter(g=>g.played&&(g.homeKey===playerTeam||g.awayKey===playerTeam)).slice(-1)[0]?.date||'';setTeams(finalTeams);setLineup(prev=>reconcileLineup(finalTeams[playerTeam],prev));setSeason(s=>({...s,schedule:x.sched}));setRotN(x.rotN);setStandings(calcStandings(x.sched));setAccumulated(merged);setLeagueAccumulated(mergedLeague);setCareerAccumulated(mergedCareer);setLeagueCareerAccumulated(mergedLeagueCareer);if(playerAwEvents.length||injuryNotices.length||tradeNotices.length){setNotices(prev=>[...tradeNotices,...injuryNotices.map(n=>({...n,date:fmtD(skippedDate)})),...playerAwEvents.map(e=>({...awakeningNotice(e,e.isBreakthrough?'大化け':'覚醒'),date:fmtD(skippedDate)})),...prev].slice(0,12));}setLoading(false);},30);},[teams,playerTeam,season,rotN,accumulated,leagueAccumulated,careerAccumulated,leagueCareerAccumulated]);
-  const handleSave=useCallback(async()=>{const ok=await saveGame({teams,playerTeam,season,rotN,lineup,standings,accumulated,leagueAccumulated,careerAccumulated,leagueCareerAccumulated,yearlyStats,retiredPlayers,notices});setSaveStatus(ok?'✓ 完了':'✗ 失敗');setTimeout(()=>setSaveStatus(''),2000);},[teams,playerTeam,season,rotN,lineup,standings,accumulated,leagueAccumulated,careerAccumulated,leagueCareerAccumulated,yearlyStats,retiredPlayers,notices]);
+  const handleSave=useCallback(async()=>{const ok=await saveGame({teams,playerTeam,viewTeam,season,rotN,lineup,standings,accumulated,leagueAccumulated,careerAccumulated,leagueCareerAccumulated,yearlyStats,retiredPlayers,notices});setSaveStatus(ok?'✓ 完了':'✗ 失敗');setTimeout(()=>setSaveStatus(''),2000);},[teams,playerTeam,viewTeam,season,rotN,lineup,standings,accumulated,leagueAccumulated,careerAccumulated,leagueCareerAccumulated,yearlyStats,retiredPlayers,notices]);
   const isSeasonOver=season.schedule.length>0&&season.schedule.every(g=>g.played);
   const pInfo=playerTeam?TINFO[playerTeam]:null;
   const currentTeamOVR=useMemo(()=>playerTeam&&teams&&lineup?teamOVR(teams[playerTeam],lineup):0,[playerTeam,teams,lineup]);const winColor=(myRecord?.pct||0)>=0.550?'#46e89a':(myRecord?.pct||0)>=0.450?'#f3f7ff':'#ff6b81';const rankColor=myRecord?.rank===1?'#ffd84d':myRecord?.rank===2?'#d7dde8':myRecord?.rank===3?'#d78b52':(myRecord?.rank||9)<=3?'#59c3ff':'#f3f7ff';
@@ -1312,12 +1387,27 @@ let finalTeams=nextTeams;const tradeNotices=[];if(mode==='month'||(_r()<0.35&&mo
     setTeams(prev=>({...prev,[playerTeam]:nextTeam}));
     setLineup(prev=>reconcileLineup(nextTeam,prev));
   },[playerTeam]);
+  const handleDebugUpdateAnyPlayer=useCallback((playerId,updater)=>{
+    setTeams(prev=>{
+      if(!prev) return prev;
+      const out={...prev};
+      Object.keys(out).forEach(tk=>{
+        const t=out[tk];
+        if(!t) return;
+        let touched=false;
+        const pitchers=(t.pitchers||[]).map(p=>{if(p.id!==playerId)return p;touched=true;return updater({...p,tk});});
+        const fielders=(t.fielders||[]).map(p=>{if(p.id!==playerId)return p;touched=true;return updater({...p,tk});});
+        if(touched) out[tk]={...t,pitchers,fielders};
+      });
+      return out;
+    });
+  },[]);
 
   if(loading)return<div style={{minHeight:'100vh',background:'#050a12',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontFamily:"'Noto Sans JP',sans-serif"}}><Font/><div style={{textAlign:'center'}}><div style={{fontSize:52,marginBottom:12,animation:'spin 0.8s linear infinite'}}>⚾</div><style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style><div style={{fontSize:14,color:'#3a5a7a'}}>処理中...</div></div></div>;
   if(screen==='init')return<div style={{minHeight:'100vh',background:'linear-gradient(160deg,#050a12 0%,#0d1828 60%,#050a12 100%)',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'Noto Sans JP',sans-serif"}}><Font/><div style={{textAlign:'center',color:'white',maxWidth:520,padding:'0 24px'}}><div style={{fontSize:72,marginBottom:8,filter:'drop-shadow(0 4px 24px #FF6D0055)'}}>⚾</div><h1 style={{fontSize:28,fontWeight:900,margin:'0 0 6px',letterSpacing:'-0.02em',lineHeight:1.2}}>NPB ペナントシミュレーター</h1><p style={{fontSize:13,color:'#3a5a7a',margin:'14px 0 28px',lineHeight:1.9}}>12球団・架空選手で贈るNPBシミュレーション。<br/>戦略的な編成と育成でリーグ制覇を目指せ。</p><Btn onClick={handleInit} style={{fontSize:15,padding:'12px 36px'}}>新規ゲーム開始</Btn><p style={{fontSize:11,color:'#1a2a3a',marginTop:14}}>セーブデータがある場合は自動ロードされます</p></div></div>;
   if(screen==='teamSelect')return<div style={{minHeight:'100vh',background:'#04090f',color:'#f3f7ff',fontFamily:"'Noto Sans JP',sans-serif",padding:24}}><Font/><div style={{maxWidth:900,margin:'0 auto'}}><div style={{marginBottom:20}}><div style={{fontSize:30,fontWeight:900}}>チーム選択</div><div style={{fontSize:12,color:'#4a6a8a'}}>好きな球団でペナントを開始</div></div><SectionTitle>Central League</SectionTitle><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:12,marginBottom:22}}>{CENTRAL.map(k=><Card key={k} style={{cursor:'pointer',borderColor:TINFO[k].c}}><div style={{fontSize:18,fontWeight:900,color:TINFO[k].c,marginBottom:6}}>{TINFO[k].ab}</div><div style={{fontSize:14,fontWeight:700,marginBottom:10}}>{TINFO[k].n}</div><div style={{fontSize:11,color:'#4a6a8a',marginBottom:12}}>初期地力 {TINFO[k].bd}</div><Btn onClick={()=>handleChooseTeam(k)} color={TINFO[k].c} style={{width:'100%'}}>この球団で開始</Btn></Card>)}</div><SectionTitle>Pacific League</SectionTitle><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:12}}>{PACIFIC.map(k=><Card key={k} style={{cursor:'pointer',borderColor:TINFO[k].c}}><div style={{fontSize:18,fontWeight:900,color:TINFO[k].c,marginBottom:6}}>{TINFO[k].ab}</div><div style={{fontSize:14,fontWeight:700,marginBottom:10}}>{TINFO[k].n}</div><div style={{fontSize:11,color:'#4a6a8a',marginBottom:12}}>初期地力 {TINFO[k].bd}</div><Btn onClick={()=>handleChooseTeam(k)} color={TINFO[k].c} style={{width:'100%'}}>この球団で開始</Btn></Card>)}</div></div></div>;
   if(screen==='postseason'&&teams&&playerTeam)return<PostseasonScreen teams={teams} standings={standings} onComplete={()=>{setTeams(prev=>applySeasonAwards(prev,leagueAccumulated,standings,season.year));setScreen('offseason');}}/>;
-  if(screen==='offseason'&&teams&&playerTeam)return<OffseasonScreen teams={teams} playerTeam={playerTeam} season={season} retiredPlayers={retiredPlayers} onComplete={(newTeams,drafted,report,newRetired)=>{const nextYear=season.year+1;const sched=generateSchedule(nextYear);// CPU間トレードをオフシーズンに積極実行
+  if(screen==='offseason'&&teams&&playerTeam)return<OffseasonScreen teams={teams} playerTeam={playerTeam} season={season} retiredPlayers={retiredPlayers} debugMode={debugMode} onComplete={(newTeams,drafted,report,newRetired)=>{const nextYear=season.year+1;const sched=generateSchedule(nextYear);// CPU間トレードをオフシーズンに積極実行
 const tradedTeams=cpuAutoTradeBetweenTeams(newTeams,playerTeam,8);const prep=simCpuUntilNext(sched,tradedTeams,Object.fromEntries(Object.keys(TINFO).map(k=>[k,0])),playerTeam);setTeams(tradedTeams);setSeason({year:nextYear,schedule:prep.sched});setRotN(prep.rotN);setStandings(calcStandings(prep.sched));setLineup(prev=>reconcileLineup(tradedTeams[playerTeam],prev));// 年度別成績を保存
 const newYearly={...yearlyStats};Object.values(tradedTeams).forEach(t=>{[...(t.fielders||[]),...(t.pitchers||[])].forEach(p=>{const stats=leagueCareerAccumulated?.[p.id];if(!stats)return;if(!newYearly[p.id])newYearly[p.id]=[];const alreadyHasYear=newYearly[p.id].some(yr=>yr.year===season.year);if(!alreadyHasYear)newYearly[p.id].push({year:season.year,teamKey:p.tk,stats:{...stats}});});});// 引退選手を追加
 const mergedRetired=[...retiredPlayers];(newRetired||[]).forEach(r=>{if(!mergedRetired.some(x=>x.id===r.id))mergedRetired.push(r);});setYearlyStats(newYearly);setRetiredPlayers(mergedRetired);setCareerAccumulated(careerAccumulated);setLeagueCareerAccumulated(mergeStatMaps(leagueCareerAccumulated,prep.leagueDistStats||{}));setAccumulated({});setLeagueAccumulated(prep.leagueDistStats||{});setNotices(prev=>{let out=[...prev];if(drafted?.length)out=[{title:`ドラフト完了`,body:`${drafted.filter(x=>x.teamKey===playerTeam).length}名を獲得`,tone:'good',date:`${nextYear}年春`},...out];if(report?.awakeEvents?.length)out=[...report.awakeEvents.slice(0,3).map(e=>({...awakeningNotice(e,e.isBreakthrough?'オフに大化け':'オフに覚醒'),date:`${season.year}年冬`})),...out];if(mergedRetired.length>retiredPlayers.length)out=[{title:`引退選手`,body:mergedRetired.slice(retiredPlayers.length).map(r=>r.name).join('、'),tone:'warn',date:`${season.year}年冬`},...out];return out.slice(0,12);});setScreen('season');}}/>;
@@ -1420,8 +1510,8 @@ const mergedRetired=[...retiredPlayers];(newRetired||[]).forEach(r=>{if(!mergedR
           <Card>
             <SectionTitle>順位表</SectionTitle>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-              <div><div style={{fontSize:12,fontWeight:900,color:'#90CAF9',marginBottom:6}}>セ・リーグ</div><StandingsTable standings={standings} league={CENTRAL} highlight={playerTeam}/></div>
-              <div><div style={{fontSize:12,fontWeight:900,color:'#90CAF9',marginBottom:6}}>パ・リーグ</div><StandingsTable standings={standings} league={PACIFIC} highlight={playerTeam}/></div>
+              <div><div style={{fontSize:12,fontWeight:900,color:'#90CAF9',marginBottom:6}}>セ・リーグ</div><StandingsTable standings={standings} league={CENTRAL} highlight={playerTeam} selectedTeam={activeViewTeam} onTeamClick={setViewTeam}/></div>
+              <div><div style={{fontSize:12,fontWeight:900,color:'#90CAF9',marginBottom:6}}>パ・リーグ</div><StandingsTable standings={standings} league={PACIFIC} highlight={playerTeam} selectedTeam={activeViewTeam} onTeamClick={setViewTeam}/></div>
             </div>
           </Card>
 
@@ -1446,9 +1536,10 @@ const mergedRetired=[...retiredPlayers];(newRetired||[]).forEach(r=>{if(!mergedR
       </div>}
 
       {seasonView==='lineup'&&<GroundLayout team={teams[playerTeam]} lineup={lineup} setLineup={setLineup} playerTeam={playerTeam} onTeamChange={handleTeamChange} accumulated={accumulated} debugMode={debugMode}/>}
-      {seasonView==='players'&&<RosterTable players={teamPlayers} accumulated={accumulated} teamColor={pInfo.c} onOpenPlayer={setInspectPlayer}/>}
-      {seasonView==='stats'&&<TeamSeasonStats players={teamPlayers} accumulated={accumulated} teamColor={pInfo.c} onOpenPlayer={setInspectPlayer} teams={teams} playerTeam={playerTeam} leagueAccumulated={leagueAccumulated}/>}
-      {seasonView==='career'&&<TeamCareerStats players={teamPlayers} careerAccumulated={careerAccumulated} teamColor={pInfo.c} onOpenPlayer={setInspectPlayer} retiredPlayers={retiredPlayers} currentYear={season.year}/>}
+      {(seasonView==='players'||seasonView==='stats'||seasonView==='career')&&<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10,padding:'0 2px'}}><div style={{fontSize:12,color:'#8eb3d6'}}>閲覧球団: <span style={{fontWeight:800,color:TINFO[activeViewTeam]?.c||'#fff'}}>{TINFO[activeViewTeam]?.n}</span></div><div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{[playerTeam,...Object.keys(TINFO).filter(k=>k!==playerTeam)].map(tk=><button key={tk} onClick={()=>setViewTeam(tk)} style={{background:activeViewTeam===tk?TINFO[tk].c+'33':'#10273b',color:activeViewTeam===tk?TINFO[tk].c:'#8eb3d6',border:`1px solid ${activeViewTeam===tk?TINFO[tk].c:'#244d71'}`,borderRadius:999,padding:'5px 9px',fontSize:10,cursor:'pointer',fontWeight:700}}>{TINFO[tk].ab}</button>)}</div></div>}
+      {seasonView==='players'&&<RosterTable players={viewedTeamPlayers} accumulated={leagueAccumulated} teamColor={TINFO[activeViewTeam]?.c||pInfo.c} onOpenPlayer={setInspectPlayer} debugMode={debugMode} onDebugUpdatePlayer={handleDebugUpdateAnyPlayer}/>}
+      {seasonView==='stats'&&<TeamSeasonStats players={viewedTeamPlayers} accumulated={leagueAccumulated} teamColor={TINFO[activeViewTeam]?.c||pInfo.c} onOpenPlayer={setInspectPlayer} teams={teams} playerTeam={playerTeam} leagueAccumulated={leagueAccumulated}/>}
+      {seasonView==='career'&&<TeamCareerStats players={viewedTeamPlayers} careerAccumulated={leagueCareerAccumulated} teamColor={TINFO[activeViewTeam]?.c||pInfo.c} onOpenPlayer={setInspectPlayer} retiredPlayers={retiredPlayers} currentYear={season.year}/>}
       {seasonView==='allstats'&&<AllLeagueStats leagueAccumulated={leagueAccumulated} teams={teams} playerTeam={playerTeam} onOpenPlayer={setInspectPlayer}/>}
       {seasonView==='leaders'&&<LeagueLeaders leagueAccumulated={leagueAccumulated} teams={teams} playerTeam={playerTeam} onOpenPlayer={setInspectPlayer}/>}
 
