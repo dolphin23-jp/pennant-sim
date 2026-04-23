@@ -57,11 +57,13 @@ const TRAIN_POLICIES=[
   {id:'control',n:'制球重視',forPit:true},
   {id:'stamina_t',n:'スタミナ重視',forPit:true},
 ];
-const PS=[{id:'nobi',n:'ノビ○',c:'#4CAF50',p:.12},{id:'heavy',n:'重い球',c:'#78909C',p:.10},{id:'kire',n:'キレ○',c:'#29B6F6',p:.10},{id:'po',n:'ピンチ◎',c:'#66BB6A',p:.08},{id:'px',n:'ピンチ×',c:'#EF5350',p:.08},{id:'low',n:'低め○',c:'#26A69A',p:.09},{id:'cnr',n:'コーナー○',c:'#7E57C2',p:.08},{id:'ldo',n:'先頭打者○',c:'#66BB6A',p:.07},{id:'ldx',n:'先頭打者×',c:'#EF5350',p:.07},{id:'gb',n:'ゴロ打たせ○',c:'#8D6E63',p:.09},{id:'kk',n:'奪三振',c:'#29B6F6',p:.08},{id:'tough',n:'疲れにくい',c:'#66BB6A',p:.07}];
-const BS=[{id:'avg',n:'アベレージ',c:'#4CAF50',p:.10},{id:'spray',n:'広角打法',c:'#4CAF50',p:.09},{id:'co',n:'チャンス◎',c:'#66BB6A',p:.09},{id:'cx',n:'チャンス×',c:'#EF5350',p:.08},{id:'eye',n:'選球眼○',c:'#42A5F5',p:.09},{id:'pull',n:'プルヒッター',c:'#FF7043',p:.08},{id:'run',n:'走塁センス',c:'#FF9800',p:.08},{id:'sb',n:'盗塁○',c:'#FF9800',p:.07},{id:'bnt',n:'バント○',c:'#90A4AE',p:.08},{id:'oppo',n:'流し打ち',c:'#AB47BC',p:.07},{id:'fbo',n:'初球○',c:'#66BB6A',p:.08},{id:'fbx',n:'初球×',c:'#EF5350',p:.07}];
-const CS2=[{id:'iron',n:'鉄人',c:'#9E9E9E',p:.06},{id:'win',n:'勝負強さ',c:'#FF9800',p:.08},{id:'ace',n:'対エース○',c:'#FFD700',p:.06}];
-const CATCH_SP=[{id:'ld_art',n:'配球の妙',c:'#CE93D8',p:.06},{id:'strong_arm',n:'強肩',c:'#78909C',p:.10}];
+const mkSp=(id,n,c,p,tierMax=5,rarity='normal')=>({id,n,c,p,tierMax,rarity});
+const PS=[mkSp('nobi','ノビ○','#4CAF50',.12),mkSp('heavy','重い球','#78909C',.10),mkSp('kire','キレ○','#29B6F6',.10),mkSp('po','ピンチ◎','#66BB6A',.08),mkSp('px','ピンチ×','#EF5350',.08),mkSp('low','低め○','#26A69A',.09),mkSp('cnr','コーナー○','#7E57C2',.08),mkSp('ldo','先頭打者○','#66BB6A',.07),mkSp('ldx','先頭打者×','#EF5350',.07),mkSp('gb','ゴロ打たせ○','#8D6E63',.09),mkSp('kk','奪三振','#29B6F6',.08),mkSp('tough','疲れにくい','#66BB6A',.07),mkSp('kk_gold','ドクターK','#FFD54F',.02,1,'gold')];
+const BS=[mkSp('avg','アベレージ','#4CAF50',.10),mkSp('spray','広角打法','#4CAF50',.09),mkSp('co','チャンス◎','#66BB6A',.09),mkSp('cx','チャンス×','#EF5350',.08),mkSp('eye','選球眼○','#42A5F5',.09),mkSp('pull','プルヒッター','#FF7043',.08),mkSp('run','走塁センス','#FF9800',.08),mkSp('sb','盗塁○','#FF9800',.07),mkSp('bnt','バント○','#90A4AE',.08),mkSp('oppo','流し打ち','#AB47BC',.07),mkSp('fbo','初球○','#66BB6A',.08),mkSp('fbx','初球×','#EF5350',.07),mkSp('slugger_gold','アーチスト','#FFD54F',.02,1,'gold')];
+const CS2=[mkSp('iron','鉄人','#9E9E9E',.06),mkSp('win','勝負強さ','#FF9800',.08),mkSp('ace','対エース○','#FFD700',.06)];
+const CATCH_SP=[mkSp('ld_art','配球の妙','#CE93D8',.06),mkSp('strong_arm','強肩','#78909C',.10)];
 const ALL_SPECIALS=[...PS,...BS,...CS2,...CATCH_SP];
+const SPECIAL_INDEX=Object.fromEntries(ALL_SPECIALS.map(s=>[s.id,s]));
 const PARAM_JA={vel:'球速',ctrl:'制球',stam:'スタミナ',nobi:'ノビ',fld:'守備(投)',cf:'直球対応',cb:'変化対応',pw:'長打力',dc:'選球眼',sp:'走力',df:'守備力',arm:'肩力',ld:'配球'};
 const pja=k=>PARAM_JA[k]||k;
 
@@ -93,7 +95,16 @@ function registerExistingNames(teams){
     [...(t?.fielders||[]),...(t?.pitchers||[])].forEach(p=>{if(p?.name)USED_NAMES.add(p.name);});
   });
 }
-const hsa=(p,id)=>(p.specials||[]).some(s=>s.id===id);
+const ensureSpecialLevels=p=>{
+  const fromLevels={...(p?.specialLevels||{})};
+  (p?.specials||[]).forEach(s=>{if(s?.id&&!fromLevels[s.id])fromLevels[s.id]=1;});
+  return fromLevels;
+};
+const spLv=(p,id)=>Math.max(0,Number((p?.specialLevels?.[id]??((p?.specials||[]).some(s=>s.id===id)?1:0)))||0);
+const hsa=(p,id)=>spLv(p,id)>0;
+const hasGold=(p,id)=>spLv(p,id)>0;
+const spMul=(p,id,perLv=0.05)=>1+spLv(p,id)*perLv;
+const syncSpecialsFromLevels=p=>({...p,specialLevels:ensureSpecialLevels(p),specials:Object.entries(ensureSpecialLevels(p)).filter(([,lv])=>lv>0).map(([id])=>SPECIAL_INDEX[id]||{id,n:id,c:'#90A4AE'})});
 const fmtD=(ds)=>{const d=new Date(ds+'T00:00:00');return`${d.getMonth()+1}/${d.getDate()}`;};
 const fmtIP=(ip3)=>{const f=Math.floor(ip3/3),r=ip3%3;return r?`${f}.${r}`:`${f}`;};
 const pct2=(w,l)=>w+l>0?(w/(w+l)).toFixed(3).replace(/^0/,''):'.---';
@@ -219,21 +230,30 @@ function genSubPos(primaryPos){
   };
   const subs=[{pos:primaryPos,apt:100}];for(const r of(rules[primaryPos]||[]))if(_r()<r.p)subs.push({pos:r.pos,apt:ri(r.a[0],r.a[1])});return subs;
 }
-function pickSp(pool,q){const res=[],cx=[['po','px'],['ldo','ldx'],['co','cx'],['fbo','fbx']];for(const sp of pool)if(_r()<sp.p*Math.sqrt(q/50)&&!cx.some(g=>g.includes(sp.id)&&g.some(x=>x!==sp.id&&res.some(r=>r.id===x))))res.push(sp);return res;}
+function pickSp(pool,q){
+  const levels={},cx=[['po','px'],['ldo','ldx'],['co','cx'],['fbo','fbx']];
+  const has=id=>(levels[id]||0)>0;
+  for(const sp of pool){
+    if(_r()>=sp.p*Math.sqrt(q/50)) continue;
+    if(cx.some(g=>g.includes(sp.id)&&g.some(x=>x!==sp.id&&has(x)))) continue;
+    levels[sp.id]=sp.rarity==='gold'?1:ri(1,Math.max(1,Math.min(sp.tierMax||5,Math.round(q/18))));
+  }
+  return levels;
+}
 function genPitcher(tk,age,q,roleHint){
   const mat=wrf(MATURITY,MATW),eq=q*amod(age,mat);const role=roleHint||(_r()<0.50?'先発':_r()<0.45?'リリーフ':'クローザー');
   const vel=cl(Math.round(gauss(eq*0.93,7)-(age>31?(age-31)*1.2:0)),25,115);const ctrl=cl(Math.round(gauss(eq*0.91,9)),20,112);const stam=role==='先発'?cl(Math.round(gauss(eq*0.90,10)),25,110):cl(Math.round(gauss(eq*0.65,12)),20,95);const nobi=cl(Math.round(gauss(eq*0.80,12)),18,112);const fld=cl(Math.round(gauss(eq*0.75,10)),15,105);
   const oth=PTYPES.filter(p=>p!=='直球').sort(()=>_r()-0.5);const pitches=[{type:'直球',shr:vel,brk:0,ctl:cl(Math.round(gauss(ctrl,8)),20,105)}];
   for(let i=0;i<ri(1,4);i++)pitches.push({type:oth[i],shr:cl(Math.round(gauss(eq*0.78,12)),15,110),brk:cl(Math.round(gauss(eq*0.82,10)),15,110),ctl:cl(Math.round(gauss(ctrl*0.85,10)),15,105)});
-  const specials=pickSp([...PS,...CS2],q);const pot={vel:genPot(vel),ctrl:genPot(ctrl,18),stam:genPot(stam,15),nobi:genPot(nobi,18),fld:genPot(fld,15)};
-  return{id:uid(),name:uniqueName((tk==='foreign'||tk==='外')?gnameForeign:gname),age,tk,isP:true,role,mat,hand:{th:_r()<0.87?'右':'左'},p:{vel,ctrl,stam,nobi,fld,pitches},specials,pot,trainPolicy:'balanced',fatigue:0,awakeCount:0,seasonAwakenDone:false};
+  const specialLevels=pickSp([...PS,...CS2],q);const pot={vel:genPot(vel),ctrl:genPot(ctrl,18),stam:genPot(stam,15),nobi:genPot(nobi,18),fld:genPot(fld,15)};
+  return syncSpecialsFromLevels({id:uid(),name:uniqueName((tk==='foreign'||tk==='外')?gnameForeign:gname),age,tk,isP:true,role,mat,hand:{th:_r()<0.87?'右':'左'},p:{vel,ctrl,stam,nobi,fld,pitches},specialLevels,pot,trainPolicy:'balanced',fatigue:0,awakeCount:0,seasonAwakenDone:false});
 }
 function genBatter(tk,age,pos,q){
   const mat=wrf(MATURITY,MATW),eq=q*amod(age,mat);const PA={捕手:.83,遊撃手:.87,二塁手:.90,三塁手:.95,一塁手:1.06,左翼手:1.02,中堅手:.95,右翼手:1.04};const pa=PA[pos]||1.0,bias=gauss(0,13);
   const cf=cl(Math.round(gauss(eq*pa*0.92+bias*0.3,11)),18,115),cb=cl(Math.round(gauss(eq*pa*0.90+bias*0.3,11)),18,115),pw=cl(Math.round(gauss(eq*pa*0.88+bias*0.5,14)),15,120),dc=cl(Math.round(gauss(eq*0.85,10)),18,112),sp=cl(Math.round(gauss(eq*0.87-(age>30?(age-30)*1.5:0),12)),18,112),df=cl(Math.round(gauss(eq*(pa<0.95?0.92:0.82),11)),18,112),arm=cl(Math.round(gauss(eq*0.82,12)),15,112),stam=cl(Math.round(gauss(eq*0.85,10)),18,108),bnt=cl(Math.round(gauss(50,15)),15,105);
   const ldAge=age<=22?.75:age<=26?.88:age<=31?1.00:age<=35?1.03:1.01;const ld=pos==='捕手'?cl(Math.round(gauss(eq*0.85,12)*ldAge),20,108):0;
-  const specials=pickSp([...BS,...CS2,...(pos==='捕手'?CATCH_SP:[])],q);const pot={cf:genPot(cf),cb:genPot(cb),pw:genPot(pw),dc:genPot(dc),sp:genPot(sp),df:genPot(df),arm:genPot(arm),stam:genPot(stam),...(pos==='捕手'?{ld:genPot(ld,22)}:{})};
-  return{id:uid(),name:uniqueName((tk==='foreign'||tk==='外')?gnameForeign:gname),age,tk,pos,positions:genSubPos(pos),isP:false,mat,hand:{bat:_r()<0.70?'右':_r()<0.52?'左':'両'},p:{cf,cb,pw,dc,sp,df,arm,stam,bnt,ld},specials,pot,trainPolicy:'balanced',awakeCount:0,seasonAwakenDone:false};
+  const specialLevels=pickSp([...BS,...CS2,...(pos==='捕手'?CATCH_SP:[])],q);const pot={cf:genPot(cf),cb:genPot(cb),pw:genPot(pw),dc:genPot(dc),sp:genPot(sp),df:genPot(df),arm:genPot(arm),stam:genPot(stam),...(pos==='捕手'?{ld:genPot(ld,22)}:{})};
+  return syncSpecialsFromLevels({id:uid(),name:uniqueName((tk==='foreign'||tk==='外')?gnameForeign:gname),age,tk,pos,positions:genSubPos(pos),isP:false,mat,hand:{bat:_r()<0.70?'右':_r()<0.52?'左':'両'},p:{cf,cb,pw,dc,sp,df,arm,stam,bnt,ld},specialLevels,pot,trainPolicy:'balanced',awakeCount:0,seasonAwakenDone:false});
 }
 function ageDist(n,mn=18,mx=38,ps=24,pe=30){const ages=[];for(let a=mn;a<=mx;a++){const p=a<ps?0.025+(a-mn)*0.008:a<=pe?0.08:Math.max(0.008,0.08-(a-pe)*0.012);for(let j=0;j<Math.ceil(p*n*1.5);j++)ages.push(a);}while(ages.length>n)ages.splice(ri(0,ages.length-1),1);while(ages.length<n)ages.push(ri(mn,mx));return ages.sort(()=>_r()-0.5);} 
 function initTeams(){return Object.fromEntries(Object.keys(TINFO).map(k=>{const {bd}=TINFO[k];const pitchers=ageDist(28,18,38,23,30).map((age,i,a)=>genPitcher(k,age,cl(gauss(bd*0.75,12),35,98),i/a.length<0.46?'先発':i/a.length<0.75?'リリーフ':'クローザー'));const pp=FPOS.flatMap(p=>Array(5).fill(p)).sort(()=>_r()-0.5);const fielders=ageDist(35,18,37,24,29).map((age,i)=>genBatter(k,age,pp[i%pp.length],cl(gauss(bd*0.75,12),35,98)));return[k,{...TINFO[k],key:k,pitchers,fielders,rotSize:6}];}));}
@@ -285,12 +305,12 @@ function reconcileLineup(team,currentLineup){
 function topStarters(team){const healthy=(team.pitchers||[]).filter(p=>p.role==='先発'&&(p.injuryDays||0)<=0&&(p.fatigue||0)<85);const pool=healthy.length?healthy:(team.pitchers||[]).filter(p=>p.role==='先発'&&(p.injuryDays||0)<=0);const size=team.rotSize||6;return pool.sort((a,b)=>calcOVR(b)-calcOVR(a)).slice(0,size);}
 function simAB(pitcher,batter,sit,catcherLd,pitMastery,batMastery){
   const pp=pitcher.p,bp=batter.p,stPct=cl((sit.pStam||80)/100,0.2,1),ldMult=catcherLd?0.86+(catcherLd/100)*0.14:0.93;const pitBoost=0.92+(pitMastery||0.75)*0.08,batBoost=0.92+(batMastery||0.75)*0.08;const brk=pp.pitches.filter(x=>x.type!=='直球').sort((a,b)=>b.shr-a.shr)[0];const brkB=brk?(brk.shr-50)/320:0;
-  let kr=0.205+(((pp.vel*pitBoost)-50))/210+(((pp.nobi*pitBoost)-50))/270+brkB-((((bp.cf*batBoost)+(bp.cb*batBoost))/2)-50)/220;kr*=ldMult;kr*=1-(1-stPct)*0.26;if(hsa(pitcher,'nobi'))kr*=1.15;if(hsa(pitcher,'kire'))kr*=1.11;if(hsa(pitcher,'kk'))kr*=1.16;if(sit.isPinch){if(hsa(pitcher,'po'))kr*=0.88;if(hsa(pitcher,'px'))kr*=1.16;if(hsa(batter,'co'))kr*=0.86;if(hsa(batter,'cx'))kr*=1.14;}if(sit.isLead){if(hsa(pitcher,'ldo'))kr*=0.86;if(hsa(pitcher,'ldx'))kr*=1.16;}kr=cl(kr,0.07,0.46);
-  let bbr=0.072-(((pp.ctrl*pitBoost)-50))/315+(((bp.dc*batBoost)-50))/315;bbr*=1+(1-stPct)*0.22;bbr*=ldMult;if(hsa(pitcher,'cnr'))bbr*=0.84;if(hsa(batter,'eye'))bbr*=1.22;bbr=cl(bbr,0.018,0.16);
+  let kr=0.205+(((pp.vel*pitBoost)-50))/210+(((pp.nobi*pitBoost)-50))/270+brkB-((((bp.cf*batBoost)+(bp.cb*batBoost))/2)-50)/220;kr*=ldMult;kr*=1-(1-stPct)*0.26;kr*=spMul(pitcher,'nobi',0.025);kr*=spMul(pitcher,'kire',0.022);kr*=spMul(pitcher,'kk',0.03);if(hasGold(pitcher,'kk_gold'))kr*=1.22;if(sit.isPinch){kr*=1-spLv(pitcher,'po')*0.02;kr*=1+spLv(pitcher,'px')*0.03;kr*=1-spLv(batter,'co')*0.02;kr*=1+spLv(batter,'cx')*0.03;}if(sit.isLead){kr*=1-spLv(pitcher,'ldo')*0.02;kr*=1+spLv(pitcher,'ldx')*0.03;}kr=cl(kr,0.07,0.52);
+  let bbr=0.072-(((pp.ctrl*pitBoost)-50))/315+(((bp.dc*batBoost)-50))/315;bbr*=1+(1-stPct)*0.22;bbr*=ldMult;bbr*=1-spLv(pitcher,'cnr')*0.03;bbr*=1+spLv(batter,'eye')*0.04;bbr=cl(bbr,0.018,0.16);
   const hbpr=cl(0.009+(1-stPct)*0.004,0.004,0.022);
-  let hrr=0.028-(((pp.vel*pitBoost)-50))/470-(((pp.nobi*pitBoost)-50))/470+(((bp.pw*batBoost)-50))/295;hrr*=ldMult;hrr*=1+(1-stPct)*0.18;if(hsa(pitcher,'heavy'))hrr*=0.80;if(hsa(pitcher,'gb'))hrr*=0.74;if(hsa(batter,'pull'))hrr*=1.18;hrr=cl(hrr,0.004,0.085);
-  let gbp=0.462;if(hsa(pitcher,'heavy'))gbp*=1.18;if(hsa(pitcher,'low'))gbp*=1.13;if(hsa(batter,'pull'))gbp*=0.89;if(hsa(batter,'oppo'))gbp*=1.08;
-  let babip=0.278+(((bp.sp*batBoost)-50))/620+(((bp.cf*batBoost)-50))/570;if(hsa(batter,'avg'))babip*=1.10;if(hsa(batter,'spray'))babip*=1.06;babip=cl(babip,0.20,0.35);
+  let hrr=0.028-(((pp.vel*pitBoost)-50))/470-(((pp.nobi*pitBoost)-50))/470+(((bp.pw*batBoost)-50))/295;hrr*=ldMult;hrr*=1+(1-stPct)*0.18;hrr*=1-spLv(pitcher,'heavy')*0.05;hrr*=1-spLv(pitcher,'gb')*0.06;hrr*=1+spLv(batter,'pull')*0.035;if(hasGold(batter,'slugger_gold'))hrr*=1.28;hrr=cl(hrr,0.004,0.09);
+  let gbp=0.462;gbp*=1+spLv(pitcher,'heavy')*0.03;gbp*=1+spLv(pitcher,'low')*0.025;gbp*=1-spLv(batter,'pull')*0.018;gbp*=1+spLv(batter,'oppo')*0.015;
+  let babip=0.278+(((bp.sp*batBoost)-50))/620+(((bp.cf*batBoost)-50))/570;babip*=1+spLv(batter,'avg')*0.02;babip*=1+spLv(batter,'spray')*0.015;babip=cl(babip,0.20,0.35);
   const roll=_r();let cum=0,result;if((cum+=kr)>roll)result='K';else if((cum+=bbr)>roll)result='BB';else if((cum+=hbpr)>roll)result='HBP';else if((cum+=hrr)>roll)result='HR';else{const isGB=_r()<gbp,r2=_r();if(isGB){if(r2<babip*0.57)result='1B';else if(r2<babip*0.74)result='DP';else result='GO';}else{if(r2<babip*0.18)result='3B';else if(r2<babip*0.46)result='2B';else if(r2<babip)result='1B';else result='FO';}}
   const pcm={K:ri(4,7),BB:ri(5,8),HBP:ri(1,3),HR:ri(2,5),'1B':ri(2,5),'2B':ri(2,5),'3B':ri(2,4),GO:ri(1,4),FO:ri(1,4),DP:ri(3,6)};const dm={HR:rf(['左','中','右']),'3B':rf(['左中','右中']),'2B':rf(['左','右中','左中']),'1B':rf(['左','中','右']),GO:rf(['一ゴ','二ゴ','三ゴ','遊ゴ','投ゴ']),FO:rf(['左飛','中飛','右飛','内飛']),DP:rf(['二ゴ','遊ゴ','三ゴ'])};
   return{result,pc:pcm[result]||3,dir:dm[result]||null};
@@ -367,7 +387,7 @@ function batterSkipLine(player, pa, hitsBudget, score){
     if(_r()<hitRate && hitsBudget>0){h++; hitsBudget--; const x=_r(); if(x<0.16 && h-hr>0) d++; else if(x<0.18 && h-hr-d>0) t++; else s++; if(score>0&&_r()<0.20) rbi++;}else if(_r()<0.24){k++;}
   }
   s=Math.max(0,h-hr-d-t);
-  const sbRate=cl(0.00+((player.p.sp||50)-50)/650,0.0,0.10)*(hsa(player,'sb')?1.45:1);const sb=Math.round(pa*sbRate);const bntRate=cl(0.01+((player.p.bnt||50)-50)/520,0.0,0.065)*(hsa(player,'bnt')?1.4:1);const bnt=Math.round(pa*bntRate);const sf=Math.round(pa*0.008);return {pa,ab,h,s,d,t,hr,bb,k,rbi,sb,bnt,sf};
+  const sbRate=cl(0.00+((player.p.sp||50)-50)/650,0.0,0.10)*(1+spLv(player,'sb')*0.10);const sb=Math.round(pa*sbRate);const bntRate=cl(0.01+((player.p.bnt||50)-50)/520,0.0,0.065)*(1+spLv(player,'bnt')*0.08);const bnt=Math.round(pa*bntRate);const sf=Math.round(pa*0.008);return {pa,ab,h,s,d,t,hr,bb,k,rbi,sb,bnt,sf};
 }
 
 function distributeStats(teamKey,hs,as,teams,rotIdx,isHome){
@@ -531,7 +551,7 @@ function growPlayer(player){
   return updatedPlayer;
 }
 function awakeningPotentialGap(player){const keys=player.isP?['vel','ctrl','stam','nobi','fld']:['cf','cb','pw','dc','sp','df','arm',...(player.pos==='捕手'?['ld']:[])];return Math.max(0,...keys.map(k=>(player.pot?.[k]||player.p?.[k]||50)-(player.p?.[k]||50)));}
-function checkAwakening(player,inSeason){if((player.awakeCount||0)>=3&&_r()>0.04)return null;if(player.seasonAwakenDone&&inSeason)return null;const ovr=calcOVR(player);const gap=awakeningPotentialGap(player);const ageFactor=player.age<=21?3.0:player.age<=23?2.0:player.age<=25?0.90:player.age<=27?0.30:0.08;const lowFactor=ovr<=44?3.0:ovr<=50?2.0:ovr<=56?0.85:ovr<=62?0.25:0.05;const latentFactor=gap>=20?1.4:gap>=14?0.90:gap>=10?0.52:0.18;const prob=(inSeason?0.0022:0.012)*ageFactor*lowFactor*latentFactor*(player.isP&&player.role!=='先発'?1.1:1);if(_r()>prob)return null;const p={...player.p},pot={...player.pot};const params=player.isP?['vel','ctrl','stam','nobi','fld']:['cf','cb','pw','dc','sp','df','arm',...(player.pos==='捕手'?['ld']:[])];const chosen=params.sort(()=>_r()-0.5).slice(0,_r()<0.25?2:1);const isBreakthrough=_r()<0.22;const events=[];chosen.forEach(param=>{const boost=inSeason?ri(7,14):ri(9,18);p[param]=(p[param]||50)+boost;if(isBreakthrough)pot[param]=(pot[param]||(p[param]+5))+ri(6,12);else pot[param]=Math.max(pot[param]||0,p[param]+3);events.push({param,boost,isBreakthrough});});let newSpecial=null;if(isBreakthrough&&_r()<0.42){const pool=player.isP?PS:BS;const avail=pool.filter(s=>!(player.specials||[]).some(ss=>ss.id===s.id));if(avail.length)newSpecial=rf(avail);}const awakeEntry={year:player.age,type:'awakening',isBreakthrough,events:events.map(e=>({param:e.param,boost:e.boost})),newSpecial:newSpecial?.n||null};return{player:{...player,p,pot,awakeCount:(player.awakeCount||0)+1,seasonAwakenDone:inSeason?true:player.seasonAwakenDone,specials:newSpecial?[...(player.specials||[]),newSpecial]:(player.specials||[]),growthLog:[...(player.growthLog||[]),awakeEntry]},events,isBreakthrough,newSpecial};}
+function checkAwakening(player,inSeason){if((player.awakeCount||0)>=3&&_r()>0.04)return null;if(player.seasonAwakenDone&&inSeason)return null;const ovr=calcOVR(player);const gap=awakeningPotentialGap(player);const ageFactor=player.age<=21?3.0:player.age<=23?2.0:player.age<=25?0.90:player.age<=27?0.30:0.08;const lowFactor=ovr<=44?3.0:ovr<=50?2.0:ovr<=56?0.85:ovr<=62?0.25:0.05;const latentFactor=gap>=20?1.4:gap>=14?0.90:gap>=10?0.52:0.18;const prob=(inSeason?0.0022:0.012)*ageFactor*lowFactor*latentFactor*(player.isP&&player.role!=='先発'?1.1:1);if(_r()>prob)return null;const p={...player.p},pot={...player.pot};const params=player.isP?['vel','ctrl','stam','nobi','fld']:['cf','cb','pw','dc','sp','df','arm',...(player.pos==='捕手'?['ld']:[])];const chosen=params.sort(()=>_r()-0.5).slice(0,_r()<0.25?2:1);const isBreakthrough=_r()<0.22;const events=[];chosen.forEach(param=>{const boost=inSeason?ri(7,14):ri(9,18);p[param]=(p[param]||50)+boost;if(isBreakthrough)pot[param]=(pot[param]||(p[param]+5))+ri(6,12);else pot[param]=Math.max(pot[param]||0,p[param]+3);events.push({param,boost,isBreakthrough});});let newSpecial=null;let nextLevels=ensureSpecialLevels(player);if(isBreakthrough&&_r()<0.42){const pool=player.isP?PS:BS;const avail=pool.filter(s=>(nextLevels[s.id]||0)<(s.tierMax||5));if(avail.length){newSpecial=rf(avail);nextLevels[newSpecial.id]=cl((nextLevels[newSpecial.id]||0)+1,0,newSpecial.tierMax||5);}}const awakeEntry={year:player.age,type:'awakening',isBreakthrough,events:events.map(e=>({param:e.param,boost:e.boost})),newSpecial:newSpecial?.n||null};return{player:syncSpecialsFromLevels({...player,p,pot,awakeCount:(player.awakeCount||0)+1,seasonAwakenDone:inSeason?true:player.seasonAwakenDone,specialLevels:nextLevels,growthLog:[...(player.growthLog||[]),awakeEntry]}),events,isBreakthrough,newSpecial};}
 function growthPhase(teams){const newTeams={...teams};const awakeEvents=[];Object.keys(newTeams).forEach(tk=>{const team={...newTeams[tk]};team.pitchers=team.pitchers.map(p=>{const grown=growPlayer(p);grown.seasonAwakenDone=false;const aw=checkAwakening(grown,false);if(aw){awakeEvents.push({...aw,tk,name:aw.player.name});return aw.player;}return grown;});team.fielders=team.fielders.map(f=>{const grown=growPlayer(f);grown.seasonAwakenDone=false;const aw=checkAwakening(grown,false);if(aw){awakeEvents.push({...aw,tk,name:aw.player.name});return aw.player;}return grown;});newTeams[tk]=team;});return{teams:newTeams,awakeEvents};}
 
 function applyInSeasonAwakening(team){
@@ -581,12 +601,24 @@ const storageApi={
 };
 async function saveGame(data){try{await storageApi.set(SAVE_KEY,JSON.stringify({...data,ts:Date.now()}));return true;}catch(e){console.error(e);return false;}}
 async function loadGame(){try{const r=await storageApi.get(SAVE_KEY);return r?JSON.parse(r):null;}catch(e){return null;}}
+function migrateTeamsSpecialSchema(teams){
+  if(!teams) return teams;
+  const next={...teams};
+  Object.keys(next).forEach(k=>{
+    const t=next[k]||{};
+    next[k]={...t,
+      pitchers:(t.pitchers||[]).map(p=>syncSpecialsFromLevels({...p,specialLevels:ensureSpecialLevels(p)})),
+      fielders:(t.fielders||[]).map(f=>syncSpecialsFromLevels({...f,specialLevels:ensureSpecialLevels(f)})),
+    };
+  });
+  return next;
+}
 
 /* ═══════════════════════════════════════════════════════
    UI PARTS
 ═══════════════════════════════════════════════════════ */
 const Font=()=><style>{`@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}body{background:#03101c;color:#f7fbff;}::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:#03101c}::-webkit-scrollbar-thumb{background:#1f4264;border-radius:2px}::-webkit-scrollbar-thumb:hover{background:#2b5d8c}`}</style>;
-const Badge=({sp})=><span style={{display:'inline-block',background:sp.c+'18',color:sp.c,border:`1px solid ${sp.c}44`,borderRadius:5,padding:'2px 7px',fontSize:10,fontWeight:700,marginRight:4,marginBottom:4,letterSpacing:0.5}}>{sp.n}</span>;
+const Badge=({sp,lv=1})=><span style={{display:'inline-block',background:sp.c+'18',color:sp.c,border:`1px solid ${sp.c}44`,borderRadius:5,padding:'2px 7px',fontSize:10,fontWeight:700,marginRight:4,marginBottom:4,letterSpacing:0.5}}>{sp.rarity==='gold'?'★':''}{sp.n}{sp.rarity==='gold'?'':` Lv${lv}`}</span>;
 const Btn=({onClick,children,color='#e8192c',disabled,sm,style={}})=><button onClick={onClick} disabled={disabled} style={{background:disabled?'#162030':color,color:disabled?'#2e4a62':'white',border:'none',borderRadius:8,padding:sm?'8px 14px':'11px 20px',fontSize:sm?11:13,fontWeight:700,cursor:disabled?'not-allowed':'pointer',opacity:disabled?0.6:1,minHeight:44,whiteSpace:'nowrap',transition:'opacity 0.15s',...style}}>{children}</button>;
 const Card=({children,style={}})=><div style={{background:'#0b1622',border:'1px solid #1e3044',borderRadius:12,padding:16,...style}}>{children}</div>;
 const SectionTitle=({children,style={}})=><div style={{fontSize:10,color:'#4db6ff',fontWeight:700,letterSpacing:3,textTransform:'uppercase',marginBottom:10,...style}}>{children}</div>;
@@ -836,7 +868,7 @@ function GroundLayout({team,lineup,setLineup,playerTeam,onTeamChange,accumulated
                 {(selectedPlayer.positions||[{pos:selectedPlayer.pos,apt:100}]).map(pp=><div key={pp.pos} style={{display:'flex',justifyContent:'space-between',fontSize:11,padding:'3px 0'}}><span>{pp.pos}</span><span style={{color:'#90CAF9'}}>{pp.apt}</span></div>)}
               </div>
             </>}
-            <div style={{marginTop:8}}>{(selectedPlayer.specials||[]).slice(0,6).map(s=><Badge key={s.id} sp={s}/>)}</div>
+            <div style={{marginTop:8}}>{(selectedPlayer.specials||[]).slice(0,6).map(s=><Badge key={s.id} sp={s} lv={spLv(selectedPlayer,s.id)}/>)}</div>
             <div style={{marginTop:10,paddingTop:10,borderTop:'1px solid #1a2535'}}>
               <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',marginBottom:8}}>
                 <div style={{fontSize:10,color:'#4a6a8a'}}>伸び代</div>
@@ -934,7 +966,7 @@ function PlayerDetailModal({player,accumulated,careerAccumulated,onClose,yearlyS
             <div><div style={{fontSize:10,color:'#8eb3d6'}}>状態</div><div style={{fontSize:16,fontWeight:900,color:(player.injuryDays||0)>0?'#ff6b82':'#38f27f'}}>{injuryStatusLabel(player)}</div></div>
             <div><div style={{fontSize:10,color:'#8eb3d6'}}>伸び代</div><div style={{fontSize:22,fontWeight:900,color:'#ffd400'}}>{playerPotentialLabel(player)}</div></div>
           </div>
-          <div style={{marginTop:10}}>{(player.specials||[]).map(sp=><Badge key={sp.id} sp={sp}/>)}</div>
+          <div style={{marginTop:10}}>{(player.specials||[]).map(sp=><Badge key={sp.id} sp={sp} lv={spLv(player,sp.id)}/>)}</div>
         </Card>
         <Card style={{background:'#0b1d2d',borderColor:'#1e4c73'}}>
           <SectionTitle style={{color:'#55c7ff'}}>今季成績</SectionTitle>
@@ -977,9 +1009,12 @@ function RosterTable({players,accumulated,teamColor,onOpenPlayer,debugMode=false
   const editingPlayer=rows.find(p=>p.id===debugPlayerId)||null;
   const applyDebugValue=(player,key,val)=>onDebugUpdatePlayer&&onDebugUpdatePlayer(player.id,d=>({...d,p:{...(d.p||{}),[key]:cl(Number(val)||0,1,130)}}));
   const applyDebugMat=(player,mat)=>onDebugUpdatePlayer&&onDebugUpdatePlayer(player.id,d=>({...d,mat}));
-  const toggleDebugSpecial=(player,sp)=>onDebugUpdatePlayer&&onDebugUpdatePlayer(player.id,d=>{
-    const has=(d.specials||[]).some(s=>s.id===sp.id);
-    return {...d,specials:has?(d.specials||[]).filter(s=>s.id!==sp.id):[...(d.specials||[]),sp]};
+  const cycleDebugSpecial=(player,sp)=>onDebugUpdatePlayer&&onDebugUpdatePlayer(player.id,d=>{
+    const cur=spLv(d,sp.id);
+    const max=sp.rarity==='gold'?1:(sp.tierMax||5);
+    const nextLv=(cur+1)%(max+1);
+    const specialLevels={...ensureSpecialLevels(d),[sp.id]:nextLv};
+    return syncSpecialsFromLevels({...d,specialLevels});
   });
   const addDebugPos=(player,pos)=>onDebugUpdatePlayer&&onDebugUpdatePlayer(player.id,d=>{
     if(d.isP) return d;
@@ -1042,7 +1077,7 @@ function RosterTable({players,accumulated,teamColor,onOpenPlayer,debugMode=false
             <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>{FPOS.filter(pos=>!(editingPlayer.positions||[]).some(pp=>pp.pos===pos)).map(pos=><button key={pos} onClick={()=>addDebugPos(editingPlayer,pos)} style={{background:'#10273b',color:'#8eb3d6',border:'1px solid #244d71',borderRadius:999,padding:'3px 8px',fontSize:10,cursor:'pointer'}}>+{pos}</button>)}</div>
           </div>}
           <div style={{display:'flex',gap:4,flexWrap:'wrap',maxHeight:160,overflowY:'auto'}}>
-            {ALL_SPECIALS.map(sp=>{const active=(editingPlayer.specials||[]).some(s=>s.id===sp.id);return <button key={sp.id} onClick={()=>toggleDebugSpecial(editingPlayer,sp)} style={{background:active?sp.c+'33':'#10273b',color:active?sp.c:'#8eb3d6',border:`1px solid ${active?sp.c:'#244d71'}`,borderRadius:999,padding:'3px 8px',fontSize:10,cursor:'pointer'}}>{sp.n}</button>;})}
+            {ALL_SPECIALS.map(sp=>{const lv=spLv(editingPlayer,sp.id);const active=lv>0;return <button key={sp.id} onClick={()=>cycleDebugSpecial(editingPlayer,sp)} style={{background:active?sp.c+'33':'#10273b',color:active?sp.c:'#8eb3d6',border:`1px solid ${active?sp.c:'#244d71'}`,borderRadius:999,padding:'3px 8px',fontSize:10,cursor:'pointer'}}>{sp.rarity==='gold'?'★':''}{sp.n}{sp.rarity==='gold'?'':` Lv${lv}`}</button>;})}
           </div>
         </div>
       </div>
@@ -1275,7 +1310,7 @@ function DraftScreen({teams,playerTeam,onComplete,debugMode=false}){
   const updateProspect=(playerId,updater)=>setProspects(prev=>prev.map(p=>p.id===playerId?updater({...p}):p));
   const applyDraftValue=(key,val)=>selected&&updateProspect(selected.id,p=>({...p,p:{...(p.p||{}),[key]:cl(Number(val)||0,1,130)}}));
   const applyDraftMat=mat=>selected&&updateProspect(selected.id,p=>({...p,mat}));
-  const toggleDraftSpecial=sp=>selected&&updateProspect(selected.id,p=>{const has=(p.specials||[]).some(s=>s.id===sp.id);return {...p,specials:has?(p.specials||[]).filter(s=>s.id!==sp.id):[...(p.specials||[]),sp]};});
+  const toggleDraftSpecial=sp=>selected&&updateProspect(selected.id,p=>{const cur=spLv(p,sp.id);const max=sp.rarity==='gold'?1:(sp.tierMax||5);const nextLv=(cur+1)%(max+1);return syncSpecialsFromLevels({...p,specialLevels:{...ensureSpecialLevels(p),[sp.id]:nextLv}});});
   const addDraftPos=pos=>selected&&updateProspect(selected.id,p=>{if(p.isP) return p;const cur=p.positions&&p.positions.length?p.positions:[{pos:p.pos,apt:100}];if(cur.some(x=>x.pos===pos))return p;return {...p,positions:[...cur,{pos,apt:60}]};});
   const removeDraftPos=pos=>selected&&updateProspect(selected.id,p=>{if(p.isP)return p;const cur=(p.positions&&p.positions.length?p.positions:[{pos:p.pos,apt:100}]).filter(x=>x.pos!==pos);if(cur.length===0)return p;return {...p,pos:cur.some(x=>x.pos===p.pos)?p.pos:cur[0].pos,positions:cur};});
   return <div style={{minHeight:'100vh',background:'#050a12',color:'white',fontFamily:"'Noto Sans JP',sans-serif",padding:24}}><Font/><div style={{maxWidth:1260,margin:'0 auto'}}>
@@ -1289,7 +1324,7 @@ function DraftScreen({teams,playerTeam,onComplete,debugMode=false}){
             <div>{(selected.isP?['vel','ctrl','stam','nobi','fld']:['cf','cb','pw','dc','sp','df','arm','stam',...(selected.pos==='捕手'?['ld']:[])]).map(k=><label key={k} style={{display:'grid',gridTemplateColumns:'40px 1fr 40px',gap:6,alignItems:'center',fontSize:10,marginBottom:4}}><span style={{color:'#ffcc80'}}>{pja(k)}</span><input type='range' min='1' max='130' value={Math.round(selected.p?.[k]||0)} onChange={e=>applyDraftValue(k,e.target.value)} /><input type='number' min='1' max='130' value={Math.round(selected.p?.[k]||0)} onChange={e=>applyDraftValue(k,e.target.value)} style={{background:'#0a1218',color:'#fff',border:'1px solid #6a3a1a',borderRadius:4,padding:'2px 4px',fontSize:10}}/></label>)}
             <div style={{display:'flex',alignItems:'center',gap:8,marginTop:6}}><span style={{fontSize:10,color:'#ffcc80'}}>成長型</span><select value={selected.mat||'通常'} onChange={e=>applyDraftMat(e.target.value)} style={{background:'#0a1218',color:'#fff',border:'1px solid #6a3a1a',borderRadius:5,padding:'4px 8px',fontSize:11}}>{MATURITY.map(m=><option key={m} value={m}>{m}</option>)}</select></div></div>
             <div>{!selected.isP&&<div style={{marginBottom:8}}><div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:4}}>{(selected.positions||[{pos:selected.pos,apt:100}]).map(pp=><button key={pp.pos} onClick={()=>removeDraftPos(pp.pos)} style={{background:'#0a1218',color:'#90CAF9',border:'1px solid #244d71',borderRadius:999,padding:'2px 7px',fontSize:10,cursor:'pointer'}}>{pp.pos} ×</button>)}</div><div style={{display:'flex',gap:4,flexWrap:'wrap'}}>{FPOS.filter(pos=>!(selected.positions||[]).some(pp=>pp.pos===pos)).map(pos=><button key={pos} onClick={()=>addDraftPos(pos)} style={{background:'#10273b',color:'#8eb3d6',border:'1px solid #244d71',borderRadius:999,padding:'2px 7px',fontSize:10,cursor:'pointer'}}>+{pos}</button>)}</div></div>}
-              <div style={{display:'flex',gap:4,flexWrap:'wrap',maxHeight:160,overflowY:'auto'}}>{ALL_SPECIALS.map(sp=>{const active=(selected.specials||[]).some(s=>s.id===sp.id);return <button key={sp.id} onClick={()=>toggleDraftSpecial(sp)} style={{background:active?sp.c+'33':'#10273b',color:active?sp.c:'#8eb3d6',border:`1px solid ${active?sp.c:'#244d71'}`,borderRadius:999,padding:'2px 7px',fontSize:10,cursor:'pointer'}}>{sp.n}</button>;})}</div>
+              <div style={{display:'flex',gap:4,flexWrap:'wrap',maxHeight:160,overflowY:'auto'}}>{ALL_SPECIALS.map(sp=>{const lv=spLv(selected,sp.id);const active=lv>0;return <button key={sp.id} onClick={()=>toggleDraftSpecial(sp)} style={{background:active?sp.c+'33':'#10273b',color:active?sp.c:'#8eb3d6',border:`1px solid ${active?sp.c:'#244d71'}`,borderRadius:999,padding:'2px 7px',fontSize:10,cursor:'pointer'}}>{sp.rarity==='gold'?'★':''}{sp.n}{sp.rarity==='gold'?'':` Lv${lv}`}</button>;})}</div>
             </div>
           </div>
         </Card>}
@@ -1391,7 +1426,7 @@ function BoxScore({game,playerTeam,onOpenPlayer}){if(!game)return null;const hom
 ═══════════════════════════════════════════════════════ */
 function NPBSimulator(){
   const [loading,setLoading]=useState(true);const [screen,setScreen]=useState('init');const [seasonView,setSeasonView]=useState('home');const [teams,setTeams]=useState(null);const [playerTeam,setPlayerTeam]=useState(null);const [viewTeam,setViewTeam]=useState(null);const [lineup,setLineup]=useState(null);const [season,setSeason]=useState({year:2026,schedule:[]});const [rotN,setRotN]=useState({});const [standings,setStandings]=useState(calcStandings([]));const [accumulated,setAccumulated]=useState({});const [leagueAccumulated,setLeagueAccumulated]=useState({});const [careerAccumulated,setCareerAccumulated]=useState({});const [leagueCareerAccumulated,setLeagueCareerAccumulated]=useState({});const [yearlyStats,setYearlyStats]=useState({});const [retiredPlayers,setRetiredPlayers]=useState([]);const [saveStatus,setSaveStatus]=useState('');const [lastGame,setLastGame]=useState(null);const [notices,setNotices]=useState([]);const [championHistory,setChampionHistory]=useState([]);const [inspectPlayer,setInspectPlayer]=useState(null);const [debugMode,setDebugMode]=useState(false);
-  useEffect(()=>{(async()=>{const sv=await loadGame();if(sv){setTeams(sv.teams);setPlayerTeam(sv.playerTeam);setViewTeam(sv.viewTeam||sv.playerTeam);setSeason(sv.season);setRotN(sv.rotN);setLineup(sv.lineup);setStandings(sv.standings);setAccumulated(sv.accumulated||{});setLeagueAccumulated(sv.leagueAccumulated||{});setCareerAccumulated(sv.careerAccumulated||{});setLeagueCareerAccumulated(sv.leagueCareerAccumulated||{});setYearlyStats(sv.yearlyStats||{});setRetiredPlayers(sv.retiredPlayers||[]);setNotices(sv.notices||[]);setChampionHistory(sv.championHistory||[]);if(sv.teams)registerExistingNames(sv.teams);setScreen(sv.playerTeam?'season':'teamSelect');}setLoading(false);})();},[]);
+  useEffect(()=>{(async()=>{const sv=await loadGame();if(sv){const migratedTeams=migrateTeamsSpecialSchema(sv.teams);setTeams(migratedTeams);setPlayerTeam(sv.playerTeam);setViewTeam(sv.viewTeam||sv.playerTeam);setSeason(sv.season);setRotN(sv.rotN);setLineup(sv.lineup);setStandings(sv.standings);setAccumulated(sv.accumulated||{});setLeagueAccumulated(sv.leagueAccumulated||{});setCareerAccumulated(sv.careerAccumulated||{});setLeagueCareerAccumulated(sv.leagueCareerAccumulated||{});setYearlyStats(sv.yearlyStats||{});setRetiredPlayers(sv.retiredPlayers||[]);setNotices(sv.notices||[]);setChampionHistory(sv.championHistory||[]);if(migratedTeams)registerExistingNames(migratedTeams);setScreen(sv.playerTeam?'season':'teamSelect');}setLoading(false);})();},[]);
   const nextGame=useMemo(()=>season.schedule.find(g=>!g.played&&(g.homeKey===playerTeam||g.awayKey===playerTeam)),[season,playerTeam]);
   const myRecord=playerTeam?standings[playerTeam]:null;
   const activeViewTeam=viewTeam||playerTeam;
@@ -1428,8 +1463,8 @@ let finalTeams=nextTeams;const tradeNotices=[];if(mode==='month'||(_r()<0.35&&mo
         const t=out[tk];
         if(!t) return;
         let touched=false;
-        const pitchers=(t.pitchers||[]).map(p=>{if(p.id!==playerId)return p;touched=true;return updater({...p,tk});});
-        const fielders=(t.fielders||[]).map(p=>{if(p.id!==playerId)return p;touched=true;return updater({...p,tk});});
+        const pitchers=(t.pitchers||[]).map(p=>{if(p.id!==playerId)return p;touched=true;return syncSpecialsFromLevels(updater({...p,tk}));});
+        const fielders=(t.fielders||[]).map(p=>{if(p.id!==playerId)return p;touched=true;return syncSpecialsFromLevels(updater({...p,tk}));});
         if(touched) out[tk]={...t,pitchers,fielders};
       });
       return out;
