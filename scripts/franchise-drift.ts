@@ -25,6 +25,7 @@ import {
   generateDraftProspects,
   type DraftPick,
 } from '../src/state/offseason';
+import { evaluateNpbScoringTargets, NPB_SCORING_TARGETS } from './npb-targets.mjs';
 
 const DEFAULT_START_YEAR = 2026;
 const DEFAULT_YEARS = 25;
@@ -101,9 +102,7 @@ function parseArguments(argv: string[]): CliOptions {
       if (!next) throw new Error(`${argument} requires a value.`);
       options.output = next;
       index += 1;
-    } else {
-      throw new Error(`Unknown argument: ${argument}`);
-    }
+    } else throw new Error(`Unknown argument: ${argument}`);
   }
   return options;
 }
@@ -226,10 +225,7 @@ function seasonSnapshot(stats: AccumulatedStats, games: number, totalRuns: numbe
     runsPerTeamGame: round(ratio(totalRuns, games * 2), 4),
     walkRate: round(ratio(walks, plateAppearances), 6),
     strikeoutRate: round(ratio(strikeouts, plateAppearances), 6),
-    stolenBaseSuccessRate: round(
-      ratio(stolenBases, stolenBases + caughtStealing),
-      6,
-    ),
+    stolenBaseSuccessRate: round(ratio(stolenBases, stolenBases + caughtStealing), 6),
   };
 }
 
@@ -368,6 +364,7 @@ interface YearReport {
   seasonIndex: number;
   openingRoster: RosterSnapshot;
   season: SeasonSnapshot;
+  targetEvaluation: ReturnType<typeof evaluateNpbScoringTargets>;
   offseason: {
     awakeningEvents: number;
     retirements: ReturnType<typeof retirementSummary>;
@@ -383,6 +380,7 @@ function driftSummary(years: YearReport[]) {
   const largestGap = years
     .map((year) => ({ year: year.year, value: year.closingRoster.teamOvrDistribution.gap }))
     .sort((firstRow, secondRow) => secondRow.value - firstRow.value)[0];
+  const requiredEndpointsPassed = first.targetEvaluation.passed && last.targetEvaluation.passed;
   return {
     firstYear: first.year,
     finalYear: last.year,
@@ -407,6 +405,12 @@ function driftSummary(years: YearReport[]) {
       homeRuns: last.season.homeRuns - first.season.homeRuns,
     },
     largestClosingTeamOvrGap: largestGap,
+    npbTargetEvaluation: {
+      firstSeason: first.targetEvaluation,
+      finalSeason: last.targetEvaluation,
+      allSeasonsPassed: years.every((year) => year.targetEvaluation.passed),
+      requiredEndpointsPassed,
+    },
   };
 }
 
@@ -443,6 +447,7 @@ async function simulateFranchise(options: CliOptions) {
         rotations[game.awayKey] += 1;
       }
       const season = seasonSnapshot(accumulated, schedule.length, totalRuns);
+      const targetEvaluation = evaluateNpbScoringTargets(season);
       const growth = growthPhase(teams);
       const retirements = applyDiagnosticRetirements(growth.teams);
       const draft = runDraft(retirements.teams);
@@ -455,6 +460,7 @@ async function simulateFranchise(options: CliOptions) {
         seasonIndex: seasonIndex + 1,
         openingRoster,
         season,
+        targetEvaluation,
         offseason: {
           awakeningEvents: growth.awakeEvents.length,
           retirements: retirementSummary(retirements.retired),
@@ -464,15 +470,16 @@ async function simulateFranchise(options: CliOptions) {
       });
       console.log(
         `${year}: AVG ${season.battingAverage.toFixed(3)}, ERA ${season.era.toFixed(2)}, ` +
-          `HR ${season.homeRuns} | OVR F ${openingRoster.averageOvr.fielders.toFixed(1)}→` +
-          `${closingRoster.averageOvr.fielders.toFixed(1)}, P ${openingRoster.averageOvr.pitchers.toFixed(1)}→` +
-          `${closingRoster.averageOvr.pitchers.toFixed(1)} | retired ${retirements.retired.length}, ` +
-          `drafted ${draft.picks.length}`,
+          `HR ${season.homeRuns}, target ${targetEvaluation.passed ? 'PASS' : 'FAIL'} | ` +
+          `OVR F ${openingRoster.averageOvr.fielders.toFixed(1)}→${closingRoster.averageOvr.fielders.toFixed(1)}, ` +
+          `P ${openingRoster.averageOvr.pitchers.toFixed(1)}→${closingRoster.averageOvr.pitchers.toFixed(1)} | ` +
+          `retired ${retirements.retired.length}, drafted ${draft.picks.length}`,
       );
     }
     return {
-      schemaVersion: 1,
+      schemaVersion: 2,
       source: 'continuous-franchise-diagnostic',
+      targets: NPB_SCORING_TARGETS,
       configuration: {
         startYear: options.startYear,
         seasons: options.years,
@@ -515,6 +522,10 @@ async function main(): Promise<void> {
   await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
   console.log(`Wrote ${options.years}-season franchise drift report to ${outputPath}`);
+  if (!report.summary.npbTargetEvaluation.requiredEndpointsPassed) {
+    console.error('The first or final franchise season is outside the configured NPB target ranges.');
+    process.exitCode = 1;
+  }
 }
 
 main().catch((error: unknown) => {
