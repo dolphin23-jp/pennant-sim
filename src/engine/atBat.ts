@@ -117,7 +117,8 @@ export function simAB(
   homeRunRate *= 1 + specialLevel(batter, 'pull') * 0.035;
   if (hasGold(pitcher, 'heavy_gold')) homeRunRate *= 0.84;
   if (hasGold(batter, 'slugger_gold')) homeRunRate *= 1.28;
-  homeRunRate *= batterContextMultiplier * park.homeRun;
+  homeRunRate *=
+    batterContextMultiplier * park.homeRun * AT_BAT_BALANCE.homeRun.environmentMultiplier;
   homeRunRate = clamp(homeRunRate, AT_BAT_BALANCE.homeRun.minRate, AT_BAT_BALANCE.homeRun.maxRate);
   let groundBallRate = AT_BAT_BALANCE.groundBall.baseRate;
   groundBallRate *= 1 + specialLevel(pitcher, 'heavy') * 0.03;
@@ -152,12 +153,24 @@ export function simAB(
     const isGroundBall = random() < groundBallRate,
       ballInPlayRoll = random();
     if (isGroundBall) {
-      if (ballInPlayRoll < ballsInPlayAverage * 0.57) result = '1B';
-      else if (ballInPlayRoll < ballsInPlayAverage * 0.74) result = 'DP';
+      if (ballInPlayRoll < ballsInPlayAverage * AT_BAT_BALANCE.groundBall.singleShare)
+        result = '1B';
+      else if (
+        ballInPlayRoll <
+        ballsInPlayAverage *
+          (AT_BAT_BALANCE.groundBall.singleShare + AT_BAT_BALANCE.groundBall.doublePlayShare)
+      )
+        result = 'DP';
       else result = 'GO';
     } else {
-      if (ballInPlayRoll < ballsInPlayAverage * 0.18) result = '3B';
-      else if (ballInPlayRoll < ballsInPlayAverage * 0.46) result = '2B';
+      if (ballInPlayRoll < ballsInPlayAverage * AT_BAT_BALANCE.airBall.tripleShare)
+        result = '3B';
+      else if (
+        ballInPlayRoll <
+        ballsInPlayAverage *
+          (AT_BAT_BALANCE.airBall.tripleShare + AT_BAT_BALANCE.airBall.doubleShare)
+      )
+        result = '2B';
       else if (ballInPlayRoll < ballsInPlayAverage) result = '1B';
       else result = 'FO';
     }
