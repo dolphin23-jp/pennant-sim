@@ -19,8 +19,7 @@ const sortSchedule = (schedule: ScheduleGame[]): ScheduleGame[] =>
   [...schedule].sort(
     (first, second) =>
       first.date.localeCompare(second.date) ||
-      (first.doubleHeaderGame ?? 0) - (second.doubleHeaderGame ?? 0) ||
-      first.id.localeCompare(second.id),
+      (first.doubleHeaderGame ?? 0) - (second.doubleHeaderGame ?? 0),
   );
 
 const involvesTeam = (game: ScheduleGame, teamKey: TeamKey): boolean =>
