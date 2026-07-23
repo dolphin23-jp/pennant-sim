@@ -8,8 +8,13 @@ import {
 const THEME_KEY = 'pennant-sim-theme';
 type Theme = 'dark' | 'light';
 
-const buttonStyle = (color: string): CSSProperties =>
-  ({ '--button-color': color }) as CSSProperties;
+const buttonStyle = (color: string): CSSProperties => {
+  const neutral = color.includes('surface');
+  return {
+    '--button-color': color,
+    '--button-text': neutral ? 'var(--color-text)' : '#fff',
+  } as CSSProperties;
+};
 
 export function PageShell({
   children,
