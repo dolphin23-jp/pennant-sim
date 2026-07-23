@@ -1,0 +1,30 @@
+name: Franchise Drift Artifact
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Run 25-season franchise drift
+        run: npm run drift
+      - name: Upload drift report
+        uses: actions/upload-artifact@v4
+        with:
+          name: franchise-drift-report
+          path: baseline/franchise-drift.json
+          if-no-files-found: error
