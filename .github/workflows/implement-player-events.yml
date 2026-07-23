@@ -20,6 +20,7 @@ jobs:
         run: |
           python scripts/apply-player-events-patch.py
           python scripts/fix-player-event-types.py
+          python scripts/cleanup-player-event-duplicates.py
       - name: Commit implementation
         shell: bash
         run: |
