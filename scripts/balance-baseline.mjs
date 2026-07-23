@@ -223,7 +223,8 @@ async function simulateSeason(seasonIndex, baseSeed) {
 
 function summarize(values) {
   const mean = values.reduce((total, value) => total + value, 0) / values.length;
-  const variance = values.reduce((total, value) => total + (value - mean) ** 2, 0) / values.length;
+  const variance =
+    values.reduce((total, value) => total + (value - mean) ** 2, 0) / values.length;
   return { mean, standardDeviation: Math.sqrt(variance) };
 }
 
@@ -263,7 +264,10 @@ async function main() {
       standardDeviation: 'population standard deviation across simulated seasons',
     },
     summary: {
-      battingAverage: roundSummary(summarize(seasonStats.map((stats) => stats.battingAverage)), 6),
+      battingAverage: roundSummary(
+        summarize(seasonStats.map((stats) => stats.battingAverage)),
+        6,
+      ),
       era: roundSummary(summarize(seasonStats.map((stats) => stats.era)), 6),
       homeRuns: roundSummary(summarize(seasonStats.map((stats) => stats.homeRuns)), 3),
       stolenBaseSuccessRate: roundSummary(
