@@ -17,6 +17,13 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - name: Capture unit test output
+        shell: bash
+        run: |
+          set +e
+          npm run test:unit 2>&1 | tee unit-output.txt
+          echo ${PIPESTATUS[0]} > unit-exit-code.txt
+          exit 0
       - name: Capture build output
         shell: bash
         run: |
@@ -28,5 +35,7 @@ jobs:
         with:
           name: player-event-build-output
           path: |
+            unit-output.txt
+            unit-exit-code.txt
             build-output.txt
             build-exit-code.txt
