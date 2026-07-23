@@ -42,7 +42,8 @@ export function getPlayerStatuses(player: Player): PlayerStatus[] {
     if (condition) statuses.push(condition);
   }
 
-  const latestGrowth = player.growthLog?.at(-1);
+  const growthLog = player.growthLog ?? [];
+  const latestGrowth = growthLog[growthLog.length - 1];
   const growing =
     Boolean(player.seasonAwakenDone) ||
     Boolean(latestGrowth?.isBreakthrough) ||
