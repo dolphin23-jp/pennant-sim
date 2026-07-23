@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "source": "src/engine",
+  "seasons": 100,
+  "seed": 20260723,
+  "summary": {
+    "battingAverage": { "mean": 0.221309, "standardDeviation": 0.005742 },
+    "era": { "mean": 4.221261, "standardDeviation": 0.282428 },
+    "homeRuns": { "mean": 3117.99, "standardDeviation": 243.897 },
+    "stolenBaseSuccessRate": { "mean": 0.621848, "standardDeviation": 0.061481 },
+    "walkRate": { "mean": 0.07397, "standardDeviation": 0.004831 }
+  }
+}
