@@ -9,4 +9,5 @@ export * from './ratings';
 export * from './season';
 export * from './specials';
 export * from './stats';
+export * from './statsFormat';
 export * from './types';
