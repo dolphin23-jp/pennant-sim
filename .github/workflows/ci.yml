@@ -21,7 +21,18 @@ jobs:
         run: npm install
       - name: Lint
         run: npm run lint
+      - name: Build diagnostics
+        id: build
+        continue-on-error: true
+        run: npm run build > build-diagnostics.log 2>&1
+      - name: Upload build diagnostics
+        if: steps.build.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-diagnostics
+          path: build-diagnostics.log
+      - name: Fail on build errors
+        if: steps.build.outcome == 'failure'
+        run: exit 1
       - name: Test
         run: npm test
-      - name: Build
-        run: npm run build
