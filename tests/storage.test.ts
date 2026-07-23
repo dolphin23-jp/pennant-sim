@@ -30,7 +30,8 @@ test('legacy save data keeps the existing key and migrates special levels and pa
       specialLevels: undefined,
       specials: [PS[0]],
     };
-    const { park: _legacyPark, ...legacyGiants } = teams.giants;
+    const legacyGiants = { ...teams.giants };
+    delete (legacyGiants as Partial<typeof teams.giants>).park;
     teams.giants = {
       ...legacyGiants,
       fielders: [legacyPlayer, ...teams.giants.fielders.slice(1)],
