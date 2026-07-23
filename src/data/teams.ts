@@ -1,0 +1,18 @@
+import type { FieldPosition, TeamInfo, TeamKey } from '../engine/types';
+export const CENTRAL: TeamKey[] = ['giants','tigers','baystars','dragons','carp','swallows'];
+export const PACIFIC: TeamKey[] = ['hawks','eagles','marines','lions','buffaloes','fighters'];
+export const FIELD_POSITIONS: FieldPosition[] = ['捕手','一塁手','二塁手','三塁手','遊撃手','左翼手','中堅手','右翼手'];
+export const TINFO: Record<TeamKey, TeamInfo> = {
+  giants:{n:'読売ジャイアンツ',ab:'巨人',lg:'central',c:'#FF6D00',bd:77,pol:{fa:9,for:6,pitF:5,pwrF:7,dev:4}},
+  tigers:{n:'阪神タイガース',ab:'阪神',lg:'central',c:'#FFB300',bd:72,pol:{fa:6,for:5,pitF:7,pwrF:5,dev:6}},
+  baystars:{n:'横浜DeNAベイスターズ',ab:'De',lg:'central',c:'#1565C0',bd:69,pol:{fa:5,for:6,pitF:5,pwrF:8,dev:5}},
+  dragons:{n:'中日ドラゴンズ',ab:'中日',lg:'central',c:'#5C6BC0',bd:64,pol:{fa:4,for:7,pitF:8,pwrF:4,dev:5}},
+  carp:{n:'広島東洋カープ',ab:'広島',lg:'central',c:'#C62828',bd:61,pol:{fa:2,for:3,pitF:6,pwrF:5,dev:9}},
+  swallows:{n:'東京ヤクルトスワローズ',ab:'ヤク',lg:'central',c:'#0277BD',bd:63,pol:{fa:5,for:5,pitF:5,pwrF:6,dev:6}},
+  hawks:{n:'福岡ソフトバンクホークス',ab:'SB',lg:'pacific',c:'#F9A825',bd:76,pol:{fa:8,for:5,pitF:6,pwrF:6,dev:7}},
+  eagles:{n:'東北楽天ゴールデンイーグルス',ab:'楽天',lg:'pacific',c:'#E53935',bd:66,pol:{fa:5,for:4,pitF:6,pwrF:6,dev:6}},
+  marines:{n:'千葉ロッテマリーンズ',ab:'ロッテ',lg:'pacific',c:'#1A237E',bd:65,pol:{fa:4,for:6,pitF:7,pwrF:6,dev:6}},
+  lions:{n:'埼玉西武ライオンズ',ab:'西武',lg:'pacific',c:'#1976D2',bd:64,pol:{fa:5,for:4,pitF:5,pwrF:7,dev:7}},
+  buffaloes:{n:'オリックス・バファローズ',ab:'Orix',lg:'pacific',c:'#3949AB',bd:67,pol:{fa:5,for:5,pitF:6,pwrF:6,dev:6}},
+  fighters:{n:'北海道日本ハムファイターズ',ab:'日ハム',lg:'pacific',c:'#1E88E5',bd:64,pol:{fa:3,for:4,pitF:5,pwrF:6,dev:8}},
+};
