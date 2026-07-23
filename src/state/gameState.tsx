@@ -1,0 +1,382 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+
+import {
+  accumulateStats,
+  accumulateStatsAll,
+  bestLineup,
+  calcStandings,
+  generateSchedule,
+  initTeams,
+  registerExistingNames,
+  simCpuUntilNext,
+  simulateGame,
+  skipGames,
+} from '../engine';
+import type {
+  AccumulatedStats,
+  GameState,
+  Player,
+  PlayerStats,
+  StandingRecord,
+  TeamKey,
+  Teams,
+} from '../engine';
+import {
+  createEmptyRotations,
+  loadGame,
+  saveGame,
+  type ChampionRecord,
+  type GameSaveData,
+  type Notice,
+  type SeasonState,
+} from './storage';
+
+export type GameScreen =
+  | 'welcome'
+  | 'teamSelect'
+  | 'season'
+  | 'postseason'
+  | 'offseason';
+
+interface RuntimeState {
+  loading: boolean;
+  screen: GameScreen;
+  teams: Teams | null;
+  playerTeam: TeamKey | null;
+  viewTeam: TeamKey | null;
+  season: SeasonState;
+  rotN: Record<TeamKey, number>;
+  lineup: Player[];
+  standings: Record<TeamKey, StandingRecord>;
+  accumulated: AccumulatedStats;
+  leagueAccumulated: AccumulatedStats;
+  careerAccumulated: AccumulatedStats;
+  leagueCareerAccumulated: AccumulatedStats;
+  yearlyStats: Record<string, unknown[]>;
+  retiredPlayers: Player[];
+  notices: Notice[];
+  championHistory: ChampionRecord[];
+  lastGame: GameState | null;
+  selectedPlayer: Player | null;
+}
+
+interface GameContextValue extends RuntimeState {
+  isSeasonOver: boolean;
+  startNewGame(): void;
+  chooseTeam(teamKey: TeamKey): void;
+  simulateNextGame(): void;
+  skip(mode: 'next' | 'week' | 'month' | 'season'): void;
+  saveCurrent(): Promise<boolean>;
+  setScreen(screen: GameScreen): void;
+  setViewTeam(teamKey: TeamKey): void;
+  setLineup(lineup: Player[]): void;
+  selectPlayer(player: Player | null): void;
+  replaceTeams(teams: Teams): void;
+  completeOffseason(teams: Teams): void;
+}
+
+const initialState: RuntimeState = {
+  loading: true,
+  screen: 'welcome',
+  teams: null,
+  playerTeam: null,
+  viewTeam: null,
+  season: { year: 2026, schedule: [] },
+  rotN: createEmptyRotations(),
+  lineup: [],
+  standings: calcStandings([]),
+  accumulated: {},
+  leagueAccumulated: {},
+  careerAccumulated: {},
+  leagueCareerAccumulated: {},
+  yearlyStats: {},
+  retiredPlayers: [],
+  notices: [],
+  championHistory: [],
+  lastGame: null,
+  selectedPlayer: null,
+};
+
+const GameContext = createContext<GameContextValue | null>(null);
+
+function mergeStats(base: AccumulatedStats, addition: AccumulatedStats): AccumulatedStats {
+  const merged: AccumulatedStats = { ...base };
+  for (const [playerId, nextLine] of Object.entries(addition)) {
+    const current = merged[playerId];
+    if (!current) {
+      merged[playerId] = { ...nextLine } as PlayerStats;
+      continue;
+    }
+    const output = { ...current } as unknown as Record<string, unknown>;
+    for (const [key, value] of Object.entries(nextLine)) {
+      if (typeof value === 'number') output[key] = Number(output[key] ?? 0) + value;
+      else if (key === 'name' || key === 'type') output[key] = value;
+    }
+    merged[playerId] = output as unknown as PlayerStats;
+  }
+  return merged;
+}
+
+function snapshotFromState(state: RuntimeState): GameSaveData | null {
+  if (!state.teams) return null;
+  return {
+    teams: state.teams,
+    playerTeam: state.playerTeam,
+    viewTeam: state.viewTeam,
+    season: state.season,
+    rotN: state.rotN,
+    lineup: state.lineup,
+    standings: state.standings,
+    accumulated: state.accumulated,
+    leagueAccumulated: state.leagueAccumulated,
+    careerAccumulated: state.careerAccumulated,
+    leagueCareerAccumulated: state.leagueCareerAccumulated,
+    yearlyStats: state.yearlyStats,
+    retiredPlayers: state.retiredPlayers,
+    notices: state.notices,
+    championHistory: state.championHistory,
+    uiVersion: 1,
+  };
+}
+
+export function GameProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<RuntimeState>(initialState);
+
+  useEffect(() => {
+    let active = true;
+    void loadGame().then((saved) => {
+      if (!active) return;
+      if (!saved) {
+        setState((current) => ({ ...current, loading: false }));
+        return;
+      }
+      registerExistingNames(saved.teams);
+      const lineup =
+        saved.lineup.length || !saved.playerTeam
+          ? saved.lineup
+          : bestLineup(saved.teams[saved.playerTeam]);
+      const seasonOver = saved.season.schedule.length > 0 && saved.season.schedule.every((game) => game.played);
+      setState({
+        ...initialState,
+        ...saved,
+        lineup,
+        loading: false,
+        screen: seasonOver ? 'postseason' : saved.playerTeam ? 'season' : 'teamSelect',
+        lastGame: null,
+        selectedPlayer: null,
+      });
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const startNewGame = useCallback(() => {
+    setState({ ...initialState, loading: false, screen: 'teamSelect', teams: initTeams() });
+  }, []);
+
+  const chooseTeam = useCallback((teamKey: TeamKey) => {
+    setState((current) => {
+      const teams = current.teams ?? initTeams();
+      const schedule = generateSchedule(2026);
+      const rotations = createEmptyRotations();
+      const prepared = simCpuUntilNext(schedule, teams, rotations, teamKey, {});
+      return {
+        ...initialState,
+        loading: false,
+        screen: 'season',
+        teams,
+        playerTeam: teamKey,
+        viewTeam: teamKey,
+        lineup: bestLineup(teams[teamKey]),
+        season: { year: 2026, schedule: prepared.sched },
+        rotN: prepared.rotN,
+        standings: calcStandings(prepared.sched),
+        leagueAccumulated: prepared.leagueDistStats,
+        leagueCareerAccumulated: prepared.leagueDistStats,
+        notices: [
+          {
+            title: `${teams[teamKey].ab}で新規開始`,
+            body: 'Phase Bエンジンを使用するTypeScript版でシーズンを開始しました。',
+            tone: 'good',
+          },
+        ],
+      };
+    });
+  }, []);
+
+  const simulateNextGame = useCallback(() => {
+    setState((current) => {
+      if (!current.teams || !current.playerTeam) return current;
+      const nextGame = current.season.schedule.find(
+        (game) =>
+          !game.played &&
+          (game.homeKey === current.playerTeam || game.awayKey === current.playerTeam),
+      );
+      if (!nextGame) return { ...current, screen: 'postseason' };
+
+      const result = simulateGame(
+        nextGame.homeKey,
+        nextGame.awayKey,
+        current.teams,
+        nextGame.homeKey === current.playerTeam ? current.lineup : null,
+        nextGame.awayKey === current.playerTeam ? current.lineup : null,
+        current.rotN[nextGame.homeKey] || 0,
+        current.rotN[nextGame.awayKey] || 0,
+        current.accumulated,
+      );
+      const playedSchedule = current.season.schedule.map((game) =>
+        game.id === nextGame.id
+          ? { ...game, played: true, hs: result.score.home, as: result.score.away }
+          : game,
+      );
+      const rotations = {
+        ...current.rotN,
+        [nextGame.homeKey]: (current.rotN[nextGame.homeKey] || 0) + 1,
+        [nextGame.awayKey]: (current.rotN[nextGame.awayKey] || 0) + 1,
+      };
+      const playerGameStats = accumulateStats(result, current.playerTeam, {});
+      const leagueGameStats = accumulateStatsAll(result, {});
+      const accumulated = mergeStats(current.accumulated, playerGameStats);
+      const leagueAccumulated = mergeStats(current.leagueAccumulated, leagueGameStats);
+      const careerAccumulated = mergeStats(current.careerAccumulated, playerGameStats);
+      const leagueCareerAccumulated = mergeStats(
+        current.leagueCareerAccumulated,
+        leagueGameStats,
+      );
+      const prepared = simCpuUntilNext(
+        playedSchedule,
+        current.teams,
+        rotations,
+        current.playerTeam,
+        accumulated,
+      );
+      const finalLeagueStats = mergeStats(leagueAccumulated, prepared.leagueDistStats);
+      const finalCareerLeagueStats = mergeStats(
+        leagueCareerAccumulated,
+        prepared.leagueDistStats,
+      );
+      const seasonOver = prepared.sched.every((game) => game.played);
+      return {
+        ...current,
+        screen: seasonOver ? 'postseason' : 'season',
+        season: { ...current.season, schedule: prepared.sched },
+        rotN: prepared.rotN,
+        standings: calcStandings(prepared.sched),
+        accumulated,
+        leagueAccumulated: finalLeagueStats,
+        careerAccumulated,
+        leagueCareerAccumulated: finalCareerLeagueStats,
+        lastGame: result,
+      };
+    });
+  }, []);
+
+  const skip = useCallback((mode: 'next' | 'week' | 'month' | 'season') => {
+    setState((current) => {
+      if (!current.teams || !current.playerTeam) return current;
+      const result = skipGames(
+        current.season.schedule,
+        current.teams,
+        current.rotN,
+        current.playerTeam,
+        mode,
+        current.accumulated,
+      );
+      const accumulated = mergeStats(current.accumulated, result.distStats);
+      const leagueAccumulated = mergeStats(current.leagueAccumulated, result.leagueDistStats);
+      const seasonOver = result.sched.every((game) => game.played);
+      return {
+        ...current,
+        screen: seasonOver ? 'postseason' : 'season',
+        season: { ...current.season, schedule: result.sched },
+        rotN: result.rotN,
+        standings: calcStandings(result.sched),
+        accumulated,
+        leagueAccumulated,
+        careerAccumulated: mergeStats(current.careerAccumulated, result.distStats),
+        leagueCareerAccumulated: mergeStats(
+          current.leagueCareerAccumulated,
+          result.leagueDistStats,
+        ),
+      };
+    });
+  }, []);
+
+  const saveCurrent = useCallback(async () => {
+    const snapshot = snapshotFromState(state);
+    return snapshot ? saveGame(snapshot) : false;
+  }, [state]);
+
+  const completeOffseason = useCallback((teams: Teams) => {
+    setState((current) => {
+      if (!current.playerTeam) return current;
+      const year = current.season.year + 1;
+      const schedule = generateSchedule(year);
+      const prepared = simCpuUntilNext(
+        schedule,
+        teams,
+        createEmptyRotations(),
+        current.playerTeam,
+        {},
+      );
+      return {
+        ...current,
+        teams,
+        screen: 'season',
+        season: { year, schedule: prepared.sched },
+        rotN: prepared.rotN,
+        lineup: bestLineup(teams[current.playerTeam]),
+        standings: calcStandings(prepared.sched),
+        accumulated: {},
+        leagueAccumulated: prepared.leagueDistStats,
+        lastGame: null,
+      };
+    });
+  }, []);
+
+  const value = useMemo<GameContextValue>(
+    () => ({
+      ...state,
+      isSeasonOver:
+        state.season.schedule.length > 0 && state.season.schedule.every((game) => game.played),
+      startNewGame,
+      chooseTeam,
+      simulateNextGame,
+      skip,
+      saveCurrent,
+      setScreen: (screen) => setState((current) => ({ ...current, screen })),
+      setViewTeam: (viewTeam) => setState((current) => ({ ...current, viewTeam })),
+      setLineup: (lineup) => setState((current) => ({ ...current, lineup })),
+      selectPlayer: (selectedPlayer) =>
+        setState((current) => ({ ...current, selectedPlayer })),
+      replaceTeams: (teams) => setState((current) => ({ ...current, teams })),
+      completeOffseason,
+    }),
+    [
+      state,
+      startNewGame,
+      chooseTeam,
+      simulateNextGame,
+      skip,
+      saveCurrent,
+      completeOffseason,
+    ],
+  );
+
+  return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
+}
+
+export function useGameState(): GameContextValue {
+  const value = useContext(GameContext);
+  if (!value) throw new Error('useGameState must be used inside GameProvider');
+  return value;
+}
