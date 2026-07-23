@@ -25,21 +25,21 @@
     "passed": true,
     "comparison": {
       "battingAverage": {
-        "value": 0.240167,
+        "value": 0.240051,
         "minimum": 0.232,
         "target": 0.244,
         "maximum": 0.257,
         "passed": true
       },
       "era": {
-        "value": 2.623386,
+        "value": 2.61982,
         "minimum": 2.21,
         "target": 3.01,
         "maximum": 3.6,
         "passed": true
       },
       "homeRuns": {
-        "value": 1110.39,
+        "value": 1106.37,
         "minimum": 1000,
         "target": 1096,
         "maximum": 1200,
@@ -49,24 +49,24 @@
   },
   "summary": {
     "battingAverage": {
-      "mean": 0.240167,
-      "standardDeviation": 0.003658
+      "mean": 0.240051,
+      "standardDeviation": 0.003581
     },
     "era": {
-      "mean": 2.623386,
-      "standardDeviation": 0.122928
+      "mean": 2.61982,
+      "standardDeviation": 0.116778
     },
     "homeRuns": {
-      "mean": 1110.39,
-      "standardDeviation": 62.134
+      "mean": 1106.37,
+      "standardDeviation": 64.117
     },
     "stolenBaseSuccessRate": {
-      "mean": 0.624453,
-      "standardDeviation": 0.043778
+      "mean": 0.62088,
+      "standardDeviation": 0.04888
     },
     "walkRate": {
-      "mean": 0.066276,
-      "standardDeviation": 0.002824
+      "mean": 0.066272,
+      "standardDeviation": 0.002854
     }
   }
 }
