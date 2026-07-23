@@ -4,6 +4,7 @@ import { SeasonScreen } from './components/screens/SeasonScreen';
 import { TeamSelectScreen } from './components/screens/TeamSelectScreen';
 import { Button, Card, PageShell } from './components/ui';
 import { PlayerDetailModal } from './components/widgets/PlayerDetailModal';
+import { SaveSlotControls } from './components/widgets/SaveSlotControls';
 import { GameProvider, useGameState } from './state/gameState';
 
 function WelcomeScreen() {
@@ -18,11 +19,14 @@ function WelcomeScreen() {
           <h1 style={{ fontSize: 'clamp(32px,7vw,56px)', margin: '10px 0' }}>
             NPB ペナントシミュレーター
           </h1>
-          <p style={{ color: '#a9bfd3', lineHeight: 1.8, margin: '18px 0 26px' }}>
-            Phase Bで型付き移植したゲームエンジンを使用するReact版です。旧セーブデータは同じ保存キーから読み込み、必要な特殊能力スキーマを自動移行します。
+          <p style={{ color: '#a9bfd3', lineHeight: 1.8, margin: '18px 0 20px' }}>
+            3つの独立したセーブ枠を利用できます。旧キーのセーブは削除せず、初回読込時にスロット1へ自動コピーします。
           </p>
+          <div style={{ marginBottom: 18 }}>
+            <SaveSlotControls />
+          </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <Button onClick={game.startNewGame}>新規ゲーム開始</Button>
+            <Button onClick={game.startNewGame}>選択中の枠で新規ゲーム</Button>
             <a className="legacy-link" href="/legacy/index.html">legacy版を開く</a>
           </div>
         </Card>
