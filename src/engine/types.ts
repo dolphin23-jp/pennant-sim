@@ -166,6 +166,27 @@ export interface AtBatLogEntry {
   desc: string;
   snap: Score;
 }
+export interface InjuryEvent {
+  teamKey: TeamKey;
+  playerId: string;
+  name: string;
+  isP: boolean;
+  severity: NonNullable<Player['injurySeverity']>;
+  days: number;
+  permanentChanges: GrowthChange[];
+}
+export interface InSeasonAwakeningEvent {
+  teamKey: TeamKey;
+  playerId: string;
+  name: string;
+  isP: boolean;
+  isBreakthrough: boolean;
+  newSpecial: string | null;
+}
+export interface PostGameEvents {
+  awakenings: InSeasonAwakeningEvent[];
+  injuries: InjuryEvent[];
+}
 export interface GameState {
   teams: Record<Side, Team>;
   lineups: Record<Side, Player[]>;
@@ -185,6 +206,7 @@ export interface GameState {
   loserPitcherId?: string | null;
   savePitcherId?: string | null;
   holdPitcherIds?: string[];
+  postGameEvents: PostGameEvents;
 }
 export interface HalfInningResult {
   runs: number;
