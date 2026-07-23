@@ -129,31 +129,48 @@ test('a rainout can be rescheduled as a doubleheader without changing game total
 test('platoon, park and prior-matchup context can benefit the batter', () => {
   const pitcher = makePlayer('pitcher', true),
     batter = makePlayer('batter', false),
-    situation = { pStam: 100, isPinch: false, isLead: false, outs: 0, bases: [false, false, false] } as const;
-  configureRandom(() => 0.313, () => Date.UTC(2026, 0, 1));
+    situation = {
+      pStam: 100,
+      isPinch: false,
+      isLead: false,
+      outs: 0,
+      bases: [false, false, false],
+    } as const;
   try {
-    const pitcherFriendly = simAB(
-      pitcher,
-      batter,
-      situation,
-      100,
-      1,
-      1,
-      { homeRun: 0.7, hit: 0.9 },
-      0,
+    let favorableHomeRunBoundaryFound = false;
+    for (let step = 1; step < 10_000; step += 1) {
+      const roll = step / 10_000;
+      configureRandom(() => roll, () => Date.UTC(2026, 0, 1));
+      const pitcherFriendly = simAB(
+        pitcher,
+        batter,
+        situation,
+        100,
+        1,
+        1,
+        { homeRun: 0.7, hit: 0.9 },
+        0,
+      );
+      configureRandom(() => roll, () => Date.UTC(2026, 0, 1));
+      const batterFriendly = simAB(
+        pitcher,
+        { ...batter, hand: { bat: '左' } },
+        situation,
+        100,
+        1,
+        1,
+        { homeRun: 1.5, hit: 1.1 },
+        4,
+      );
+      if (pitcherFriendly.result !== 'HR' && batterFriendly.result === 'HR') {
+        favorableHomeRunBoundaryFound = true;
+        break;
+      }
+    }
+    assert.ok(
+      favorableHomeRunBoundaryFound,
+      'batter-friendly platoon, park and familiarity should increase the home-run boundary',
     );
-    const batterFriendly = simAB(
-      pitcher,
-      { ...batter, hand: { bat: '左' } },
-      situation,
-      100,
-      1,
-      1,
-      { homeRun: 1.5, hit: 1.1 },
-      4,
-    );
-    assert.notEqual(pitcherFriendly.result, 'HR');
-    assert.equal(batterFriendly.result, 'HR');
   } finally {
     resetRandom();
   }

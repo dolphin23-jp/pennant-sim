@@ -11,6 +11,7 @@ import {
   type PlayerStats,
   type TeamKey,
 } from '../src/engine/index';
+import { evaluateNpbScoringTargets, NPB_SCORING_TARGETS } from './npb-targets.mjs';
 const DEFAULT_SEASONS = 100,
   DEFAULT_SEED = 20260723,
   DEFAULT_OUTPUT = 'baseline/new-season-stats.json';
@@ -127,12 +128,7 @@ async function main(): Promise<void> {
       `Season ${seasonIndex + 1}/${options.seasons}: AVG ${stats.battingAverage.toFixed(3)}, ERA ${stats.era.toFixed(2)}, HR ${stats.homeRuns}`,
     );
   }
-  const output = {
-    schemaVersion: 1,
-    source: 'src/engine',
-    seasons: options.seasons,
-    seed: options.seed,
-    summary: {
+  const summary = {
       battingAverage: roundSummary(summarize(seasonStats.map((stats) => stats.battingAverage)), 6),
       era: roundSummary(summarize(seasonStats.map((stats) => stats.era)), 6),
       homeRuns: roundSummary(summarize(seasonStats.map((stats) => stats.homeRuns)), 3),
@@ -142,12 +138,26 @@ async function main(): Promise<void> {
       ),
       walkRate: roundSummary(summarize(seasonStats.map((stats) => stats.walkRate)), 6),
     },
-  };
+    targetEvaluation = evaluateNpbScoringTargets(summary),
+    output = {
+      schemaVersion: 2,
+      source: 'src/engine',
+      seasons: options.seasons,
+      seed: options.seed,
+      targets: NPB_SCORING_TARGETS,
+      targetEvaluation,
+      summary,
+    };
   const outputPath = resolve(options.output);
   await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(outputPath, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
   console.log(`Baseline summary: ${JSON.stringify(output.summary)}`);
+  console.log(`NPB target evaluation: ${JSON.stringify(targetEvaluation)}`);
   console.log(`Wrote ${options.seasons}-season new-engine baseline to ${outputPath}`);
+  if (!targetEvaluation.passed) {
+    console.error('Initial engine scoring environment is outside the configured NPB target ranges.');
+    process.exitCode = 1;
+  }
 }
 main().catch((error: unknown) => {
   console.error(error);
