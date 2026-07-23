@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "source": "legacy/index.html",
+  "source": "src/engine",
   "seasons": 100,
   "seed": 20260723,
   "definitions": {
@@ -13,24 +13,24 @@
   },
   "summary": {
     "battingAverage": {
-      "mean": 0.221309,
-      "standardDeviation": 0.005742
+      "mean": 0.222067,
+      "standardDeviation": 0.005844
     },
     "era": {
-      "mean": 4.221261,
-      "standardDeviation": 0.282428
+      "mean": 4.236324,
+      "standardDeviation": 0.27696
     },
     "homeRuns": {
-      "mean": 3117.99,
-      "standardDeviation": 243.897
+      "mean": 3126.4,
+      "standardDeviation": 242.41
     },
     "stolenBaseSuccessRate": {
-      "mean": 0.621848,
-      "standardDeviation": 0.061481
+      "mean": 0.62416,
+      "standardDeviation": 0.045592
     },
     "walkRate": {
-      "mean": 0.07397,
-      "standardDeviation": 0.004831
+      "mean": 0.073874,
+      "standardDeviation": 0.004777
     }
   }
 }
