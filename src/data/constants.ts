@@ -20,6 +20,35 @@ export const MATURITY_PEAK_AGE: Record<Maturity, number> = {
 };
 export const MATURITY_WEIGHTS = [0.08, 0.18, 0.44, 0.18, 0.12];
 
+
+export const PLAYER_DEVELOPMENT_BALANCE = {
+  annualRandomVariation: {
+    maxAbsoluteChange: 0.35,
+    fallbackStep: 1,
+    minimumRating: 1,
+    maximumRating: 99,
+  },
+  awakening: {
+    inSeasonBaseRate: 0.0002,
+    offseasonBaseRate: 0.012,
+  },
+  injury: {
+    participantGameRate: 0.00075,
+    severityWeights: { light: 0.74, mid: 0.23, heavy: 0.03 },
+    recoveryDays: {
+      light: { minimum: 2, maximum: 5 },
+      mid: { minimum: 8, maximum: 18 },
+      heavy: { minimum: 35, maximum: 70 },
+    },
+    heavyPermanentLoss: {
+      parameterMinimum: 1,
+      parameterMaximum: 2,
+      amountMinimum: 1,
+      amountMaximum: 2,
+    },
+  },
+} as const;
+
 // simAB probability model. Context multipliers intentionally stay small so player ratings remain primary.
 export const AT_BAT_BALANCE = {
   strikeout: {

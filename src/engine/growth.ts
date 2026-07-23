@@ -1,4 +1,4 @@
-import { BS, GROW_P, PS } from '../data';
+import { BS, GROW_P, PLAYER_DEVELOPMENT_BALANCE, PS } from '../data';
 import { calcOVR } from './ratings';
 import { clamp, random, randomChoice, randomInt } from './random';
 import { ensureSpecialLevels, syncSpecialsFromLevels } from './specials';
@@ -71,18 +71,42 @@ export function growPlayer(player: Player): Player {
         adjustedAgeEffect *= 0.62;
     }
     const trainingBonus = trainingBonusByPolicy[player.trainPolicy]?.[parameter] ?? 0,
-      growth =
+      developmentGrowth =
         gap *
         definition.c *
         Math.max(-0.18, adjustedAgeEffect) *
         (0.55 + random() * 0.9) *
         (1 + trainingBonus),
-      nextValue = Math.round(before + growth);
-    (params as unknown as Record<string, unknown>)[parameter] =
-      growth > 0 ? Math.min(nextValue, ceiling) : nextValue;
+      randomVariation =
+        (random() * 2 - 1) *
+        PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.maxAbsoluteChange,
+      developedValue =
+        developmentGrowth > 0
+          ? Math.min(before + developmentGrowth, ceiling)
+          : before + developmentGrowth,
+      nextValue = Math.round(developedValue + randomVariation);
+    (params as unknown as Record<string, unknown>)[parameter] = clamp(
+      nextValue,
+      PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.minimumRating,
+      PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.maximumRating,
+    );
     const after = Number(params[parameter] ?? 50),
       difference = after - before;
     if (difference !== 0) changes.push({ param: parameter, before, after, diff: difference });
+  }
+  if (!changes.length) {
+    const fallbackParameter = randomChoice(
+      parameterNames.filter((parameter) => Boolean(GROW_P[parameter])),
+    );
+    const before = Number(params[fallbackParameter] ?? 50),
+      preferredDirection = random() < 0.5 ? -1 : 1,
+      step = PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.fallbackStep,
+      minimum = PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.minimumRating,
+      maximum = PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.maximumRating;
+    let after = clamp(before + preferredDirection * step, minimum, maximum);
+    if (after === before) after = clamp(before - preferredDirection * step, minimum, maximum);
+    (params as unknown as Record<string, unknown>)[fallbackParameter] = after;
+    changes.push({ param: fallbackParameter, before, after, diff: after - before });
   }
   const overallBefore = calcOVR(player, player.pos),
     updatedPlayer: Player = { ...player, p: params, age: player.age + 1 },
@@ -141,7 +165,9 @@ export function checkAwakening(player: Player, inSeason: boolean): AwakeningResu
     latentFactor =
       potentialGap >= 20 ? 1.4 : potentialGap >= 14 ? 0.9 : potentialGap >= 10 ? 0.52 : 0.18,
     probability =
-      (inSeason ? 0.0022 : 0.012) *
+      (inSeason
+        ? PLAYER_DEVELOPMENT_BALANCE.awakening.inSeasonBaseRate
+        : PLAYER_DEVELOPMENT_BALANCE.awakening.offseasonBaseRate) *
       ageFactor *
       lowOverallFactor *
       latentFactor *
@@ -233,7 +259,10 @@ export function growthPhase(teams: Teams): {
   }
   return { teams: nextTeams, awakeEvents };
 }
-export function applyInSeasonAwakening(team: Teams[keyof Teams]): {
+export function applyInSeasonAwakening(
+  team: Teams[keyof Teams],
+  eligiblePlayerIds?: ReadonlySet<string>,
+): {
   team: Teams[keyof Teams];
   events: Array<AwakeningResult & { name: string; isP: boolean }>;
 } {
@@ -241,6 +270,11 @@ export function applyInSeasonAwakening(team: Teams[keyof Teams]): {
     nextTeam = {
       ...team,
       pitchers: team.pitchers.map((pitcher) => {
+        if (
+          (eligiblePlayerIds && !eligiblePlayerIds.has(pitcher.id)) ||
+          (pitcher.injuryDays ?? 0) > 0
+        )
+          return pitcher;
         const awakening = checkAwakening(pitcher, true);
         if (awakening) {
           events.push({ ...awakening, name: awakening.player.name, isP: true });
@@ -249,6 +283,11 @@ export function applyInSeasonAwakening(team: Teams[keyof Teams]): {
         return pitcher;
       }),
       fielders: team.fielders.map((fielder) => {
+        if (
+          (eligiblePlayerIds && !eligiblePlayerIds.has(fielder.id)) ||
+          (fielder.injuryDays ?? 0) > 0
+        )
+          return fielder;
         const awakening = checkAwakening(fielder, true);
         if (awakening) {
           events.push({ ...awakening, name: awakening.player.name, isP: false });

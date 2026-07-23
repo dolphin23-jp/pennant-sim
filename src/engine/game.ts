@@ -1,4 +1,5 @@
 import { advBases, buildDesc, simAB } from './atBat';
+import { applyPostGamePlayerEvents } from './playerEvents';
 import { clamp, random } from './random';
 import { bestLineup, calcOVR, masteryFromAccum, topStarters } from './ratings';
 import { hasGold, hasSpecial } from './specials';
@@ -10,10 +11,22 @@ import type {
   HalfInningResult,
   Player,
   Side,
+  Team,
   TeamKey,
   Teams,
 } from './types';
 const teamKeyForSide = (gameState: GameState, side: Side): TeamKey => gameState.teams[side].key;
+function resolveLineup(team: Team, supplied?: Player[] | null): Player[] {
+  if (!supplied?.length) return bestLineup(team);
+  const roster = new Map(team.fielders.map((player) => [player.id, player]));
+  const resolved = supplied
+    .map((player) => {
+      const current = roster.get(player.id);
+      return current ? { ...current, _assignedPos: player._assignedPos ?? current.pos } : null;
+    })
+    .filter((player): player is Player => Boolean(player && (player.injuryDays ?? 0) <= 0));
+  return resolved.length >= 9 ? resolved.slice(0, 9) : bestLineup(team);
+}
 export function simHalf(
   gameState: GameState,
   battingSide: Side,
@@ -36,7 +49,11 @@ export function simHalf(
           : Math.round(24 + currentPitcher.p.stam * 0.28 + (random() * 8 - 4));
     if (pitchCount < maximumPitchCount) return;
     const available = gameState.teams[fieldingSide].pitchers.filter(
-      (p) => p.role !== '先発' && !gameState.usedR[fieldingSide].has(p.id) && (p.fatigue || 0) < 95,
+      (p) =>
+        p.role !== '先発' &&
+        !gameState.usedR[fieldingSide].has(p.id) &&
+        (p.injuryDays ?? 0) <= 0 &&
+        (p.fatigue || 0) < 95,
     );
     if (!available.length) return;
     const close = Math.abs(gameState.score.home - gameState.score.away) <= 3,
@@ -214,14 +231,18 @@ export function simulateGame(
 ): GameState {
   const homeTeam = teams[homeKey],
     awayTeam = teams[awayKey],
-    resolvedHomeLineup = homeLineup || bestLineup(homeTeam),
-    resolvedAwayLineup = awayLineup || bestLineup(awayTeam),
+    resolvedHomeLineup = resolveLineup(homeTeam, homeLineup),
+    resolvedAwayLineup = resolveLineup(awayTeam, awayLineup),
     homeStarters = topStarters(homeTeam),
     awayStarters = topStarters(awayTeam),
     homeStarter =
-      homeStarters[homeStarterIndex % Math.max(1, homeStarters.length)] || homeTeam.pitchers[0],
+      homeStarters[homeStarterIndex % Math.max(1, homeStarters.length)] ||
+      homeTeam.pitchers.find((player) => (player.injuryDays ?? 0) <= 0) ||
+      homeTeam.pitchers[0],
     awayStarter =
-      awayStarters[awayStarterIndex % Math.max(1, awayStarters.length)] || awayTeam.pitchers[0];
+      awayStarters[awayStarterIndex % Math.max(1, awayStarters.length)] ||
+      awayTeam.pitchers.find((player) => (player.injuryDays ?? 0) <= 0) ||
+      awayTeam.pitchers[0];
   const gameState: GameState = {
     teams: { home: homeTeam, away: awayTeam },
     lineups: { home: resolvedHomeLineup, away: resolvedAwayLineup },
@@ -240,6 +261,7 @@ export function simulateGame(
     },
     starterH: homeStarter as Player,
     starterA: awayStarter as Player,
+    postGameEvents: { awakenings: [], injuries: [] },
   };
   for (let inningIndex = 0; inningIndex < 15; inningIndex += 1) {
     const inningScore = { away: 0, home: 0 },
@@ -301,5 +323,24 @@ export function simulateGame(
     if (entry.pSide === gameState.teams[losingSide].key && entry.rbi > 0)
       losingRuns[entry.pitcherId] = (losingRuns[entry.pitcherId] || 0) + entry.rbi;
   gameState.loserPitcherId = Object.entries(losingRuns).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  const participantIds = (side: Side): Set<string> => {
+      const teamKey = gameState.teams[side].key,
+        ids = new Set<string>();
+      for (const entry of gameState.atBatLog) {
+        if (entry.bSide === teamKey) ids.add(entry.batterId);
+        if (entry.pSide === teamKey) ids.add(entry.pitcherId);
+      }
+      return ids;
+    },
+    homePostGame = applyPostGamePlayerEvents(homeTeam, participantIds('home')),
+    awayPostGame = applyPostGamePlayerEvents(awayTeam, participantIds('away'));
+  gameState.teams = { home: homePostGame.team, away: awayPostGame.team };
+  gameState.postGameEvents = {
+    awakenings: [...homePostGame.events.awakenings, ...awayPostGame.events.awakenings],
+    injuries: [...homePostGame.events.injuries, ...awayPostGame.events.injuries],
+  };
+  // Deliberately persist post-game roster state for every caller, including CPU skips and diagnostics.
+  teams[homeKey] = homePostGame.team;
+  teams[awayKey] = awayPostGame.team;
   return gameState;
 }
