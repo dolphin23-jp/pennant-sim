@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { PS } from '../src/data';
+import { PS, TINFO } from '../src/data';
 import { configureRandom, initTeams, resetRandom } from '../src/engine';
 import {
   SAVE_KEY,
@@ -21,7 +21,7 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-test('legacy save data keeps the existing key and migrates special levels', () => {
+test('legacy save data keeps the existing key and migrates special levels and park factors', () => {
   configureRandom(mulberry32(7), () => Date.UTC(2026, 0, 1));
   try {
     const teams = initTeams();
@@ -30,10 +30,11 @@ test('legacy save data keeps the existing key and migrates special levels', () =
       specialLevels: undefined,
       specials: [PS[0]],
     };
+    const { park: _legacyPark, ...legacyGiants } = teams.giants;
     teams.giants = {
-      ...teams.giants,
+      ...legacyGiants,
       fielders: [legacyPlayer, ...teams.giants.fielders.slice(1)],
-    };
+    } as typeof teams.giants;
 
     const migrated = migrateSaveData({
       teams,
@@ -44,6 +45,7 @@ test('legacy save data keeps the existing key and migrates special levels', () =
     assert.ok(migrated);
     assert.equal(SAVE_KEY, 'npb_sim_v3_restored');
     assert.equal(migrated.teams.giants.fielders[0].specialLevels?.[PS[0].id], 1);
+    assert.deepEqual(migrated.teams.giants.park, TINFO.giants.park);
     assert.equal(migrated.viewTeam, 'giants');
     assert.deepEqual(migrated.accumulated, {});
     assert.equal(migrated.uiVersion, 1);
