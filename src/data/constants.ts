@@ -20,7 +20,6 @@ export const MATURITY_PEAK_AGE: Record<Maturity, number> = {
 };
 export const MATURITY_WEIGHTS = [0.08, 0.18, 0.44, 0.18, 0.12];
 
-
 export const PLAYER_DEVELOPMENT_BALANCE = {
   annualRandomVariation: {
     maxAbsoluteChange: 0.35,
@@ -29,7 +28,7 @@ export const PLAYER_DEVELOPMENT_BALANCE = {
     maximumRating: 99,
   },
   awakening: {
-    inSeasonBaseRate: 0.0002,
+    inSeasonBaseRate: 0.00015,
     offseasonBaseRate: 0.012,
   },
   injury: {
