@@ -6,6 +6,7 @@ import {
   configureRandom,
   generateSchedule,
   initTeams,
+  postponeScheduleGame,
   resetRandom,
   simAB,
   simulateGame,
@@ -78,6 +79,48 @@ test('Phase B engine preserves league structure and can complete a game', () => 
       plateAppearances,
     );
     assert.ok(trackedMatchups.some((count) => count > 1));
+  } finally {
+    resetRandom();
+  }
+});
+
+test('a rainout can be rescheduled as a doubleheader without changing game totals', () => {
+  configureRandom(mulberry32(77), () => Date.UTC(2026, 0, 1));
+  try {
+    const weatherSchedule = generateSchedule(2026, { rainoutRate: 1, maxRainouts: 1 });
+    assert.equal(weatherSchedule.filter((game) => game.postponedFrom).length, 1);
+
+    const schedule = generateSchedule(2026, { rainoutRate: 0, maxRainouts: 0 });
+    const postponed = schedule.find((game) =>
+      schedule.some(
+        (candidate) =>
+          candidate.id !== game.id &&
+          candidate.date > game.date &&
+          candidate.homeKey === game.homeKey &&
+          candidate.awayKey === game.awayKey,
+      ),
+    );
+    assert.ok(postponed);
+    const partner = schedule
+      .filter(
+        (game) =>
+          game.id !== postponed.id &&
+          game.date > postponed.date &&
+          game.homeKey === postponed.homeKey &&
+          game.awayKey === postponed.awayKey,
+      )
+      .sort((first, second) => first.date.localeCompare(second.date))[0];
+    assert.ok(partner);
+
+    const rescheduled = postponeScheduleGame(schedule, postponed.id),
+      moved = rescheduled.find((game) => game.id === postponed.id),
+      paired = rescheduled.find((game) => game.id === partner.id);
+    assert.equal(rescheduled.length, schedule.length);
+    assert.equal(moved?.postponedFrom, postponed.date);
+    assert.equal(moved?.originalDate, postponed.date);
+    assert.equal(moved?.date, partner.date);
+    assert.equal(moved?.doubleHeaderGame, 2);
+    assert.equal(paired?.doubleHeaderGame, 1);
   } finally {
     resetRandom();
   }
