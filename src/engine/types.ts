@@ -193,6 +193,9 @@ export interface HalfInningResult {
 export interface ScheduleGame {
   id: string;
   date: string;
+  originalDate?: string;
+  postponedFrom?: string | null;
+  doubleHeaderGame?: 1 | 2 | null;
   homeKey: TeamKey;
   awayKey: TeamKey;
   played: boolean;
