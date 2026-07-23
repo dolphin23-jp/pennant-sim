@@ -237,6 +237,12 @@ export interface StandingRecord {
   gb?: string;
   rank?: number;
 }
+export interface TeamForm {
+  streak: string;
+  last10: { w: number; l: number; d: number };
+  home: { w: number; l: number; d: number };
+  away: { w: number; l: number; d: number };
+}
 export interface BatterStats {
   type: 'bat';
   name: string;

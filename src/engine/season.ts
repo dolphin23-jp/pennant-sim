@@ -2,7 +2,14 @@ import { CENTRAL, PACIFIC, TINFO } from '../data';
 import { simulateGame } from './game';
 import { random, uid } from './random';
 import { accumulateStats, accumulateStatsAll } from './stats';
-import type { AccumulatedStats, ScheduleGame, StandingRecord, TeamKey, Teams } from './types';
+import type {
+  AccumulatedStats,
+  ScheduleGame,
+  StandingRecord,
+  TeamForm,
+  TeamKey,
+  Teams,
+} from './types';
 
 export interface ScheduleGenerationOptions {
   rainoutRate?: number;
@@ -262,6 +269,60 @@ export function calcStandings(schedule: ScheduleGame[]): Record<TeamKey, Standin
     });
   }
   return records;
+}
+
+type TeamGameResult = 'w' | 'l' | 'd';
+type FormRecord = TeamForm['last10'];
+
+function teamResult(game: ScheduleGame, teamKey: TeamKey): TeamGameResult {
+  const homeScore = game.hs ?? 0;
+  const awayScore = game.as ?? 0;
+  if (homeScore === awayScore) return 'd';
+  const teamWon =
+    (game.homeKey === teamKey && homeScore > awayScore) ||
+    (game.awayKey === teamKey && awayScore > homeScore);
+  return teamWon ? 'w' : 'l';
+}
+
+function countResults(games: ScheduleGame[], teamKey: TeamKey): FormRecord {
+  return games.reduce<FormRecord>(
+    (record, game) => {
+      const result = teamResult(game, teamKey);
+      record[result] += 1;
+      return record;
+    },
+    { w: 0, l: 0, d: 0 },
+  );
+}
+
+export function deriveTeamForm(schedule: ScheduleGame[], teamKey: TeamKey): TeamForm {
+  const games = sortSchedule(
+    schedule.filter((game) => game.played && involvesTeam(game, teamKey)),
+  );
+  const latestResult = games.length ? teamResult(games[games.length - 1] as ScheduleGame, teamKey) : null;
+  let streakCount = 0;
+  if (latestResult) {
+    for (let index = games.length - 1; index >= 0; index -= 1) {
+      const game = games[index];
+      if (!game || teamResult(game, teamKey) !== latestResult) break;
+      streakCount += 1;
+    }
+  }
+  const streak =
+    latestResult === 'w'
+      ? `${streakCount}連勝`
+      : latestResult === 'l'
+        ? `${streakCount}連敗`
+        : latestResult === 'd'
+          ? `${streakCount}分`
+          : '-';
+
+  return {
+    streak,
+    last10: countResults(games.slice(-10), teamKey),
+    home: countResults(games.filter((game) => game.homeKey === teamKey), teamKey),
+    away: countResults(games.filter((game) => game.awayKey === teamKey), teamKey),
+  };
 }
 
 export function simCpuUntilNext(
