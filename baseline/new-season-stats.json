@@ -1,28 +1,72 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "source": "src/engine",
   "seasons": 100,
   "seed": 20260723,
-  "summary": {
+  "targets": {
+    "reference": "2025 NPB league environment",
     "battingAverage": {
-      "mean": 0.222067,
-      "standardDeviation": 0.005844
+      "minimum": 0.232,
+      "target": 0.244,
+      "maximum": 0.257
     },
     "era": {
-      "mean": 4.236324,
-      "standardDeviation": 0.27696
+      "minimum": 2.21,
+      "target": 3.01,
+      "maximum": 3.6
     },
     "homeRuns": {
-      "mean": 3126.4,
-      "standardDeviation": 242.41
+      "minimum": 1000,
+      "target": 1096,
+      "maximum": 1200
+    }
+  },
+  "targetEvaluation": {
+    "passed": true,
+    "comparison": {
+      "battingAverage": {
+        "value": 0.240167,
+        "minimum": 0.232,
+        "target": 0.244,
+        "maximum": 0.257,
+        "passed": true
+      },
+      "era": {
+        "value": 2.623386,
+        "minimum": 2.21,
+        "target": 3.01,
+        "maximum": 3.6,
+        "passed": true
+      },
+      "homeRuns": {
+        "value": 1110.39,
+        "minimum": 1000,
+        "target": 1096,
+        "maximum": 1200,
+        "passed": true
+      }
+    }
+  },
+  "summary": {
+    "battingAverage": {
+      "mean": 0.240167,
+      "standardDeviation": 0.003658
+    },
+    "era": {
+      "mean": 2.623386,
+      "standardDeviation": 0.122928
+    },
+    "homeRuns": {
+      "mean": 1110.39,
+      "standardDeviation": 62.134
     },
     "stolenBaseSuccessRate": {
-      "mean": 0.62416,
-      "standardDeviation": 0.045592
+      "mean": 0.624453,
+      "standardDeviation": 0.043778
     },
     "walkRate": {
-      "mean": 0.073874,
-      "standardDeviation": 0.004777
+      "mean": 0.066276,
+      "standardDeviation": 0.002824
     }
   }
 }
