@@ -129,14 +129,13 @@ export function SeasonScreen() {
             現在の先発野手 {game.lineup.length}名
           </div>
           <div
-            role="list"
-            aria-label="先発オーダー"
+            role="group"
+            aria-label="先発オーダーの選手詳細ボタン"
             style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}
           >
             {game.lineup.map((player, index) => (
               <button
                 type="button"
-                role="listitem"
                 key={player.id}
                 onClick={() => game.selectPlayer(player)}
                 aria-label={`打順${index + 1}番 ${player.name}の詳細を表示`}
