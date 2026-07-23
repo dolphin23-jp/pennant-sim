@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 
 import { CENTRAL, PACIFIC, TINFO } from '../../data';
 import { simulateGame } from '../../engine';
-import type { TeamKey } from '../../engine';
+import type { TeamKey, Teams } from '../../engine';
 import { useGameState } from '../../state/gameState';
 import { Button, Card, PageShell, SectionTitle } from '../ui';
 
@@ -36,7 +36,7 @@ function simulateSeries(
   first: TeamKey,
   second: TeamKey,
   bestOf: number,
-  teams: NonNullable<ReturnType<typeof useGameState>['teams']>,
+  teams: Teams,
   firstAdvantage = 0,
 ): SeriesResult {
   const target = Math.ceil(bestOf / 2);
@@ -135,40 +135,41 @@ export function PostseasonScreen() {
     () => [...PACIFIC].sort((a, b) => (game.standings[a].rank ?? 99) - (game.standings[b].rank ?? 99)),
     [game.standings],
   );
-  if (!game.teams) return null;
+  const teams = game.teams;
+  if (!teams) return null;
 
   const runPostseason = () => {
     const centralFirst = simulateSeries(
       centralRanking[1],
       centralRanking[2],
       3,
-      game.teams,
+      teams,
     );
     const pacificFirst = simulateSeries(
       pacificRanking[1],
       pacificRanking[2],
       3,
-      game.teams,
+      teams,
     );
     const centralFinal = simulateSeries(
       centralRanking[0],
       centralFirst.winner,
       7,
-      game.teams,
+      teams,
       1,
     );
     const pacificFinal = simulateSeries(
       pacificRanking[0],
       pacificFirst.winner,
       7,
-      game.teams,
+      teams,
       1,
     );
     const japanSeries = simulateSeries(
       centralFinal.winner,
       pacificFinal.winner,
       7,
-      game.teams,
+      teams,
     );
     setResults({ centralFirst, centralFinal, pacificFirst, pacificFinal, japanSeries });
   };
