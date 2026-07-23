@@ -131,7 +131,9 @@ export function simHalf(
       isPinch = Boolean(bases[0] || bases[1] || bases[2]) && outs >= 1,
       isLead = outs === 0 && !bases[0] && !bases[1] && !bases[2],
       pitcherMastery = masteryFromAccum(pitcher, accumulatedStats),
-      batterMastery = masteryFromAccum(batter, accumulatedStats);
+      batterMastery = masteryFromAccum(batter, accumulatedStats),
+      matchupKey = `${pitcher.id}:${batter.id}`,
+      priorMatchups = gameState.matchupCounts[matchupKey] ?? 0;
     const {
       result,
       pc: pitchCount,
@@ -143,7 +145,10 @@ export function simHalf(
       catcherGameCalling,
       pitcherMastery,
       batterMastery,
+      gameState.park,
+      priorMatchups,
     );
+    gameState.matchupCounts[matchupKey] = priorMatchups + 1;
     gameState.pc[fieldingSide] += pitchCount;
     let runsBattedIn = 0;
     if (result === 'K') outs += 1;
@@ -220,6 +225,8 @@ export function simulateGame(
   const gameState: GameState = {
     teams: { home: homeTeam, away: awayTeam },
     lineups: { home: resolvedHomeLineup, away: resolvedAwayLineup },
+    park: homeTeam.park,
+    matchupCounts: {},
     score: { home: 0, away: 0 },
     innings: [],
     atBatLog: [],
