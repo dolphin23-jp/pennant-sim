@@ -18,6 +18,17 @@ import type {
 const teamKeyForSide = (gameState: GameState, side: Side): TeamKey => gameState.teams[side].key;
 function resolveLineup(team: Team, supplied?: Player[] | null): Player[] {
   if (!supplied?.length) return bestLineup(team);
+  const roster = new Map(team.fielders.map((player) => [player.id, player]));
+  const resolved = supplied
+    .map((player) => {
+      const current = roster.get(player.id);
+      return current ? { ...current, _assignedPos: player._assignedPos ?? current.pos } : null;
+    })
+    .filter((player): player is Player => Boolean(player && (player.injuryDays ?? 0) <= 0));
+  return resolved.length >= 9 ? resolved.slice(0, 9) : bestLineup(team);
+}
+function resolveLineup(team: Team, supplied?: Player[] | null): Player[] {
+  if (!supplied?.length) return bestLineup(team);
   const roster = new Map(team.fielders.map((player) => [player.id, player])),
     resolved: Player[] = [];
   for (const player of supplied) {
