@@ -5,29 +5,20 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', 'legacy', 'baseline/season-stats.json'] },
+  { ignores: ['dist', 'legacy', 'baseline/season-stats.json', 'baseline/new-season-stats.json'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
     files: ['src/**/*.{ts,tsx}', 'vite.config.ts'],
-    languageOptions: {
-      ecmaVersion: 2022,
-      globals: globals.browser,
-    },
-    plugins: {
-      'react-hooks': reactHooks,
-      'react-refresh': reactRefresh,
-    },
+    languageOptions: { ecmaVersion: 2022, globals: globals.browser },
+    plugins: { 'react-hooks': reactHooks, 'react-refresh': reactRefresh },
     rules: {
       ...reactHooks.configs.recommended.rules,
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
   },
   {
-    files: ['scripts/**/*.mjs', 'eslint.config.js'],
-    languageOptions: {
-      ecmaVersion: 2022,
-      globals: globals.node,
-    },
+    files: ['scripts/**/*.{mjs,ts}', 'eslint.config.js'],
+    languageOptions: { ecmaVersion: 2022, globals: globals.node },
   },
 );
