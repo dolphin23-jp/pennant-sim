@@ -1,51 +1,59 @@
-import type { CSSProperties, ReactNode } from 'react';
+import {
+  useEffect,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 
-export function PageShell({ children }: { children: ReactNode }) {
+const THEME_KEY = 'pennant-sim-theme';
+type Theme = 'dark' | 'light';
+
+const buttonStyle = (color: string): CSSProperties =>
+  ({ '--button-color': color }) as CSSProperties;
+
+export function PageShell({
+  children,
+  ariaLabel = 'ペナントシミュレーター',
+}: {
+  children: ReactNode;
+  ariaLabel?: string;
+}) {
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        background: '#04090f',
-        color: '#f3f7ff',
-        fontFamily: "'Noto Sans JP', system-ui, sans-serif",
-        padding: 20,
-      }}
-    >
-      <div style={{ maxWidth: 1180, margin: '0 auto' }}>{children}</div>
+    <main className="page-shell" aria-label={ariaLabel}>
+      <div className="page-shell__inner">{children}</div>
     </main>
   );
 }
 
-export function Card({ children, style = {} }: { children: ReactNode; style?: CSSProperties }) {
+export function Card({
+  children,
+  style = {},
+  className = '',
+  ariaLabel,
+}: {
+  children: ReactNode;
+  style?: CSSProperties;
+  className?: string;
+  ariaLabel?: string;
+}) {
   return (
-    <section
-      style={{
-        background: '#0b1622',
-        border: '1px solid #1e3044',
-        borderRadius: 12,
-        padding: 16,
-        ...style,
-      }}
-    >
+    <section className={`card ${className}`.trim()} style={style} aria-label={ariaLabel}>
       {children}
     </section>
   );
 }
 
-export function SectionTitle({ children }: { children: ReactNode }) {
+export function SectionTitle({
+  children,
+  id,
+}: {
+  children: ReactNode;
+  id?: string;
+}) {
   return (
-    <div
-      style={{
-        fontSize: 10,
-        color: '#4db6ff',
-        fontWeight: 800,
-        letterSpacing: 2,
-        marginBottom: 10,
-        textTransform: 'uppercase',
-      }}
-    >
+    <h2 className="section-title" id={id}>
       {children}
-    </div>
+    </h2>
   );
 }
 
@@ -53,28 +61,26 @@ export function Button({
   children,
   onClick,
   disabled = false,
-  color = '#1565c0',
+  color = 'var(--color-accent)',
+  ariaLabel,
+  className = '',
 }: {
   children: ReactNode;
   onClick(): void;
   disabled?: boolean;
   color?: string;
+  ariaLabel?: string;
+  className?: string;
 }) {
+  const inferredLabel = typeof children === 'string' ? children : undefined;
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
-      style={{
-        border: 0,
-        borderRadius: 8,
-        minHeight: 40,
-        padding: '8px 14px',
-        background: disabled ? '#162030' : color,
-        color: disabled ? '#5a7898' : 'white',
-        fontWeight: 800,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-      }}
+      aria-label={ariaLabel ?? inferredLabel}
+      className={`ui-button ${className}`.trim()}
+      style={buttonStyle(color)}
     >
       {children}
     </button>
@@ -82,5 +88,56 @@ export function Button({
 }
 
 export function EmptyState({ children }: { children: ReactNode }) {
-  return <div style={{ color: '#6f8ca8', fontSize: 12, padding: '18px 0' }}>{children}</div>;
+  return <div className="empty-state">{children}</div>;
+}
+
+export function TermTooltip({
+  term,
+  description,
+}: {
+  term: string;
+  description: string;
+}) {
+  return (
+    <span
+      className="term-tooltip"
+      tabIndex={0}
+      aria-label={`${term}: ${description}`}
+    >
+      <span className="term-tooltip__term">{term}</span>
+      <span className="term-tooltip__bubble" role="tooltip">
+        {description}
+      </span>
+    </span>
+  );
+}
+
+function initialTheme(): Theme {
+  if (typeof window === 'undefined') return 'dark';
+  const saved = window.localStorage.getItem(THEME_KEY);
+  if (saved === 'dark' || saved === 'light') return saved;
+  return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+
+export function ThemeToggle() {
+  const [theme, setTheme] = useState<Theme>(initialTheme);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem(THEME_KEY, theme);
+  }, [theme]);
+
+  const nextTheme = theme === 'dark' ? 'light' : 'dark';
+  return (
+    <button
+      type="button"
+      className="theme-toggle"
+      onClick={() => setTheme(nextTheme)}
+      aria-label={`${nextTheme === 'light' ? 'ライト' : 'ダーク'}テーマに切り替える`}
+      aria-pressed={theme === 'light'}
+    >
+      <span aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span>
+      <span>{theme === 'dark' ? 'ライト' : 'ダーク'}</span>
+    </button>
+  );
 }
