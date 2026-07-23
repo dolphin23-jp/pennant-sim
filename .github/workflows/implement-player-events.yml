@@ -17,7 +17,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref }}
       - name: Apply implementation patch
-        run: python scripts/apply-player-events-patch.py
+        run: |
+          python scripts/apply-player-events-patch.py
+          python scripts/fix-player-event-types.py
       - name: Commit implementation
         shell: bash
         run: |
