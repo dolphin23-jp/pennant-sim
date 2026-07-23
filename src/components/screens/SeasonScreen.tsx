@@ -7,6 +7,7 @@ import { useGameState } from '../../state/gameState';
 import { Button, Card, PageShell, SectionTitle } from '../ui';
 import { BoxScore } from '../widgets/BoxScore';
 import { RosterTable } from '../widgets/RosterTable';
+import { SaveSlotControls } from '../widgets/SaveSlotControls';
 import { StandingsTable } from '../widgets/StandingsTable';
 
 export function SeasonScreen() {
@@ -52,9 +53,10 @@ export function SeasonScreen() {
             {record.rank ?? '-'}位 / {record.w}勝 {record.l}敗 {record.d}分
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <SaveSlotControls beforeExport={game.saveCurrent} warnBeforeSwitch />
           <span style={{ color: '#64d69a', fontSize: 12 }}>{saveStatus}</span>
-          <Button onClick={handleSave} color="#1a2535">保存</Button>
+          <Button onClick={() => void handleSave()} color="#1a2535">保存</Button>
           <a
             href="/legacy/index.html"
             style={{ color: '#90caf9', fontSize: 12, padding: 10 }}
@@ -72,7 +74,16 @@ export function SeasonScreen() {
               <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 5 }}>
                 {TINFO[nextGame.awayKey].ab} @ {TINFO[nextGame.homeKey].ab}
               </div>
-              <div style={{ color: '#7f9ab4', fontSize: 12, marginBottom: 12 }}>{nextGame.date}</div>
+              <div style={{ color: '#7f9ab4', fontSize: 12, marginBottom: 4 }}>
+                {nextGame.date}
+                {nextGame.doubleHeaderGame ? ` / ダブルヘッダー第${nextGame.doubleHeaderGame}試合` : ''}
+              </div>
+              {nextGame.postponedFrom && (
+                <div style={{ color: '#ffca72', fontSize: 12, marginBottom: 12 }}>
+                  雨天順延（当初 {nextGame.postponedFrom}）
+                </div>
+              )}
+              {!nextGame.postponedFrom && <div style={{ marginBottom: 12 }} />}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <Button onClick={game.simulateNextGame} color={playerTeam.c}>次戦を実行</Button>
                 <Button onClick={() => game.skip('week')} color="#1a2535">1週スキップ</Button>

@@ -3,7 +3,131 @@ import { simulateGame } from './game';
 import { random, uid } from './random';
 import { accumulateStats, accumulateStatsAll } from './stats';
 import type { AccumulatedStats, ScheduleGame, StandingRecord, TeamKey, Teams } from './types';
-export function generateSchedule(year: number): ScheduleGame[] {
+
+export interface ScheduleGenerationOptions {
+  rainoutRate?: number;
+  maxRainouts?: number;
+}
+
+const addDays = (dateString: string, days: number): string => {
+  const date = new Date(`${dateString}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+};
+
+const sortSchedule = (schedule: ScheduleGame[]): ScheduleGame[] =>
+  [...schedule].sort(
+    (first, second) =>
+      first.date.localeCompare(second.date) ||
+      (first.doubleHeaderGame ?? 0) - (second.doubleHeaderGame ?? 0),
+  );
+
+const involvesTeam = (game: ScheduleGame, teamKey: TeamKey): boolean =>
+  game.homeKey === teamKey || game.awayKey === teamKey;
+
+const isSameMatchup = (first: ScheduleGame, second: ScheduleGame): boolean =>
+  first.homeKey === second.homeKey && first.awayKey === second.awayKey;
+
+export function postponeScheduleGame(
+  schedule: ScheduleGame[],
+  gameId: string,
+  preferredDate?: string,
+): ScheduleGame[] {
+  const nextSchedule = schedule.map((game) => ({ ...game })),
+    postponedGame = nextSchedule.find((game) => game.id === gameId);
+  if (!postponedGame || postponedGame.played) return sortSchedule(nextSchedule);
+
+  const postponedFrom = postponedGame.date,
+    dateIsAvailable = (date: string): boolean =>
+      !nextSchedule.some(
+        (game) =>
+          game.id !== postponedGame.id &&
+          game.date === date &&
+          (involvesTeam(game, postponedGame.homeKey) || involvesTeam(game, postponedGame.awayKey)),
+      );
+
+  let doubleHeaderPartner: ScheduleGame | undefined;
+  if (preferredDate && preferredDate > postponedFrom) {
+    doubleHeaderPartner = nextSchedule.find(
+      (game) =>
+        game.id !== postponedGame.id &&
+        !game.played &&
+        game.date === preferredDate &&
+        !game.doubleHeaderGame &&
+        isSameMatchup(game, postponedGame),
+    );
+  }
+  if (!doubleHeaderPartner) {
+    doubleHeaderPartner = nextSchedule
+      .filter(
+        (game) =>
+          game.id !== postponedGame.id &&
+          !game.played &&
+          game.date > postponedFrom &&
+          !game.doubleHeaderGame &&
+          isSameMatchup(game, postponedGame),
+      )
+      .sort((first, second) => first.date.localeCompare(second.date))[0];
+  }
+
+  let rescheduledDate = doubleHeaderPartner?.date;
+  if (!rescheduledDate && preferredDate && preferredDate > postponedFrom && dateIsAvailable(preferredDate)) {
+    rescheduledDate = preferredDate;
+  }
+  if (!rescheduledDate) {
+    for (let offset = 1; offset <= 45; offset += 1) {
+      const candidateDate = addDays(postponedFrom, offset);
+      if (dateIsAvailable(candidateDate)) {
+        rescheduledDate = candidateDate;
+        break;
+      }
+    }
+  }
+  if (!rescheduledDate) {
+    const lastDate = nextSchedule.reduce(
+      (latest, game) => (game.date > latest ? game.date : latest),
+      postponedFrom,
+    );
+    let offset = 1;
+    rescheduledDate = addDays(lastDate, offset);
+    while (!dateIsAvailable(rescheduledDate)) {
+      offset += 1;
+      rescheduledDate = addDays(lastDate, offset);
+    }
+  }
+
+  postponedGame.originalDate ??= postponedFrom;
+  postponedGame.postponedFrom = postponedFrom;
+  postponedGame.date = rescheduledDate;
+  postponedGame.doubleHeaderGame = doubleHeaderPartner ? 2 : null;
+  if (doubleHeaderPartner) doubleHeaderPartner.doubleHeaderGame = 1;
+
+  return sortSchedule(nextSchedule);
+}
+
+function applyRainouts(
+  schedule: ScheduleGame[],
+  rainoutRate: number,
+  maxRainouts: number,
+): ScheduleGame[] {
+  if (rainoutRate <= 0 || maxRainouts <= 0) return sortSchedule(schedule);
+  let nextSchedule = sortSchedule(schedule),
+    rainouts = 0;
+  const candidateIds = nextSchedule.map((game) => game.id);
+  for (const gameId of candidateIds) {
+    if (rainouts >= maxRainouts) break;
+    const game = nextSchedule.find((candidate) => candidate.id === gameId);
+    if (!game || game.postponedFrom || game.doubleHeaderGame || random() >= rainoutRate) continue;
+    nextSchedule = postponeScheduleGame(nextSchedule, gameId);
+    rainouts += 1;
+  }
+  return sortSchedule(nextSchedule);
+}
+
+export function generateSchedule(
+  year: number,
+  options: ScheduleGenerationOptions = {},
+): ScheduleGame[] {
   const intra: Array<{ h: TeamKey; a: TeamKey; type: 'league' }> = [],
     inter: Array<{ h: TeamKey; a: TeamKey; type: 'interleague' }> = [];
   for (const league of [CENTRAL, PACIFIC])
@@ -75,6 +199,9 @@ export function generateSchedule(year: number): ScheduleGame[] {
       schedule.push({
         id: uid(),
         date: dateString,
+        originalDate: dateString,
+        postponedFrom: null,
+        doubleHeaderGame: null,
         homeKey: game.h,
         awayKey: game.a,
         played: false,
@@ -86,8 +213,12 @@ export function generateSchedule(year: number): ScheduleGame[] {
     day += 1;
     if (date.getDay() === 1 || random() < 0.08) day += 1;
   }
-  return schedule.sort((a, b) => a.date.localeCompare(b.date));
+
+  const rainoutRate = Math.max(0, Math.min(1, options.rainoutRate ?? 0.015)),
+    maxRainouts = Math.max(0, Math.floor(options.maxRainouts ?? 12));
+  return applyRainouts(schedule, rainoutRate, maxRainouts);
 }
+
 export function calcStandings(schedule: ScheduleGame[]): Record<TeamKey, StandingRecord> {
   const records = Object.fromEntries(
     Object.keys(TINFO).map((key) => [key, { w: 0, l: 0, d: 0, rs: 0, ra: 0, g: 0 }]),
@@ -132,6 +263,7 @@ export function calcStandings(schedule: ScheduleGame[]): Record<TeamKey, Standin
   }
   return records;
 }
+
 export function simCpuUntilNext(
   schedule: ScheduleGame[],
   teams: Teams,
@@ -166,6 +298,7 @@ export function simCpuUntilNext(
   }
   return { sched: nextSchedule, rotN: nextRotations, leagueDistStats: leagueStats };
 }
+
 export function skipGames(
   schedule: ScheduleGame[],
   teams: Teams,
