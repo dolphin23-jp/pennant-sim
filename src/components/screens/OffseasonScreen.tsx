@@ -10,7 +10,7 @@ import {
   growthPhase,
   signPlayerToTeam,
 } from '../../engine';
-import type { Player, Teams } from '../../engine';
+import type { Player, TeamKey, Teams } from '../../engine';
 import { useGameState } from '../../state/gameState';
 import { applyTrade, generateTradeOffers } from '../../state/offseason';
 import { Button, Card, EmptyState, PageShell, SectionTitle } from '../ui';
@@ -19,26 +19,37 @@ import { MarketScreen } from './MarketScreen';
 import { TradeScreen } from './TradeScreen';
 
 type OffseasonPhase = 'growth' | 'retire' | 'fa' | 'foreign' | 'trade' | 'draft';
+type GameStateValue = ReturnType<typeof useGameState>;
 
 export function OffseasonScreen() {
   const game = useGameState();
   if (!game.teams || !game.playerTeam) return null;
+  return <OffseasonContent game={game} initialTeams={game.teams} playerTeam={game.playerTeam} />;
+}
 
+function OffseasonContent({
+  game,
+  initialTeams,
+  playerTeam,
+}: {
+  game: GameStateValue;
+  initialTeams: Teams;
+  playerTeam: TeamKey;
+}) {
   const [phase, setPhase] = useState<OffseasonPhase>('growth');
-  const [growthResult] = useState(() => growthPhase(game.teams as Teams));
+  const [growthResult] = useState(() => growthPhase(initialTeams));
   const [workTeams, setWorkTeams] = useState<Teams>(growthResult.teams);
   const [faMarket, setFaMarket] = useState<Player[]>(() => genFreeAgentMarket());
   const [foreignMarket, setForeignMarket] = useState<Player[]>(() => genForeignMarket());
   const [retireIds, setRetireIds] = useState<string[]>([]);
   const [tradeOffers, setTradeOffers] = useState(() =>
-    generateTradeOffers(growthResult.teams, game.playerTeam!),
+    generateTradeOffers(growthResult.teams, playerTeam),
   );
 
-  const playerTeam = game.playerTeam;
   const teamInfo = TINFO[playerTeam];
   const originalPlayers = useMemo(
-    () => [...game.teams![playerTeam].fielders, ...game.teams![playerTeam].pitchers],
-    [game.teams, playerTeam],
+    () => [...initialTeams[playerTeam].fielders, ...initialTeams[playerTeam].pitchers],
+    [initialTeams, playerTeam],
   );
   const growthSummary = useMemo(() => {
     const originalById = new Map(originalPlayers.map((player) => [player.id, player]));
