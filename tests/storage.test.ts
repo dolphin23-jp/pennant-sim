@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { configureRandom, initTeams, PS, resetRandom } from '../src/engine';
+import { PS } from '../src/data';
+import { configureRandom, initTeams, resetRandom } from '../src/engine';
 import {
   SAVE_KEY,
   loadGame,
