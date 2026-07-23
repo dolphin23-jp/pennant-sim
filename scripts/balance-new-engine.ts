@@ -146,6 +146,7 @@ async function main(): Promise<void> {
   const outputPath = resolve(options.output);
   await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(outputPath, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
+  console.log(`Baseline summary: ${JSON.stringify(output.summary)}`);
   console.log(`Wrote ${options.seasons}-season new-engine baseline to ${outputPath}`);
 }
 main().catch((error: unknown) => {
