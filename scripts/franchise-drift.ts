@@ -36,13 +36,8 @@ const MIN_FIELDERS = 22;
 const LOW_OVR_RETIREMENT_AGE = 35;
 const LOW_OVR_RETIREMENT_THRESHOLD = 50;
 const MANDATORY_RETIREMENT_AGE = 40;
-const MAX_AGE_RETIREMENTS_PER_TEAM = 10;
 
-type RetirementReason =
-  | 'mandatoryAge'
-  | 'ageAndLowOvr'
-  | 'draftRoom'
-  | 'rosterCap';
+type RetirementReason = 'mandatoryAge' | 'ageAndLowOvr' | 'draftRoom';
 type RosterCaps = Record<TeamKey, { pitchers: number; fielders: number; total: number }>;
 
 interface CliOptions {
@@ -244,6 +239,16 @@ function retentionScore(player: Player): number {
   return playerOvr(player) - Math.max(0, player.age - 30) * 0.8;
 }
 
+function retirementReason(player: Player): RetirementReason | null {
+  if (player.age >= MANDATORY_RETIREMENT_AGE) return 'mandatoryAge';
+  if (
+    player.age >= LOW_OVR_RETIREMENT_AGE &&
+    playerOvr(player) <= LOW_OVR_RETIREMENT_THRESHOLD
+  )
+    return 'ageAndLowOvr';
+  return null;
+}
+
 function recordRetirement(
   retired: RetirementRecord[],
   teamKey: TeamKey,
@@ -261,58 +266,54 @@ function recordRetirement(
   });
 }
 
-function ageRetirementIds(players: Player[], minimum: number): Map<string, RetirementReason> {
-  const candidates = players
-    .filter(
-      (player) =>
-        player.age >= MANDATORY_RETIREMENT_AGE ||
-        (player.age >= LOW_OVR_RETIREMENT_AGE &&
-          playerOvr(player) <= LOW_OVR_RETIREMENT_THRESHOLD),
-    )
-    .sort((first, second) => retentionScore(first) - retentionScore(second))
-    .slice(0, Math.min(MAX_AGE_RETIREMENTS_PER_TEAM, Math.max(0, players.length - minimum)));
-  return new Map(
-    candidates.map((player) => [
-      player.id,
-      player.age >= MANDATORY_RETIREMENT_AGE ? 'mandatoryAge' : 'ageAndLowOvr',
-    ]),
-  );
-}
-
 function applyDiagnosticRetirements(
   teams: Teams,
-  caps: RosterCaps,
 ): { teams: Teams; retired: RetirementRecord[] } {
   const next = { ...teams };
   const retired: RetirementRecord[] = [];
   for (const teamKey of teamKeys(teams)) {
     const team = teams[teamKey];
-    const reasons = new Map<string, RetirementReason>([
-      ...ageRetirementIds(team.pitchers, MIN_PITCHERS),
-      ...ageRetirementIds(team.fielders, MIN_FIELDERS),
-    ]);
-    let pitchers = team.pitchers.filter((player) => !reasons.has(player.id));
-    let fielders = team.fielders.filter((player) => !reasons.has(player.id));
-    const targetTotal = Math.max(
-      MIN_PITCHERS + MIN_FIELDERS,
-      caps[teamKey].total - DRAFT_ROUNDS,
-    );
-    const lowestValue = [...pitchers, ...fielders].sort(
-      (first, second) => retentionScore(first) - retentionScore(second),
-    );
-    for (const player of lowestValue) {
-      if (pitchers.length + fielders.length <= targetTotal) break;
+    let pitchers = [...team.pitchers];
+    let fielders = [...team.fielders];
+    const selected = new Map<string, RetirementReason>();
+    const ageCandidates = [...pitchers, ...fielders]
+      .map((player) => ({ player, reason: retirementReason(player) }))
+      .filter(
+        (entry): entry is { player: Player; reason: Exclude<RetirementReason, 'draftRoom'> } =>
+          entry.reason !== null,
+      )
+      .sort((first, second) => {
+        const firstPriority = first.reason === 'mandatoryAge' ? 0 : 1;
+        const secondPriority = second.reason === 'mandatoryAge' ? 0 : 1;
+        return firstPriority - secondPriority || retentionScore(first.player) - retentionScore(second.player);
+      });
+    const removePlayer = (player: Player, reason: RetirementReason): boolean => {
+      if (selected.size >= DRAFT_ROUNDS) return false;
       if (player.isP) {
-        if (pitchers.length <= MIN_PITCHERS) continue;
+        if (pitchers.length <= MIN_PITCHERS) return false;
         pitchers = pitchers.filter((candidate) => candidate.id !== player.id);
       } else {
-        if (fielders.length <= MIN_FIELDERS) continue;
+        if (fielders.length <= MIN_FIELDERS) return false;
         fielders = fielders.filter((candidate) => candidate.id !== player.id);
       }
-      reasons.set(player.id, 'draftRoom');
+      selected.set(player.id, reason);
+      return true;
+    };
+    for (const entry of ageCandidates) {
+      if (selected.size >= DRAFT_ROUNDS) break;
+      removePlayer(entry.player, entry.reason);
     }
+    const draftRoomCandidates = [...pitchers, ...fielders].sort(
+      (first, second) => retentionScore(first) - retentionScore(second),
+    );
+    for (const player of draftRoomCandidates) {
+      if (selected.size >= DRAFT_ROUNDS) break;
+      removePlayer(player, 'draftRoom');
+    }
+    if (selected.size !== DRAFT_ROUNDS)
+      throw new Error(`${teamKey} could not create ${DRAFT_ROUNDS} draft roster slots.`);
     for (const player of [...team.pitchers, ...team.fielders]) {
-      const reason = reasons.get(player.id);
+      const reason = selected.get(player.id);
       if (reason) recordRetirement(retired, teamKey, player, reason);
     }
     next[teamKey] = { ...team, pitchers, fielders };
@@ -327,7 +328,7 @@ function runDraft(teams: Teams): { teams: Teams; picks: DraftPick[] } {
   for (let roundNumber = 1; roundNumber <= DRAFT_ROUNDS; roundNumber += 1) {
     for (const teamKey of order) {
       const selected = cpuDraftPick(teams[teamKey], prospects);
-      if (!selected) break;
+      if (!selected) throw new Error(`Draft pool exhausted in round ${roundNumber}.`);
       picks.push({ ...selected, teamKey, round: roundNumber });
       prospects = prospects.filter((prospect) => prospect.id !== selected.id);
     }
@@ -335,41 +336,11 @@ function runDraft(teams: Teams): { teams: Teams; picks: DraftPick[] } {
   return { teams: applyDraftPicks(teams, picks), picks };
 }
 
-function enforceRosterCaps(
-  teams: Teams,
-  caps: RosterCaps,
-): { teams: Teams; retired: RetirementRecord[] } {
-  const next = { ...teams };
-  const retired: RetirementRecord[] = [];
-  for (const teamKey of teamKeys(teams)) {
-    const team = teams[teamKey];
-    const cut = (players: Player[], maximum: number): Player[] => {
-      if (players.length <= maximum) return players;
-      const removeIds = new Set(
-        [...players]
-          .sort((first, second) => retentionScore(first) - retentionScore(second))
-          .slice(0, players.length - maximum)
-          .map((player) => player.id),
-      );
-      for (const player of players)
-        if (removeIds.has(player.id)) recordRetirement(retired, teamKey, player, 'rosterCap');
-      return players.filter((player) => !removeIds.has(player.id));
-    };
-    next[teamKey] = {
-      ...team,
-      pitchers: cut(team.pitchers, caps[teamKey].pitchers),
-      fielders: cut(team.fielders, caps[teamKey].fielders),
-    };
-  }
-  return { teams: next, retired };
-}
-
 function retirementSummary(retired: RetirementRecord[]) {
   const byReason: Record<RetirementReason, number> = {
     mandatoryAge: 0,
     ageAndLowOvr: 0,
     draftRoom: 0,
-    rosterCap: 0,
   };
   for (const player of retired) byReason[player.reason] += 1;
   return {
@@ -415,6 +386,7 @@ function driftSummary(years: YearReport[]) {
   return {
     firstYear: first.year,
     finalYear: last.year,
+    rosterSizeChange: last.closingRoster.players - first.openingRoster.players,
     openingToFinalClosingOvrChange: {
       overall: round(
         last.closingRoster.averageOvr.overall - first.openingRoster.averageOvr.overall,
@@ -472,12 +444,12 @@ async function simulateFranchise(options: CliOptions) {
       }
       const season = seasonSnapshot(accumulated, schedule.length, totalRuns);
       const growth = growthPhase(teams);
-      const ageAndRoom = applyDiagnosticRetirements(growth.teams, caps);
-      const draft = runDraft(ageAndRoom.teams);
-      const capped = enforceRosterCaps(draft.teams, caps);
-      teams = capped.teams;
-      const retired = [...ageAndRoom.retired, ...capped.retired];
+      const retirements = applyDiagnosticRetirements(growth.teams);
+      const draft = runDraft(retirements.teams);
+      teams = draft.teams;
       const closingRoster = rosterSnapshot(teams);
+      if (closingRoster.players !== openingRoster.players)
+        throw new Error(`Roster size drifted from ${openingRoster.players} to ${closingRoster.players}.`);
       years.push({
         year,
         seasonIndex: seasonIndex + 1,
@@ -485,7 +457,7 @@ async function simulateFranchise(options: CliOptions) {
         season,
         offseason: {
           awakeningEvents: growth.awakeEvents.length,
-          retirements: retirementSummary(retired),
+          retirements: retirementSummary(retirements.retired),
           draft: draftSummary(draft.picks),
         },
         closingRoster,
@@ -494,7 +466,8 @@ async function simulateFranchise(options: CliOptions) {
         `${year}: AVG ${season.battingAverage.toFixed(3)}, ERA ${season.era.toFixed(2)}, ` +
           `HR ${season.homeRuns} | OVR F ${openingRoster.averageOvr.fielders.toFixed(1)}→` +
           `${closingRoster.averageOvr.fielders.toFixed(1)}, P ${openingRoster.averageOvr.pitchers.toFixed(1)}→` +
-          `${closingRoster.averageOvr.pitchers.toFixed(1)} | retired ${retired.length}, drafted ${draft.picks.length}`,
+          `${closingRoster.averageOvr.pitchers.toFixed(1)} | retired ${retirements.retired.length}, ` +
+          `drafted ${draft.picks.length}`,
       );
     }
     return {
@@ -509,23 +482,23 @@ async function simulateFranchise(options: CliOptions) {
         initialRosterCaps: caps,
         diagnosticRetirementRule: {
           scope: 'script-only; player-facing offseason behavior is unchanged',
-          mandatoryAge: MANDATORY_RETIREMENT_AGE,
-          ageAndLowOvr: {
-            minimumAge: LOW_OVR_RETIREMENT_AGE,
-            maximumOvr: LOW_OVR_RETIREMENT_THRESHOLD,
+          annualRetirementsPerTeam: DRAFT_ROUNDS,
+          priorityRules: {
+            mandatoryAge: MANDATORY_RETIREMENT_AGE,
+            ageAndLowOvr: {
+              minimumAge: LOW_OVR_RETIREMENT_AGE,
+              maximumOvr: LOW_OVR_RETIREMENT_THRESHOLD,
+            },
           },
-          maximumAgeBasedRetirementsPerTeam: MAX_AGE_RETIREMENTS_PER_TEAM,
           minimumRoster: { pitchers: MIN_PITCHERS, fielders: MIN_FIELDERS },
-          draftRoom:
-            'Remove the lowest retention-score players until six draft slots are available.',
-          rosterCap:
-            'After the draft, trim pitcher and fielder groups to their initial roster limits.',
+          remainingSlots:
+            'After priority retirements, remove the lowest retention-score players until six draft slots are available.',
         },
       },
       investigation: {
         cpuAutomaticRetirementFound: false,
         finding:
-          'Production retirement selection exists only in OffseasonScreen for the human-controlled team. The diagnostic applies its own global retirement and roster-limit rules.',
+          'Production retirement selection exists only in OffseasonScreen for the human-controlled team. The diagnostic applies its own global six-out/six-in replacement rule.',
       },
       summary: driftSummary(years),
       years,
