@@ -26,12 +26,17 @@ export interface TeamPolicy {
   pwrF: number;
   dev: number;
 }
+export interface ParkFactors {
+  homeRun: number;
+  hit: number;
+}
 export interface TeamInfo {
   n: string;
   ab: string;
   lg: League;
   c: string;
   bd: number;
+  park: ParkFactors;
   pol: TeamPolicy;
 }
 export interface PositionAptitude {
@@ -164,6 +169,8 @@ export interface AtBatLogEntry {
 export interface GameState {
   teams: Record<Side, Team>;
   lineups: Record<Side, Player[]>;
+  park: ParkFactors;
+  matchupCounts: Record<string, number>;
   score: Score;
   innings: Score[];
   atBatLog: AtBatLogEntry[];
