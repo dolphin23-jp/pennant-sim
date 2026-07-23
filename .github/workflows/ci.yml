@@ -21,16 +21,7 @@ jobs:
         run: npm install
       - name: Lint
         run: npm run lint
-      - name: Unit tests
-        run: npm run test:unit
-      - name: Generate current baseline
-        run: npm run baseline:new
-      - name: Upload current baseline
-        uses: actions/upload-artifact@v4
-        with:
-          name: current-balance-baseline
-          path: baseline/new-season-stats.json
-      - name: Compare recorded baseline
-        run: node scripts/compare-baselines.mjs
+      - name: Test
+        run: npm test
       - name: Build
         run: npm run build
