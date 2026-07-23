@@ -26,6 +26,20 @@ npm run build
 
 `npm test` はNode標準テストによるengine・保存移行テストと、100シーズンのbalance baseline比較を実行します。GitHub Actionsではpushおよびpull requestごとに `lint → test → build` を必須実行します。
 
+## GitHub Pages
+
+`main` ブランチへのpush時に、`.github/workflows/deploy-pages.yml` がViteアプリをビルドし、`dist/` をGitHub Pagesへデプロイします。Viteの公開パスはリポジトリ名に合わせて `/pennant-sim/` に設定しています。
+
+初回利用時は、リポジトリ画面で次の手動設定が必要です。
+
+1. `Settings` を開く
+2. `Pages` を開く
+3. `Build and deployment` の `Source` を **GitHub Actions** に変更する
+
+この設定はリポジトリ設定側の操作であり、コードやPull Requestからは変更できません。
+
+品質確認用の `.github/workflows/ci.yml` とPages公開用workflowは分離しており、前者はlint・test・build、後者はmainのビルド成果物の公開だけを担当します。
+
 ## TypeScriptエンジン
 
 Phase Bでは、旧版のデータ定義とゲームロジックを型付きモジュールへ移植しています。
