@@ -1,0 +1,43 @@
+name: Player Event Diagnostic
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm run test:unit
+      - name: Build
+        run: npm run build
+      - name: Measure player-event frequency
+        run: npx tsx scripts/player-event-frequency.ts
+      - name: Generate candidate initial baseline
+        continue-on-error: true
+        run: npx tsx scripts/balance-new-engine.ts --output baseline/candidate-season.json
+      - name: Generate candidate franchise drift
+        continue-on-error: true
+        run: npm run drift -- --output baseline/candidate-drift.json
+      - name: Upload diagnostic reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: player-event-diagnostic
+          path: |
+            baseline/player-event-frequency.json
+            baseline/candidate-season.json
+            baseline/candidate-drift.json
+          if-no-files-found: warn
