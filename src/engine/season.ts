@@ -1,5 +1,227 @@
-import {CENTRAL,PACIFIC,TINFO} from '../data'; import {simulateGame} from './game'; import {random,uid} from './random'; import {accumulateStats,accumulateStatsAll} from './stats'; import type {AccumulatedStats,ScheduleGame,StandingRecord,TeamKey,Teams} from './types';
-export function generateSchedule(year:number):ScheduleGame[]{const intra:Array<{h:TeamKey;a:TeamKey;type:'league'}>=[],inter:Array<{h:TeamKey;a:TeamKey;type:'interleague'}>=[];for(const league of [CENTRAL,PACIFIC])for(let first=0;first<league.length;first+=1)for(let second=first+1;second<league.length;second+=1){for(let game=0;game<13;game+=1)intra.push({h:league[first] as TeamKey,a:league[second] as TeamKey,type:'league'});for(let game=0;game<12;game+=1)intra.push({h:league[second] as TeamKey,a:league[first] as TeamKey,type:'league'})}CENTRAL.forEach((central,centralIndex)=>PACIFIC.forEach((pacific,pacificIndex)=>{const centralHosts=(centralIndex+pacificIndex)%2===0;inter.push({h:centralHosts?central:pacific,a:centralHosts?pacific:central,type:'interleague'});inter.push({h:centralHosts?central:pacific,a:centralHosts?pacific:central,type:'interleague'});inter.push({h:centralHosts?pacific:central,a:centralHosts?central:pacific,type:'interleague'})}));for(let index=intra.length-1;index>0;index-=1){const swap=Math.floor(random()*(index+1));[intra[index],intra[swap]]=[intra[swap] as typeof intra[number],intra[index] as typeof intra[number]]}for(let index=inter.length-1;index>0;index-=1){const swap=Math.floor(random()*(index+1));[inter[index],inter[swap]]=[inter[swap] as typeof inter[number],inter[index] as typeof inter[number]]}const schedule:ScheduleGame[]=[],start=new Date(year,2,28);let day=0;while(intra.length||inter.length){const date=new Date(start);date.setDate(date.getDate()+day);const dateString=date.toISOString().slice(0,10),inInterleague=day>=62&&day<=79,pool=inInterleague&&inter.length?inter:intra.length?intra:inter,used=new Set<TeamKey>(),today:Array<typeof pool[number]>=[];for(let index=pool.length-1;index>=0&&today.length<6;index-=1){const game=pool[index] as typeof pool[number];if(!used.has(game.h)&&!used.has(game.a)){used.add(game.h);used.add(game.a);today.push(pool.splice(index,1)[0] as typeof pool[number])}}if(!today.length){day+=1;continue}for(const game of today)schedule.push({id:uid(),date:dateString,homeKey:game.h,awayKey:game.a,played:false,hs:null,as:null,seriesType:game.type,isInterleague:game.type==='interleague'});day+=1;if(date.getDay()===1||random()<.08)day+=1}return schedule.sort((a,b)=>a.date.localeCompare(b.date))}
-export function calcStandings(schedule:ScheduleGame[]):Record<TeamKey,StandingRecord>{const records=Object.fromEntries(Object.keys(TINFO).map(key=>[key,{w:0,l:0,d:0,rs:0,ra:0,g:0}])) as Record<TeamKey,StandingRecord>;for(const game of schedule.filter(candidate=>candidate.played)){const home=records[game.homeKey],away=records[game.awayKey],homeScore=game.hs??0,awayScore=game.as??0;home.rs+=homeScore;home.ra+=awayScore;home.g+=1;away.rs+=awayScore;away.ra+=homeScore;away.g+=1;if(homeScore>awayScore){home.w+=1;away.l+=1}else if(awayScore>homeScore){away.w+=1;home.l+=1}else{home.d+=1;away.d+=1}}for(const league of [CENTRAL,PACIFIC]){const sorted=[...league].sort((a,b)=>{const first=records[a],second=records[b],firstPct=first.w+first.l>0?first.w/(first.w+first.l):0,secondPct=second.w+second.l>0?second.w/(second.w+second.l):0;return secondPct-firstPct}),leader=records[sorted[0] as TeamKey];sorted.forEach((teamKey,index)=>{const record=records[teamKey];record.pct=record.w+record.l>0?record.w/(record.w+record.l):0;record.gb=index===0?'-':((leader.w-record.w+record.l-leader.l)/2).toFixed(1);record.rank=index+1})}return records}
-export function simCpuUntilNext(schedule:ScheduleGame[],teams:Teams,rotationNumbers:Record<TeamKey,number>,playerTeam:TeamKey,accumulatedStats:AccumulatedStats={}):{sched:ScheduleGame[];rotN:Record<TeamKey,number>;leagueDistStats:AccumulatedStats}{const nextSchedule=[...schedule],nextRotations={...rotationNumbers};let leagueStats:AccumulatedStats={};const nextPlayerGame=nextSchedule.find(game=>!game.played&&(game.homeKey===playerTeam||game.awayKey===playerTeam));for(let index=0;index<nextSchedule.length;index+=1){const game=nextSchedule[index] as ScheduleGame;if(game.played)continue;if(nextPlayerGame&&game.id===nextPlayerGame.id)break;const result=simulateGame(game.homeKey,game.awayKey,teams,null,null,nextRotations[game.homeKey]||0,nextRotations[game.awayKey]||0,accumulatedStats);nextSchedule[index]={...game,played:true,hs:result.score.home,as:result.score.away};leagueStats=accumulateStatsAll(result,leagueStats);nextRotations[game.homeKey]=(nextRotations[game.homeKey]||0)+1;nextRotations[game.awayKey]=(nextRotations[game.awayKey]||0)+1}return{sched:nextSchedule,rotN:nextRotations,leagueDistStats:leagueStats}}
-export function skipGames(schedule:ScheduleGame[],teams:Teams,rotationNumbers:Record<TeamKey,number>,playerTeam:TeamKey,mode:'next'|'week'|'month'|'season',accumulatedStats:AccumulatedStats={}):{sched:ScheduleGame[];rotN:Record<TeamKey,number>;distStats:AccumulatedStats;leagueDistStats:AccumulatedStats}{const nextSchedule=[...schedule],nextRotations={...rotationNumbers};let distributedStats:AccumulatedStats={},leagueStats:AccumulatedStats={};const remaining=nextSchedule.filter(game=>!game.played&&(game.homeKey===playerTeam||game.awayKey===playerTeam)),target=mode==='next'?1:mode==='week'?Math.min(5,remaining.length):mode==='month'?Math.min(25,remaining.length):remaining.length;let skipped=0;for(let index=0;index<nextSchedule.length&&skipped<target;index+=1){const game=nextSchedule[index] as ScheduleGame;if(game.played)continue;const playerGame=game.homeKey===playerTeam||game.awayKey===playerTeam,result=simulateGame(game.homeKey,game.awayKey,teams,null,null,nextRotations[game.homeKey]||0,nextRotations[game.awayKey]||0,accumulatedStats);nextSchedule[index]={...game,played:true,hs:result.score.home,as:result.score.away};leagueStats=accumulateStatsAll(result,leagueStats);if(playerGame){distributedStats=accumulateStats(result,playerTeam,distributedStats);skipped+=1}nextRotations[game.homeKey]=(nextRotations[game.homeKey]||0)+1;nextRotations[game.awayKey]=(nextRotations[game.awayKey]||0)+1}return{sched:nextSchedule,rotN:nextRotations,distStats:distributedStats,leagueDistStats:leagueStats}}
+import { CENTRAL, PACIFIC, TINFO } from '../data';
+import { simulateGame } from './game';
+import { random, uid } from './random';
+import { accumulateStats, accumulateStatsAll } from './stats';
+import type { AccumulatedStats, ScheduleGame, StandingRecord, TeamKey, Teams } from './types';
+export function generateSchedule(year: number): ScheduleGame[] {
+  const intra: Array<{ h: TeamKey; a: TeamKey; type: 'league' }> = [],
+    inter: Array<{ h: TeamKey; a: TeamKey; type: 'interleague' }> = [];
+  for (const league of [CENTRAL, PACIFIC])
+    for (let first = 0; first < league.length; first += 1)
+      for (let second = first + 1; second < league.length; second += 1) {
+        for (let game = 0; game < 13; game += 1)
+          intra.push({ h: league[first] as TeamKey, a: league[second] as TeamKey, type: 'league' });
+        for (let game = 0; game < 12; game += 1)
+          intra.push({ h: league[second] as TeamKey, a: league[first] as TeamKey, type: 'league' });
+      }
+  CENTRAL.forEach((central, centralIndex) =>
+    PACIFIC.forEach((pacific, pacificIndex) => {
+      const centralHosts = (centralIndex + pacificIndex) % 2 === 0;
+      inter.push({
+        h: centralHosts ? central : pacific,
+        a: centralHosts ? pacific : central,
+        type: 'interleague',
+      });
+      inter.push({
+        h: centralHosts ? central : pacific,
+        a: centralHosts ? pacific : central,
+        type: 'interleague',
+      });
+      inter.push({
+        h: centralHosts ? pacific : central,
+        a: centralHosts ? central : pacific,
+        type: 'interleague',
+      });
+    }),
+  );
+  for (let index = intra.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(random() * (index + 1));
+    [intra[index], intra[swap]] = [
+      intra[swap] as (typeof intra)[number],
+      intra[index] as (typeof intra)[number],
+    ];
+  }
+  for (let index = inter.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(random() * (index + 1));
+    [inter[index], inter[swap]] = [
+      inter[swap] as (typeof inter)[number],
+      inter[index] as (typeof inter)[number],
+    ];
+  }
+  const schedule: ScheduleGame[] = [],
+    start = new Date(year, 2, 28);
+  let day = 0;
+  while (intra.length || inter.length) {
+    const date = new Date(start);
+    date.setDate(date.getDate() + day);
+    const dateString = date.toISOString().slice(0, 10),
+      inInterleague = day >= 62 && day <= 79,
+      pool = inInterleague && inter.length ? inter : intra.length ? intra : inter,
+      used = new Set<TeamKey>(),
+      today: Array<(typeof pool)[number]> = [];
+    for (let index = pool.length - 1; index >= 0 && today.length < 6; index -= 1) {
+      const game = pool[index] as (typeof pool)[number];
+      if (!used.has(game.h) && !used.has(game.a)) {
+        used.add(game.h);
+        used.add(game.a);
+        today.push(pool.splice(index, 1)[0] as (typeof pool)[number]);
+      }
+    }
+    if (!today.length) {
+      day += 1;
+      continue;
+    }
+    for (const game of today)
+      schedule.push({
+        id: uid(),
+        date: dateString,
+        homeKey: game.h,
+        awayKey: game.a,
+        played: false,
+        hs: null,
+        as: null,
+        seriesType: game.type,
+        isInterleague: game.type === 'interleague',
+      });
+    day += 1;
+    if (date.getDay() === 1 || random() < 0.08) day += 1;
+  }
+  return schedule.sort((a, b) => a.date.localeCompare(b.date));
+}
+export function calcStandings(schedule: ScheduleGame[]): Record<TeamKey, StandingRecord> {
+  const records = Object.fromEntries(
+    Object.keys(TINFO).map((key) => [key, { w: 0, l: 0, d: 0, rs: 0, ra: 0, g: 0 }]),
+  ) as Record<TeamKey, StandingRecord>;
+  for (const game of schedule.filter((candidate) => candidate.played)) {
+    const home = records[game.homeKey],
+      away = records[game.awayKey],
+      homeScore = game.hs ?? 0,
+      awayScore = game.as ?? 0;
+    home.rs += homeScore;
+    home.ra += awayScore;
+    home.g += 1;
+    away.rs += awayScore;
+    away.ra += homeScore;
+    away.g += 1;
+    if (homeScore > awayScore) {
+      home.w += 1;
+      away.l += 1;
+    } else if (awayScore > homeScore) {
+      away.w += 1;
+      home.l += 1;
+    } else {
+      home.d += 1;
+      away.d += 1;
+    }
+  }
+  for (const league of [CENTRAL, PACIFIC]) {
+    const sorted = [...league].sort((a, b) => {
+        const first = records[a],
+          second = records[b],
+          firstPct = first.w + first.l > 0 ? first.w / (first.w + first.l) : 0,
+          secondPct = second.w + second.l > 0 ? second.w / (second.w + second.l) : 0;
+        return secondPct - firstPct;
+      }),
+      leader = records[sorted[0] as TeamKey];
+    sorted.forEach((teamKey, index) => {
+      const record = records[teamKey];
+      record.pct = record.w + record.l > 0 ? record.w / (record.w + record.l) : 0;
+      record.gb = index === 0 ? '-' : ((leader.w - record.w + record.l - leader.l) / 2).toFixed(1);
+      record.rank = index + 1;
+    });
+  }
+  return records;
+}
+export function simCpuUntilNext(
+  schedule: ScheduleGame[],
+  teams: Teams,
+  rotationNumbers: Record<TeamKey, number>,
+  playerTeam: TeamKey,
+  accumulatedStats: AccumulatedStats = {},
+): { sched: ScheduleGame[]; rotN: Record<TeamKey, number>; leagueDistStats: AccumulatedStats } {
+  const nextSchedule = [...schedule],
+    nextRotations = { ...rotationNumbers };
+  let leagueStats: AccumulatedStats = {};
+  const nextPlayerGame = nextSchedule.find(
+    (game) => !game.played && (game.homeKey === playerTeam || game.awayKey === playerTeam),
+  );
+  for (let index = 0; index < nextSchedule.length; index += 1) {
+    const game = nextSchedule[index] as ScheduleGame;
+    if (game.played) continue;
+    if (nextPlayerGame && game.id === nextPlayerGame.id) break;
+    const result = simulateGame(
+      game.homeKey,
+      game.awayKey,
+      teams,
+      null,
+      null,
+      nextRotations[game.homeKey] || 0,
+      nextRotations[game.awayKey] || 0,
+      accumulatedStats,
+    );
+    nextSchedule[index] = { ...game, played: true, hs: result.score.home, as: result.score.away };
+    leagueStats = accumulateStatsAll(result, leagueStats);
+    nextRotations[game.homeKey] = (nextRotations[game.homeKey] || 0) + 1;
+    nextRotations[game.awayKey] = (nextRotations[game.awayKey] || 0) + 1;
+  }
+  return { sched: nextSchedule, rotN: nextRotations, leagueDistStats: leagueStats };
+}
+export function skipGames(
+  schedule: ScheduleGame[],
+  teams: Teams,
+  rotationNumbers: Record<TeamKey, number>,
+  playerTeam: TeamKey,
+  mode: 'next' | 'week' | 'month' | 'season',
+  accumulatedStats: AccumulatedStats = {},
+): {
+  sched: ScheduleGame[];
+  rotN: Record<TeamKey, number>;
+  distStats: AccumulatedStats;
+  leagueDistStats: AccumulatedStats;
+} {
+  const nextSchedule = [...schedule],
+    nextRotations = { ...rotationNumbers };
+  let distributedStats: AccumulatedStats = {},
+    leagueStats: AccumulatedStats = {};
+  const remaining = nextSchedule.filter(
+      (game) => !game.played && (game.homeKey === playerTeam || game.awayKey === playerTeam),
+    ),
+    target =
+      mode === 'next'
+        ? 1
+        : mode === 'week'
+          ? Math.min(5, remaining.length)
+          : mode === 'month'
+            ? Math.min(25, remaining.length)
+            : remaining.length;
+  let skipped = 0;
+  for (let index = 0; index < nextSchedule.length && skipped < target; index += 1) {
+    const game = nextSchedule[index] as ScheduleGame;
+    if (game.played) continue;
+    const playerGame = game.homeKey === playerTeam || game.awayKey === playerTeam,
+      result = simulateGame(
+        game.homeKey,
+        game.awayKey,
+        teams,
+        null,
+        null,
+        nextRotations[game.homeKey] || 0,
+        nextRotations[game.awayKey] || 0,
+        accumulatedStats,
+      );
+    nextSchedule[index] = { ...game, played: true, hs: result.score.home, as: result.score.away };
+    leagueStats = accumulateStatsAll(result, leagueStats);
+    if (playerGame) {
+      distributedStats = accumulateStats(result, playerTeam, distributedStats);
+      skipped += 1;
+    }
+    nextRotations[game.homeKey] = (nextRotations[game.homeKey] || 0) + 1;
+    nextRotations[game.awayKey] = (nextRotations[game.awayKey] || 0) + 1;
+  }
+  return {
+    sched: nextSchedule,
+    rotN: nextRotations,
+    distStats: distributedStats,
+    leagueDistStats: leagueStats,
+  };
+}

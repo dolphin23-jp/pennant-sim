@@ -1,8 +1,261 @@
-import {BS,GROW_P,PS} from '../data'; import {calcOVR} from './ratings'; import {clamp,random,randomChoice,randomInt} from './random'; import {ensureSpecialLevels,syncSpecialsFromLevels} from './specials'; import type {AwakeningEvent,AwakeningResult,Player,PlayerParams,Teams} from './types';
-function ageCoefficient(age:number):number{if(age<=22)return .22;if(age<=25)return .14;if(age<=28)return .07;if(age<=31)return .01;if(age<=33)return-.08;if(age<=35)return-.13;if(age<=37)return-.19;return-.26}
-function growthParameters(player:Player):Array<keyof PlayerParams>{return player.isP?['vel','ctrl','stam','nobi','fld']:['cf','cb','pw','dc','sp','df','arm','stam',...(player.pos==='捕手'?(['ld'] as Array<keyof PlayerParams>):[])]}
-export function growPlayer(player:Player):Player{const params={...player.p},potential={...player.pot},parameterNames=growthParameters(player),ageEffect=ageCoefficient(player.age),currentOverall=calcOVR(player,player.pos),overallDeclineMultiplier=ageEffect<0?currentOverall>=82?1.7:currentOverall>=72?1.3:currentOverall>=62?1:.72:1;const trainingBonusByPolicy:Partial<Record<string,Partial<Record<keyof PlayerParams,number>>>>={power:{pw:.3},contact:{cf:.3,cb:.3},speed:{sp:.3},defense:{df:.3,arm:.3},velocity:{vel:.3},control:{ctrl:.3},stamina_t:{stam:.3}};const changes:Array<{param:keyof PlayerParams;before:number;after:number;diff:number}>=[];for(const parameter of parameterNames){const before=Number(params[parameter]??50),definition=GROW_P[parameter];if(!definition)continue;const ceiling=Number(potential[parameter]??before+5),gap=ceiling-before;let adjustedAgeEffect=ageEffect;if(ageEffect<0){adjustedAgeEffect=ageEffect*overallDeclineMultiplier;if(parameter==='vel'||parameter==='sp')adjustedAgeEffect*=1.35;else if(parameter==='ctrl'||parameter==='dc'||parameter==='ld')adjustedAgeEffect*=.62}const trainingBonus=trainingBonusByPolicy[player.trainPolicy]?.[parameter]??0,growth=gap*definition.c*Math.max(-.18,adjustedAgeEffect)*(.55+random()*.9)*(1+trainingBonus),nextValue=Math.round(before+growth);(params as unknown as Record<string,unknown>)[parameter]=growth>0?Math.min(nextValue,ceiling):nextValue;const after=Number(params[parameter]??50),difference=after-before;if(difference!==0)changes.push({param:parameter,before,after,diff:difference})}const overallBefore=calcOVR(player,player.pos),updatedPlayer:Player={...player,p:params,age:player.age+1},overallAfter=calcOVR(updatedPlayer,updatedPlayer.pos);updatedPlayer.growthLog=[...(player.growthLog??[]).slice(-9),{year:updatedPlayer.age-1,ovrBefore:overallBefore,ovrAfter:overallAfter,delta:overallAfter-overallBefore,changes}];return updatedPlayer}
-function awakeningPotentialGap(player:Player):number{const parameterNames=player.isP?(['vel','ctrl','stam','nobi','fld'] as Array<keyof PlayerParams>):(['cf','cb','pw','dc','sp','df','arm',...(player.pos==='捕手'?['ld']:[])] as Array<keyof PlayerParams>);return Math.max(0,...parameterNames.map(parameter=>Number(player.pot?.[parameter]??player.p?.[parameter]??50)-Number(player.p?.[parameter]??50)))}
-export function checkAwakening(player:Player,inSeason:boolean):AwakeningResult|null{if((player.awakeCount||0)>=3&&random()>.04)return null;if(player.seasonAwakenDone&&inSeason)return null;const overall=calcOVR(player,player.pos),potentialGap=awakeningPotentialGap(player),ageFactor=player.age<=21?3:player.age<=23?2:player.age<=25?.9:player.age<=27?.3:.08,lowOverallFactor=overall<=44?3:overall<=50?2:overall<=56?.85:overall<=62?.25:.05,latentFactor=potentialGap>=20?1.4:potentialGap>=14?.9:potentialGap>=10?.52:.18,probability=(inSeason?.0022:.012)*ageFactor*lowOverallFactor*latentFactor*(player.isP&&player.role!=='先発'?1.1:1);if(random()>probability)return null;const params={...player.p},potential={...player.pot},parameterNames=growthParameters(player),chosenParameters=parameterNames.sort(()=>random()-.5).slice(0,random()<.25?2:1),isBreakthrough=random()<.22,events:AwakeningEvent[]=[];for(const parameter of chosenParameters){const boost=inSeason?randomInt(7,14):randomInt(9,18),currentValue=Number(params[parameter]??50);(params as unknown as Record<string,unknown>)[parameter]=currentValue+boost;const boostedValue=Number(params[parameter]);if(isBreakthrough)potential[parameter]=Number(potential[parameter]??boostedValue+5)+randomInt(6,12);else potential[parameter]=Math.max(Number(potential[parameter]??0),boostedValue+3);events.push({param:parameter,boost,isBreakthrough})}let newSpecial=null;const nextSpecialLevels=ensureSpecialLevels(player);if(isBreakthrough&&random()<.42){const pool=player.isP?PS:BS,available=pool.filter(special=>(nextSpecialLevels[special.id]||0)<special.tierMax);if(available.length){newSpecial=randomChoice(available);nextSpecialLevels[newSpecial.id]=clamp((nextSpecialLevels[newSpecial.id]||0)+1,0,newSpecial.tierMax)}}return{player:syncSpecialsFromLevels({...player,p:params,pot:potential,awakeCount:(player.awakeCount||0)+1,seasonAwakenDone:inSeason?true:player.seasonAwakenDone,specialLevels:nextSpecialLevels,growthLog:[...(player.growthLog||[]),{year:player.age,type:'awakening',isBreakthrough,events:events.map(event=>({param:event.param,boost:event.boost})),newSpecial:newSpecial?.n||null}]}),events,isBreakthrough,newSpecial}}
-export function growthPhase(teams:Teams):{teams:Teams;awakeEvents:Array<AwakeningResult&{tk:string;name:string}>}{const nextTeams={...teams},awakeEvents:Array<AwakeningResult&{tk:string;name:string}>=[];for(const teamKey of Object.keys(nextTeams) as Array<keyof Teams>){const team={...nextTeams[teamKey]};team.pitchers=team.pitchers.map(pitcher=>{const grown=growPlayer(pitcher);grown.seasonAwakenDone=false;const awakening=checkAwakening(grown,false);if(awakening){awakeEvents.push({...awakening,tk:teamKey,name:awakening.player.name});return awakening.player}return grown});team.fielders=team.fielders.map(fielder=>{const grown=growPlayer(fielder);grown.seasonAwakenDone=false;const awakening=checkAwakening(grown,false);if(awakening){awakeEvents.push({...awakening,tk:teamKey,name:awakening.player.name});return awakening.player}return grown});nextTeams[teamKey]=team}return{teams:nextTeams,awakeEvents}}
-export function applyInSeasonAwakening(team:Teams[keyof Teams]):{team:Teams[keyof Teams];events:Array<AwakeningResult&{name:string;isP:boolean}>}{const events:Array<AwakeningResult&{name:string;isP:boolean}>=[],nextTeam={...team,pitchers:team.pitchers.map(pitcher=>{const awakening=checkAwakening(pitcher,true);if(awakening){events.push({...awakening,name:awakening.player.name,isP:true});return awakening.player}return pitcher}),fielders:team.fielders.map(fielder=>{const awakening=checkAwakening(fielder,true);if(awakening){events.push({...awakening,name:awakening.player.name,isP:false});return awakening.player}return fielder})};return{team:nextTeam,events}}
+import { BS, GROW_P, PS } from '../data';
+import { calcOVR } from './ratings';
+import { clamp, random, randomChoice, randomInt } from './random';
+import { ensureSpecialLevels, syncSpecialsFromLevels } from './specials';
+import type { AwakeningEvent, AwakeningResult, Player, PlayerParams, Teams } from './types';
+function ageCoefficient(age: number): number {
+  if (age <= 22) return 0.22;
+  if (age <= 25) return 0.14;
+  if (age <= 28) return 0.07;
+  if (age <= 31) return 0.01;
+  if (age <= 33) return -0.08;
+  if (age <= 35) return -0.13;
+  if (age <= 37) return -0.19;
+  return -0.26;
+}
+function growthParameters(player: Player): Array<keyof PlayerParams> {
+  return player.isP
+    ? ['vel', 'ctrl', 'stam', 'nobi', 'fld']
+    : [
+        'cf',
+        'cb',
+        'pw',
+        'dc',
+        'sp',
+        'df',
+        'arm',
+        'stam',
+        ...(player.pos === '捕手' ? (['ld'] as Array<keyof PlayerParams>) : []),
+      ];
+}
+export function growPlayer(player: Player): Player {
+  const params = { ...player.p },
+    potential = { ...player.pot },
+    parameterNames = growthParameters(player),
+    ageEffect = ageCoefficient(player.age),
+    currentOverall = calcOVR(player, player.pos),
+    overallDeclineMultiplier =
+      ageEffect < 0
+        ? currentOverall >= 82
+          ? 1.7
+          : currentOverall >= 72
+            ? 1.3
+            : currentOverall >= 62
+              ? 1
+              : 0.72
+        : 1;
+  const trainingBonusByPolicy: Partial<
+    Record<string, Partial<Record<keyof PlayerParams, number>>>
+  > = {
+    power: { pw: 0.3 },
+    contact: { cf: 0.3, cb: 0.3 },
+    speed: { sp: 0.3 },
+    defense: { df: 0.3, arm: 0.3 },
+    velocity: { vel: 0.3 },
+    control: { ctrl: 0.3 },
+    stamina_t: { stam: 0.3 },
+  };
+  const changes: Array<{ param: keyof PlayerParams; before: number; after: number; diff: number }> =
+    [];
+  for (const parameter of parameterNames) {
+    const before = Number(params[parameter] ?? 50),
+      definition = GROW_P[parameter];
+    if (!definition) continue;
+    const ceiling = Number(potential[parameter] ?? before + 5),
+      gap = ceiling - before;
+    let adjustedAgeEffect = ageEffect;
+    if (ageEffect < 0) {
+      adjustedAgeEffect = ageEffect * overallDeclineMultiplier;
+      if (parameter === 'vel' || parameter === 'sp') adjustedAgeEffect *= 1.35;
+      else if (parameter === 'ctrl' || parameter === 'dc' || parameter === 'ld')
+        adjustedAgeEffect *= 0.62;
+    }
+    const trainingBonus = trainingBonusByPolicy[player.trainPolicy]?.[parameter] ?? 0,
+      growth =
+        gap *
+        definition.c *
+        Math.max(-0.18, adjustedAgeEffect) *
+        (0.55 + random() * 0.9) *
+        (1 + trainingBonus),
+      nextValue = Math.round(before + growth);
+    (params as unknown as Record<string, unknown>)[parameter] =
+      growth > 0 ? Math.min(nextValue, ceiling) : nextValue;
+    const after = Number(params[parameter] ?? 50),
+      difference = after - before;
+    if (difference !== 0) changes.push({ param: parameter, before, after, diff: difference });
+  }
+  const overallBefore = calcOVR(player, player.pos),
+    updatedPlayer: Player = { ...player, p: params, age: player.age + 1 },
+    overallAfter = calcOVR(updatedPlayer, updatedPlayer.pos);
+  updatedPlayer.growthLog = [
+    ...(player.growthLog ?? []).slice(-9),
+    {
+      year: updatedPlayer.age - 1,
+      ovrBefore: overallBefore,
+      ovrAfter: overallAfter,
+      delta: overallAfter - overallBefore,
+      changes,
+    },
+  ];
+  return updatedPlayer;
+}
+function awakeningPotentialGap(player: Player): number {
+  const parameterNames = player.isP
+    ? (['vel', 'ctrl', 'stam', 'nobi', 'fld'] as Array<keyof PlayerParams>)
+    : ([
+        'cf',
+        'cb',
+        'pw',
+        'dc',
+        'sp',
+        'df',
+        'arm',
+        ...(player.pos === '捕手' ? ['ld'] : []),
+      ] as Array<keyof PlayerParams>);
+  return Math.max(
+    0,
+    ...parameterNames.map(
+      (parameter) =>
+        Number(player.pot?.[parameter] ?? player.p?.[parameter] ?? 50) -
+        Number(player.p?.[parameter] ?? 50),
+    ),
+  );
+}
+export function checkAwakening(player: Player, inSeason: boolean): AwakeningResult | null {
+  if ((player.awakeCount || 0) >= 3 && random() > 0.04) return null;
+  if (player.seasonAwakenDone && inSeason) return null;
+  const overall = calcOVR(player, player.pos),
+    potentialGap = awakeningPotentialGap(player),
+    ageFactor =
+      player.age <= 21
+        ? 3
+        : player.age <= 23
+          ? 2
+          : player.age <= 25
+            ? 0.9
+            : player.age <= 27
+              ? 0.3
+              : 0.08,
+    lowOverallFactor =
+      overall <= 44 ? 3 : overall <= 50 ? 2 : overall <= 56 ? 0.85 : overall <= 62 ? 0.25 : 0.05,
+    latentFactor =
+      potentialGap >= 20 ? 1.4 : potentialGap >= 14 ? 0.9 : potentialGap >= 10 ? 0.52 : 0.18,
+    probability =
+      (inSeason ? 0.0022 : 0.012) *
+      ageFactor *
+      lowOverallFactor *
+      latentFactor *
+      (player.isP && player.role !== '先発' ? 1.1 : 1);
+  if (random() > probability) return null;
+  const params = { ...player.p },
+    potential = { ...player.pot },
+    parameterNames = growthParameters(player),
+    chosenParameters = parameterNames.sort(() => random() - 0.5).slice(0, random() < 0.25 ? 2 : 1),
+    isBreakthrough = random() < 0.22,
+    events: AwakeningEvent[] = [];
+  for (const parameter of chosenParameters) {
+    const boost = inSeason ? randomInt(7, 14) : randomInt(9, 18),
+      currentValue = Number(params[parameter] ?? 50);
+    (params as unknown as Record<string, unknown>)[parameter] = currentValue + boost;
+    const boostedValue = Number(params[parameter]);
+    if (isBreakthrough)
+      potential[parameter] = Number(potential[parameter] ?? boostedValue + 5) + randomInt(6, 12);
+    else potential[parameter] = Math.max(Number(potential[parameter] ?? 0), boostedValue + 3);
+    events.push({ param: parameter, boost, isBreakthrough });
+  }
+  let newSpecial = null;
+  const nextSpecialLevels = ensureSpecialLevels(player);
+  if (isBreakthrough && random() < 0.42) {
+    const pool = player.isP ? PS : BS,
+      available = pool.filter((special) => (nextSpecialLevels[special.id] || 0) < special.tierMax);
+    if (available.length) {
+      newSpecial = randomChoice(available);
+      nextSpecialLevels[newSpecial.id] = clamp(
+        (nextSpecialLevels[newSpecial.id] || 0) + 1,
+        0,
+        newSpecial.tierMax,
+      );
+    }
+  }
+  return {
+    player: syncSpecialsFromLevels({
+      ...player,
+      p: params,
+      pot: potential,
+      awakeCount: (player.awakeCount || 0) + 1,
+      seasonAwakenDone: inSeason ? true : player.seasonAwakenDone,
+      specialLevels: nextSpecialLevels,
+      growthLog: [
+        ...(player.growthLog || []),
+        {
+          year: player.age,
+          type: 'awakening',
+          isBreakthrough,
+          events: events.map((event) => ({ param: event.param, boost: event.boost })),
+          newSpecial: newSpecial?.n || null,
+        },
+      ],
+    }),
+    events,
+    isBreakthrough,
+    newSpecial,
+  };
+}
+export function growthPhase(teams: Teams): {
+  teams: Teams;
+  awakeEvents: Array<AwakeningResult & { tk: string; name: string }>;
+} {
+  const nextTeams = { ...teams },
+    awakeEvents: Array<AwakeningResult & { tk: string; name: string }> = [];
+  for (const teamKey of Object.keys(nextTeams) as Array<keyof Teams>) {
+    const team = { ...nextTeams[teamKey] };
+    team.pitchers = team.pitchers.map((pitcher) => {
+      const grown = growPlayer(pitcher);
+      grown.seasonAwakenDone = false;
+      const awakening = checkAwakening(grown, false);
+      if (awakening) {
+        awakeEvents.push({ ...awakening, tk: teamKey, name: awakening.player.name });
+        return awakening.player;
+      }
+      return grown;
+    });
+    team.fielders = team.fielders.map((fielder) => {
+      const grown = growPlayer(fielder);
+      grown.seasonAwakenDone = false;
+      const awakening = checkAwakening(grown, false);
+      if (awakening) {
+        awakeEvents.push({ ...awakening, tk: teamKey, name: awakening.player.name });
+        return awakening.player;
+      }
+      return grown;
+    });
+    nextTeams[teamKey] = team;
+  }
+  return { teams: nextTeams, awakeEvents };
+}
+export function applyInSeasonAwakening(team: Teams[keyof Teams]): {
+  team: Teams[keyof Teams];
+  events: Array<AwakeningResult & { name: string; isP: boolean }>;
+} {
+  const events: Array<AwakeningResult & { name: string; isP: boolean }> = [],
+    nextTeam = {
+      ...team,
+      pitchers: team.pitchers.map((pitcher) => {
+        const awakening = checkAwakening(pitcher, true);
+        if (awakening) {
+          events.push({ ...awakening, name: awakening.player.name, isP: true });
+          return awakening.player;
+        }
+        return pitcher;
+      }),
+      fielders: team.fielders.map((fielder) => {
+        const awakening = checkAwakening(fielder, true);
+        if (awakening) {
+          events.push({ ...awakening, name: awakening.player.name, isP: false });
+          return awakening.player;
+        }
+        return fielder;
+      }),
+    };
+  return { team: nextTeam, events };
+}
