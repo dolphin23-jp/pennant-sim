@@ -1,3 +1,4 @@
+import { TINFO } from '../data';
 import { calcStandings, ensureSpecialLevels, syncSpecialsFromLevels } from '../engine';
 import type {
   AccumulatedStats,
@@ -109,6 +110,7 @@ export function migrateTeamsSpecialSchema(teams: Teams | null | undefined): Team
     if (!team) continue;
     migrated[teamKey] = {
       ...team,
+      park: team.park ?? TINFO[teamKey].park,
       pitchers: (team.pitchers ?? []).map((player) =>
         syncSpecialsFromLevels({ ...player, specialLevels: ensureSpecialLevels(player) }),
       ),

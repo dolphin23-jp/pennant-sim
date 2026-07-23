@@ -20,7 +20,7 @@ export const MATURITY_PEAK_AGE: Record<Maturity, number> = {
 };
 export const MATURITY_WEIGHTS = [0.08, 0.18, 0.44, 0.18, 0.12];
 
-// simAB probability model. Values are intentionally identical to the legacy implementation.
+// simAB probability model. Context multipliers intentionally stay small so player ratings remain primary.
 export const AT_BAT_BALANCE = {
   strikeout: {
     baseRate: 0.205,
@@ -57,6 +57,14 @@ export const AT_BAT_BALANCE = {
     contactScale: 570,
     minAverage: 0.2,
     maxAverage: 0.35,
+  },
+  platoon: {
+    batterAdvantageMultiplier: 1.018,
+    pitcherAdvantageMultiplier: 0.982,
+  },
+  familiarity: {
+    perPriorMatchup: 0.004,
+    maxMultiplier: 1.016,
   },
   catcherLead: { baseMultiplier: 0.86, ratingShare: 0.14, fallbackMultiplier: 0.93 },
   mastery: { baseMultiplier: 0.92, ratingShare: 0.08, defaultMastery: 0.75 },

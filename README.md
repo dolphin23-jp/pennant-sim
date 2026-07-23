@@ -24,7 +24,7 @@ npm test
 npm run build
 ```
 
-`npm test` はNode標準テストによるengine・保存移行テストと、100シーズンのPhase A/B baseline比較を実行します。GitHub Actionsではpushおよびpull requestごとに `lint → test → build` を必須実行します。
+`npm test` はNode標準テストによるengine・保存移行テストと、100シーズンのbalance baseline比較を実行します。GitHub Actionsではpushおよびpull requestごとに `lint → test → build` を必須実行します。
 
 ## TypeScriptエンジン
 
@@ -57,6 +57,7 @@ Phase Cでは、旧 `NPBSimulator` が一括して持っていた画面遷移と
 保存キーは旧版と同じ `npb_sim_v3_restored` です。読込時に以下を補います。
 
 - `specials` だけを持つ旧選手データから `specialLevels` を生成
+- `park` を持たない旧球団データへ現在の球場係数を追加
 - 不足している成績マップ、通知、年度別成績、引退選手履歴を空値で補完
 - `viewTeam` がない旧セーブでは `playerTeam` を利用
 - 日程から順位表を再構築可能な既定値を設定
@@ -65,20 +66,22 @@ Phase Cでは、旧 `NPBSimulator` が一括して持っていた画面遷移と
 
 ## バランス基準値
 
-旧エンジンの基準値を再生成します。
+現在のTypeScriptエンジンを100シーズン・seed `20260723`で実行し、承認済みの基準値を `baseline/season-stats.json` へ記録します。バランスを意図的に変更した回では、このコマンドで新しい数値を基準として採用します。
 
 ```bash
 npm run baseline
 ```
 
-新TypeScriptエンジンの基準値を生成します。
+比較用の現在値は `baseline/new-season-stats.json` へ生成します。
 
 ```bash
 npm run baseline:new
 ```
 
-同じ100シーズン・seed `20260723`で両者を比較し、打率、防御率、本塁打、盗塁成功率、四球率の平均と母標準偏差の相対差が各2%以内であることを検証します。
+`npm run baseline:compare` は、打率、防御率、本塁打、盗塁成功率、四球率の平均と母標準偏差について、記録済み基準から2%を超える予期しない変動を検出します。
 
 ```bash
 npm run baseline:compare
 ```
+
+現在の100シーズン平均は、打率 `.222067`、防御率 `4.236324`、リーグ年間本塁打 `3126.4` 本です。

@@ -13,7 +13,7 @@
     "test:baseline": "npm run baseline:compare",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "baseline": "node scripts/balance-baseline.mjs",
+    "baseline": "tsx scripts/balance-new-engine.ts --output baseline/season-stats.json",
     "baseline:new": "tsx scripts/balance-new-engine.ts",
     "baseline:compare": "npm run baseline:new && node scripts/compare-baselines.mjs"
   },

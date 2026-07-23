@@ -18,6 +18,7 @@ export const TINFO: Record<TeamKey, TeamInfo> = {
     lg: 'central',
     c: '#FF6D00',
     bd: 77,
+    park: { homeRun: 1.08, hit: 1.01 },
     pol: { fa: 9, for: 6, pitF: 5, pwrF: 7, dev: 4 },
   },
   tigers: {
@@ -26,6 +27,7 @@ export const TINFO: Record<TeamKey, TeamInfo> = {
     lg: 'central',
     c: '#FFB300',
     bd: 72,
+    park: { homeRun: 0.88, hit: 0.98 },
     pol: { fa: 6, for: 5, pitF: 7, pwrF: 5, dev: 6 },
   },
   baystars: {
@@ -34,6 +36,7 @@ export const TINFO: Record<TeamKey, TeamInfo> = {
     lg: 'central',
     c: '#1565C0',
     bd: 69,
+    park: { homeRun: 1.12, hit: 1.03 },
     pol: { fa: 5, for: 6, pitF: 5, pwrF: 8, dev: 5 },
   },
   dragons: {
@@ -42,6 +45,7 @@ export const TINFO: Record<TeamKey, TeamInfo> = {
     lg: 'central',
     c: '#5C6BC0',
     bd: 64,
+    park: { homeRun: 0.82, hit: 0.95 },
     pol: { fa: 4, for: 7, pitF: 8, pwrF: 4, dev: 5 },
   },
   carp: {
@@ -50,6 +54,7 @@ export const TINFO: Record<TeamKey, TeamInfo> = {
     lg: 'central',
     c: '#C62828',
     bd: 61,
+    park: { homeRun: 0.98, hit: 1.02 },
     pol: { fa: 2, for: 3, pitF: 6, pwrF: 5, dev: 9 },
   },
   swallows: {
@@ -58,6 +63,7 @@ export const TINFO: Record<TeamKey, TeamInfo> = {
     lg: 'central',
     c: '#0277BD',
     bd: 63,
+    park: { homeRun: 1.18, hit: 1.05 },
     pol: { fa: 5, for: 5, pitF: 5, pwrF: 6, dev: 6 },
   },
   hawks: {
@@ -66,6 +72,7 @@ export const TINFO: Record<TeamKey, TeamInfo> = {
     lg: 'pacific',
     c: '#F9A825',
     bd: 76,
+    park: { homeRun: 1.04, hit: 1 },
     pol: { fa: 8, for: 5, pitF: 6, pwrF: 6, dev: 7 },
   },
   eagles: {
@@ -74,6 +81,7 @@ export const TINFO: Record<TeamKey, TeamInfo> = {
     lg: 'pacific',
     c: '#E53935',
     bd: 66,
+    park: { homeRun: 0.96, hit: 1.01 },
     pol: { fa: 5, for: 4, pitF: 6, pwrF: 6, dev: 6 },
   },
   marines: {
@@ -82,6 +90,7 @@ export const TINFO: Record<TeamKey, TeamInfo> = {
     lg: 'pacific',
     c: '#1A237E',
     bd: 65,
+    park: { homeRun: 0.92, hit: 0.99 },
     pol: { fa: 4, for: 6, pitF: 7, pwrF: 6, dev: 6 },
   },
   lions: {
@@ -90,6 +99,7 @@ export const TINFO: Record<TeamKey, TeamInfo> = {
     lg: 'pacific',
     c: '#1976D2',
     bd: 64,
+    park: { homeRun: 1.08, hit: 1.02 },
     pol: { fa: 5, for: 4, pitF: 5, pwrF: 7, dev: 7 },
   },
   buffaloes: {
@@ -98,6 +108,7 @@ export const TINFO: Record<TeamKey, TeamInfo> = {
     lg: 'pacific',
     c: '#3949AB',
     bd: 67,
+    park: { homeRun: 0.94, hit: 0.98 },
     pol: { fa: 5, for: 5, pitF: 6, pwrF: 6, dev: 6 },
   },
   fighters: {
@@ -106,6 +117,7 @@ export const TINFO: Record<TeamKey, TeamInfo> = {
     lg: 'pacific',
     c: '#1E88E5',
     bd: 64,
+    park: { homeRun: 1.1, hit: 1.04 },
     pol: { fa: 3, for: 4, pitF: 5, pwrF: 6, dev: 8 },
   },
 };
