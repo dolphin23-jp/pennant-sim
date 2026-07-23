@@ -27,12 +27,3 @@ jobs:
 
       - name: Build
         run: npm run build
-
-      - name: Generate balance baseline
-        run: npm run baseline
-
-      - name: Upload balance baseline
-        uses: actions/upload-artifact@v4
-        with:
-          name: season-stats
-          path: baseline/season-stats.json

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "source": "legacy/index.html",
+  "seasons": 100,
+  "seed": 20260723,
+  "definitions": {
+    "battingAverage": "hits / at-bats",
+    "era": "earned runs * 27 / pitching outs",
+    "homeRuns": "league-wide total per season",
+    "stolenBaseSuccessRate": "stolen bases / (stolen bases + caught stealing)",
+    "walkRate": "walks / plate appearances",
+    "standardDeviation": "population standard deviation across simulated seasons"
+  },
+  "summary": {
+    "battingAverage": {
+      "mean": 0.221309,
+      "standardDeviation": 0.005742
+    },
+    "era": {
+      "mean": 4.221261,
+      "standardDeviation": 0.282428
+    },
+    "homeRuns": {
+      "mean": 3117.99,
+      "standardDeviation": 243.897
+    },
+    "stolenBaseSuccessRate": {
+      "mean": 0.621848,
+      "standardDeviation": 0.061481
+    },
+    "walkRate": {
+      "mean": 0.07397,
+      "standardDeviation": 0.004831
+    }
+  }
+}

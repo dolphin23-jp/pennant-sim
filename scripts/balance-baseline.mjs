@@ -276,17 +276,6 @@ async function main() {
       ),
       walkRate: roundSummary(summarize(seasonStats.map((stats) => stats.walkRate)), 6),
     },
-    seasonStats: seasonStats.map((stats, index) => ({
-      season: index + 1,
-      ...Object.fromEntries(
-        Object.entries(stats).map(([key, value]) => [
-          key,
-          typeof value === 'number'
-            ? Number(value.toFixed(key === 'homeRuns' || key === 'games' ? 0 : 6))
-            : value,
-        ]),
-      ),
-    })),
   };
 
   const outputPath = resolve(options.output);
