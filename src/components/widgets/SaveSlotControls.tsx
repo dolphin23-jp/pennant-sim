@@ -75,17 +75,21 @@ export function SaveSlotControls({
   };
 
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-      <label style={{ color: '#7f9ab4', fontSize: 12 }}>
+    <div
+      aria-label="セーブスロット操作"
+      style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}
+    >
+      <label style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
         セーブ枠
         <select
+          aria-label="使用するセーブスロット"
           value={activeSlot}
           onChange={(event) => void handleSlotChange(Number(event.target.value) as SaveSlot)}
           style={{
             marginLeft: 6,
-            background: '#0a1218',
-            color: '#f3f7ff',
-            border: '1px solid #1a2535',
+            background: 'var(--color-bg-soft)',
+            color: 'var(--color-text)',
+            border: '1px solid var(--color-border)',
             borderRadius: 7,
             padding: '8px 10px',
           }}
@@ -104,11 +108,16 @@ export function SaveSlotControls({
       <Button
         onClick={() => void handleExport()}
         disabled={!summaries.find((summary) => summary.slot === activeSlot)?.exists && !beforeExport}
-        color="#1a2535"
+        color="var(--color-surface-muted)"
+        ariaLabel={`スロット${activeSlot}をJSONファイルとして出力`}
       >
         JSON出力
       </Button>
-      <Button onClick={() => fileInput.current?.click()} color="#1a2535">
+      <Button
+        onClick={() => fileInput.current?.click()}
+        color="var(--color-surface-muted)"
+        ariaLabel={`JSONファイルをスロット${activeSlot}へ読み込む`}
+      >
         JSON読込
       </Button>
       <input
@@ -116,12 +125,15 @@ export function SaveSlotControls({
         type="file"
         accept="application/json,.json"
         hidden
+        aria-label="読み込むセーブJSONファイル"
         onChange={(event) => {
           void handleImport(event.target.files?.[0]);
           event.currentTarget.value = '';
         }}
       />
-      <span style={{ color: '#64d69a', fontSize: 12 }}>{status}</span>
+      <span className="inline-status" role="status" aria-live="polite">
+        {status}
+      </span>
     </div>
   );
 }

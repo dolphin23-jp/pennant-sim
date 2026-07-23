@@ -5,34 +5,34 @@ export function BoxScore({ game }: { game: GameState | null }) {
   if (!game) return null;
   const { home, away } = game.teams;
   return (
-    <Card>
+    <Card ariaLabel={`${away.n}対${home.n}の試合結果`}>
       <SectionTitle>Box Score</SectionTitle>
-      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 12 }}>
+      <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 12 }} aria-live="polite">
         {away.ab} {game.score.away} - {game.score.home} {home.ab}
       </div>
-      <div style={{ overflowX: 'auto', marginBottom: 12 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+      <div className="table-scroll" style={{ marginBottom: 12 }}>
+        <table className="data-table" aria-label="イニング別得点">
           <thead>
             <tr>
-              <th style={{ textAlign: 'left', padding: 5 }}>Team</th>
+              <th scope="col" style={{ textAlign: 'left' }}>Team</th>
               {game.innings.map((_, index) => (
-                <th key={index} style={{ padding: 5 }}>{index + 1}</th>
+                <th scope="col" key={index}>{index + 1}</th>
               ))}
-              <th style={{ padding: 5 }}>R</th>
+              <th scope="col">R</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td style={{ padding: 5 }}>{away.ab}</td>
+              <th scope="row" style={{ textAlign: 'left' }}>{away.ab}</th>
               {game.innings.map((inning, index) => (
-                <td key={index} style={{ textAlign: 'center', padding: 5 }}>{inning.away}</td>
+                <td key={index} style={{ textAlign: 'center' }}>{inning.away}</td>
               ))}
               <td style={{ textAlign: 'center', fontWeight: 900 }}>{game.score.away}</td>
             </tr>
             <tr>
-              <td style={{ padding: 5 }}>{home.ab}</td>
+              <th scope="row" style={{ textAlign: 'left' }}>{home.ab}</th>
               {game.innings.map((inning, index) => (
-                <td key={index} style={{ textAlign: 'center', padding: 5 }}>{inning.home}</td>
+                <td key={index} style={{ textAlign: 'center' }}>{inning.home}</td>
               ))}
               <td style={{ textAlign: 'center', fontWeight: 900 }}>{game.score.home}</td>
             </tr>
@@ -40,7 +40,12 @@ export function BoxScore({ game }: { game: GameState | null }) {
         </table>
       </div>
       <SectionTitle>Play Log</SectionTitle>
-      <div style={{ maxHeight: 220, overflowY: 'auto', display: 'grid', gap: 5 }}>
+      <div
+        role="log"
+        aria-label="直近のプレー記録"
+        aria-live="polite"
+        style={{ maxHeight: 220, overflowY: 'auto', display: 'grid', gap: 5 }}
+      >
         {game.atBatLog.slice(-50).map((entry, index) => (
           <div
             key={`${entry.inning}-${index}`}
@@ -50,12 +55,12 @@ export function BoxScore({ game }: { game: GameState | null }) {
               gap: 12,
               padding: '6px 8px',
               borderRadius: 6,
-              background: '#0f2233',
+              background: 'var(--color-surface-raised)',
               fontSize: 11,
             }}
           >
             <span>{entry.inning}回{entry.isBot ? '裏' : '表'} {entry.batter}</span>
-            <span style={{ color: '#90caf9' }}>{entry.desc}</span>
+            <span style={{ color: 'var(--color-accent)' }}>{entry.desc}</span>
           </div>
         ))}
       </div>
