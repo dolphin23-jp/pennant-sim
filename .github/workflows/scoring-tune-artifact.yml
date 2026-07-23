@@ -1,0 +1,36 @@
+name: Scoring Tune Artifact
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  tune:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout pull request branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Run 100-season initial balance
+        run: npx tsx scripts/balance-new-engine.ts --seasons 100 --output baseline/tuning-season.json
+      - name: Run 25-season franchise drift
+        run: npm run drift -- --output baseline/tuning-drift.json
+      - name: Upload tuning reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: scoring-tune-reports
+          path: |
+            baseline/tuning-season.json
+            baseline/tuning-drift.json
+          if-no-files-found: error
