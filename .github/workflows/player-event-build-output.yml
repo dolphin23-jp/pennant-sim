@@ -1,0 +1,32 @@
+name: Player Event Build Output
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Capture build output
+        shell: bash
+        run: |
+          set +e
+          npm run build 2>&1 | tee build-output.txt
+          echo ${PIPESTATUS[0]} > build-exit-code.txt
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: player-event-build-output
+          path: |
+            build-output.txt
+            build-exit-code.txt
