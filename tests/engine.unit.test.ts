@@ -7,9 +7,10 @@ import {
   generateSchedule,
   initTeams,
   resetRandom,
+  simAB,
   simulateGame,
 } from '../src/engine';
-import type { TeamKey } from '../src/engine';
+import type { Player, TeamKey } from '../src/engine';
 
 function mulberry32(seed: number): () => number {
   let state = seed >>> 0;
@@ -19,6 +20,25 @@ function mulberry32(seed: number): () => number {
     value = Math.imul(value ^ (value >>> 15), value | 1);
     value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
     return ((value ^ (value >>> 14)) >>> 0) / 4_294_967_296;
+  };
+}
+
+function makePlayer(id: string, isPitcher: boolean): Player {
+  return {
+    id,
+    name: id,
+    age: 27,
+    tk: 'giants',
+    isP: isPitcher,
+    role: isPitcher ? '先発' : undefined,
+    pos: isPitcher ? undefined : '一塁手',
+    mat: '通常',
+    hand: isPitcher ? { th: '右' } : { bat: '右' },
+    p: isPitcher
+      ? { vel: 50, ctrl: 50, stam: 80, nobi: 50, pitches: [] }
+      : { cf: 50, cb: 50, pw: 50, dc: 50, sp: 50, stam: 80 },
+    pot: {},
+    trainPolicy: 'balanced',
   };
 }
 
@@ -48,6 +68,49 @@ test('Phase B engine preserves league structure and can complete a game', () => 
     assert.ok(result.score.home >= 0);
     assert.ok(result.score.away >= 0);
     assert.ok(result.atBatLog.length > 0);
+    assert.deepEqual(result.park, teams.giants.park);
+    const plateAppearances = result.atBatLog.filter(
+        (entry) => entry.result !== 'SB' && entry.result !== 'CS',
+      ).length,
+      trackedMatchups = Object.values(result.matchupCounts);
+    assert.equal(
+      trackedMatchups.reduce((total, count) => total + count, 0),
+      plateAppearances,
+    );
+    assert.ok(trackedMatchups.some((count) => count > 1));
+  } finally {
+    resetRandom();
+  }
+});
+
+test('platoon, park and prior-matchup context can benefit the batter', () => {
+  const pitcher = makePlayer('pitcher', true),
+    batter = makePlayer('batter', false),
+    situation = { pStam: 100, isPinch: false, isLead: false, outs: 0, bases: [false, false, false] } as const;
+  configureRandom(() => 0.313, () => Date.UTC(2026, 0, 1));
+  try {
+    const pitcherFriendly = simAB(
+      pitcher,
+      batter,
+      situation,
+      100,
+      1,
+      1,
+      { homeRun: 0.7, hit: 0.9 },
+      0,
+    );
+    const batterFriendly = simAB(
+      pitcher,
+      { ...batter, hand: { bat: '左' } },
+      situation,
+      100,
+      1,
+      1,
+      { homeRun: 1.5, hit: 1.1 },
+      4,
+    );
+    assert.notEqual(pitcherFriendly.result, 'HR');
+    assert.equal(batterFriendly.result, 'HR');
   } finally {
     resetRandom();
   }
