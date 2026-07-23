@@ -1,0 +1,56 @@
+name: Fix Player Event Types
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - name: Apply type fix
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          path = Path('src/engine/game.ts')
+          text = path.read_text()
+          old = """  const roster = new Map(team.fielders.map((player) => [player.id, player]));
+  const resolved = supplied
+    .map((player) => {
+      const current = roster.get(player.id);
+      return current ? { ...current, _assignedPos: player._assignedPos ?? current.pos } : null;
+    })
+    .filter((player): player is Player => Boolean(player && (player.injuryDays ?? 0) <= 0));
+  return resolved.length >= 9 ? resolved.slice(0, 9) : bestLineup(team);
+"""
+          new = """  const roster = new Map(team.fielders.map((player) => [player.id, player])),
+    resolved: Player[] = [];
+  for (const player of supplied) {
+    const current = roster.get(player.id);
+    if (!current || (current.injuryDays ?? 0) > 0) continue;
+    resolved.push({ ...current, _assignedPos: player._assignedPos ?? current.pos });
+  }
+  return resolved.length >= 9 ? resolved.slice(0, 9) : bestLineup(team);
+"""
+          if new not in text:
+            if old not in text:
+              raise SystemExit('resolveLineup pattern missing')
+            path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit type fix
+        shell: bash
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/engine/game.ts
+          git commit -m "Fix post-game lineup typing"
+          git push
