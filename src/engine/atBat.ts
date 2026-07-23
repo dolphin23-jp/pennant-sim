@@ -5,6 +5,7 @@ import type {
   AtBatOutcome,
   AtBatSituation,
   BaseState,
+  ParkFactors,
   PlateAppearanceResult,
   Player,
 } from './types';
@@ -15,10 +16,23 @@ export function simAB(
   catcherGameCalling: number,
   pitcherMastery: number,
   batterMastery: number,
+  park: ParkFactors,
+  priorMatchups: number,
 ): AtBatOutcome {
   const pitcherParams = pitcher.p,
     batterParams = batter.p,
-    staminaRatio = clamp((situation.pStam || 80) / 100, 0.2, 1);
+    staminaRatio = clamp((situation.pStam || 80) / 100, 0.2, 1),
+    pitcherHand = pitcher.hand.th ?? '右',
+    batterHand = batter.hand.bat ?? '右',
+    hasPlatoonAdvantage = batterHand === '両' || batterHand !== pitcherHand,
+    platoonMultiplier = hasPlatoonAdvantage
+      ? AT_BAT_BALANCE.platoon.batterAdvantageMultiplier
+      : AT_BAT_BALANCE.platoon.pitcherAdvantageMultiplier,
+    familiarityMultiplier = Math.min(
+      AT_BAT_BALANCE.familiarity.maxMultiplier,
+      1 + Math.max(0, priorMatchups) * AT_BAT_BALANCE.familiarity.perPriorMatchup,
+    ),
+    batterContextMultiplier = platoonMultiplier * familiarityMultiplier;
   const catcherLeadMultiplier = catcherGameCalling
     ? AT_BAT_BALANCE.catcherLead.baseMultiplier +
       (catcherGameCalling / 100) * AT_BAT_BALANCE.catcherLead.ratingShare
@@ -65,6 +79,7 @@ export function simAB(
     strikeoutRate *= 1 - specialLevel(pitcher, 'ldo') * 0.02;
     strikeoutRate *= 1 + specialLevel(pitcher, 'ldx') * 0.03;
   }
+  strikeoutRate /= batterContextMultiplier;
   strikeoutRate = clamp(
     strikeoutRate,
     AT_BAT_BALANCE.strikeout.minRate,
@@ -102,6 +117,7 @@ export function simAB(
   homeRunRate *= 1 + specialLevel(batter, 'pull') * 0.035;
   if (hasGold(pitcher, 'heavy_gold')) homeRunRate *= 0.84;
   if (hasGold(batter, 'slugger_gold')) homeRunRate *= 1.28;
+  homeRunRate *= batterContextMultiplier * park.homeRun;
   homeRunRate = clamp(homeRunRate, AT_BAT_BALANCE.homeRun.minRate, AT_BAT_BALANCE.homeRun.maxRate);
   let groundBallRate = AT_BAT_BALANCE.groundBall.baseRate;
   groundBallRate *= 1 + specialLevel(pitcher, 'heavy') * 0.03;
@@ -119,6 +135,7 @@ export function simAB(
   if (hasGold(batter, 'avg_gold')) ballsInPlayAverage *= 1.12;
   if (hasGold(batter, 'spray_gold')) ballsInPlayAverage *= 1.08;
   if (hasGold(batter, 'sb_gold')) ballsInPlayAverage *= 1.04;
+  ballsInPlayAverage *= batterContextMultiplier * park.hit;
   ballsInPlayAverage = clamp(
     ballsInPlayAverage,
     AT_BAT_BALANCE.ballsInPlay.minAverage,
