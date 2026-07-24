@@ -1,0 +1,73 @@
+name: Temporary balance PR validation
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: github.head_ref == 'agent/balance-core'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply balance changes
+        run: |
+          node scripts/agent-patch-players.mjs
+          node scripts/agent-patch-core.mjs
+          node scripts/agent-patch-baseline.mjs
+      - name: Format changed files
+        run: >-
+          npx prettier --write
+          src/engine/game.ts
+          src/engine/players.ts
+          src/engine/market.ts
+          src/engine/types.ts
+          src/state/offseason.ts
+          src/data/constants.ts
+          scripts/npb-targets.mjs
+          scripts/balance-new-engine.ts
+          tests/balance-generation.test.ts
+      - run: npm run build
+      - run: npm run test:unit
+      - name: Generate 100-season candidate baseline
+        id: baseline
+        continue-on-error: true
+        run: npm run baseline:new
+      - name: Commit source and candidate baseline
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/engine/game.ts \
+            src/engine/players.ts \
+            src/engine/market.ts \
+            src/engine/types.ts \
+            src/state/offseason.ts \
+            src/data/constants.ts \
+            scripts/npb-targets.mjs \
+            scripts/balance-new-engine.ts \
+            tests/balance-generation.test.ts
+          if [ -f baseline/new-season-stats.json ]; then
+            git add -f baseline/new-season-stats.json
+          fi
+          if git diff --cached --quiet; then
+            echo "No generated changes to commit"
+            exit 0
+          fi
+          git commit -m "Implement simulation balance phases"
+          git push origin HEAD:agent/balance-core
