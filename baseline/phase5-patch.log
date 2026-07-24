@@ -1,1 +1,8 @@
-Applied phase 5 special-profile generation.
+file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-phase5-special-profile.mjs:309
+  if (existing !== testContent) throw new Error(`${testPath} already exists with different content`);
+                                      ^
+
+Error: tests/special-profile.test.ts already exists with different content
+    at file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-phase5-special-profile.mjs:309:39
+
+Node.js v22.23.1
