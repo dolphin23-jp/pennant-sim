@@ -47,11 +47,11 @@ function createEditorState(lineup: Player[], fielders: Player[]): EditorState {
   const assignments = emptyAssignments();
   const rosterById = new Map(fielders.map((player) => [player.id, player]));
   const savedPlayers = lineup
-    .map((saved) => {
+    .map<Player | null>((saved) => {
       const current = rosterById.get(saved.id);
       return current ? { ...current, _assignedPos: saved._assignedPos } : null;
     })
-    .filter((player): player is Player => Boolean(player));
+    .filter((player): player is Player => player !== null);
   const used = new Set<string>();
 
   for (const position of FIELD_SLOT_ORDER) {
@@ -92,12 +92,14 @@ function editorSignature(editor: EditorState): string {
 }
 
 function selectedPlayers(editor: EditorState): Player[] {
-  const byId = new Map(
+  const byId = new Map<string, Player>(
     LINEUP_SLOT_ORDER.map((slot) => editor.assignments[slot])
-      .filter((player): player is Player => Boolean(player))
+      .filter((player): player is Player => player !== null)
       .map((player) => [player.id, player]),
   );
-  return editor.orderIds.map((id) => byId.get(id)).filter((player): player is Player => Boolean(player));
+  return editor.orderIds
+    .map((id) => byId.get(id))
+    .filter((player): player is Player => player !== undefined);
 }
 
 function lineupFromEditor(editor: EditorState): Player[] {
@@ -106,19 +108,19 @@ function lineupFromEditor(editor: EditorState): Player[] {
     const player = editor.assignments[position];
     if (player) assignedPositionById.set(player.id, position);
   }
-  const byId = new Map(
+  const byId = new Map<string, Player>(
     LINEUP_SLOT_ORDER.map((slot) => editor.assignments[slot])
-      .filter((player): player is Player => Boolean(player))
+      .filter((player): player is Player => player !== null)
       .map((player) => [player.id, player]),
   );
   return editor.orderIds
-    .map((id) => {
+    .map<Player | null>((id) => {
       const player = byId.get(id);
       if (!player) return null;
       const assignedPosition = assignedPositionById.get(id);
       return { ...player, _assignedPos: assignedPosition };
     })
-    .filter((player): player is Player => Boolean(player));
+    .filter((player): player is Player => player !== null);
 }
 
 function LineupEditor({
