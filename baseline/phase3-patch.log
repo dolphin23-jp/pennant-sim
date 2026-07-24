@@ -1,11 +1,2 @@
 Added phase 3 potential-distribution metrics.
-file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-phase3-potential.mjs:117
-    throw new Error('Potential class was not connected to both player generators');
-          ^
-
-Error: Potential class was not connected to both player generators
-    at file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-phase3-potential.mjs:117:11
-    at update (file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-phase3-potential.mjs:5:16)
-    at async file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-phase3-potential.mjs:22:1
-
-Node.js v22.23.1
+Applied player-level elite potential distribution.
