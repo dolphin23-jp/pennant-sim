@@ -38,6 +38,12 @@ function generateMarketQuality(
   if (random() < 0.02) quality = clamp(gaussian(base + 29, 6), 82, 118);
   return quality;
 }
+function generateMarketQuality(base: number, standardDeviation: number, minimum: number, maximum: number): number {
+  let quality = clamp(gaussian(base, standardDeviation), minimum, maximum);
+  if (random() < 0.1) quality = clamp(gaussian(base + 16, 8), minimum + 8, 106);
+  if (random() < 0.02) quality = clamp(gaussian(base + 29, 6), 82, 118);
+  return quality;
+}
 export function genFreeAgentMarket(): Player[] {
   const output: Player[] = [];
   for (let index = 0; index < 14; index += 1) {

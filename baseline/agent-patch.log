@@ -1,12 +1,34 @@
-file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-patch-players.mjs:9
-    throw new Error(`Expected source is not unique in ${path}: ${before.slice(0, 100)}`);
-          ^
+file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-patch-players.mjs:7
+  if (first < 0) throw new Error(`Could not find expected source in ${path}: ${before.slice(0, 100)}`);
+                       ^
 
-Error: Expected source is not unique in src/engine/players.ts:           clamp(gaussian(bd * 0.75, 12), 35, 98),
-    at replaceOnce (file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-patch-players.mjs:9:11)
+Error: Could not find expected source in src/engine/players.ts: function generatePotential(value: number, margin?: number): number {
+  return Math.max(value + 5, va
+    at replaceOnce (file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-patch-players.mjs:7:24)
     at async patch (file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-patch-players.mjs:16:7)
-    at async file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-patch-players.mjs:263:1
+    at async file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-patch-players.mjs:19:1
 
 Node.js v22.23.1
-Patched src/engine/game.ts, src/engine/market.ts, src/engine/types.ts, src/state/offseason.ts, src/data/constants.ts, scripts/npb-targets.mjs
-Patched scripts/balance-new-engine.ts
+file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-patch-core.mjs:7
+  if (first < 0) throw new Error(`Could not find expected source in ${path}: ${before.slice(0, 100)}`);
+                       ^
+
+Error: Could not find expected source in src/state/offseason.ts:     const position = randomChoice(positions);
+    const age = randomInt(18, 22);
+    let quality = M
+    at replaceOnce (file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-patch-core.mjs:7:24)
+    at async patch (file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-patch-core.mjs:16:7)
+    at async file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-patch-core.mjs:77:1
+
+Node.js v22.23.1
+file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-patch-baseline.mjs:7
+  if (first < 0) throw new Error(`Could not find expected source in ${path}: ${before.slice(0, 100)}`);
+                       ^
+
+Error: Could not find expected source in scripts/balance-new-engine.ts:       seed: options.seed,
+      targets: NPB_SCORING_TARGETS,
+    at replaceOnce (file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-patch-baseline.mjs:7:24)
+    at async patch (file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-patch-baseline.mjs:16:7)
+    at async file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-patch-baseline.mjs:220:1
+
+Node.js v22.23.1
