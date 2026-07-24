@@ -2,4 +2,5 @@
 > pennant-sim@0.1.0 build
 > tsc -b && vite build
 
-src/engine/players.ts(400,10): error TS6133: 'generateRosterQuality' is declared but its value is never read.
+src/engine/market.ts(30,10): error TS2393: Duplicate function implementation.
+src/engine/market.ts(41,10): error TS2393: Duplicate function implementation.

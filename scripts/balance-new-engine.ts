@@ -149,7 +149,11 @@ function finalizeSeason(accumulatedStats: AccumulatedStats, games: number, teams
         .flatMap((team) => team.fielders)
         .map((player) => [player.id, player]),
     ),
-    battingById = new Map(batting.map((line) => [line.id, line])),
+    battingById = new Map(
+      Object.entries(accumulatedStats).filter(
+        (entry): entry is [string, PlayerStats] => entry[1].type === 'bat',
+      ),
+    ),
     speedStolenBasePairs = [...playerById.values()]
       .map((player) => ({
         x: player.p.sp ?? 50,
