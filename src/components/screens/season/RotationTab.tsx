@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { calcOVR, resolveCloserOrder } from '../../../engine';
 import type { Player, Team } from '../../../engine';
@@ -7,6 +7,7 @@ import type { PitcherPlan } from '../../../state/storage';
 import { Button, Card, SectionTitle } from '../../ui';
 import { BullpenBoard } from '../../widgets/BullpenBoard';
 import { BullpenPickerSheet } from '../../widgets/BullpenPickerSheet';
+import { reorderIds } from '../../widgets/dragUtils';
 import { RotationOrderList } from '../../widgets/RotationOrderList';
 
 interface EditorState {
@@ -134,6 +135,15 @@ function RotationEditor({
     setStatus('変更はまだ保存されていません。');
   };
 
+  const reorderStarters = useCallback((activeId: string, overId: string) => {
+    setEditor((current) => ({
+      ...current,
+      rotationIds: reorderIds(current.rotationIds, activeId, overId),
+      rotationAutomatic: false,
+    }));
+    setStatus('先発順を入れ替えました。変更はまだ保存されていません。');
+  }, []);
+
   const selectCloser = (pitcher: Player) => {
     if (selectedCloserIndex === null) return;
     setEditor((current) => {
@@ -188,7 +198,7 @@ function RotationEditor({
           <div>
             <SectionTitle>Pitcher Plan Editor</SectionTitle>
             <div style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
-              先発順は矢印、抑え優先順位は抑え枠のタップで変更します。
+              先発順はドラッグまたは矢印、抑え優先順位は抑え枠のタップで変更します。
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -241,6 +251,7 @@ function RotationEditor({
         <RotationOrderList
           pitchers={rotationPitchers}
           onMove={moveStarter}
+          onReorder={reorderStarters}
           onSelectPlayer={onSelectPlayer}
         />
         <BullpenBoard

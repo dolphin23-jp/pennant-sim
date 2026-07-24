@@ -5,6 +5,7 @@ import type { FieldPosition, Player, Team } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
 import { Button, Card, SectionTitle } from '../../ui';
 import { BattingOrderList } from '../../widgets/BattingOrderList';
+import { reorderIds, swapRecordValues } from '../../widgets/dragUtils';
 import {
   FIELD_SLOT_ORDER,
   FieldDiagram,
@@ -196,6 +197,17 @@ function LineupEditor({
     setStatus('変更はまだ保存されていません。');
   };
 
+  const swapSlots = useCallback((firstSlot: LineupSlot, secondSlot: LineupSlot) => {
+    setEditor((current) => {
+      const assignments = swapRecordValues(current.assignments, firstSlot, secondSlot);
+      return {
+        assignments,
+        orderIds: normalizeOrder(current.orderIds, assignments),
+      };
+    });
+    setStatus('守備位置を入れ替えました。変更はまだ保存されていません。');
+  }, []);
+
   const moveBatter = (index: number, direction: -1 | 1) => {
     setEditor((current) => {
       const target = index + direction;
@@ -206,6 +218,14 @@ function LineupEditor({
     });
     setStatus('変更はまだ保存されていません。');
   };
+
+  const reorderBatters = useCallback((activeId: string, overId: string) => {
+    setEditor((current) => ({
+      ...current,
+      orderIds: reorderIds(current.orderIds, activeId, overId),
+    }));
+    setStatus('打順を入れ替えました。変更はまだ保存されていません。');
+  }, []);
 
   const saveLineup = () => {
     if (!complete) return;
@@ -243,7 +263,7 @@ function LineupEditor({
           <div>
             <SectionTitle>Lineup Editor</SectionTitle>
             <div style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
-              守備位置をタップして選手を選び、打順は矢印で変更します。
+              守備位置はタップまたはグリップのドラッグ、打順はドラッグまたは矢印で変更します。
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -295,11 +315,13 @@ function LineupEditor({
           assignments={editor.assignments}
           selectedSlot={selectedSlot}
           onSelectSlot={setSelectedSlot}
+          onSwapSlots={swapSlots}
         />
         <BattingOrderList
           players={battingOrder}
           assignments={editor.assignments}
           onMove={moveBatter}
+          onReorder={reorderBatters}
           onSelectPlayer={onSelectPlayer}
         />
       </div>

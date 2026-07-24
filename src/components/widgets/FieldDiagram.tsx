@@ -1,7 +1,11 @@
+import { useCallback } from 'react';
+
 import { aptitudeFor, aptitudeRank, calcOVR, displayOVRBreakdown, effectiveOVR } from '../../engine';
 import type { FieldPosition, Player } from '../../engine';
 import { Card, SectionTitle, TermTooltip } from '../ui';
 import { aptitudeToneColor } from './aptitudeDisplay';
+import type { PointerDragHandleProps } from './usePointerDrag';
+import { usePointerDrag } from './usePointerDrag';
 
 export type LineupSlot = FieldPosition | 'extra';
 export type LineupAssignments = Record<LineupSlot, Player | null>;
@@ -47,11 +51,17 @@ function SlotButton({
   slot,
   player,
   selected,
+  dragging,
+  dropTarget,
+  dragHandleProps,
   onSelect,
 }: {
   slot: LineupSlot;
   player: Player | null;
   selected: boolean;
+  dragging: boolean;
+  dropTarget: boolean;
+  dragHandleProps: PointerDragHandleProps;
   onSelect(slot: LineupSlot): void;
 }) {
   const position = slot === 'extra' ? undefined : slot;
@@ -60,75 +70,116 @@ function SlotButton({
   const rank = aptitude === null ? null : aptitudeRank(aptitude);
   const aptitudeColor = aptitudeToneColor(aptitude);
   const label = slot === 'extra' ? '追加打者' : slot;
-  const borderColor = aptitudeColor ?? (selected ? 'var(--color-accent)' : 'var(--color-border-strong)');
+  const borderColor = dropTarget
+    ? 'var(--color-accent)'
+    : aptitudeColor ?? (selected ? 'var(--color-accent)' : 'var(--color-border-strong)');
   const background = aptitudeColor
     ? `color-mix(in srgb, ${aptitudeColor} ${selected ? 18 : 10}%, ${selected ? 'var(--color-accent-soft)' : 'var(--color-surface-raised)'})`
     : selected
       ? 'var(--color-accent-soft)'
       : 'var(--color-surface-raised)';
   return (
-    <button
-      type="button"
-      aria-label={`${label}${player ? `、${player.name}、基本総合値${breakdown?.base}から特殊込み${breakdown?.total}${aptitude === null ? '' : `、適性ランク${rank}、${aptitude}%`}` : '、未選択'}を変更`}
-      aria-pressed={selected}
-      onClick={() => onSelect(slot)}
+    <div
+      data-drop-id={slot}
       style={{
+        position: 'relative',
         width: 'clamp(92px,24vw,126px)',
-        minHeight: 70,
-        padding: '7px 8px',
-        border: `1px solid ${borderColor}`,
-        borderRadius: 10,
-        color: 'var(--color-text)',
-        background,
-        boxShadow: selected
-          ? '0 0 0 2px var(--color-accent), 0 5px 14px rgb(0 0 0 / 22%)'
-          : '0 5px 14px rgb(0 0 0 / 22%)',
-        cursor: 'pointer',
+        opacity: dragging ? 0.58 : 1,
+        transition: 'opacity 120ms ease, transform 120ms ease',
+        transform: dropTarget ? 'scale(1.035)' : undefined,
       }}
     >
-      <span
+      <button
+        type="button"
+        aria-label={`${label}${player ? `、${player.name}、基本総合値${breakdown?.base}から特殊込み${breakdown?.total}${aptitude === null ? '' : `、適性ランク${rank}、${aptitude}%`}` : '、未選択'}を変更`}
+        aria-pressed={selected}
+        onClick={() => onSelect(slot)}
         style={{
-          display: 'block',
-          color: selected ? 'var(--color-accent)' : 'var(--color-text-faint)',
-          fontSize: 10,
-          fontWeight: 900,
+          width: '100%',
+          minHeight: 70,
+          padding: '7px 32px 7px 8px',
+          border: `1px solid ${borderColor}`,
+          borderRadius: 10,
+          color: 'var(--color-text)',
+          background,
+          boxShadow: dropTarget
+            ? '0 0 0 3px var(--color-accent), 0 8px 18px rgb(0 0 0 / 28%)'
+            : selected
+              ? '0 0 0 2px var(--color-accent), 0 5px 14px rgb(0 0 0 / 22%)'
+              : '0 5px 14px rgb(0 0 0 / 22%)',
+          cursor: 'pointer',
         }}
       >
-        {label}
-      </span>
-      <strong
+        <span
+          style={{
+            display: 'block',
+            color: selected ? 'var(--color-accent)' : 'var(--color-text-faint)',
+            fontSize: 10,
+            fontWeight: 900,
+          }}
+        >
+          {label}
+        </span>
+        <strong
+          style={{
+            display: 'block',
+            marginTop: 3,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {player?.name ?? '選手を選択'}
+        </strong>
+        <span style={{ display: 'block', marginTop: 3, color: 'var(--color-text-muted)', fontSize: 10 }}>
+          {breakdown === null ? (
+            '総合値 -'
+          ) : (
+            <>
+              <span style={{ color: 'var(--color-text-faint)' }}>{breakdown.base}</span>
+              {' → '}
+              <strong className={breakdown.total >= 80 ? 'metric-highlight' : undefined}>
+                {breakdown.total}
+              </strong>
+            </>
+          )}
+          {aptitude === null ? (
+            ''
+          ) : (
+            <>
+              {' / 適性 '}
+              <strong style={{ color: aptitudeColor ?? undefined }}>{rank} {aptitude}%</strong>
+            </>
+          )}
+        </span>
+      </button>
+      <button
+        type="button"
+        {...dragHandleProps}
+        aria-label={`${label}${player ? `の${player.name}` : ''}を別の守備枠へドラッグ`}
+        title="ドラッグして入れ替え"
         style={{
-          display: 'block',
-          marginTop: 3,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
+          position: 'absolute',
+          top: 5,
+          right: 5,
+          display: 'grid',
+          width: 26,
+          height: 26,
+          placeItems: 'center',
+          padding: 0,
+          border: '1px solid var(--color-border)',
+          borderRadius: 7,
+          color: dragging ? 'var(--color-accent)' : 'var(--color-text-muted)',
+          background: 'var(--color-surface-muted)',
+          cursor: dragging ? 'grabbing' : 'grab',
+          touchAction: 'none',
+          fontSize: 16,
+          lineHeight: 1,
         }}
       >
-        {player?.name ?? '選手を選択'}
-      </strong>
-      <span style={{ display: 'block', marginTop: 3, color: 'var(--color-text-muted)', fontSize: 10 }}>
-        {breakdown === null ? (
-          '総合値 -'
-        ) : (
-          <>
-            <span style={{ color: 'var(--color-text-faint)' }}>{breakdown.base}</span>
-            {' → '}
-            <strong className={breakdown.total >= 80 ? 'metric-highlight' : undefined}>
-              {breakdown.total}
-            </strong>
-          </>
-        )}
-        {aptitude === null ? (
-          ''
-        ) : (
-          <>
-            {' / 適性 '}
-            <strong style={{ color: aptitudeColor ?? undefined }}>{rank} {aptitude}%</strong>
-          </>
-        )}
-      </span>
-    </button>
+        ⠿
+      </button>
+    </div>
   );
 }
 
@@ -136,12 +187,39 @@ export function FieldDiagram({
   assignments,
   selectedSlot,
   onSelectSlot,
+  onSwapSlots,
 }: {
   assignments: LineupAssignments;
   selectedSlot: LineupSlot | null;
   onSelectSlot(slot: LineupSlot): void;
+  onSwapSlots(first: LineupSlot, second: LineupSlot): void;
 }) {
   const average = averageLineupOVR(assignments);
+  const handleDrop = useCallback(
+    (activeId: string, overId: string) => {
+      if (
+        activeId !== overId &&
+        LINEUP_SLOT_ORDER.includes(activeId as LineupSlot) &&
+        LINEUP_SLOT_ORDER.includes(overId as LineupSlot)
+      ) {
+        onSwapSlots(activeId as LineupSlot, overId as LineupSlot);
+      }
+    },
+    [onSwapSlots],
+  );
+  const drag = usePointerDrag(handleDrop);
+  const renderSlot = (slot: LineupSlot) => (
+    <SlotButton
+      slot={slot}
+      player={assignments[slot]}
+      selected={selectedSlot === slot}
+      dragging={drag.activeId === slot}
+      dropTarget={drag.activeId !== null && drag.overId === slot && drag.activeId !== slot}
+      dragHandleProps={drag.handleProps(slot)}
+      onSelect={onSelectSlot}
+    />
+  );
+
   return (
     <Card ariaLabel="守備位置の編成">
       <div
@@ -200,26 +278,16 @@ export function FieldDiagram({
                 transform: 'translate(-50%,-50%)',
               }}
             >
-              <SlotButton
-                slot={position}
-                player={assignments[position]}
-                selected={selectedSlot === position}
-                onSelect={onSelectSlot}
-              />
+              {renderSlot(position)}
             </div>
           );
         })}
       </div>
 
       <div style={{ display: 'grid', placeItems: 'center' }}>
-        <SlotButton
-          slot="extra"
-          player={assignments.extra}
-          selected={selectedSlot === 'extra'}
-          onSelect={onSelectSlot}
-        />
+        {renderSlot('extra')}
         <div style={{ marginTop: 6, color: 'var(--color-text-faint)', fontSize: 11 }}>
-          9人目は守備につかない追加打者枠として扱います。
+          9人目は守備につかない追加打者枠です。グリップを別の枠へドラッグすると選手を入れ替えます。
         </div>
       </div>
     </Card>
