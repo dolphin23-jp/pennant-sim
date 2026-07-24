@@ -25,11 +25,22 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Apply balance changes
+        id: patch
         run: |
-          node scripts/agent-patch-players.mjs
-          node scripts/agent-patch-core.mjs
-          node scripts/agent-patch-baseline.mjs
+          mkdir -p baseline
+          set +e
+          {
+            node scripts/agent-patch-players.mjs
+            node scripts/agent-patch-core.mjs
+            node scripts/agent-patch-baseline.mjs
+          } > baseline/agent-patch.log 2>&1
+          status=$?
+          set -e
+          cat baseline/agent-patch.log
+          echo "$status" > baseline/agent-patch.status
+          echo "status=$status" >> "$GITHUB_OUTPUT"
       - name: Format changed files
+        if: steps.patch.outputs.status == '0'
         run: >-
           npx prettier --write
           src/engine/game.ts
@@ -41,13 +52,19 @@ jobs:
           scripts/npb-targets.mjs
           scripts/balance-new-engine.ts
           tests/balance-generation.test.ts
-      - run: npm run build
-      - run: npm run test:unit
-      - name: Generate 100-season candidate baseline
-        id: baseline
+      - name: Build
+        if: steps.patch.outputs.status == '0'
         continue-on-error: true
-        run: npm run baseline:new
-      - name: Commit source and candidate baseline
+        run: npm run build > baseline/agent-build.log 2>&1
+      - name: Unit tests
+        if: steps.patch.outputs.status == '0'
+        continue-on-error: true
+        run: npm run test:unit > baseline/agent-unit.log 2>&1
+      - name: Generate 100-season candidate baseline
+        if: steps.patch.outputs.status == '0'
+        continue-on-error: true
+        run: npm run baseline:new > baseline/agent-baseline.log 2>&1
+      - name: Commit source and diagnostics
         if: always()
         run: |
           git config user.name "github-actions[bot]"
@@ -62,6 +79,7 @@ jobs:
             scripts/npb-targets.mjs \
             scripts/balance-new-engine.ts \
             tests/balance-generation.test.ts
+          git add -f baseline/agent-*.log baseline/agent-patch.status 2>/dev/null || true
           if [ -f baseline/new-season-stats.json ]; then
             git add -f baseline/new-season-stats.json
           fi
@@ -69,5 +87,5 @@ jobs:
             echo "No generated changes to commit"
             exit 0
           fi
-          git commit -m "Implement simulation balance phases"
+          git commit -m "Run simulation balance validation"
           git push origin HEAD:agent/balance-core
