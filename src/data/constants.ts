@@ -89,7 +89,7 @@ export const AT_BAT_BALANCE = {
     doubleShare: 0.2,
   },
   ballsInPlay: {
-    baseAverage: 0.292,
+    baseAverage: 0.298,
     speedScale: 1600,
     contactScale: 1500,
     minAverage: 0.22,
