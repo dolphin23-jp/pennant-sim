@@ -1,6 +1,7 @@
 import { aptitudeFor, calcOVR, displayOVRBreakdown, effectiveOVR } from '../../engine';
 import type { FieldPosition, Player } from '../../engine';
 import { Card, SectionTitle, TermTooltip } from '../ui';
+import { aptitudeToneColor } from './aptitudeDisplay';
 
 export type LineupSlot = FieldPosition | 'extra';
 export type LineupAssignments = Record<LineupSlot, Player | null>;
@@ -56,22 +57,31 @@ function SlotButton({
   const position = slot === 'extra' ? undefined : slot;
   const breakdown = player ? displayOVRBreakdown(player, position) : null;
   const aptitude = slotAptitude(slot, player);
+  const aptitudeColor = aptitudeToneColor(aptitude);
   const label = slot === 'extra' ? '追加打者' : slot;
+  const borderColor = aptitudeColor ?? (selected ? 'var(--color-accent)' : 'var(--color-border-strong)');
+  const background = aptitudeColor
+    ? `color-mix(in srgb, ${aptitudeColor} ${selected ? 18 : 10}%, ${selected ? 'var(--color-accent-soft)' : 'var(--color-surface-raised)'})`
+    : selected
+      ? 'var(--color-accent-soft)'
+      : 'var(--color-surface-raised)';
   return (
     <button
       type="button"
-      aria-label={`${label}${player ? `、${player.name}、基本総合値${breakdown?.base}から特殊込み${breakdown?.total}` : '、未選択'}を変更`}
+      aria-label={`${label}${player ? `、${player.name}、基本総合値${breakdown?.base}から特殊込み${breakdown?.total}${aptitude === null ? '' : `、適性${aptitude}%`}` : '、未選択'}を変更`}
       aria-pressed={selected}
       onClick={() => onSelect(slot)}
       style={{
         width: 'clamp(92px,24vw,126px)',
         minHeight: 70,
         padding: '7px 8px',
-        border: `1px solid ${selected ? 'var(--color-accent)' : 'var(--color-border-strong)'}`,
+        border: `1px solid ${borderColor}`,
         borderRadius: 10,
         color: 'var(--color-text)',
-        background: selected ? 'var(--color-accent-soft)' : 'var(--color-surface-raised)',
-        boxShadow: '0 5px 14px rgb(0 0 0 / 22%)',
+        background,
+        boxShadow: selected
+          ? '0 0 0 2px var(--color-accent), 0 5px 14px rgb(0 0 0 / 22%)'
+          : '0 5px 14px rgb(0 0 0 / 22%)',
         cursor: 'pointer',
       }}
     >
@@ -108,7 +118,14 @@ function SlotButton({
             </strong>
           </>
         )}
-        {aptitude === null ? '' : ` / 適性 ${aptitude}%`}
+        {aptitude === null ? (
+          ''
+        ) : (
+          <>
+            {' / 適性 '}
+            <strong style={{ color: aptitudeColor ?? undefined }}>{aptitude}%</strong>
+          </>
+        )}
       </span>
     </button>
   );
