@@ -62,6 +62,7 @@ export function skipGamesWithPitcherPlan(
         accumulatedStats,
         homePlan,
         awayPlan,
+        game.date,
       );
     nextSchedule[index] = { ...game, played: true, hs: result.score.home, as: result.score.away };
     leagueStats = accumulateStatsAll(result, leagueStats);
