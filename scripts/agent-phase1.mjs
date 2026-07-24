@@ -12,8 +12,8 @@ async function replaceOnce(path, before, after) {
 
 await replaceOnce(
   'src/engine/game.ts',
-  `      let attemptRate = clamp(((runnerPlayer?.p.sp || 50) - 50) / 400, 0.01, 0.08);`,
   `      let attemptRate = clamp(((runnerPlayer?.p.sp || 50) - 30) / 140, 0.03, 0.35);`,
+  `      let attemptRate = clamp(((runnerPlayer?.p.sp || 50) - 30) / 260, 0.02, 0.22);`,
 );
 
 await replaceOnce(
