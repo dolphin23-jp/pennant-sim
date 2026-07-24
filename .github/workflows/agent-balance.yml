@@ -1,0 +1,83 @@
+name: Agent balance validation
+
+on:
+  push:
+    branches:
+      - agent/balance-core
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/balance-core
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply balance changes
+        run: |
+          node scripts/agent-patch-players.mjs
+          node scripts/agent-patch-core.mjs
+          node scripts/agent-patch-baseline.mjs
+      - name: Format changed files
+        run: >-
+          npx prettier --write
+          src/engine/game.ts
+          src/engine/players.ts
+          src/engine/market.ts
+          src/engine/types.ts
+          src/state/offseason.ts
+          src/data/constants.ts
+          scripts/npb-targets.mjs
+          scripts/balance-new-engine.ts
+          tests/balance-generation.test.ts
+      - run: npm run build
+      - run: npm run test:unit
+      - name: Generate 100-season candidate baseline
+        id: baseline
+        continue-on-error: true
+        run: npm run baseline:new
+      - name: Print candidate baseline
+        if: always()
+        run: |
+          if [ -f baseline/new-season-stats.json ]; then
+            cat baseline/new-season-stats.json
+          else
+            echo "baseline/new-season-stats.json was not generated"
+          fi
+      - name: Upload candidate baseline
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-baseline
+          path: baseline/new-season-stats.json
+          if-no-files-found: ignore
+      - name: Commit applied source changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/engine/game.ts \
+            src/engine/players.ts \
+            src/engine/market.ts \
+            src/engine/types.ts \
+            src/state/offseason.ts \
+            src/data/constants.ts \
+            scripts/npb-targets.mjs \
+            scripts/balance-new-engine.ts \
+            tests/balance-generation.test.ts
+          if git diff --cached --quiet; then
+            echo "No source changes to commit"
+            exit 0
+          fi
+          git commit -m "Implement simulation balance phases"
+          git push origin HEAD:agent/balance-core
