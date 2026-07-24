@@ -142,6 +142,14 @@ function rosterSnapshot(teams: Teams) {
   const pitchers = teamKeys(teams).flatMap((teamKey) => teams[teamKey].pitchers);
   const fielders = teamKeys(teams).flatMap((teamKey) => teams[teamKey].fielders);
   const players = [...pitchers, ...fielders];
+  const ageBand = (minimum: number, maximum: number) => {
+    const members = players.filter((player) => player.age >= minimum && player.age <= maximum);
+    return {
+      players: members.length,
+      averageOvr: round(average(members.map(playerOvr)), 3),
+      ovr85Plus: members.filter((player) => playerOvr(player) >= 85).length,
+    };
+  };
   const ranked = [...rows].sort((first, second) => first.averageOvr - second.averageOvr);
   const weakest = ranked[0];
   const strongest = ranked.at(-1);
@@ -151,6 +159,20 @@ function rosterSnapshot(teams: Teams) {
     fielders: fielders.length,
     averageAge: round(average(players.map((player) => player.age)), 3),
     oldestAge: Math.max(...players.map((player) => player.age)),
+    elitePotentialPlayers: players.filter((player) => player.potentialClass === 'elite').length,
+    ovr85Plus: players.filter((player) => playerOvr(player) >= 85).length,
+    ageBands: {
+      age22AndUnder: ageBand(0, 22),
+      age23To27: ageBand(23, 27),
+      age28To32: ageBand(28, 32),
+      age33AndOver: ageBand(33, Number.POSITIVE_INFINITY),
+    },
+    maturityDistribution: Object.fromEntries(
+      ['超早熟', '早熟', '通常', '晩成', '超晩成'].map((maturity) => [
+        maturity,
+        players.filter((player) => player.mat === maturity).length,
+      ]),
+    ),
     averageOvr: {
       overall: round(average(players.map(playerOvr)), 3),
       pitchers: round(average(pitchers.map(playerOvr)), 3),

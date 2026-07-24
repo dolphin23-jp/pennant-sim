@@ -7,6 +7,17 @@ import type { DraftOrigin, FieldPosition, Player, Team, TeamKey, Teams } from '.
 
 export type DraftPick = Player & { teamKey: TeamKey; round: number };
 
+function prospectFutureBonus(player: Player): number {
+  const maximumPotentialGap = Math.max(
+    0,
+    ...Object.entries(player.pot).map(([key, value]) => {
+      const current = player.p[key as keyof typeof player.p];
+      return typeof value === 'number' && typeof current === 'number' ? value - current : 0;
+    }),
+  );
+  return maximumPotentialGap * 0.12 + (player.potentialClass === 'elite' ? 6 : 0);
+}
+
 function applyGenerationalTalent(player: Player, quality: number): void {
   if (quality < 90) return;
   player.potentialClass = 'elite';
@@ -96,8 +107,9 @@ export function generateDraftProspects(): Player[] {
   }
   return pool.sort(
     (first, second) =>
-      (second.isP ? calcOVR(second) : calcOVR(second, second.pos)) -
-      (first.isP ? calcOVR(first) : calcOVR(first, first.pos)),
+      (second.isP ? calcOVR(second) : calcOVR(second, second.pos)) +
+      prospectFutureBonus(second) -
+      ((first.isP ? calcOVR(first) : calcOVR(first, first.pos)) + prospectFutureBonus(first)),
   );
 }
 
@@ -117,7 +129,10 @@ export function cpuDraftPick(team: Team, prospects: Player[]): Player | undefine
         ? prospects.filter((player) => !player.isP)
         : prospects;
   return [...(positionPool.length ? positionPool : prospects)].sort(
-    (first, second) => teamNeedsScore(team, second) - teamNeedsScore(team, first),
+    (first, second) =>
+      teamNeedsScore(team, second) +
+      prospectFutureBonus(second) -
+      (teamNeedsScore(team, first) + prospectFutureBonus(first)),
   )[0];
 }
 
