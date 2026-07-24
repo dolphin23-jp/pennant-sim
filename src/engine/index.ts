@@ -10,4 +10,5 @@ export * from './season';
 export * from './specials';
 export * from './stats';
 export * from './statsFormat';
+export * from './statsQualification';
 export * from './types';
