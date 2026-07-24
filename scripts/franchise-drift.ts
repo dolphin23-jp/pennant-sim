@@ -8,23 +8,18 @@ import {
   configureRandom,
   effectiveOVR,
   generateSchedule,
-  growthPhase,
   initTeams,
   resetRandom,
+  runAutomatedOffseason,
   simulateGame,
   type AccumulatedStats,
+  type DraftPick,
   type Player,
   type PlayerStats,
+  type RosterExit,
   type TeamKey,
   type Teams,
 } from '../src/engine/index';
-import {
-  applyDraftPicks,
-  cpuDraftPick,
-  draftOrder,
-  generateDraftProspects,
-  type DraftPick,
-} from '../src/state/offseason';
 import { evaluateNpbScoringTargets, NPB_SCORING_TARGETS } from './npb-targets.mjs';
 
 const DEFAULT_START_YEAR = 2026;
@@ -32,13 +27,7 @@ const DEFAULT_YEARS = 25;
 const DEFAULT_SEED = 20260724;
 const DEFAULT_OUTPUT = 'baseline/franchise-drift.json';
 const DRAFT_ROUNDS = 6;
-const MIN_PITCHERS = 18;
-const MIN_FIELDERS = 22;
-const LOW_OVR_RETIREMENT_AGE = 35;
-const LOW_OVR_RETIREMENT_THRESHOLD = 50;
-const MANDATORY_RETIREMENT_AGE = 40;
 
-type RetirementReason = 'mandatoryAge' | 'ageAndLowOvr' | 'draftRoom';
 type RosterCaps = Record<TeamKey, { pitchers: number; fielders: number; total: number }>;
 
 interface CliOptions {
@@ -46,16 +35,6 @@ interface CliOptions {
   years: number;
   seed: number;
   output: string;
-}
-
-interface RetirementRecord {
-  teamKey: TeamKey;
-  playerId: string;
-  name: string;
-  age: number;
-  isPitcher: boolean;
-  ovr: number;
-  reason: RetirementReason;
 }
 
 function mulberry32(seed: number): () => number {
@@ -116,9 +95,7 @@ const average = (values: number[]): number =>
 function standardDeviation(values: number[]): number {
   if (!values.length) return 0;
   const mean = average(values);
-  return Math.sqrt(
-    values.reduce((total, value) => total + (value - mean) ** 2, 0) / values.length,
-  );
+  return Math.sqrt(values.reduce((total, value) => total + (value - mean) ** 2, 0) / values.length);
 }
 
 function playerOvr(player: Player): number {
@@ -183,10 +160,7 @@ function rosterSnapshot(teams: Teams) {
       minimum: weakest ? { teamKey: weakest.teamKey, value: weakest.averageOvr } : null,
       maximum: strongest ? { teamKey: strongest.teamKey, value: strongest.averageOvr } : null,
       gap: round((strongest?.averageOvr ?? 0) - (weakest?.averageOvr ?? 0), 3),
-      standardDeviation: round(
-        standardDeviation(rows.map((team) => team.averageOvr)),
-        3,
-      ),
+      standardDeviation: round(standardDeviation(rows.map((team) => team.averageOvr)), 3),
     },
     teams: rows,
   };
@@ -199,6 +173,14 @@ function sumStats(lines: PlayerStats[], key: string): number {
     const value = (line as unknown as Record<string, unknown>)[key];
     return total + (typeof value === 'number' ? value : 0);
   }, 0);
+}
+
+function leader<T extends PlayerStats>(
+  lines: T[],
+  value: (line: T) => number,
+): { name: string; value: number } | null {
+  const top = [...lines].sort((first, second) => value(second) - value(first))[0];
+  return top ? { name: top.name, value: round(value(top), 3) } : null;
 }
 
 function seasonSnapshot(stats: AccumulatedStats, games: number, totalRuns: number) {
@@ -215,6 +197,9 @@ function seasonSnapshot(stats: AccumulatedStats, games: number, totalRuns: numbe
   const caughtStealing = sumStats(batting, 'cs');
   const earnedRuns = sumStats(pitching, 'er');
   const pitchingOuts = sumStats(pitching, 'ip3');
+  const qualifiedPitchers = pitching.filter((line) => line.ip3 >= 143 * 3);
+  const reliefPitchers = pitching.filter((line) => line.gs <= 2);
+  const pitcherEra = (line: (typeof pitching)[number]): number => ratio(line.er * 27, line.ip3);
   return {
     games,
     battingAverage: round(ratio(hits, atBats), 6),
@@ -225,118 +210,35 @@ function seasonSnapshot(stats: AccumulatedStats, games: number, totalRuns: numbe
     runsPerTeamGame: round(ratio(totalRuns, games * 2), 4),
     walkRate: round(ratio(walks, plateAppearances), 6),
     strikeoutRate: round(ratio(strikeouts, plateAppearances), 6),
+    stolenBaseAttemptsPerTeamGame: round(ratio(stolenBases + caughtStealing, games * 2), 6),
     stolenBaseSuccessRate: round(ratio(stolenBases, stolenBases + caughtStealing), 6),
+    individualDistributions: {
+      batting: {
+        homeRuns30Plus: batting.filter((line) => line.hr >= 30).length,
+        runsBattedIn100Plus: batting.filter((line) => line.rbi >= 100).length,
+        homeRunLeader: leader(batting, (line) => line.hr),
+        runsBattedInLeader: leader(batting, (line) => line.rbi),
+      },
+      pitching: {
+        qualifiedPitchers: qualifiedPitchers.length,
+        eraBelowTwo: qualifiedPitchers.filter((line) => pitcherEra(line) < 2).length,
+        strikeouts200Plus: pitching.filter((line) => line.k >= 200).length,
+        strikeoutLeader: leader(pitching, (line) => line.k),
+        reliefAppearances70Plus: reliefPitchers.filter((line) => line.g >= 70).length,
+        reliefAppearanceLeader: leader(reliefPitchers, (line) => line.g),
+      },
+    },
   };
 }
 
 type SeasonSnapshot = ReturnType<typeof seasonSnapshot>;
 
-function retentionScore(player: Player): number {
-  return playerOvr(player) - Math.max(0, player.age - 30) * 0.8;
-}
-
-function retirementReason(player: Player): RetirementReason | null {
-  if (player.age >= MANDATORY_RETIREMENT_AGE) return 'mandatoryAge';
-  if (
-    player.age >= LOW_OVR_RETIREMENT_AGE &&
-    playerOvr(player) <= LOW_OVR_RETIREMENT_THRESHOLD
-  )
-    return 'ageAndLowOvr';
-  return null;
-}
-
-function recordRetirement(
-  retired: RetirementRecord[],
-  teamKey: TeamKey,
-  player: Player,
-  reason: RetirementReason,
-): void {
-  retired.push({
-    teamKey,
-    playerId: player.id,
-    name: player.name,
-    age: player.age,
-    isPitcher: player.isP,
-    ovr: playerOvr(player),
-    reason,
-  });
-}
-
-function applyDiagnosticRetirements(
-  teams: Teams,
-): { teams: Teams; retired: RetirementRecord[] } {
-  const next = { ...teams };
-  const retired: RetirementRecord[] = [];
-  for (const teamKey of teamKeys(teams)) {
-    const team = teams[teamKey];
-    let pitchers = [...team.pitchers];
-    let fielders = [...team.fielders];
-    const selected = new Map<string, RetirementReason>();
-    const ageCandidates = [...pitchers, ...fielders]
-      .map((player) => ({ player, reason: retirementReason(player) }))
-      .filter(
-        (entry): entry is { player: Player; reason: Exclude<RetirementReason, 'draftRoom'> } =>
-          entry.reason !== null,
-      )
-      .sort((first, second) => {
-        const firstPriority = first.reason === 'mandatoryAge' ? 0 : 1;
-        const secondPriority = second.reason === 'mandatoryAge' ? 0 : 1;
-        return firstPriority - secondPriority || retentionScore(first.player) - retentionScore(second.player);
-      });
-    const removePlayer = (player: Player, reason: RetirementReason): boolean => {
-      if (selected.size >= DRAFT_ROUNDS) return false;
-      if (player.isP) {
-        if (pitchers.length <= MIN_PITCHERS) return false;
-        pitchers = pitchers.filter((candidate) => candidate.id !== player.id);
-      } else {
-        if (fielders.length <= MIN_FIELDERS) return false;
-        fielders = fielders.filter((candidate) => candidate.id !== player.id);
-      }
-      selected.set(player.id, reason);
-      return true;
-    };
-    for (const entry of ageCandidates) {
-      if (selected.size >= DRAFT_ROUNDS) break;
-      removePlayer(entry.player, entry.reason);
-    }
-    const draftRoomCandidates = [...pitchers, ...fielders].sort(
-      (first, second) => retentionScore(first) - retentionScore(second),
-    );
-    for (const player of draftRoomCandidates) {
-      if (selected.size >= DRAFT_ROUNDS) break;
-      removePlayer(player, 'draftRoom');
-    }
-    if (selected.size !== DRAFT_ROUNDS)
-      throw new Error(`${teamKey} could not create ${DRAFT_ROUNDS} draft roster slots.`);
-    for (const player of [...team.pitchers, ...team.fielders]) {
-      const reason = selected.get(player.id);
-      if (reason) recordRetirement(retired, teamKey, player, reason);
-    }
-    next[teamKey] = { ...team, pitchers, fielders };
-  }
-  return { teams: next, retired };
-}
-
-function runDraft(teams: Teams): { teams: Teams; picks: DraftPick[] } {
-  const order = draftOrder(teams);
-  let prospects = generateDraftProspects();
-  const picks: DraftPick[] = [];
-  for (let roundNumber = 1; roundNumber <= DRAFT_ROUNDS; roundNumber += 1) {
-    for (const teamKey of order) {
-      const selected = cpuDraftPick(teams[teamKey], prospects);
-      if (!selected) throw new Error(`Draft pool exhausted in round ${roundNumber}.`);
-      picks.push({ ...selected, teamKey, round: roundNumber });
-      prospects = prospects.filter((prospect) => prospect.id !== selected.id);
-    }
-  }
-  return { teams: applyDraftPicks(teams, picks), picks };
-}
-
-function retirementSummary(retired: RetirementRecord[]) {
-  const byReason: Record<RetirementReason, number> = {
-    mandatoryAge: 0,
-    ageAndLowOvr: 0,
-    draftRoom: 0,
+function retirementSummary(retired: RosterExit[]) {
+  const byReason: Record<RosterExit['reason'], number> = {
+    mandatoryRetirement: 0,
+    ageAndPerformance: 0,
+    draftOpportunity: 0,
+    rosterCompetition: 0,
   };
   for (const player of retired) byReason[player.reason] += 1;
   return {
@@ -369,6 +271,8 @@ interface YearReport {
     awakeningEvents: number;
     retirements: ReturnType<typeof retirementSummary>;
     draft: ReturnType<typeof draftSummary>;
+    freeAgentSignings: number;
+    foreignSignings: number;
   };
   closingRoster: RosterSnapshot;
 }
@@ -448,13 +352,13 @@ async function simulateFranchise(options: CliOptions) {
       }
       const season = seasonSnapshot(accumulated, schedule.length, totalRuns);
       const targetEvaluation = evaluateNpbScoringTargets(season);
-      const growth = growthPhase(teams);
-      const retirements = applyDiagnosticRetirements(growth.teams);
-      const draft = runDraft(retirements.teams);
-      teams = draft.teams;
+      const offseason = runAutomatedOffseason(teams, { draftRounds: DRAFT_ROUNDS });
+      teams = offseason.teams;
       const closingRoster = rosterSnapshot(teams);
       if (closingRoster.players !== openingRoster.players)
-        throw new Error(`Roster size drifted from ${openingRoster.players} to ${closingRoster.players}.`);
+        throw new Error(
+          `Roster size drifted from ${openingRoster.players} to ${closingRoster.players}.`,
+        );
       years.push({
         year,
         seasonIndex: seasonIndex + 1,
@@ -462,9 +366,11 @@ async function simulateFranchise(options: CliOptions) {
         season,
         targetEvaluation,
         offseason: {
-          awakeningEvents: growth.awakeEvents.length,
-          retirements: retirementSummary(retirements.retired),
-          draft: draftSummary(draft.picks),
+          awakeningEvents: offseason.awakeningEvents.length,
+          retirements: retirementSummary(offseason.exits),
+          draft: draftSummary(offseason.draftPicks),
+          freeAgentSignings: offseason.freeAgentSignings,
+          foreignSignings: offseason.foreignSignings,
         },
         closingRoster,
       });
@@ -473,11 +379,12 @@ async function simulateFranchise(options: CliOptions) {
           `HR ${season.homeRuns}, target ${targetEvaluation.passed ? 'PASS' : 'FAIL'} | ` +
           `OVR F ${openingRoster.averageOvr.fielders.toFixed(1)}→${closingRoster.averageOvr.fielders.toFixed(1)}, ` +
           `P ${openingRoster.averageOvr.pitchers.toFixed(1)}→${closingRoster.averageOvr.pitchers.toFixed(1)} | ` +
-          `retired ${retirements.retired.length}, drafted ${draft.picks.length}`,
+          `exited ${offseason.exits.length}, drafted ${offseason.draftPicks.length}, ` +
+          `FA ${offseason.freeAgentSignings}, foreign ${offseason.foreignSignings}`,
       );
     }
     return {
-      schemaVersion: 2,
+      schemaVersion: 3,
       source: 'continuous-franchise-diagnostic',
       targets: NPB_SCORING_TARGETS,
       configuration: {
@@ -487,25 +394,24 @@ async function simulateFranchise(options: CliOptions) {
         weather: 'disabled to isolate roster and growth drift',
         draftRounds: DRAFT_ROUNDS,
         initialRosterCaps: caps,
-        diagnosticRetirementRule: {
-          scope: 'script-only; player-facing offseason behavior is unchanged',
-          annualRetirementsPerTeam: DRAFT_ROUNDS,
-          priorityRules: {
-            mandatoryAge: MANDATORY_RETIREMENT_AGE,
-            ageAndLowOvr: {
-              minimumAge: LOW_OVR_RETIREMENT_AGE,
-              maximumOvr: LOW_OVR_RETIREMENT_THRESHOLD,
-            },
-          },
-          minimumRoster: { pitchers: MIN_PITCHERS, fielders: MIN_FIELDERS },
-          remainingSlots:
-            'After priority retirements, remove the lowest retention-score players until six draft slots are available.',
+        offseasonEngine: {
+          scope: 'shared with production CPU roster management',
+          rosterTargets: { pitchers: 28, fielders: 35 },
+          minimumRoster: { pitchers: 18, fielders: 22 },
+          stages: [
+            'growth',
+            'CPU roster preparation',
+            'free agency',
+            'foreign market',
+            'draft',
+            'final roster competition',
+          ],
         },
       },
       investigation: {
-        cpuAutomaticRetirementFound: false,
+        cpuAutomaticRetirementFound: true,
         finding:
-          'Production retirement selection exists only in OffseasonScreen for the human-controlled team. The diagnostic applies its own global six-out/six-in replacement rule.',
+          'Production CPU teams and this diagnostic now share the same offseason lifecycle engine.',
       },
       summary: driftSummary(years),
       years,
@@ -523,7 +429,9 @@ async function main(): Promise<void> {
   await writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
   console.log(`Wrote ${options.years}-season franchise drift report to ${outputPath}`);
   if (!report.summary.npbTargetEvaluation.requiredEndpointsPassed) {
-    console.error('The first or final franchise season is outside the configured NPB target ranges.');
+    console.error(
+      'The first or final franchise season is outside the configured NPB target ranges.',
+    );
     process.exitCode = 1;
   }
 }
