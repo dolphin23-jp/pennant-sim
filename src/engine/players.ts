@@ -164,7 +164,7 @@ function specialProfileMultiplier(specialId: string, params: PlayerParams): numb
     standardDeviation = Math.max(8, Math.sqrt(variance)),
     relatedMean = relatedValues.reduce((sum, value) => sum + value, 0) / relatedValues.length,
     relativeScore = (relatedMean - mean) / standardDeviation;
-  return clamp(1 + relativeScore * 0.38, 0.55, 1.85);
+  return clamp(1 + relativeScore * 0.65, 0.4, 2.2);
 }
 function pickSpecialAbilities(
   pool: SpecialAbility[],
