@@ -96,6 +96,44 @@ export function EmptyState({ children }: { children: ReactNode }) {
   return <div className="empty-state">{children}</div>;
 }
 
+export interface SegmentedOption<T extends string> {
+  id: T;
+  label: string;
+  ariaLabel?: string;
+}
+
+export function SegmentedControl<T extends string>({
+  options,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  options: SegmentedOption<T>[];
+  value: T;
+  onChange(value: T): void;
+  ariaLabel: string;
+}) {
+  return (
+    <div role="group" aria-label={ariaLabel} className="segmented-control">
+      {options.map((option) => {
+        const selected = option.id === value;
+        return (
+          <button
+            key={option.id}
+            type="button"
+            aria-pressed={selected}
+            aria-label={option.ariaLabel ?? option.label}
+            onClick={() => onChange(option.id)}
+            className={`segmented-control__option${selected ? ' segmented-control__option--selected' : ''}`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function LampFigure({
   label,
   value,

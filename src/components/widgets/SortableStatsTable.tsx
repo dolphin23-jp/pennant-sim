@@ -17,7 +17,7 @@ import type {
   PlayerStats,
   TeamKey,
 } from '../../engine';
-import { Card, EmptyState, SectionTitle } from '../ui';
+import { Card, EmptyState, SectionTitle, SegmentedControl } from '../ui';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
 import { hasGoldSpecial } from './specialDisplay';
 import './phaseB.css';
@@ -400,30 +400,16 @@ export function SortableStatsTable({
           marginBottom: 12,
         }}
       >
-        <div role="group" aria-label="成績の集計期間" style={{ display: 'flex', gap: 5 }}>
-          {sourceOptions.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              aria-label={`${option.label}成績を表示`}
-              aria-pressed={source === option.id}
-              onClick={() => setSource(option.id)}
-              style={{
-                minHeight: 38,
-                padding: '7px 12px',
-                border: '1px solid var(--color-border)',
-                borderRadius: 8,
-                color: source === option.id ? 'var(--color-accent)' : 'var(--color-text-muted)',
-                background:
-                  source === option.id ? 'var(--color-accent-soft)' : 'var(--color-surface-raised)',
-                fontWeight: 800,
-                cursor: 'pointer',
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl<StatsSource>
+          ariaLabel="成績の集計期間"
+          value={source}
+          onChange={setSource}
+          options={sourceOptions.map((option) => ({
+            id: option.id,
+            label: option.label,
+            ariaLabel: `${option.label}成績を表示`,
+          }))}
+        />
         {source === 'yearly' && (
           <select
             aria-label="表示する年度"
@@ -447,33 +433,15 @@ export function SortableStatsTable({
             ))}
           </select>
         )}
-        <div role="group" aria-label="投打の切り替え" style={{ display: 'flex', gap: 5 }}>
-          {([
-            ['bat', '打者'],
-            ['pit', '投手'],
-          ] as const).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              aria-label={`${label}成績を表示`}
-              aria-pressed={playerKind === id}
-              onClick={() => setPlayerKind(id)}
-              style={{
-                minHeight: 38,
-                padding: '7px 12px',
-                border: '1px solid var(--color-border)',
-                borderRadius: 8,
-                color: playerKind === id ? 'var(--color-accent)' : 'var(--color-text-muted)',
-                background:
-                  playerKind === id ? 'var(--color-accent-soft)' : 'var(--color-surface-raised)',
-                fontWeight: 800,
-                cursor: 'pointer',
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl<PlayerKind>
+          ariaLabel="投打の切り替え"
+          value={playerKind}
+          onChange={setPlayerKind}
+          options={[
+            { id: 'bat', label: '打者', ariaLabel: '打者成績を表示' },
+            { id: 'pit', label: '投手', ariaLabel: '投手成績を表示' },
+          ]}
+        />
         <label
           style={{
             display: 'inline-flex',

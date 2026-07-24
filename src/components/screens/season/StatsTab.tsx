@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 
 import type { Player, TeamKey } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
-import { Card, SectionTitle } from '../../ui';
+import { Card, SectionTitle, SegmentedControl } from '../../ui';
 import { SortableStatsTable } from '../../widgets/SortableStatsTable';
 
 type StatsScope = 'team' | 'league';
@@ -34,33 +34,15 @@ export function StatsTab() {
     <>
       <Card style={{ marginBottom: 12 }} ariaLabel="成績の表示範囲">
         <SectionTitle>Stats Scope</SectionTitle>
-        <div role="group" aria-label="成績を表示する範囲" style={{ display: 'flex', gap: 6 }}>
-          {([
-            ['team', '自球団'],
-            ['league', 'リーグ全体'],
-          ] as const).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              aria-label={`${label}の成績を表示`}
-              aria-pressed={scope === id}
-              onClick={() => setScope(id)}
-              style={{
-                minHeight: 40,
-                padding: '8px 14px',
-                border: '1px solid var(--color-border)',
-                borderRadius: 8,
-                color: scope === id ? 'var(--color-accent)' : 'var(--color-text-muted)',
-                background:
-                  scope === id ? 'var(--color-accent-soft)' : 'var(--color-surface-raised)',
-                fontWeight: 800,
-                cursor: 'pointer',
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl<StatsScope>
+          ariaLabel="成績を表示する範囲"
+          value={scope}
+          onChange={setScope}
+          options={[
+            { id: 'team', label: '自球団', ariaLabel: '自球団の成績を表示' },
+            { id: 'league', label: 'リーグ全体', ariaLabel: 'リーグ全体の成績を表示' },
+          ]}
+        />
       </Card>
       <SortableStatsTable
         players={players}

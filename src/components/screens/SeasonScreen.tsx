@@ -173,7 +173,14 @@ export function SeasonScreen() {
         {activeTab === 'rotation' && <RotationTab onDirtyChange={setRotationDirty} />}
         {activeTab === 'stats' && <StatsTab />}
         {activeTab === 'ranking' && <RankingTab />}
-        {activeTab === 'standings' && <StandingsTab />}
+        {activeTab === 'standings' && (
+          <StandingsTab
+            onSelectTeam={(teamKey) => {
+              game.setViewTeam(teamKey);
+              requestTabChange('roster');
+            }}
+          />
+        )}
         {activeTab === 'roster' && <RosterTab />}
       </section>
     </PageShell>
