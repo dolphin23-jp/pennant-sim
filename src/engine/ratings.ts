@@ -23,6 +23,17 @@ export interface DisplayOVRBreakdown {
   total: number;
 }
 
+export const APTITUDE_RANK_THRESHOLDS = [
+  { minimum: 95, rank: 'S' },
+  { minimum: 85, rank: 'A' },
+  { minimum: 75, rank: 'B' },
+  { minimum: 65, rank: 'C' },
+  { minimum: 55, rank: 'D' },
+  { minimum: 45, rank: 'E' },
+  { minimum: 35, rank: 'F' },
+  { minimum: 0, rank: 'G' },
+] as const;
+
 export function calcOVR(player: Player | undefined, position?: FieldPosition): number {
   if (!player) return 50;
   if (player.isP) {
@@ -55,6 +66,10 @@ export function aptitudeFor(player: Player, position: FieldPosition): number {
   if (!player.positions) return player.pos === position ? 100 : 55;
   const aptitude = player.positions.find((candidate) => candidate.pos === position);
   return aptitude?.apt ?? (player.pos === position ? 100 : 45);
+}
+export function aptitudeRank(value: number): string {
+  const normalized = Math.max(0, Math.min(100, value));
+  return APTITUDE_RANK_THRESHOLDS.find((threshold) => normalized >= threshold.minimum)?.rank ?? 'G';
 }
 export function effectiveOVR(player: Player | undefined, position?: FieldPosition): number {
   if (!player) return 50;
