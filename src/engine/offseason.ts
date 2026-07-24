@@ -1,4 +1,4 @@
-import { CENTRAL, PACIFIC } from '../data';
+import { CENTRAL, MATURITY_PEAK_AGE, PACIFIC } from '../data';
 import { runCpuDraft, type DraftPick } from './draft';
 import { growthPhase } from './growth';
 import { cpuAutoSignMarketRounds, genForeignMarket, genFreeAgentMarket } from './market';
@@ -50,18 +50,17 @@ const playerOvr = (player: Player): number => calcOVR(player, player.isP ? undef
 
 function retentionScore(player: Player): number {
   const agePenalty = player.age <= 30 ? 0 : (player.age - 30) * (player.age >= 38 ? 1.8 : 1.05);
+  const potentialGap = Math.max(
+    0,
+    ...Object.entries(player.pot ?? {}).map(([key, value]) => {
+      const current = player.p[key as keyof typeof player.p];
+      return typeof value === 'number' && typeof current === 'number' ? value - current : 0;
+    }),
+  );
   const potentialBonus =
-    player.potentialClass === 'elite' && player.age <= 27
-      ? 12
-      : player.age <= 25
-        ? Math.max(
-            0,
-            ...Object.entries(player.pot ?? {}).map(([key, value]) => {
-              const current = player.p[key as keyof typeof player.p];
-              return typeof value === 'number' && typeof current === 'number' ? value - current : 0;
-            }),
-          ) * 0.15
-        : 0;
+    player.age <= MATURITY_PEAK_AGE[player.mat]
+      ? potentialGap * 0.15 + (player.potentialClass === 'elite' ? 12 : 0)
+      : 0;
   return playerOvr(player) - agePenalty + potentialBonus;
 }
 

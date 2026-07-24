@@ -12,6 +12,7 @@ import {
   MATURITY_WEIGHTS,
   PACIFIC,
   PITCH_TYPES,
+  PLAYER_DEVELOPMENT_BALANCE,
   PS,
   SN,
   TINFO,
@@ -65,10 +66,20 @@ function generatePotential(
   value: number,
   margin: number | undefined,
   potentialClass: PotentialClass,
+  latentDevelopment = 0,
 ): number {
-  if (potentialClass === 'elite') return Math.max(value + 15, value + Math.round(gaussian(48, 12)));
+  if (potentialClass === 'elite')
+    return clamp(
+      Math.max(value + 15, value + Math.round(latentDevelopment + gaussian(42, 11))),
+      value,
+      140,
+    );
   const base = Math.max(7, (margin || 20) - 8);
-  return Math.max(value + 5, value + Math.round(gaussian(base, 5)));
+  return clamp(
+    Math.max(value + 5, value + Math.round(latentDevelopment + gaussian(base, 5))),
+    value,
+    125,
+  );
 }
 function generateSecondaryPositions(primary: FieldPosition): PositionAptitude[] {
   const rules: Partial<
@@ -208,7 +219,10 @@ export function generatePitcher(
   const maturity = weightedRandom(MATURITY_TYPES, MATURITY_WEIGHTS),
     effectiveQuality = quality * maturityModifier(age, maturity),
     role = roleHint ?? (random() < 0.5 ? '先発' : random() < 0.45 ? 'リリーフ' : 'クローザー');
-  const velocity = clamp(
+  const latentQuality =
+      Math.max(0, quality - effectiveQuality) *
+      PLAYER_DEVELOPMENT_BALANCE.careerCurve.latentDevelopmentShare,
+    velocity = clamp(
       Math.round(gaussian(effectiveQuality * 0.93, 7) - (age > 31 ? (age - 31) * 1.2 : 0)),
       25,
       115,
@@ -245,13 +259,18 @@ export function generatePitcher(
     pitches,
   };
   const specialLevels = pickSpecialAbilities([...PS, ...CS2], quality, params),
-    potentialClass: PotentialClass = random() < 0.05 ? 'elite' : 'standard';
+    potentialClass: PotentialClass = random() < 0.025 ? 'elite' : 'standard';
   const potential = {
-    vel: generatePotential(velocity, undefined, potentialClass),
-    ctrl: generatePotential(control, 18, potentialClass),
-    stam: generatePotential(stamina, 15, potentialClass),
-    nobi: generatePotential(movement, 18, potentialClass),
-    fld: generatePotential(fielding, 15, potentialClass),
+    vel: generatePotential(velocity, undefined, potentialClass, latentQuality * 0.93),
+    ctrl: generatePotential(control, 18, potentialClass, latentQuality * 0.91),
+    stam: generatePotential(
+      stamina,
+      15,
+      potentialClass,
+      latentQuality * (role === '先発' ? 0.9 : 0.65),
+    ),
+    nobi: generatePotential(movement, 18, potentialClass, latentQuality * 0.8),
+    fld: generatePotential(fielding, 15, potentialClass, latentQuality * 0.75),
   };
   return syncSpecialsFromLevels({
     id: uid(),
@@ -291,6 +310,9 @@ export function generateBatter(
     右翼手: 1.04,
   };
   const adjustment = positionAdjustment[position] || 1,
+    latentQuality =
+      Math.max(0, quality - effectiveQuality) *
+      PLAYER_DEVELOPMENT_BALANCE.careerCurve.latentDevelopmentShare,
     bias = gaussian(0, 13);
   const contactFastball = clamp(
       Math.round(gaussian(effectiveQuality * adjustment * 0.92 + bias * 0.3, 11)),
@@ -344,17 +366,34 @@ export function generateBatter(
       quality,
       params,
     ),
-    potentialClass: PotentialClass = random() < 0.05 ? 'elite' : 'standard';
+    potentialClass: PotentialClass = random() < 0.025 ? 'elite' : 'standard';
   const potential = {
-    cf: generatePotential(contactFastball, undefined, potentialClass),
-    cb: generatePotential(contactBreaking, undefined, potentialClass),
-    pw: generatePotential(power, undefined, potentialClass),
-    dc: generatePotential(discipline, undefined, potentialClass),
-    sp: generatePotential(speed, undefined, potentialClass),
-    df: generatePotential(fielding, undefined, potentialClass),
-    arm: generatePotential(arm, undefined, potentialClass),
-    stam: generatePotential(stamina, undefined, potentialClass),
-    ...(position === '捕手' ? { ld: generatePotential(gameCalling, 22, potentialClass) } : {}),
+    cf: generatePotential(
+      contactFastball,
+      undefined,
+      potentialClass,
+      latentQuality * adjustment * 0.92,
+    ),
+    cb: generatePotential(
+      contactBreaking,
+      undefined,
+      potentialClass,
+      latentQuality * adjustment * 0.9,
+    ),
+    pw: generatePotential(power, undefined, potentialClass, latentQuality * adjustment * 0.88),
+    dc: generatePotential(discipline, undefined, potentialClass, latentQuality * 0.85),
+    sp: generatePotential(speed, undefined, potentialClass, latentQuality * 0.87),
+    df: generatePotential(
+      fielding,
+      undefined,
+      potentialClass,
+      latentQuality * (adjustment < 0.95 ? 0.92 : 0.82),
+    ),
+    arm: generatePotential(arm, undefined, potentialClass, latentQuality * 0.82),
+    stam: generatePotential(stamina, undefined, potentialClass, latentQuality * 0.85),
+    ...(position === '捕手'
+      ? { ld: generatePotential(gameCalling, 22, potentialClass, latentQuality * 0.85) }
+      : {}),
   };
   return syncSpecialsFromLevels({
     id: uid(),

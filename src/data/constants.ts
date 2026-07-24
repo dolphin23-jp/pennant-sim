@@ -21,11 +21,41 @@ export const MATURITY_PEAK_AGE: Record<Maturity, number> = {
 export const MATURITY_WEIGHTS = [0.08, 0.18, 0.44, 0.18, 0.12];
 
 export const PLAYER_DEVELOPMENT_BALANCE = {
+  careerCurve: {
+    yearsToPeak: {
+      farDevelopment: 8,
+      development: 5,
+      rapidDevelopment: 2,
+      peakApproach: 0,
+    },
+    growthCoefficient: {
+      farDevelopment: 0.06,
+      development: 0.11,
+      rapidDevelopment: 0.18,
+      peakApproach: 0.1,
+      peakWindow: 0.015,
+    },
+    yearsPastPeak: {
+      plateau: 2,
+      earlyDecline: 4,
+      decline: 6,
+      lateDecline: 8,
+    },
+    declineCoefficient: {
+      earlyDecline: -0.07,
+      decline: -0.13,
+      lateDecline: -0.2,
+      finalDecline: -0.28,
+    },
+    latentDevelopmentShare: 0.52,
+    eliteGrowthMultiplier: 1.8,
+    currentRatingDeclineScale: 0.12,
+  },
   annualRandomVariation: {
     maxAbsoluteChange: 0.25,
     fallbackStep: 1,
     minimumRating: 1,
-    maximumRating: 99,
+    maximumRating: 120,
   },
   awakening: {
     inSeasonBaseRate: 0.0001,

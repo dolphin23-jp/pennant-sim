@@ -1,17 +1,35 @@
-import { BS, GROW_P, PLAYER_DEVELOPMENT_BALANCE, PS } from '../data';
+import { BS, GROW_P, MATURITY_PEAK_AGE, PLAYER_DEVELOPMENT_BALANCE, PS } from '../data';
 import { calcOVR } from './ratings';
 import { clamp, random, randomChoice, randomInt } from './random';
 import { ensureSpecialLevels, syncSpecialsFromLevels } from './specials';
-import type { AwakeningEvent, AwakeningResult, Player, PlayerParams, Teams } from './types';
-function ageCoefficient(age: number): number {
-  if (age <= 22) return 0.22;
-  if (age <= 25) return 0.14;
-  if (age <= 28) return 0.07;
-  if (age <= 31) return 0.01;
-  if (age <= 33) return -0.08;
-  if (age <= 35) return -0.13;
-  if (age <= 37) return -0.19;
-  return -0.26;
+import type {
+  AwakeningEvent,
+  AwakeningResult,
+  Maturity,
+  Player,
+  PlayerParams,
+  Teams,
+} from './types';
+
+export function developmentAgeCoefficient(age: number, maturity: Maturity): number {
+  const balance = PLAYER_DEVELOPMENT_BALANCE.careerCurve,
+    yearsToPeak = MATURITY_PEAK_AGE[maturity] - age;
+  if (yearsToPeak >= balance.yearsToPeak.farDevelopment)
+    return balance.growthCoefficient.farDevelopment;
+  if (yearsToPeak >= balance.yearsToPeak.development) return balance.growthCoefficient.development;
+  if (yearsToPeak >= balance.yearsToPeak.rapidDevelopment)
+    return balance.growthCoefficient.rapidDevelopment;
+  if (yearsToPeak >= balance.yearsToPeak.peakApproach)
+    return balance.growthCoefficient.peakApproach;
+
+  const yearsPastPeak = -yearsToPeak;
+  if (yearsPastPeak <= balance.yearsPastPeak.plateau) return balance.growthCoefficient.peakWindow;
+  if (yearsPastPeak <= balance.yearsPastPeak.earlyDecline)
+    return balance.declineCoefficient.earlyDecline;
+  if (yearsPastPeak <= balance.yearsPastPeak.decline) return balance.declineCoefficient.decline;
+  if (yearsPastPeak <= balance.yearsPastPeak.lateDecline)
+    return balance.declineCoefficient.lateDecline;
+  return balance.declineCoefficient.finalDecline;
 }
 function growthParameters(player: Player): Array<keyof PlayerParams> {
   return player.isP
@@ -32,7 +50,7 @@ export function growPlayer(player: Player): Player {
   const params = { ...player.p },
     potential = { ...player.pot },
     parameterNames = growthParameters(player),
-    ageEffect = ageCoefficient(player.age),
+    ageEffect = developmentAgeCoefficient(player.age, player.mat),
     currentOverall = calcOVR(player, player.pos),
     overallDeclineMultiplier =
       ageEffect < 0
@@ -71,15 +89,24 @@ export function growPlayer(player: Player): Player {
         adjustedAgeEffect *= 0.62;
     }
     const trainingBonus = trainingBonusByPolicy[player.trainPolicy]?.[parameter] ?? 0,
+      annualVariation = 0.55 + random() * 0.9,
       developmentGrowth =
-        gap *
-        definition.c *
-        Math.max(-0.18, adjustedAgeEffect) *
-        (0.55 + random() * 0.9) *
-        (1 + trainingBonus),
+        adjustedAgeEffect >= 0
+          ? gap *
+            definition.c *
+            adjustedAgeEffect *
+            annualVariation *
+            (1 + trainingBonus) *
+            (player.potentialClass === 'elite'
+              ? PLAYER_DEVELOPMENT_BALANCE.careerCurve.eliteGrowthMultiplier
+              : 1)
+          : before *
+            definition.c *
+            adjustedAgeEffect *
+            PLAYER_DEVELOPMENT_BALANCE.careerCurve.currentRatingDeclineScale *
+            annualVariation,
       randomVariation =
-        (random() * 2 - 1) *
-        PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.maxAbsoluteChange,
+        (random() * 2 - 1) * PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.maxAbsoluteChange,
       developedValue =
         developmentGrowth > 0
           ? Math.min(before + developmentGrowth, ceiling)
@@ -99,7 +126,7 @@ export function growPlayer(player: Player): Player {
       parameterNames.filter((parameter) => Boolean(GROW_P[parameter])),
     );
     const before = Number(params[fallbackParameter] ?? 50),
-      preferredDirection = random() < 0.5 ? -1 : 1,
+      preferredDirection = ageEffect > 0 ? 1 : ageEffect < 0 ? -1 : random() < 0.5 ? -1 : 1,
       step = PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.fallbackStep,
       minimum = PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.minimumRating,
       maximum = PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.maximumRating;
