@@ -1,4 +1,4 @@
-import { aptitudeFor, calcOVR, effectiveOVR } from '../../engine';
+import { aptitudeFor, calcOVR, displayOVRBreakdown, effectiveOVR } from '../../engine';
 import type { FieldPosition, Player } from '../../engine';
 import { Card, SectionTitle, TermTooltip } from '../ui';
 
@@ -21,9 +21,13 @@ export const LINEUP_SLOT_ORDER: LineupSlot[] = [...FIELD_SLOT_ORDER, 'extra'];
 
 export function slotEffectiveOVR(slot: LineupSlot, player: Player | null): number | null {
   if (!player) return null;
-  return slot === 'extra'
-    ? calcOVR(player)
-    : effectiveOVR(player, slot);
+  return slot === 'extra' ? calcOVR(player) : effectiveOVR(player, slot);
+}
+
+export function slotDisplayOVR(slot: LineupSlot, player: Player | null): number | null {
+  if (!player) return null;
+  const position = slot === 'extra' ? undefined : slot;
+  return displayOVRBreakdown(player, position).total;
 }
 
 export function slotAptitude(slot: LineupSlot, player: Player | null): number | null {
@@ -32,7 +36,7 @@ export function slotAptitude(slot: LineupSlot, player: Player | null): number | 
 }
 
 export function averageLineupOVR(assignments: LineupAssignments): number {
-  const values = LINEUP_SLOT_ORDER.map((slot) => slotEffectiveOVR(slot, assignments[slot])).filter(
+  const values = LINEUP_SLOT_ORDER.map((slot) => slotDisplayOVR(slot, assignments[slot])).filter(
     (value): value is number => value !== null,
   );
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
@@ -49,18 +53,19 @@ function SlotButton({
   selected: boolean;
   onSelect(slot: LineupSlot): void;
 }) {
-  const effective = slotEffectiveOVR(slot, player);
+  const position = slot === 'extra' ? undefined : slot;
+  const breakdown = player ? displayOVRBreakdown(player, position) : null;
   const aptitude = slotAptitude(slot, player);
   const label = slot === 'extra' ? '追加打者' : slot;
   return (
     <button
       type="button"
-      aria-label={`${label}${player ? `、${player.name}` : '、未選択'}を変更`}
+      aria-label={`${label}${player ? `、${player.name}、基本総合値${breakdown?.base}から特殊込み${breakdown?.total}` : '、未選択'}を変更`}
       aria-pressed={selected}
       onClick={() => onSelect(slot)}
       style={{
         width: 'clamp(92px,24vw,126px)',
-        minHeight: 66,
+        minHeight: 70,
         padding: '7px 8px',
         border: `1px solid ${selected ? 'var(--color-accent)' : 'var(--color-border-strong)'}`,
         borderRadius: 10,
@@ -92,7 +97,17 @@ function SlotButton({
         {player?.name ?? '選手を選択'}
       </strong>
       <span style={{ display: 'block', marginTop: 3, color: 'var(--color-text-muted)', fontSize: 10 }}>
-        {effective === null ? 'OVR -' : `実効 ${effective}`}
+        {breakdown === null ? (
+          '総合値 -'
+        ) : (
+          <>
+            <span style={{ color: 'var(--color-text-faint)' }}>{breakdown.base}</span>
+            {' → '}
+            <strong className={breakdown.total >= 80 ? 'metric-highlight' : undefined}>
+              {breakdown.total}
+            </strong>
+          </>
+        )}
         {aptitude === null ? '' : ` / 適性 ${aptitude}%`}
       </span>
     </button>
@@ -123,8 +138,8 @@ export function FieldDiagram({
         <SectionTitle>Field Diagram</SectionTitle>
         <div style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
           <TermTooltip
-            term="平均実効OVR"
-            description="各守備位置の適性補正後OVRと、追加打者のOVRの平均です。"
+            term="平均特殊込みOVR"
+            description="各守備位置の基本総合値へ特殊能力の表示補正を加えた値の平均です。試合計算には影響しません。"
           />{' '}
           <strong className={average >= 75 ? 'metric-highlight' : undefined}>{average.toFixed(1)}</strong>
         </div>

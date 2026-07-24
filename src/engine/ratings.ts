@@ -1,5 +1,28 @@
-import { OVR_W, OVR_W_PIT } from '../data';
-import type { AccumulatedStats, FieldPosition, Player, Team } from './types';
+import {
+  DISPLAY_OVR_GOLD_SPECIAL_MULTIPLIER,
+  DISPLAY_OVR_NORMAL_SPECIAL_MULTIPLIER,
+  DISPLAY_OVR_SPECIAL_ADJUSTMENT_MAX,
+  DISPLAY_OVR_SPECIAL_ADJUSTMENT_MIN,
+  NEGATIVE_SPECIAL_IDS,
+  OVR_W,
+  OVR_W_PIT,
+  SPECIAL_INDEX,
+} from '../data';
+import { specialLevel } from './specials';
+import type { AccumulatedStats, FieldPosition, Player, SpecialAbility, Team } from './types';
+
+export interface DisplayOVROptions {
+  includeSpecials?: boolean;
+  clampAdjustment?: boolean;
+}
+
+export interface DisplayOVRBreakdown {
+  base: number;
+  rawSpecialAdjustment: number;
+  specialAdjustment: number;
+  total: number;
+}
+
 export function calcOVR(player: Player | undefined, position?: FieldPosition): number {
   if (!player) return 50;
   if (player.isP) {
@@ -40,6 +63,71 @@ export function effectiveOVR(player: Player | undefined, position?: FieldPositio
     calcOVR(player, resolved) * (0.7 + (aptitudeFor(player, resolved) / 100) * 0.3),
   );
 }
+
+function displayBaseOVR(player: Player | undefined, position?: FieldPosition): number {
+  if (!player) return 50;
+  return player.isP ? calcOVR(player) : effectiveOVR(player, position);
+}
+
+function specialDefinitions(player: Player): SpecialAbility[] {
+  const ids = new Set<string>([
+    ...(player.specials ?? []).map((special) => special.id),
+    ...Object.keys(player.specialLevels ?? {}),
+  ]);
+  return [...ids]
+    .map((id) => {
+      const embedded = player.specials?.find((special) => special.id === id);
+      return SPECIAL_INDEX[id] ?? embedded;
+    })
+    .filter((special): special is SpecialAbility => Boolean(special));
+}
+
+export function displayOVRBreakdown(
+  player: Player | undefined,
+  position?: FieldPosition,
+  options: DisplayOVROptions = {},
+): DisplayOVRBreakdown {
+  const base = displayBaseOVR(player, position);
+  if (!player || options.includeSpecials === false) {
+    return { base, rawSpecialAdjustment: 0, specialAdjustment: 0, total: base };
+  }
+
+  const negativeIds = new Set<string>(NEGATIVE_SPECIAL_IDS);
+  const rawSpecialAdjustment = specialDefinitions(player).reduce((total, special) => {
+    const level = specialLevel(player, special.id);
+    if (level <= 0) return total;
+    const multiplier =
+      special.rarity === 'gold'
+        ? DISPLAY_OVR_GOLD_SPECIAL_MULTIPLIER
+        : DISPLAY_OVR_NORMAL_SPECIAL_MULTIPLIER;
+    const sign = negativeIds.has(special.id) ? -1 : 1;
+    return total + sign * special.p * level * multiplier;
+  }, 0);
+  const clampedAdjustment =
+    options.clampAdjustment === false
+      ? rawSpecialAdjustment
+      : Math.max(
+          DISPLAY_OVR_SPECIAL_ADJUSTMENT_MIN,
+          Math.min(DISPLAY_OVR_SPECIAL_ADJUSTMENT_MAX, rawSpecialAdjustment),
+        );
+  const specialAdjustment = Math.round(clampedAdjustment * 10) / 10;
+
+  return {
+    base,
+    rawSpecialAdjustment,
+    specialAdjustment,
+    total: Math.round(base + specialAdjustment),
+  };
+}
+
+export function displayOVR(
+  player: Player | undefined,
+  position?: FieldPosition,
+  options: DisplayOVROptions = {},
+): number {
+  return displayOVRBreakdown(player, position, options).total;
+}
+
 export function bestLineup(team: Team): Player[] {
   const used = new Set<string>(),
     lineup: Player[] = [];

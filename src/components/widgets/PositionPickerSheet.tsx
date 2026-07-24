@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 
 import { FIELD_POSITIONS } from '../../data';
-import { aptitudeFor, calcOVR, effectiveOVR } from '../../engine';
+import { aptitudeFor, displayOVRBreakdown, effectiveOVR } from '../../engine';
 import type { FieldPosition, Player } from '../../engine';
 import { Button, EmptyState } from '../ui';
 import type { LineupAssignments, LineupSlot } from './FieldDiagram';
@@ -18,8 +18,8 @@ function bestPositionValue(player: Player): { position: FieldPosition; value: nu
   };
 }
 
-function currentValue(player: Player, slot: LineupSlot): number {
-  return slot === 'extra' ? calcOVR(player) : effectiveOVR(player, slot);
+function currentBreakdown(player: Player, slot: LineupSlot) {
+  return displayOVRBreakdown(player, slot === 'extra' ? undefined : slot);
 }
 
 function assignedSlot(assignments: LineupAssignments, playerId: string): LineupSlot | null {
@@ -45,17 +45,17 @@ export function PositionPickerSheet({
       players
         .map((player) => {
           const best = bestPositionValue(player);
-          const value = currentValue(player, slot);
+          const breakdown = currentBreakdown(player, slot);
           return {
             player,
             best,
-            value,
+            breakdown,
             aptitude: slot === 'extra' ? null : aptitudeFor(player, slot),
             currentSlot: assignedSlot(assignments, player.id),
           };
         })
         .sort((first, second) => {
-          const valueDifference = second.value - first.value;
+          const valueDifference = second.breakdown.total - first.breakdown.total;
           return valueDifference || first.player.name.localeCompare(second.player.name, 'ja');
         }),
     [assignments, players, slot],
@@ -92,7 +92,7 @@ export function PositionPickerSheet({
         aria-modal="true"
         aria-labelledby="position-picker-title"
         tabIndex={-1}
-        style={{ maxWidth: 720 }}
+        style={{ maxWidth: 760 }}
       >
         <header className="player-modal__header">
           <div>
@@ -101,8 +101,8 @@ export function PositionPickerSheet({
             </h1>
             <div className="player-modal__meta">
               {slot === 'extra'
-                ? '守備につかない9人目の打者です。OVR順に表示しています。'
-                : `${slot}での実効OVR順です。選択済み選手を選ぶと配置を入れ替えます。`}
+                ? '守備につかない9人目の打者です。特殊能力込みの表示総合値順です。'
+                : `${slot}での特殊能力込み表示総合値順です。基本総合値も併記します。`}
             </div>
           </div>
           <Button onClick={onClose} color="var(--color-surface-muted)" ariaLabel="選手選択を閉じる">
@@ -114,23 +114,23 @@ export function PositionPickerSheet({
             <EmptyState>選択できる野手がいません。</EmptyState>
           ) : (
             <div style={{ display: 'grid', gap: 8 }}>
-              {candidates.map(({ player, best, value, aptitude, currentSlot }) => {
+              {candidates.map(({ player, best, breakdown, aptitude, currentSlot }) => {
                 const injured = (player.injuryDays ?? 0) > 0;
                 const current = currentSlot === slot;
-                const difference = slot === 'extra' ? null : value - best.value;
+                const difference = slot === 'extra' ? null : breakdown.base - best.value;
                 return (
                   <button
                     key={player.id}
                     type="button"
                     disabled={injured}
-                    aria-label={`${player.name}を${slotLabel}に配置${currentSlot && !current ? `、現在は${currentSlot === 'extra' ? '追加打者' : currentSlot}` : ''}`}
+                    aria-label={`${player.name}を${slotLabel}に配置、基本総合値${breakdown.base}から特殊込み${breakdown.total}${currentSlot && !current ? `、現在は${currentSlot === 'extra' ? '追加打者' : currentSlot}` : ''}`}
                     onClick={() => onSelect(player)}
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: 'minmax(130px,1.5fr) repeat(3,minmax(72px,0.65fr))',
+                      gridTemplateColumns: 'minmax(130px,1.5fr) repeat(3,minmax(76px,0.7fr))',
                       alignItems: 'center',
                       gap: 8,
-                      minHeight: 62,
+                      minHeight: 66,
                       padding: '9px 10px',
                       border: `1px solid ${current ? 'var(--color-accent)' : 'var(--color-border)'}`,
                       borderRadius: 10,
@@ -164,9 +164,13 @@ export function PositionPickerSheet({
                     </span>
                     <span style={{ textAlign: 'center' }}>
                       <span style={{ display: 'block', color: 'var(--color-text-faint)', fontSize: 10 }}>
-                        {slot === 'extra' ? 'OVR' : '実効OVR'}
+                        基本 → 特殊込み
                       </span>
-                      <strong className={value >= 80 ? 'metric-highlight' : undefined}>{value}</strong>
+                      <span style={{ color: 'var(--color-text-faint)' }}>{breakdown.base}</span>
+                      {' → '}
+                      <strong className={breakdown.total >= 80 ? 'metric-highlight' : undefined}>
+                        {breakdown.total}
+                      </strong>
                     </span>
                     <span style={{ textAlign: 'center' }}>
                       <span style={{ display: 'block', color: 'var(--color-text-faint)', fontSize: 10 }}>
@@ -180,7 +184,7 @@ export function PositionPickerSheet({
                       </span>
                       <strong
                         className={difference === 0 ? 'metric-highlight' : undefined}
-                        title={`最良は${best.position}（実効OVR ${best.value}）`}
+                        title={`最良は${best.position}（基本総合値 ${best.value}）`}
                       >
                         {difference === null ? '-' : difference === 0 ? '±0' : String(difference)}
                       </strong>
