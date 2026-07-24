@@ -140,6 +140,7 @@ export function applyPostGamePlayerEvents(
         isP: event.isP,
         isBreakthrough: event.isBreakthrough,
         newSpecial: event.newSpecial?.n ?? null,
+        changes: event.events.map((change) => ({ param: change.param, boost: change.boost })),
       })),
       injuries,
     },
