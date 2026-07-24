@@ -115,7 +115,62 @@ function generateSecondaryPositions(primary: FieldPosition): PositionAptitude[] 
       positions.push({ pos: rule.pos, apt: randomInt(rule.aptitude[0], rule.aptitude[1]) });
   return positions;
 }
-function pickSpecialAbilities(pool: SpecialAbility[], quality: number): Record<string, number> {
+const SPECIAL_PROFILE_PARAMS: Record<string, Array<keyof PlayerParams>> = {
+  nobi: ['nobi', 'vel'],
+  kire: ['vel', 'nobi'],
+  kire_gold: ['vel', 'nobi'],
+  kk: ['vel', 'nobi'],
+  kk_gold: ['vel', 'nobi'],
+  heavy: ['vel', 'nobi'],
+  heavy_gold: ['vel', 'nobi'],
+  low: ['ctrl'],
+  cnr: ['ctrl'],
+  cnr_gold: ['ctrl'],
+  gb: ['nobi', 'ctrl'],
+  tough: ['stam'],
+  iron: ['stam'],
+  avg: ['cf', 'cb'],
+  avg_gold: ['cf', 'cb'],
+  spray: ['cf', 'cb'],
+  spray_gold: ['cf', 'cb'],
+  oppo: ['cf', 'cb'],
+  pull: ['pw'],
+  slugger_gold: ['pw'],
+  eye: ['dc'],
+  eye_gold: ['dc'],
+  run: ['sp'],
+  sb: ['sp'],
+  sb_gold: ['sp'],
+  bnt: ['bnt'],
+  strong_arm: ['arm'],
+  ld_art: ['ld'],
+};
+function specialProfileMultiplier(specialId: string, params: PlayerParams): number {
+  const related = SPECIAL_PROFILE_PARAMS[specialId];
+  if (!related?.length) return 1;
+  const profileValues = Object.entries(params)
+    .filter(
+      ([key, value]) =>
+        key !== 'pitches' && typeof value === 'number' && (key !== 'ld' || Number(value) > 0),
+    )
+    .map(([, value]) => Number(value));
+  const relatedValues = related
+    .map((key) => params[key])
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+  if (!profileValues.length || !relatedValues.length) return 1;
+  const mean = profileValues.reduce((sum, value) => sum + value, 0) / profileValues.length,
+    variance =
+      profileValues.reduce((sum, value) => sum + (value - mean) ** 2, 0) / profileValues.length,
+    standardDeviation = Math.max(8, Math.sqrt(variance)),
+    relatedMean = relatedValues.reduce((sum, value) => sum + value, 0) / relatedValues.length,
+    relativeScore = (relatedMean - mean) / standardDeviation;
+  return clamp(1 + relativeScore * 0.38, 0.55, 1.85);
+}
+function pickSpecialAbilities(
+  pool: SpecialAbility[],
+  quality: number,
+  params: PlayerParams,
+): Record<string, number> {
   const levels: Record<string, number> = {},
     conflicts = [
       ['po', 'px'],
@@ -125,7 +180,12 @@ function pickSpecialAbilities(pool: SpecialAbility[], quality: number): Record<s
     ];
   const has = (id: string) => (levels[id] ?? 0) > 0;
   for (const special of pool) {
-    if (random() >= special.p * Math.sqrt(quality / 50)) continue;
+    const probability = clamp(
+      special.p * Math.sqrt(quality / 50) * specialProfileMultiplier(special.id, params),
+      0,
+      0.9,
+    );
+    if (random() >= probability) continue;
     if (
       conflicts.some(
         (group) => group.includes(special.id) && group.some((id) => id !== special.id && has(id)),
@@ -176,15 +236,6 @@ export function generatePitcher(
       brk: clamp(Math.round(gaussian(effectiveQuality * 0.82, 10)), 15, 110),
       ctl: clamp(Math.round(gaussian(control * 0.85, 10)), 15, 105),
     });
-  const specialLevels = pickSpecialAbilities([...PS, ...CS2], quality),
-    potentialClass: PotentialClass = random() < 0.05 ? 'elite' : 'standard';
-  const potential = {
-    vel: generatePotential(velocity, undefined, potentialClass),
-    ctrl: generatePotential(control, 18, potentialClass),
-    stam: generatePotential(stamina, 15, potentialClass),
-    nobi: generatePotential(movement, 18, potentialClass),
-    fld: generatePotential(fielding, 15, potentialClass),
-  };
   const params: PlayerParams = {
     vel: velocity,
     ctrl: control,
@@ -192,6 +243,15 @@ export function generatePitcher(
     nobi: movement,
     fld: fielding,
     pitches,
+  };
+  const specialLevels = pickSpecialAbilities([...PS, ...CS2], quality, params),
+    potentialClass: PotentialClass = random() < 0.05 ? 'elite' : 'standard';
+  const potential = {
+    vel: generatePotential(velocity, undefined, potentialClass),
+    ctrl: generatePotential(control, 18, potentialClass),
+    stam: generatePotential(stamina, 15, potentialClass),
+    nobi: generatePotential(movement, 18, potentialClass),
+    fld: generatePotential(fielding, 15, potentialClass),
   };
   return syncSpecialsFromLevels({
     id: uid(),
@@ -267,9 +327,22 @@ export function generateBatter(
       position === '捕手'
         ? clamp(Math.round(gaussian(effectiveQuality * 0.85, 12) * catcherAgeMultiplier), 20, 108)
         : 0;
+  const params: PlayerParams = {
+    cf: contactFastball,
+    cb: contactBreaking,
+    pw: power,
+    dc: discipline,
+    sp: speed,
+    df: fielding,
+    arm,
+    stam: stamina,
+    bnt: bunt,
+    ld: gameCalling,
+  };
   const specialLevels = pickSpecialAbilities(
       [...BS, ...CS2, ...(position === '捕手' ? CATCH_SP : [])],
       quality,
+      params,
     ),
     potentialClass: PotentialClass = random() < 0.05 ? 'elite' : 'standard';
   const potential = {
