@@ -37,6 +37,16 @@ test('current engine stays within two percent of the recorded balance baseline',
     'stolenBaseSuccessRate',
     'stolenBaseAttemptsPerTeamGame',
     'walkRate',
+    'batterOvrStandardDeviation',
+    'pitcherOvrStandardDeviation',
+    'batterOvrTop1Percent',
+    'batterOvrTop5Percent',
+    'pitcherOvrTop1Percent',
+    'pitcherOvrTop5Percent',
+    'batterOvr85PlusCount',
+    'pitcherOvr85PlusCount',
+    'averageTeamOvr85PlusCount',
+    'minimumTeamOvr85PlusCount',
   ];
   for (const metric of metrics) {
     const baselineMetric = baseline.summary[metric];
