@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "source": "src/engine",
   "seasons": 100,
   "seed": 20260723,
@@ -19,54 +19,70 @@
       "minimum": 1000,
       "target": 1096,
       "maximum": 1200
+    },
+    "stolenBaseAttemptsPerTeamGame": {
+      "minimum": 0.3,
+      "target": 0.45,
+      "maximum": 0.6
     }
   },
   "targetEvaluation": {
     "passed": true,
     "comparison": {
       "battingAverage": {
-        "value": 0.240051,
+        "value": 0.239857,
         "minimum": 0.232,
         "target": 0.244,
         "maximum": 0.257,
         "passed": true
       },
       "era": {
-        "value": 2.61982,
+        "value": 2.602298,
         "minimum": 2.21,
         "target": 3.01,
         "maximum": 3.6,
         "passed": true
       },
       "homeRuns": {
-        "value": 1106.37,
+        "value": 1103.13,
         "minimum": 1000,
         "target": 1096,
         "maximum": 1200,
+        "passed": true
+      },
+      "stolenBaseAttemptsPerTeamGame": {
+        "value": 0.456329,
+        "minimum": 0.3,
+        "target": 0.45,
+        "maximum": 0.6,
         "passed": true
       }
     }
   },
   "summary": {
     "battingAverage": {
-      "mean": 0.240051,
-      "standardDeviation": 0.003581
+      "mean": 0.239857,
+      "standardDeviation": 0.003869
     },
     "era": {
-      "mean": 2.61982,
-      "standardDeviation": 0.116778
+      "mean": 2.602298,
+      "standardDeviation": 0.123818
     },
     "homeRuns": {
-      "mean": 1106.37,
-      "standardDeviation": 64.117
+      "mean": 1103.13,
+      "standardDeviation": 63.901
     },
     "stolenBaseSuccessRate": {
-      "mean": 0.62088,
-      "standardDeviation": 0.04888
+      "mean": 0.618021,
+      "standardDeviation": 0.017994
+    },
+    "stolenBaseAttemptsPerTeamGame": {
+      "mean": 0.456329,
+      "standardDeviation": 0.016406
     },
     "walkRate": {
-      "mean": 0.066272,
-      "standardDeviation": 0.002854
+      "mean": 0.066128,
+      "standardDeviation": 0.002999
     }
   }
 }
