@@ -15,4 +15,4 @@ const next = source.replace(
 );
 if (next === source) throw new Error('Roster quality function was not updated');
 await writeFile(path, next, 'utf8');
-console.log('Raised phase 2 upper quality tiers.');
+console.log('Raised phase 2 upper quality tiers for the second baseline run.');
