@@ -1,63 +1,106 @@
 :root {
   color-scheme: dark;
-  --color-bg: #04090f;
-  --color-bg-soft: #07121c;
-  --color-surface: #0b1622;
-  --color-surface-raised: #0f2233;
-  --color-surface-muted: #142638;
-  --color-border: #1e3044;
-  --color-border-strong: #31536f;
-  --color-text: #f3f7ff;
-  --color-text-muted: #8fa9c0;
-  --color-text-faint: #6f8ca8;
-  --color-accent: #4db6ff;
-  --color-accent-soft: #183b55;
-  --color-success: #55d88a;
-  --color-warning: #ffbd59;
-  --color-danger: #ff6b82;
-  --color-growth: #9e7bff;
+  /* Night game under the lights: a near-black with a whisper of turf green,
+     not the generic blue-black or neutral-black an AI default reaches for. */
+  --color-bg: #070c09;
+  --color-bg-soft: #0d1712;
+  --color-surface: #142019;
+  --color-surface-raised: #1c2c22;
+  --color-surface-muted: #26392c;
+  --color-border: #33493a;
+  --color-border-strong: #4d6c56;
+  --color-text: #f4f7f1;
+  --color-text-muted: #a2b6a8;
+  --color-text-faint: #76907c;
+  --color-accent: #4fb0ff;
+  --color-accent-soft: #123049;
+  --color-success: #6ad98a;
+  --color-warning: #ffb648;
+  --color-danger: #ff6b76;
+  --color-growth: #b78bff;
   --color-gold: #ffd166;
-  --color-silver: #c6d2de;
+  --color-silver: #c9d3d9;
   --color-bronze: #d99662;
+  /* Leader amber: the signature touch (section-title tick, leaderboard #1)
+     used on ordinary theme-following surfaces, so — unlike --color-signature
+     below — it IS overridden for light theme to keep contrast on light cards. */
+  --color-leader: #ffa733;
+  /* Scoreboard lamp amber: theme-invariant (not overridden below). A physical
+     scoreboard panel stays dark with lit digits in daylight or at night, so
+     this signature color and its panel tokens don't shift with the theme. */
+  --color-signature: #ffa733;
+  --color-signature-elite: #6ad98a;
+  --lamp-bg: #0b0f0a;
+  --lamp-bg-soft: #131a12;
+  --lamp-border: #3a2a12;
+  /* Field Diagram turf: theme-aware (night game vs. day game), overridden below. */
+  --field-sky: rgb(180 210 195 / 14%);
+  --field-turf-1: #0e2018;
+  --field-turf-2: #0a170f;
+  --field-turf-3: #081209;
+  --field-mow-line: rgb(255 255 255 / 3.2%);
+  --field-dirt: rgb(178 132 76 / 46%);
+  --field-dirt-line: rgb(214 176 122 / 40%);
+  --field-chalk: rgb(240 244 238 / 20%);
+  --field-chalk-strong: rgb(240 244 238 / 32%);
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
   --space-5: 20px;
   --space-6: 24px;
-  --radius-sm: 7px;
-  --radius-md: 12px;
-  --radius-lg: 18px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --font-display:
+    "Big Shoulders Display", "Zen Kaku Gothic New", system-ui, sans-serif;
+  --font-body:
+    "Zen Kaku Gothic New", "Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
   color: var(--color-text);
   background: var(--color-bg);
-  font-family:
-    Inter, "Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
 
 :root[data-theme='light'] {
   color-scheme: light;
-  --color-bg: #eef4f8;
-  --color-bg-soft: #e5edf3;
+  /* Day-game reinterpretation of the same warm-neutral, green-leaning palette
+     (not a generic light-mode swap) so both themes read as one identity. */
+  --color-bg: #f3f6f1;
+  --color-bg-soft: #e9efe6;
   --color-surface: #ffffff;
-  --color-surface-raised: #f3f7fa;
-  --color-surface-muted: #e2ebf1;
-  --color-border: #c8d6e0;
-  --color-border-strong: #91aabd;
-  --color-text: #14212d;
-  --color-text-muted: #4d6578;
-  --color-text-faint: #6d8190;
-  --color-accent: #0969a8;
-  --color-accent-soft: #d9ebf7;
-  --color-success: #167846;
+  --color-surface-raised: #f2f6ef;
+  --color-surface-muted: #e5ece1;
+  --color-border: #c9d6c4;
+  --color-border-strong: #8fa688;
+  --color-text: #16241a;
+  --color-text-muted: #4c6350;
+  --color-text-faint: #557059;
+  --color-accent: #0b6fb0;
+  --color-accent-soft: #dcecf6;
+  --color-success: #157a48;
   --color-warning: #9a5d00;
-  --color-danger: #b52c45;
-  --color-growth: #6746bd;
+  --color-danger: #b5293f;
+  --color-growth: #6b46c4;
   --color-gold: #8a6500;
-  --color-silver: #536576;
+  --color-silver: #55677a;
   --color-bronze: #8b4b25;
+  /* Darkened so the leader amber keeps 4.5:1+ contrast on light cards
+     (the raw --color-signature amber is only ~1.9:1 on white). */
+  --color-leader: #9a5200;
+  /* Day game: bright sunlit turf instead of the night-lit dark green. */
+  --field-sky: rgb(255 255 255 / 60%);
+  --field-turf-1: #6bab58;
+  --field-turf-2: #5a9a49;
+  --field-turf-3: #4a8a3c;
+  --field-mow-line: rgb(255 255 255 / 12%);
+  --field-dirt: rgb(196 154 100 / 78%);
+  --field-dirt-line: rgb(139 98 52 / 55%);
+  --field-chalk: rgb(255 255 255 / 60%);
+  --field-chalk-strong: rgb(255 255 255 / 80%);
 }
 
 * {
@@ -105,15 +148,30 @@ input:focus-visible,
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
 }
 
 .section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0 0 10px;
   color: var(--color-accent);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.18em;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+
+.section-title::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--color-leader);
+  box-shadow: 0 0 5px 1px color-mix(in srgb, var(--color-leader) 55%, transparent);
+  content: '';
+  flex: none;
 }
 
 .ui-button {
@@ -123,8 +181,16 @@ input:focus-visible,
   border-radius: 8px;
   color: #fff;
   background: var(--button-color, var(--color-accent));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 16%),
+    0 2px 0 rgb(0 0 0 / 22%);
   font-weight: 800;
   cursor: pointer;
+}
+
+.ui-button:active:not(:disabled) {
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 30%);
+  transform: translateY(1px);
 }
 
 .ui-button:disabled {
@@ -137,6 +203,53 @@ input:focus-visible,
   padding: 18px 0;
   color: var(--color-text-faint);
   font-size: 0.78rem;
+}
+
+/* Lamp figure: the one loud signature. A digit lit inside a recessed
+   scoreboard panel. Reserved for a small number of headline stats per
+   screen — everywhere else, numbers stay plain tabular-nums text. */
+.lamp-figure {
+  display: inline-grid;
+  justify-items: start;
+  gap: 2px;
+  padding: 8px 14px;
+  border: 1px solid var(--lamp-border);
+  border-radius: var(--radius-sm);
+  background: var(--lamp-bg);
+  box-shadow:
+    inset 0 2px 5px rgb(0 0 0 / 55%),
+    inset 0 0 0 1px rgb(0 0 0 / 35%);
+}
+
+.lamp-figure__label {
+  color: var(--color-text-faint);
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.lamp-figure__value {
+  color: var(--color-signature);
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 4.4vw, 2.1rem);
+  font-weight: 600;
+  line-height: 1;
+  text-shadow:
+    0 0 10px color-mix(in srgb, var(--color-signature) 60%, transparent),
+    0 0 2px color-mix(in srgb, var(--color-signature) 75%, transparent);
+}
+
+.lamp-figure--elite .lamp-figure__value {
+  color: var(--color-signature-elite);
+  text-shadow:
+    0 0 10px color-mix(in srgb, var(--color-signature-elite) 60%, transparent),
+    0 0 2px color-mix(in srgb, var(--color-signature-elite) 75%, transparent);
+}
+
+.lamp-figure--sm .lamp-figure__value {
+  font-size: 1.15rem;
 }
 
 .theme-toggle {
@@ -545,11 +658,26 @@ input:focus-visible,
 .roster-table th,
 .data-table th {
   color: var(--color-text-faint);
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.roster-table thead tr,
+.data-table thead tr {
+  border-bottom: 2px solid var(--color-border-strong);
 }
 
 .roster-table tbody tr,
 .data-table tbody tr {
   border-top: 1px solid var(--color-border);
+}
+
+.roster-table tbody tr:hover,
+.data-table tbody tr:hover {
+  background: color-mix(in srgb, var(--color-accent) 6%, transparent);
 }
 
 .roster-player-button {
@@ -564,6 +692,20 @@ input:focus-visible,
 .metric-highlight {
   color: var(--color-success);
   font-weight: 900;
+}
+
+/* Same lamp signature as .lamp-figure, but text-only so it can drop into an
+   existing table cell (leaderboard rank 1) without breaking row height.
+   Uses --color-leader (theme-aware), not --color-signature: this sits on an
+   ordinary card surface, not the always-dark lamp panel. */
+.rank-leader-value {
+  color: var(--color-leader);
+  font-family: var(--font-display);
+  font-size: 1.05em;
+  font-weight: 700;
+  text-shadow:
+    0 0 8px color-mix(in srgb, var(--color-leader) 55%, transparent),
+    0 0 2px color-mix(in srgb, var(--color-leader) 70%, transparent);
 }
 
 .metric-power {
@@ -619,9 +761,10 @@ input:focus-visible,
 .eyebrow {
   margin: 0 0 12px;
   color: var(--color-accent);
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.24em;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
 }
 
 .description {
@@ -659,5 +802,16 @@ input:focus-visible,
 
   .player-modal__footer {
     flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }

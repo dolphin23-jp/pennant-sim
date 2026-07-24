@@ -77,6 +77,8 @@ export function BattingOrderList({
                     borderRadius: 999,
                     color: 'var(--color-accent)',
                     background: 'var(--color-accent-soft)',
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 15,
                   }}
                 >
                   {index + 1}

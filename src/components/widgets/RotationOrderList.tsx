@@ -69,6 +69,8 @@ export function RotationOrderList({
                     borderRadius: 999,
                     color: 'var(--color-accent)',
                     background: 'var(--color-accent-soft)',
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 16,
                   }}
                 >
                   {index + 1}
