@@ -4,6 +4,7 @@ import { FIELD_POSITIONS } from '../../data';
 import { aptitudeFor, displayOVRBreakdown, effectiveOVR } from '../../engine';
 import type { FieldPosition, Player } from '../../engine';
 import { Button, EmptyState } from '../ui';
+import { aptitudeToneColor } from './aptitudeDisplay';
 import type { LineupAssignments, LineupSlot } from './FieldDiagram';
 import { LINEUP_SLOT_ORDER } from './FieldDiagram';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
@@ -118,12 +119,20 @@ export function PositionPickerSheet({
                 const injured = (player.injuryDays ?? 0) > 0;
                 const current = currentSlot === slot;
                 const difference = slot === 'extra' ? null : breakdown.base - best.value;
+                const aptitudeColor = aptitudeToneColor(aptitude);
+                const borderColor =
+                  aptitudeColor ?? (current ? 'var(--color-accent)' : 'var(--color-border)');
+                const background = aptitudeColor
+                  ? `color-mix(in srgb, ${aptitudeColor} ${current ? 16 : 8}%, ${current ? 'var(--color-accent-soft)' : 'var(--color-surface-raised)'})`
+                  : current
+                    ? 'var(--color-accent-soft)'
+                    : 'var(--color-surface-raised)';
                 return (
                   <button
                     key={player.id}
                     type="button"
                     disabled={injured}
-                    aria-label={`${player.name}を${slotLabel}に配置、基本総合値${breakdown.base}から特殊込み${breakdown.total}${currentSlot && !current ? `、現在は${currentSlot === 'extra' ? '追加打者' : currentSlot}` : ''}`}
+                    aria-label={`${player.name}を${slotLabel}に配置、基本総合値${breakdown.base}から特殊込み${breakdown.total}${aptitude === null ? '' : `、適性${aptitude}%`}${currentSlot && !current ? `、現在は${currentSlot === 'extra' ? '追加打者' : currentSlot}` : ''}`}
                     onClick={() => onSelect(player)}
                     style={{
                       display: 'grid',
@@ -132,10 +141,11 @@ export function PositionPickerSheet({
                       gap: 8,
                       minHeight: 66,
                       padding: '9px 10px',
-                      border: `1px solid ${current ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                      border: `1px solid ${borderColor}`,
                       borderRadius: 10,
                       color: injured ? 'var(--color-text-faint)' : 'var(--color-text)',
-                      background: current ? 'var(--color-accent-soft)' : 'var(--color-surface-raised)',
+                      background,
+                      boxShadow: current ? '0 0 0 2px var(--color-accent)' : undefined,
                       cursor: injured ? 'not-allowed' : 'pointer',
                       opacity: injured ? 0.62 : 1,
                       textAlign: 'left',
@@ -176,7 +186,9 @@ export function PositionPickerSheet({
                       <span style={{ display: 'block', color: 'var(--color-text-faint)', fontSize: 10 }}>
                         適性
                       </span>
-                      <strong>{aptitude === null ? '-' : `${aptitude}%`}</strong>
+                      <strong style={{ color: aptitudeColor ?? undefined }}>
+                        {aptitude === null ? '-' : `${aptitude}%`}
+                      </strong>
                     </span>
                     <span style={{ textAlign: 'center' }}>
                       <span style={{ display: 'block', color: 'var(--color-text-faint)', fontSize: 10 }}>
