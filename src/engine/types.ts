@@ -16,6 +16,7 @@ export type FieldPosition =
   '捕手' | '一塁手' | '二塁手' | '三塁手' | '遊撃手' | '左翼手' | '中堅手' | '右翼手';
 export type PitcherRole = '先発' | 'リリーフ' | 'クローザー';
 export type Maturity = '超早熟' | '早熟' | '通常' | '晩成' | '超晩成';
+export type PotentialClass = 'standard' | 'elite';
 export type TrainPolicyId =
   'balanced' | 'power' | 'contact' | 'speed' | 'defense' | 'velocity' | 'control' | 'stamina_t';
 export type PlayerTeamKey = TeamKey | 'foreign' | '外' | 'fa' | 'FA' | 'draft';
@@ -106,6 +107,7 @@ export interface Player {
   hand: { th?: '右' | '左'; bat?: '右' | '左' | '両' };
   p: PlayerParams;
   pot: PotentialParams;
+  potentialClass?: PotentialClass;
   specials?: SpecialAbility[];
   specialLevels?: Record<string, number>;
   trainPolicy: TrainPolicyId;
