@@ -29,10 +29,8 @@ export type DraftPick = Player & { teamKey: TeamKey; round: number };
 export function teamStrength(team: Team): number {
   const lineup = bestLineup(team).slice(0, 9);
   const batting = lineup.length
-    ? lineup.reduce(
-        (total, player) => total + effectiveOVR(player, player._assignedPos ?? player.pos),
-        0,
-      ) / lineup.length
+    ? lineup.reduce((total, player) => total + effectiveOVR(player, player._assignedPos ?? player.pos), 0) /
+      lineup.length
     : 50;
   const starters = topStarters(team).slice(0, 5);
   const starting = starters.length
@@ -52,7 +50,10 @@ export function generateTradeOffers(teams: Teams, playerTeam: TeamKey): TradeOff
   const userTeam = teams[playerTeam];
   const bench = [...userTeam.fielders]
     .filter((player) => !bestLineup(userTeam).some((starter) => starter.id === player.id))
-    .sort((first, second) => effectiveOVR(second, second.pos) - effectiveOVR(first, first.pos));
+    .sort(
+      (first, second) =>
+        effectiveOVR(second, second.pos) - effectiveOVR(first, first.pos),
+    );
   const relief = [...userTeam.pitchers]
     .filter((player) => player.role !== '先発')
     .sort((first, second) => calcOVR(second) - calcOVR(first));
@@ -65,7 +66,8 @@ export function generateTradeOffers(teams: Teams, playerTeam: TeamKey): TradeOff
     .map((teamKey, index) => {
       const opponent = teams[teamKey];
       const target = [...opponent.fielders, ...opponent.pitchers].sort(
-        (first, second) => teamNeedsScore(userTeam, second) - teamNeedsScore(userTeam, first),
+        (first, second) =>
+          teamNeedsScore(userTeam, second) - teamNeedsScore(userTeam, first),
       )[0];
       if (!target) return null;
       return {
@@ -103,10 +105,16 @@ export function applyTrade(teams: Teams, playerTeam: TeamKey, offer: TradeOffer)
   }
   if (offer.give.isP) {
     opponent.pitchers = remove(opponent.pitchers, offer.give.id);
-    user.pitchers = [...remove(user.pitchers, offer.receive.id), { ...offer.give, tk: playerTeam }];
+    user.pitchers = [
+      ...remove(user.pitchers, offer.receive.id),
+      { ...offer.give, tk: playerTeam },
+    ];
   } else {
     opponent.fielders = remove(opponent.fielders, offer.give.id);
-    user.fielders = [...remove(user.fielders, offer.receive.id), { ...offer.give, tk: playerTeam }];
+    user.fielders = [
+      ...remove(user.fielders, offer.receive.id),
+      { ...offer.give, tk: playerTeam },
+    ];
   }
   next[playerTeam] = user;
   next[offer.fromTeam] = opponent;
@@ -134,8 +142,7 @@ export function generateDraftProspects(): Player[] {
       position === '先発' || position === 'リリーフ' || position === 'クローザー'
         ? generatePitcher('draft', age, quality, position)
         : generateBatter('draft', age, position, quality);
-    player.note =
-      quality >= 90 ? '怪物候補' : quality >= 75 ? '即戦力候補' : age <= 19 ? '素材型' : '有望株';
+    player.note = quality >= 90 ? '怪物候補' : quality >= 75 ? '即戦力候補' : age <= 19 ? '素材型' : '有望株';
     pool.push(player);
   }
   return pool.sort(
