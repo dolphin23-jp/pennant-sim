@@ -3,6 +3,7 @@ export * from './game';
 export * from './growth';
 export * from './market';
 export * from './pitcherPlan';
+export * from './pitcherPlanSeason';
 export * from './playerEvents';
 export * from './players';
 export * from './random';
