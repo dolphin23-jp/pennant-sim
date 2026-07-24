@@ -1,7 +1,12 @@
 import { advBases, buildDesc, simAB } from './atBat';
 import { applyPostGamePlayerEvents } from './playerEvents';
+import {
+  resolveStarterRotation,
+  selectCloserByPriority,
+  type PitcherPlanInput,
+} from './pitcherPlan';
 import { clamp, random } from './random';
-import { bestLineup, calcOVR, masteryFromAccum, topStarters } from './ratings';
+import { bestLineup, calcOVR, masteryFromAccum } from './ratings';
 import { hasGold, hasSpecial } from './specials';
 import type {
   AccumulatedStats,
@@ -32,6 +37,7 @@ export function simHalf(
   battingSide: Side,
   inning: number,
   accumulatedStats: AccumulatedStats,
+  closerPriority: string[] = [],
 ): HalfInningResult {
   const fieldingSide: Side = battingSide === 'home' ? 'away' : 'home';
   const catcher = gameState.lineups[battingSide].find(
@@ -60,7 +66,8 @@ export function simHalf(
       closers = available.filter((p) => p.role === 'クローザー'),
       relievers = available.filter((p) => p.role === 'リリーフ');
     let nextPitcher: Player;
-    if (inning >= 8 && close && closers.length) nextPitcher = closers[0] as Player;
+    if (inning >= 8 && close && closers.length)
+      nextPitcher = selectCloserByPriority(closers, closerPriority) as Player;
     else if (relievers.length)
       nextPitcher = relievers.sort((a, b) => calcOVR(b) - calcOVR(a))[0] as Player;
     else nextPitcher = available[0] as Player;
@@ -228,13 +235,15 @@ export function simulateGame(
   homeStarterIndex = 0,
   awayStarterIndex = 0,
   accumulatedStats: AccumulatedStats = {},
+  homePitcherPlan?: PitcherPlanInput | null,
+  awayPitcherPlan?: PitcherPlanInput | null,
 ): GameState {
   const homeTeam = teams[homeKey],
     awayTeam = teams[awayKey],
     resolvedHomeLineup = resolveLineup(homeTeam, homeLineup),
     resolvedAwayLineup = resolveLineup(awayTeam, awayLineup),
-    homeStarters = topStarters(homeTeam),
-    awayStarters = topStarters(awayTeam),
+    homeStarters = resolveStarterRotation(homeTeam, homePitcherPlan?.rotationOrder ?? []),
+    awayStarters = resolveStarterRotation(awayTeam, awayPitcherPlan?.rotationOrder ?? []),
     homeStarter =
       homeStarters[homeStarterIndex % Math.max(1, homeStarters.length)] ||
       homeTeam.pitchers.find((player) => (player.injuryDays ?? 0) <= 0) ||
@@ -265,7 +274,13 @@ export function simulateGame(
   };
   for (let inningIndex = 0; inningIndex < 15; inningIndex += 1) {
     const inningScore = { away: 0, home: 0 },
-      awayHalf = simHalf(gameState, 'away', inningIndex, accumulatedStats);
+      awayHalf = simHalf(
+        gameState,
+        'away',
+        inningIndex,
+        accumulatedStats,
+        homePitcherPlan?.closerPriority ?? [],
+      );
     inningScore.away = awayHalf.runs;
     gameState.score.away += awayHalf.runs;
     gameState.atBatLog.push(...awayHalf.atBats);
@@ -273,7 +288,13 @@ export function simulateGame(
       gameState.innings.push({ home: inningScore.home, away: inningScore.away });
       break;
     }
-    const homeHalf = simHalf(gameState, 'home', inningIndex, accumulatedStats);
+    const homeHalf = simHalf(
+      gameState,
+      'home',
+      inningIndex,
+      accumulatedStats,
+      awayPitcherPlan?.closerPriority ?? [],
+    );
     inningScore.home = homeHalf.runs;
     gameState.score.home += homeHalf.runs;
     gameState.atBatLog.push(...homeHalf.atBats);
