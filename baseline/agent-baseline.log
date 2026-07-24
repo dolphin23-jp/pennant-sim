@@ -2,23 +2,106 @@
 > pennant-sim@0.1.0 baseline:new
 > tsx scripts/balance-new-engine.ts
 
-node:internal/modules/run_main:123
-    triggerUncaughtException(
-    ^
-
-Error: Transform failed with 1 error:
-/home/runner/work/pennant-sim/pennant-sim/src/engine/market.ts:41:9: ERROR: The symbol "generateMarketQuality" has already been declared
-    at failureErrorWithLog (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:1748:15)
-    at /home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:1017:50
-    at responseCallbacks.<computed> (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:884:9)
-    at handleIncomingPacket (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:939:12)
-    at Socket.readFromStdout (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:862:7)
-    at Socket.emit (node:events:519:28)
-    at addChunk (node:internal/streams/readable:561:12)
-    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
-    at Readable.push (node:internal/streams/readable:392:5)
-    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23) {
-  name: 'TransformError'
-}
-
-Node.js v22.23.1
+Season 1/100: AVG 0.228, ERA 2.27, HR 865
+Season 2/100: AVG 0.246, ERA 3.00, HR 1191
+Season 3/100: AVG 0.233, ERA 2.45, HR 1052
+Season 4/100: AVG 0.242, ERA 2.66, HR 1066
+Season 5/100: AVG 0.242, ERA 2.79, HR 1130
+Season 6/100: AVG 0.233, ERA 2.65, HR 1064
+Season 7/100: AVG 0.245, ERA 3.00, HR 1207
+Season 8/100: AVG 0.243, ERA 2.79, HR 1067
+Season 9/100: AVG 0.232, ERA 2.51, HR 1015
+Season 10/100: AVG 0.234, ERA 2.57, HR 1055
+Season 11/100: AVG 0.236, ERA 2.61, HR 1056
+Season 12/100: AVG 0.239, ERA 2.66, HR 1106
+Season 13/100: AVG 0.241, ERA 2.79, HR 1186
+Season 14/100: AVG 0.238, ERA 2.64, HR 1091
+Season 15/100: AVG 0.241, ERA 2.79, HR 1143
+Season 16/100: AVG 0.234, ERA 2.62, HR 1076
+Season 17/100: AVG 0.225, ERA 2.24, HR 886
+Season 18/100: AVG 0.240, ERA 2.68, HR 1081
+Season 19/100: AVG 0.243, ERA 2.80, HR 1117
+Season 20/100: AVG 0.236, ERA 2.66, HR 1139
+Season 21/100: AVG 0.242, ERA 2.71, HR 1049
+Season 22/100: AVG 0.241, ERA 2.88, HR 1198
+Season 23/100: AVG 0.235, ERA 2.71, HR 1108
+Season 24/100: AVG 0.234, ERA 2.48, HR 1034
+Season 25/100: AVG 0.238, ERA 2.66, HR 1029
+Season 26/100: AVG 0.230, ERA 2.44, HR 958
+Season 27/100: AVG 0.236, ERA 2.63, HR 1049
+Season 28/100: AVG 0.232, ERA 2.49, HR 960
+Season 29/100: AVG 0.229, ERA 2.48, HR 1027
+Season 30/100: AVG 0.235, ERA 2.60, HR 1086
+Season 31/100: AVG 0.233, ERA 2.54, HR 1091
+Season 32/100: AVG 0.241, ERA 2.74, HR 1027
+Season 33/100: AVG 0.237, ERA 2.71, HR 1000
+Season 34/100: AVG 0.243, ERA 2.80, HR 1106
+Season 35/100: AVG 0.239, ERA 2.75, HR 1182
+Season 36/100: AVG 0.236, ERA 2.55, HR 1042
+Season 37/100: AVG 0.243, ERA 2.81, HR 1144
+Season 38/100: AVG 0.228, ERA 2.20, HR 841
+Season 39/100: AVG 0.240, ERA 2.65, HR 1062
+Season 40/100: AVG 0.250, ERA 2.91, HR 1131
+Season 41/100: AVG 0.231, ERA 2.50, HR 1000
+Season 42/100: AVG 0.240, ERA 2.59, HR 1034
+Season 43/100: AVG 0.236, ERA 2.60, HR 1075
+Season 44/100: AVG 0.243, ERA 2.86, HR 1128
+Season 45/100: AVG 0.230, ERA 2.50, HR 1059
+Season 46/100: AVG 0.242, ERA 2.74, HR 1110
+Season 47/100: AVG 0.231, ERA 2.50, HR 999
+Season 48/100: AVG 0.236, ERA 2.71, HR 1141
+Season 49/100: AVG 0.238, ERA 2.63, HR 1030
+Season 50/100: AVG 0.235, ERA 2.63, HR 1064
+Season 51/100: AVG 0.238, ERA 2.66, HR 1059
+Season 52/100: AVG 0.222, ERA 2.04, HR 784
+Season 53/100: AVG 0.236, ERA 2.71, HR 1126
+Season 54/100: AVG 0.227, ERA 2.31, HR 910
+Season 55/100: AVG 0.222, ERA 2.26, HR 942
+Season 56/100: AVG 0.236, ERA 2.69, HR 1094
+Season 57/100: AVG 0.231, ERA 2.40, HR 953
+Season 58/100: AVG 0.226, ERA 2.22, HR 894
+Season 59/100: AVG 0.241, ERA 2.76, HR 1019
+Season 60/100: AVG 0.239, ERA 2.70, HR 1097
+Season 61/100: AVG 0.238, ERA 2.55, HR 974
+Season 62/100: AVG 0.236, ERA 2.63, HR 1118
+Season 63/100: AVG 0.250, ERA 3.11, HR 1292
+Season 64/100: AVG 0.236, ERA 2.51, HR 1032
+Season 65/100: AVG 0.231, ERA 2.50, HR 1044
+Season 66/100: AVG 0.247, ERA 2.99, HR 1178
+Season 67/100: AVG 0.237, ERA 2.76, HR 1179
+Season 68/100: AVG 0.235, ERA 2.61, HR 1035
+Season 69/100: AVG 0.233, ERA 2.47, HR 1040
+Season 70/100: AVG 0.233, ERA 2.41, HR 954
+Season 71/100: AVG 0.237, ERA 2.73, HR 1131
+Season 72/100: AVG 0.235, ERA 2.62, HR 994
+Season 73/100: AVG 0.244, ERA 2.77, HR 1105
+Season 74/100: AVG 0.238, ERA 2.64, HR 1061
+Season 75/100: AVG 0.234, ERA 2.64, HR 1049
+Season 76/100: AVG 0.229, ERA 2.47, HR 958
+Season 77/100: AVG 0.243, ERA 2.81, HR 1139
+Season 78/100: AVG 0.229, ERA 2.46, HR 992
+Season 79/100: AVG 0.236, ERA 2.58, HR 1110
+Season 80/100: AVG 0.223, ERA 2.19, HR 867
+Season 81/100: AVG 0.228, ERA 2.37, HR 878
+Season 82/100: AVG 0.242, ERA 2.87, HR 1143
+Season 83/100: AVG 0.231, ERA 2.60, HR 1081
+Season 84/100: AVG 0.234, ERA 2.49, HR 1029
+Season 85/100: AVG 0.229, ERA 2.40, HR 896
+Season 86/100: AVG 0.233, ERA 2.64, HR 1139
+Season 87/100: AVG 0.242, ERA 2.85, HR 1163
+Season 88/100: AVG 0.238, ERA 2.63, HR 1062
+Season 89/100: AVG 0.232, ERA 2.45, HR 1030
+Season 90/100: AVG 0.232, ERA 2.40, HR 912
+Season 91/100: AVG 0.240, ERA 2.67, HR 1055
+Season 92/100: AVG 0.239, ERA 2.86, HR 1130
+Season 93/100: AVG 0.226, ERA 2.31, HR 924
+Season 94/100: AVG 0.237, ERA 2.64, HR 1001
+Season 95/100: AVG 0.232, ERA 2.46, HR 900
+Season 96/100: AVG 0.237, ERA 2.76, HR 1093
+Season 97/100: AVG 0.232, ERA 2.56, HR 996
+Season 98/100: AVG 0.235, ERA 2.60, HR 1047
+Season 99/100: AVG 0.227, ERA 2.16, HR 883
+Season 100/100: AVG 0.247, ERA 3.05, HR 1192
+Baseline summary: {"battingAverage":{"mean":0.235884,"standardDeviation":0.005874},"era":{"mean":2.611614,"standardDeviation":0.199274},"homeRuns":{"mean":1050.41,"standardDeviation":91.955},"stolenBaseSuccessRate":{"mean":0.619385,"standardDeviation":0.015492},"stolenBaseAttemptsPerTeamGame":{"mean":0.453205,"standardDeviation":0.017253},"speedStolenBaseCorrelation":{"mean":0,"standardDeviation":0},"walkRate":{"mean":0.070557,"standardDeviation":0.00387},"batterOvrStandardDeviation":{"mean":15.76045,"standardDeviation":0.746757},"pitcherOvrStandardDeviation":{"mean":14.866956,"standardDeviation":0.903394},"batterOvrTop1Percent":{"mean":89.22,"standardDeviation":5.055},"batterOvrTop5Percent":{"mean":68.54,"standardDeviation":3.116},"pitcherOvrTop1Percent":{"mean":87.31,"standardDeviation":5.777},"pitcherOvrTop5Percent":{"mean":67.62,"standardDeviation":3.526},"batterOvr85PlusCount":{"mean":6.78,"standardDeviation":2.431},"pitcherOvr85PlusCount":{"mean":4.48,"standardDeviation":2.09},"latentFactorMaximumRate":{"mean":0.980728,"standardDeviation":0.004396}}
+NPB target evaluation: {"passed":true,"comparison":{"battingAverage":{"value":0.235884,"minimum":0.232,"target":0.244,"maximum":0.257,"passed":true},"era":{"value":2.611614,"minimum":2.21,"target":3.01,"maximum":3.6,"passed":true},"homeRuns":{"value":1050.41,"minimum":1000,"target":1096,"maximum":1200,"passed":true},"stolenBaseAttemptsPerTeamGame":{"value":0.453205,"minimum":0.3,"target":0.45,"maximum":0.6,"passed":true}}}
+Wrote 100-season new-engine baseline to /home/runner/work/pennant-sim/pennant-sim/baseline/new-season-stats.json

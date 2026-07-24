@@ -3,70 +3,60 @@
 > tsx --test tests/*.test.ts
 
 TAP version 13
-# node:internal/modules/run_main:123
-#     triggerUncaughtException(
-#     ^
-# Error: Transform failed with 1 error:
-# /home/runner/work/pennant-sim/pennant-sim/src/engine/market.ts:41:9: ERROR: The symbol "generateMarketQuality" has already been declared
-#     at failureErrorWithLog (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:1748:15)
-#     at /home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:1017:50
-#     at responseCallbacks.<computed> (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:884:9)
-#     at handleIncomingPacket (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:939:12)
-#     at Socket.readFromStdout (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:862:7)
-#     at Socket.emit (node:events:519:28)
-#     at addChunk (node:internal/streams/readable:561:12)
-#     at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
-#     at Readable.push (node:internal/streams/readable:392:5)
-#     at Pipe.onStreamRead (node:internal/stream_base_commons:189:23) {
-#   name: 'TransformError'
-# }
-# Node.js v22.23.1
-# Subtest: tests/aptitude-display.test.ts
-not ok 1 - tests/aptitude-display.test.ts
+# Subtest: aptitudeToneColor maps aptitude thresholds to shared theme colors
+ok 1 - aptitudeToneColor maps aptitude thresholds to shared theme colors
   ---
-  duration_ms: 416.921241
+  duration_ms: 0.846634
   type: 'test'
-  location: '/home/runner/work/pennant-sim/pennant-sim/tests/aptitude-display.test.ts:1:1'
-  failureType: 'testCodeFailure'
-  exitCode: 1
-  signal: ~
-  error: 'test failed'
-  code: 'ERR_TEST_FAILURE'
   ...
-# node:internal/modules/run_main:123
-#     triggerUncaughtException(
-#     ^
-# Error: Transform failed with 1 error:
-# /home/runner/work/pennant-sim/pennant-sim/src/engine/market.ts:41:9: ERROR: The symbol "generateMarketQuality" has already been declared
-#     at failureErrorWithLog (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:1748:15)
-#     at /home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:1017:50
-#     at responseCallbacks.<computed> (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:884:9)
-#     at handleIncomingPacket (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:939:12)
-#     at Socket.readFromStdout (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:862:7)
-#     at Socket.emit (node:events:519:28)
-#     at addChunk (node:internal/streams/readable:561:12)
-#     at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
-#     at Readable.push (node:internal/streams/readable:392:5)
-#     at Pipe.onStreamRead (node:internal/stream_base_commons:189:23) {
-#   name: 'TransformError'
-# }
-# Node.js v22.23.1
-# Subtest: tests/balance-generation.test.ts
-not ok 2 - tests/balance-generation.test.ts
+# Subtest: aptitudeRank maps aptitude values using configurable display thresholds
+ok 2 - aptitudeRank maps aptitude values using configurable display thresholds
   ---
-  duration_ms: 408.102182
+  duration_ms: 0.246569
   type: 'test'
-  location: '/home/runner/work/pennant-sim/pennant-sim/tests/balance-generation.test.ts:1:1'
+  ...
+# Subtest: special abilities follow the generated player profile
+ok 3 - special abilities follow the generated player profile
+  ---
+  duration_ms: 262.364189
+  type: 'test'
+  ...
+# Subtest: layered roster generation produces visible upper-tail talent
+not ok 4 - layered roster generation produces visible upper-tail talent
+  ---
+  duration_ms: 128.031279
+  type: 'test'
+  location: '/home/runner/work/pennant-sim/pennant-sim/tests/balance-generation.test.ts:1:1646'
   failureType: 'testCodeFailure'
-  exitCode: 1
-  signal: ~
-  error: 'test failed'
-  code: 'ERR_TEST_FAILURE'
+  error: |-
+    The expression evaluated to a falsy value:
+    
+      assert.ok(batters.filter((player) => calcOVR(player, player.pos) >= 85).length >= 12)
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/pennant-sim/pennant-sim/tests/balance-generation.test.ts:56:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: draft origin controls age bands and labels
+ok 5 - draft origin controls age bands and labels
+  ---
+  duration_ms: 6.225423
+  type: 'test'
   ...
 # Subtest: current engine stays within two percent of the recorded balance baseline
-not ok 3 - current engine stays within two percent of the recorded balance baseline
+not ok 6 - current engine stays within two percent of the recorded balance baseline
   ---
-  duration_ms: 16.41033
+  duration_ms: 11.394266
   type: 'test'
   location: '/home/runner/work/pennant-sim/pennant-sim/tests/baseline.test.ts:1:388'
   failureType: 'testCodeFailure'
@@ -81,192 +71,198 @@ not ok 3 - current engine stays within two percent of the recorded balance basel
     async Test.run (node:internal/test_runner/test:1054:7)
     async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
   ...
-# node:internal/modules/run_main:123
-#     triggerUncaughtException(
-#     ^
-# Error: Transform failed with 1 error:
-# /home/runner/work/pennant-sim/pennant-sim/src/engine/market.ts:41:9: ERROR: The symbol "generateMarketQuality" has already been declared
-#     at failureErrorWithLog (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:1748:15)
-#     at /home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:1017:50
-#     at responseCallbacks.<computed> (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:884:9)
-#     at handleIncomingPacket (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:939:12)
-#     at Socket.readFromStdout (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:862:7)
-#     at Socket.emit (node:events:519:28)
-#     at addChunk (node:internal/streams/readable:561:12)
-#     at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
-#     at Readable.push (node:internal/streams/readable:392:5)
-#     at Pipe.onStreamRead (node:internal/stream_base_commons:189:23) {
-#   name: 'TransformError'
-# }
-# Node.js v22.23.1
-# Subtest: tests/development-notices.test.ts
-not ok 4 - tests/development-notices.test.ts
+# Subtest: in-season awakening notices include localized boosts, breakthrough, and a new special
+ok 7 - in-season awakening notices include localized boosts, breakthrough, and a new special
   ---
-  duration_ms: 372.495865
+  duration_ms: 1.177308
   type: 'test'
-  location: '/home/runner/work/pennant-sim/pennant-sim/tests/development-notices.test.ts:1:1'
-  failureType: 'testCodeFailure'
-  exitCode: 1
-  signal: ~
-  error: 'test failed'
-  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: skipped-game notices detect only awakening logs added after the skip
+ok 8 - skipped-game notices detect only awakening logs added after the skip
+  ---
+  duration_ms: 75.81698
+  type: 'test'
+  ...
+# Subtest: offseason notices include major OVR changes and awakening details
+ok 9 - offseason notices include major OVR changes and awakening details
+  ---
+  duration_ms: 80.403894
+  type: 'test'
+  ...
+# Subtest: legacy notices receive stable ids and structured defaults during save migration
+ok 10 - legacy notices receive stable ids and structured defaults during save migration
+  ---
+  duration_ms: 46.55906
+  type: 'test'
+  ...
+# Subtest: mergeNotices removes duplicate ids and caps history
+ok 11 - mergeNotices removes duplicate ids and caps history
+  ---
+  duration_ms: 0.438155
+  type: 'test'
   ...
 # Subtest: 特殊能力がなければ従来の実効OVRと同じ
-ok 5 - 特殊能力がなければ従来の実効OVRと同じ
+ok 12 - 特殊能力がなければ従来の実効OVRと同じ
   ---
-  duration_ms: 1.58608
+  duration_ms: 3.505797
   type: 'test'
   ...
 # Subtest: 通常特殊能力は p × level × 通常係数で加算する
-ok 6 - 通常特殊能力は p × level × 通常係数で加算する
+ok 13 - 通常特殊能力は p × level × 通常係数で加算する
   ---
-  duration_ms: 0.439583
+  duration_ms: 0.496072
   type: 'test'
   ...
 # Subtest: ゴールド特殊能力にはゴールド係数を使う
-ok 7 - ゴールド特殊能力にはゴールド係数を使う
+ok 14 - ゴールド特殊能力にはゴールド係数を使う
   ---
-  duration_ms: 0.212779
+  duration_ms: 0.232863
   type: 'test'
   ...
 # Subtest: 明示されたネガティブ特殊能力IDは減点する
-ok 8 - 明示されたネガティブ特殊能力IDは減点する
+ok 15 - 明示されたネガティブ特殊能力IDは減点する
   ---
-  duration_ms: 0.279473
+  duration_ms: 0.31769
   type: 'test'
   ...
 # Subtest: 特殊能力補正は±10にクランプする
-ok 9 - 特殊能力補正は±10にクランプする
+ok 16 - 特殊能力補正は±10にクランプする
   ---
-  duration_ms: 0.601536
+  duration_ms: 0.669855
   type: 'test'
   ...
 # Subtest: includeSpecials=falseなら表示補正を無効化できる
-ok 10 - includeSpecials=falseなら表示補正を無効化できる
+ok 17 - includeSpecials=falseなら表示補正を無効化できる
   ---
-  duration_ms: 0.253725
+  duration_ms: 0.313082
   type: 'test'
   ...
 # Subtest: calcOVRとeffectiveOVRの値は表示用計算を呼んでも変化しない
-ok 11 - calcOVRとeffectiveOVRの値は表示用計算を呼んでも変化しない
+ok 18 - calcOVRとeffectiveOVRの値は表示用計算を呼んでも変化しない
   ---
-  duration_ms: 0.315661
+  duration_ms: 0.342427
   type: 'test'
   ...
 # Subtest: reorderIds moves an item to the hovered item position without mutating input
-ok 12 - reorderIds moves an item to the hovered item position without mutating input
+ok 19 - reorderIds moves an item to the hovered item position without mutating input
   ---
-  duration_ms: 2.73842
+  duration_ms: 1.658543
   type: 'test'
   ...
 # Subtest: reorderIds supports moving upward and ignores invalid or identical targets
-ok 13 - reorderIds supports moving upward and ignores invalid or identical targets
+ok 20 - reorderIds supports moving upward and ignores invalid or identical targets
   ---
-  duration_ms: 0.392214
+  duration_ms: 0.27949
   type: 'test'
   ...
 # Subtest: swapRecordValues exchanges field assignments without mutating the source record
-ok 14 - swapRecordValues exchanges field assignments without mutating the source record
+ok 21 - swapRecordValues exchanges field assignments without mutating the source record
   ---
-  duration_ms: 0.604211
+  duration_ms: 0.390606
   type: 'test'
   ...
-# node:internal/modules/run_main:123
-#     triggerUncaughtException(
-#     ^
-# Error: Transform failed with 1 error:
-# /home/runner/work/pennant-sim/pennant-sim/src/engine/market.ts:41:9: ERROR: The symbol "generateMarketQuality" has already been declared
-#     at failureErrorWithLog (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:1748:15)
-#     at /home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:1017:50
-#     at responseCallbacks.<computed> (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:884:9)
-#     at handleIncomingPacket (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:939:12)
-#     at Socket.readFromStdout (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:862:7)
-#     at Socket.emit (node:events:519:28)
-#     at addChunk (node:internal/streams/readable:561:12)
-#     at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
-#     at Readable.push (node:internal/streams/readable:392:5)
-#     at Pipe.onStreamRead (node:internal/stream_base_commons:189:23) {
-#   name: 'TransformError'
-# }
-# Node.js v22.23.1
-# Subtest: tests/engine.unit.test.ts
-not ok 7 - tests/engine.unit.test.ts
+# Subtest: Phase B engine preserves league structure and can complete a game
+ok 22 - Phase B engine preserves league structure and can complete a game
   ---
-  duration_ms: 415.983159
+  duration_ms: 138.793325
   type: 'test'
-  location: '/home/runner/work/pennant-sim/pennant-sim/tests/engine.unit.test.ts:1:1'
-  failureType: 'testCodeFailure'
-  exitCode: 1
-  signal: ~
-  error: 'test failed'
-  code: 'ERR_TEST_FAILURE'
   ...
-# node:internal/modules/run_main:123
-#     triggerUncaughtException(
-#     ^
-# Error: Transform failed with 1 error:
-# /home/runner/work/pennant-sim/pennant-sim/src/engine/market.ts:41:9: ERROR: The symbol "generateMarketQuality" has already been declared
-#     at failureErrorWithLog (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:1748:15)
-#     at /home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:1017:50
-#     at responseCallbacks.<computed> (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:884:9)
-#     at handleIncomingPacket (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:939:12)
-#     at Socket.readFromStdout (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:862:7)
-#     at Socket.emit (node:events:519:28)
-#     at addChunk (node:internal/streams/readable:561:12)
-#     at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
-#     at Readable.push (node:internal/streams/readable:392:5)
-#     at Pipe.onStreamRead (node:internal/stream_base_commons:189:23) {
-#   name: 'TransformError'
-# }
-# Node.js v22.23.1
-# Subtest: tests/pitcher-plan.test.ts
-not ok 8 - tests/pitcher-plan.test.ts
+# Subtest: a rainout can be rescheduled as a doubleheader without changing game totals
+ok 23 - a rainout can be rescheduled as a doubleheader without changing game totals
   ---
-  duration_ms: 399.774083
+  duration_ms: 12.497141
   type: 'test'
-  location: '/home/runner/work/pennant-sim/pennant-sim/tests/pitcher-plan.test.ts:1:1'
-  failureType: 'testCodeFailure'
-  exitCode: 1
-  signal: ~
-  error: 'test failed'
-  code: 'ERR_TEST_FAILURE'
   ...
-# node:internal/modules/run_main:123
-#     triggerUncaughtException(
-#     ^
-# Error: Transform failed with 1 error:
-# /home/runner/work/pennant-sim/pennant-sim/src/engine/market.ts:41:9: ERROR: The symbol "generateMarketQuality" has already been declared
-#     at failureErrorWithLog (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:1748:15)
-#     at /home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:1017:50
-#     at responseCallbacks.<computed> (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:884:9)
-#     at handleIncomingPacket (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:939:12)
-#     at Socket.readFromStdout (/home/runner/work/pennant-sim/pennant-sim/node_modules/esbuild/lib/main.js:862:7)
-#     at Socket.emit (node:events:519:28)
-#     at addChunk (node:internal/streams/readable:561:12)
-#     at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
-#     at Readable.push (node:internal/streams/readable:392:5)
-#     at Pipe.onStreamRead (node:internal/stream_base_commons:189:23) {
-#   name: 'TransformError'
-# }
-# Node.js v22.23.1
-# Subtest: tests/storage.test.ts
-not ok 9 - tests/storage.test.ts
+# Subtest: platoon, park and prior-matchup context can benefit the batter
+ok 24 - platoon, park and prior-matchup context can benefit the batter
   ---
-  duration_ms: 371.483679
+  duration_ms: 32.711839
   type: 'test'
-  location: '/home/runner/work/pennant-sim/pennant-sim/tests/storage.test.ts:1:1'
-  failureType: 'testCodeFailure'
-  exitCode: 1
-  signal: ~
-  error: 'test failed'
-  code: 'ERR_TEST_FAILURE'
   ...
-1..17
-# tests 17
+# Subtest: growPlayer records a non-zero change when normal development rounds to zero
+ok 25 - growPlayer records a non-zero change when normal development rounds to zero
+  ---
+  duration_ms: 0.775652
+  type: 'test'
+  ...
+# Subtest: post-game processing awakens a participant and can award a special ability
+ok 26 - post-game processing awakens a participant and can award a special ability
+  ---
+  duration_ms: 71.767758
+  type: 'test'
+  ...
+# Subtest: post-game injuries set severity and exclude the player from the next lineup
+ok 27 - post-game injuries set severity and exclude the player from the next lineup
+  ---
+  duration_ms: 57.229415
+  type: 'test'
+  ...
+# Subtest: calcStandings records wins, losses, runs and ranks
+ok 28 - calcStandings records wins, losses, runs and ranks
+  ---
+  duration_ms: 18.501272
+  type: 'test'
+  ...
+# Subtest: legacy saves migrate with an empty pitcher plan
+ok 29 - legacy saves migrate with an empty pitcher plan
+  ---
+  duration_ms: 94.226509
+  type: 'test'
+  ...
+# Subtest: pitcher plan migration preserves valid string ids and removes invalid entries
+ok 30 - pitcher plan migration preserves valid string ids and removes invalid entries
+  ---
+  duration_ms: 60.382579
+  type: 'test'
+  ...
+# Subtest: empty rotation order exactly preserves automatic starter ordering
+ok 31 - empty rotation order exactly preserves automatic starter ordering
+  ---
+  duration_ms: 57.965032
+  type: 'test'
+  ...
+# Subtest: specified starters are prioritized and invalid ids fall back to automatic ordering
+ok 32 - specified starters are prioritized and invalid ids fall back to automatic ordering
+  ---
+  duration_ms: 58.053537
+  type: 'test'
+  ...
+# Subtest: closer priority uses the highest available configured closer and otherwise preserves array order
+ok 33 - closer priority uses the highest available configured closer and otherwise preserves array order
+  ---
+  duration_ms: 30.125571
+  type: 'test'
+  ...
+# Subtest: empty pitcher plans keep skip simulation byte-for-byte equivalent to the legacy path
+ok 34 - empty pitcher plans keep skip simulation byte-for-byte equivalent to the legacy path
+  ---
+  duration_ms: 136.434725
+  type: 'test'
+  ...
+# Subtest: legacy single save is copied to slot 1 without deleting the old key
+ok 35 - legacy single save is copied to slot 1 without deleting the old key
+  ---
+  duration_ms: 140.88338
+  type: 'test'
+  ...
+# Subtest: save slots are independent and active-slot save/load uses the selected key
+ok 36 - save slots are independent and active-slot save/load uses the selected key
+  ---
+  duration_ms: 242.269481
+  type: 'test'
+  ...
+# Subtest: export and import preserve save data including schedule metadata
+ok 37 - export and import preserve save data including schedule metadata
+  ---
+  duration_ms: 61.1002
+  type: 'test'
+  ...
+1..37
+# tests 37
 # suites 0
-# pass 10
-# fail 7
+# pass 35
+# fail 2
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 1122.848672
+# duration_ms 1870.531954

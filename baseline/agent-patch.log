@@ -9,3 +9,4 @@ Error: src/engine/players.ts: expected 1 occurrences, found 0: function generate
     at async file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-tune-1.mjs:24:1
 
 Node.js v22.23.1
+Removed duplicate market helper
