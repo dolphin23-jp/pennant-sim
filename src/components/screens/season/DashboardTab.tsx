@@ -5,6 +5,7 @@ import { bestLineup } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
 import { Button, Card, SectionTitle } from '../../ui';
 import { BoxScore } from '../../widgets/BoxScore';
+import { NoticeCenter } from '../../widgets/NoticeCenter';
 
 export function DashboardTab() {
   const game = useGameState();
@@ -141,6 +142,14 @@ export function DashboardTab() {
           <BoxScore game={game.lastGame} />
         </div>
       )}
+
+      <NoticeCenter
+        notices={game.notices}
+        teams={game.teams}
+        onSelectPlayer={game.selectPlayer}
+        onDismiss={game.dismissNotice}
+        onClear={game.clearNotices}
+      />
     </>
   );
 }

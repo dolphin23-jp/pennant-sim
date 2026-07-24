@@ -182,10 +182,15 @@ export interface InSeasonAwakeningEvent {
   isP: boolean;
   isBreakthrough: boolean;
   newSpecial: string | null;
+  changes: Array<{ param: keyof PlayerParams; boost: number }>;
 }
 export interface PostGameEvents {
   awakenings: InSeasonAwakeningEvent[];
   injuries: InjuryEvent[];
+}
+export interface DatedPostGameEvents {
+  date: string;
+  events: PostGameEvents;
 }
 export interface GameState {
   teams: Record<Side, Team>;

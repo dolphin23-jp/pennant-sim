@@ -21,10 +21,14 @@ export interface SeasonState {
 }
 
 export interface Notice {
+  id: string;
   title: string;
   body: string;
   tone?: 'good' | 'warn' | 'info';
   date?: string;
+  kind?: 'system' | 'awakening' | 'growth';
+  playerId?: string;
+  teamKey?: TeamKey;
 }
 
 export interface ChampionRecord {
@@ -184,6 +188,38 @@ const migratePitcherPlan = (plan: PitcherPlan | undefined): PitcherPlan => ({
     : [],
 });
 
+function migrateNotices(value: unknown): Notice[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap<Notice>((candidate, index) => {
+    if (!candidate || typeof candidate !== 'object') return [];
+    const raw = candidate as Partial<Notice>;
+    if (typeof raw.title !== 'string' || typeof raw.body !== 'string') return [];
+    const tone = raw.tone === 'good' || raw.tone === 'warn' || raw.tone === 'info'
+      ? raw.tone
+      : undefined;
+    const kind = raw.kind === 'system' || raw.kind === 'awakening' || raw.kind === 'growth'
+      ? raw.kind
+      : 'system';
+    const teamKey = typeof raw.teamKey === 'string' && teamKeys.includes(raw.teamKey as TeamKey)
+      ? (raw.teamKey as TeamKey)
+      : undefined;
+    const date = typeof raw.date === 'string' ? raw.date : undefined;
+    return [{
+      id:
+        typeof raw.id === 'string' && raw.id.length > 0
+          ? raw.id
+          : `legacy:${index}:${date ?? 'unknown'}:${raw.title}`,
+      title: raw.title,
+      body: raw.body,
+      tone,
+      date,
+      kind,
+      playerId: typeof raw.playerId === 'string' ? raw.playerId : undefined,
+      teamKey,
+    }];
+  });
+}
+
 export function migrateSaveData(raw: unknown): GameSaveData | null {
   if (!raw || typeof raw !== 'object') return null;
   const legacy = raw as Partial<GameSaveData>;
@@ -212,7 +248,7 @@ export function migrateSaveData(raw: unknown): GameSaveData | null {
     leagueCareerAccumulated: legacy.leagueCareerAccumulated ?? {},
     yearlyStats: legacy.yearlyStats ?? {},
     retiredPlayers: Array.isArray(legacy.retiredPlayers) ? legacy.retiredPlayers : [],
-    notices: Array.isArray(legacy.notices) ? legacy.notices : [],
+    notices: migrateNotices(legacy.notices),
     championHistory: Array.isArray(legacy.championHistory) ? legacy.championHistory : [],
     ts: legacy.ts,
     uiVersion: 2,

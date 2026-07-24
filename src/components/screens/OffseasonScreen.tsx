@@ -12,6 +12,7 @@ import {
 } from '../../engine';
 import type { Player, TeamKey, Teams } from '../../engine';
 import { useGameState } from '../../state/gameState';
+import { createOffseasonDevelopmentNotices } from '../../state/notices';
 import { applyTrade, generateTradeOffers } from '../../state/offseason';
 import { Button, Card, EmptyState, PageShell, SectionTitle } from '../ui';
 import { DraftScreen } from './DraftScreen';
@@ -38,6 +39,15 @@ function OffseasonContent({
 }) {
   const [phase, setPhase] = useState<OffseasonPhase>('growth');
   const [growthResult] = useState(() => growthPhase(initialTeams));
+  const [developmentNotices] = useState(() =>
+    createOffseasonDevelopmentNotices(
+      initialTeams[playerTeam],
+      growthResult.teams[playerTeam],
+      growthResult.awakeEvents,
+      playerTeam,
+      game.season.year,
+    ),
+  );
   const [workTeams, setWorkTeams] = useState<Teams>(growthResult.teams);
   const [faMarket, setFaMarket] = useState<Player[]>(() => genFreeAgentMarket());
   const [foreignMarket, setForeignMarket] = useState<Player[]>(() => genForeignMarket());
@@ -47,25 +57,18 @@ function OffseasonContent({
   );
 
   const teamInfo = TINFO[playerTeam];
-  const originalPlayers = useMemo(
-    () => [...initialTeams[playerTeam].fielders, ...initialTeams[playerTeam].pitchers],
-    [initialTeams, playerTeam],
+  const grownPlayerById = useMemo(
+    () =>
+      new Map(
+        [
+          ...growthResult.teams[playerTeam].fielders,
+          ...growthResult.teams[playerTeam].pitchers,
+        ].map((player) => [player.id, player]),
+      ),
+    [growthResult.teams, playerTeam],
   );
-  const growthSummary = useMemo(() => {
-    const originalById = new Map(originalPlayers.map((player) => [player.id, player]));
-    return [...workTeams[playerTeam].fielders, ...workTeams[playerTeam].pitchers]
-      .map((player) => {
-        const original = originalById.get(player.id);
-        if (!original) return null;
-        const difference = calcOVR(player, player.pos) - calcOVR(original, original.pos);
-        return Math.abs(difference) >= 3 ? { player, difference } : null;
-      })
-      .filter(
-        (entry): entry is { player: Player; difference: number } => entry !== null,
-      )
-      .sort((first, second) => Math.abs(second.difference) - Math.abs(first.difference))
-      .slice(0, 10);
-  }, [originalPlayers, playerTeam, workTeams]);
+  const growthSummary = developmentNotices.filter((notice) => notice.kind === 'growth');
+  const awakeningSummary = developmentNotices.filter((notice) => notice.kind === 'awakening');
   const retirementCandidates = useMemo(
     () =>
       [...workTeams[playerTeam].pitchers, ...workTeams[playerTeam].fielders]
@@ -105,7 +108,7 @@ function OffseasonContent({
     <PageShell>
       <header style={{ marginBottom: 16 }}>
         <h1 style={{ margin: 0 }}>{game.season.year}年オフシーズン</h1>
-        <div style={{ color: '#7f9ab4', fontSize: 12, marginTop: 5 }}>
+        <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 5 }}>
           成長 → 引退 → FA → 外国人 → トレード → ドラフト / 現在: {phase}
         </div>
       </header>
@@ -114,46 +117,106 @@ function OffseasonContent({
         <div>
           <Card style={{ marginBottom: 12 }}>
             <SectionTitle>主な成長</SectionTitle>
+            <div style={{ color: 'var(--color-text-muted)', fontSize: 11, marginBottom: 8 }}>
+              OVRが3以上変動した選手を最大10名表示します。この内容は翌季の通知にも保存されます。
+            </div>
             {growthSummary.length ? (
-              growthSummary.map(({ player, difference }) => (
-                <div
-                  key={player.id}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    padding: '7px 0',
-                    borderTop: '1px solid #17283a',
-                  }}
-                >
-                  <span>{player.name} / {player.age}歳</span>
-                  <strong style={{ color: difference >= 0 ? '#38f27f' : '#ff6b82' }}>
-                    {difference > 0 ? '+' : ''}{difference}
-                  </strong>
-                </div>
-              ))
+              <div style={{ display: 'grid', gap: 7 }}>
+                {growthSummary.map((notice) => {
+                  const player = notice.playerId ? grownPlayerById.get(notice.playerId) : null;
+                  return (
+                    <article
+                      key={notice.id}
+                      style={{
+                        padding: '9px 10px',
+                        border: '1px solid var(--color-border)',
+                        borderLeft: `4px solid ${notice.tone === 'warn' ? 'var(--color-warning)' : 'var(--color-success)'}`,
+                        borderRadius: 9,
+                        background: 'var(--color-surface-raised)',
+                      }}
+                    >
+                      {player ? (
+                        <button
+                          type="button"
+                          className="roster-player-button"
+                          aria-label={`${notice.title}。${player.name}の詳細を表示`}
+                          onClick={() => game.selectPlayer(player)}
+                        >
+                          {notice.title}
+                        </button>
+                      ) : (
+                        <strong>{notice.title}</strong>
+                      )}
+                      <div
+                        style={{
+                          marginTop: 4,
+                          color: 'var(--color-text-muted)',
+                          fontSize: 11,
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        {notice.body}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
             ) : (
               <EmptyState>大きな能力変動はありません。</EmptyState>
             )}
           </Card>
           <Card style={{ marginBottom: 12 }}>
             <SectionTitle>覚醒イベント</SectionTitle>
-            {growthResult.awakeEvents.filter((event) => event.tk === playerTeam).length ? (
-              growthResult.awakeEvents
-                .filter((event) => event.tk === playerTeam)
-                .map((event, index) => (
-                  <div key={`${event.player.id}-${index}`} style={{ padding: '7px 0' }}>
-                    <strong>{event.name}</strong>
-                    <div style={{ color: '#7f9ab4', fontSize: 11 }}>
-                      {event.events.map((item) => `${String(item.param)} +${item.boost}`).join(' / ')}
-                    </div>
-                  </div>
-                ))
+            {awakeningSummary.length ? (
+              <div style={{ display: 'grid', gap: 7 }}>
+                {awakeningSummary.map((notice) => {
+                  const player = notice.playerId ? grownPlayerById.get(notice.playerId) : null;
+                  return (
+                    <article
+                      key={notice.id}
+                      style={{
+                        padding: '9px 10px',
+                        border: '1px solid var(--color-border)',
+                        borderLeft: '4px solid var(--color-growth)',
+                        borderRadius: 9,
+                        background:
+                          'color-mix(in srgb, var(--color-growth) 8%, var(--color-surface-raised))',
+                      }}
+                    >
+                      {player ? (
+                        <button
+                          type="button"
+                          className="roster-player-button"
+                          aria-label={`${notice.title}。${player.name}の詳細を表示`}
+                          onClick={() => game.selectPlayer(player)}
+                        >
+                          {notice.title}
+                        </button>
+                      ) : (
+                        <strong>{notice.title}</strong>
+                      )}
+                      <div
+                        style={{
+                          marginTop: 4,
+                          color: 'var(--color-text-muted)',
+                          fontSize: 11,
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        {notice.body}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
             ) : (
               <EmptyState>覚醒イベントはありません。</EmptyState>
             )}
           </Card>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Button onClick={() => setPhase('retire')} color={teamInfo.c}>引退管理へ</Button>
+            <Button onClick={() => setPhase('retire')} color={teamInfo.c}>
+              引退管理へ
+            </Button>
           </div>
         </div>
       )}
@@ -175,7 +238,7 @@ function OffseasonContent({
                       alignItems: 'center',
                       gap: 10,
                       padding: '8px 0',
-                      borderTop: '1px solid #17283a',
+                      borderTop: '1px solid var(--color-border)',
                       cursor: 'pointer',
                     }}
                   >
@@ -198,8 +261,12 @@ function OffseasonContent({
             )}
           </Card>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Button onClick={() => setPhase('growth')} color="#1a2535">戻る</Button>
-            <Button onClick={completeRetirements} color={teamInfo.c}>FA市場へ</Button>
+            <Button onClick={() => setPhase('growth')} color="var(--color-surface-muted)">
+              戻る
+            </Button>
+            <Button onClick={completeRetirements} color={teamInfo.c}>
+              FA市場へ
+            </Button>
           </div>
         </div>
       )}
@@ -258,7 +325,7 @@ function OffseasonContent({
         <DraftScreen
           teams={workTeams}
           playerTeam={playerTeam}
-          onComplete={(draftedTeams) => game.completeOffseason(draftedTeams)}
+          onComplete={(draftedTeams) => game.completeOffseason(draftedTeams, developmentNotices)}
         />
       )}
     </PageShell>

@@ -30,6 +30,11 @@ import type {
   Teams,
 } from '../engine';
 import {
+  createInSeasonDevelopmentNotices,
+  createSkippedInSeasonDevelopmentNotices,
+  mergeNotices,
+} from './notices';
+import {
   createEmptyPitcherPlan,
   createEmptyRotations,
   loadGame,
@@ -83,8 +88,10 @@ interface GameContextValue extends RuntimeState {
   setLineup(lineup: Player[]): void;
   setPitcherPlan(plan: PitcherPlan): void;
   selectPlayer(player: Player | null): void;
+  dismissNotice(noticeId: string): void;
+  clearNotices(): void;
   replaceTeams(teams: Teams): void;
-  completeOffseason(teams: Teams): void;
+  completeOffseason(teams: Teams, developmentNotices?: Notice[]): void;
 }
 
 const initialState: RuntimeState = {
@@ -153,6 +160,23 @@ function snapshotFromState(state: RuntimeState): GameSaveData | null {
   };
 }
 
+function lastNewPlayerGameDate(
+  before: SeasonState['schedule'],
+  after: SeasonState['schedule'],
+  playerTeam: TeamKey,
+): string | null {
+  const beforeById = new Map(before.map((game) => [game.id, game]));
+  return after
+    .filter(
+      (game) =>
+        game.played &&
+        !beforeById.get(game.id)?.played &&
+        (game.homeKey === playerTeam || game.awayKey === playerTeam),
+    )
+    .map((game) => game.date)
+    .sort((first, second) => second.localeCompare(first))[0] ?? null;
+}
+
 export function GameProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<RuntimeState>(initialState);
 
@@ -169,7 +193,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
         saved.lineup.length || !saved.playerTeam
           ? saved.lineup
           : bestLineup(saved.teams[saved.playerTeam]);
-      const seasonOver = saved.season.schedule.length > 0 && saved.season.schedule.every((game) => game.played);
+      const seasonOver =
+        saved.season.schedule.length > 0 &&
+        saved.season.schedule.every((game) => game.played);
       setState({
         ...initialState,
         ...saved,
@@ -210,9 +236,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
         leagueCareerAccumulated: prepared.leagueDistStats,
         notices: [
           {
+            id: `system:2026:start:${teamKey}`,
+            kind: 'system',
             title: `${teams[teamKey].ab}で新規開始`,
-            body: 'Phase Bエンジンを使用するTypeScript版でシーズンを開始しました。',
+            body: 'TypeScript版でシーズンを開始しました。',
             tone: 'good',
+            date: '2026年開幕',
+            teamKey,
           },
         ],
       };
@@ -272,6 +302,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
         leagueCareerAccumulated,
         prepared.leagueDistStats,
       );
+      const developmentNotices = createInSeasonDevelopmentNotices(
+        result.postGameEvents,
+        current.playerTeam,
+        nextGame.date,
+      );
       const seasonOver = prepared.sched.every((game) => game.played);
       return {
         ...current,
@@ -283,6 +318,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         leagueAccumulated: finalLeagueStats,
         careerAccumulated,
         leagueCareerAccumulated: finalCareerLeagueStats,
+        notices: mergeNotices(current.notices, developmentNotices),
         lastGame: result,
       };
     });
@@ -291,6 +327,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const skip = useCallback((mode: 'next' | 'week' | 'month' | 'season') => {
     setState((current) => {
       if (!current.teams || !current.playerTeam) return current;
+      const beforeTeam = current.teams[current.playerTeam];
       const result = skipGamesWithPitcherPlan(
         current.season.schedule,
         current.teams,
@@ -303,6 +340,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const accumulated = mergeStats(current.accumulated, result.distStats);
       const leagueAccumulated = mergeStats(current.leagueAccumulated, result.leagueDistStats);
       const seasonOver = result.sched.every((game) => game.played);
+      const noticeDate =
+        lastNewPlayerGameDate(current.season.schedule, result.sched, current.playerTeam) ??
+        `${current.season.year}年`;
+      const developmentNotices = createSkippedInSeasonDevelopmentNotices(
+        beforeTeam,
+        current.teams[current.playerTeam],
+        current.playerTeam,
+        noticeDate,
+      );
       return {
         ...current,
         screen: seasonOver ? 'postseason' : 'season',
@@ -316,6 +362,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           current.leagueCareerAccumulated,
           result.leagueDistStats,
         ),
+        notices: mergeNotices(current.notices, developmentNotices),
       };
     });
   }, []);
@@ -325,7 +372,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return snapshot ? saveGame(snapshot) : false;
   }, [state]);
 
-  const completeOffseason = useCallback((teams: Teams) => {
+  const completeOffseason = useCallback((teams: Teams, developmentNotices: Notice[] = []) => {
     setState((current) => {
       if (!current.playerTeam) return current;
       const year = current.season.year + 1;
@@ -347,6 +394,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         standings: calcStandings(prepared.sched),
         accumulated: {},
         leagueAccumulated: prepared.leagueDistStats,
+        notices: mergeNotices(current.notices, developmentNotices),
         lastGame: null,
       };
     });
@@ -368,6 +416,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setPitcherPlan: (pitcherPlan) => setState((current) => ({ ...current, pitcherPlan })),
       selectPlayer: (selectedPlayer) =>
         setState((current) => ({ ...current, selectedPlayer })),
+      dismissNotice: (noticeId) =>
+        setState((current) => ({
+          ...current,
+          notices: current.notices.filter((notice) => notice.id !== noticeId),
+        })),
+      clearNotices: () => setState((current) => ({ ...current, notices: [] })),
       replaceTeams: (teams) => setState((current) => ({ ...current, teams })),
       completeOffseason,
     }),
