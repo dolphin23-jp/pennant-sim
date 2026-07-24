@@ -9,6 +9,8 @@ import {
   initTeams,
   simulateGame,
   type AccumulatedStats,
+  type Player,
+  type PlayerParams,
   type PlayerStats,
   type TeamKey,
   type Teams,
@@ -73,9 +75,57 @@ function percentile(values: number[], fraction: number): number {
     index = Math.max(0, Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1));
   return sorted[index] as number;
 }
+function playerPotentialGaps(player: Player): number[] {
+  const parameters: Array<keyof PlayerParams> = player.isP
+    ? ['vel', 'ctrl', 'stam', 'nobi', 'fld']
+    : [
+        'cf',
+        'cb',
+        'pw',
+        'dc',
+        'sp',
+        'df',
+        'arm',
+        'stam',
+        ...(player.pos === '捕手' ? (['ld'] as Array<keyof PlayerParams>) : []),
+      ];
+  return parameters.map((parameter) =>
+    Math.max(
+      0,
+      Number(player.pot?.[parameter] ?? player.p?.[parameter] ?? 50) -
+        Number(player.p?.[parameter] ?? 50),
+    ),
+  );
+}
+function potentialMetrics(players: Player[]) {
+  const maximumGaps = players.map((player) => Math.max(...playerPotentialGaps(player))),
+    averageGaps = players.map((player) => {
+      const gaps = playerPotentialGaps(player);
+      return gaps.reduce((total, gap) => total + gap, 0) / gaps.length;
+    });
+  return {
+    latentFactorMaximumRate: safeRatio(
+      maximumGaps.filter((gap) => gap >= 20).length,
+      maximumGaps.length,
+    ),
+    potentialGap40PlusRate: safeRatio(
+      maximumGaps.filter((gap) => gap >= 40).length,
+      maximumGaps.length,
+    ),
+    meanMaximumPotentialGap:
+      maximumGaps.reduce((total, gap) => total + gap, 0) / maximumGaps.length,
+    meanAveragePotentialGap:
+      averageGaps.reduce((total, gap) => total + gap, 0) / averageGaps.length,
+    elitePotentialRate: safeRatio(
+      players.filter((player) => player.potentialClass === 'elite').length,
+      players.length,
+    ),
+  };
+}
 function rosterMetrics(teams: Teams) {
   const batters = Object.values(teams).flatMap((team) => team.fielders),
     pitchers = Object.values(teams).flatMap((team) => team.pitchers),
+    allPlayers = [...batters, ...pitchers],
     batterOvrs = batters.map((player) => calcOVR(player, player.pos)),
     pitcherOvrs = pitchers.map((player) => calcOVR(player)),
     teamOvr85Counts = Object.values(teams).map(
@@ -95,6 +145,7 @@ function rosterMetrics(teams: Teams) {
     averageTeamOvr85PlusCount:
       teamOvr85Counts.reduce((total, count) => total + count, 0) / teamOvr85Counts.length,
     minimumTeamOvr85PlusCount: Math.min(...teamOvr85Counts),
+    ...potentialMetrics(allPlayers),
   };
 }
 function finalizeSeason(accumulatedStats: AccumulatedStats, games: number) {
@@ -219,10 +270,30 @@ async function main(): Promise<void> {
         summarize(seasonStats.map((stats) => stats.minimumTeamOvr85PlusCount)),
         3,
       ),
+      latentFactorMaximumRate: roundSummary(
+        summarize(seasonStats.map((stats) => stats.latentFactorMaximumRate)),
+        6,
+      ),
+      potentialGap40PlusRate: roundSummary(
+        summarize(seasonStats.map((stats) => stats.potentialGap40PlusRate)),
+        6,
+      ),
+      meanMaximumPotentialGap: roundSummary(
+        summarize(seasonStats.map((stats) => stats.meanMaximumPotentialGap)),
+        6,
+      ),
+      meanAveragePotentialGap: roundSummary(
+        summarize(seasonStats.map((stats) => stats.meanAveragePotentialGap)),
+        6,
+      ),
+      elitePotentialRate: roundSummary(
+        summarize(seasonStats.map((stats) => stats.elitePotentialRate)),
+        6,
+      ),
     },
     targetEvaluation = evaluateNpbScoringTargets(summary),
     output = {
-      schemaVersion: 4,
+      schemaVersion: 5,
       source: 'src/engine',
       seasons: options.seasons,
       seed: options.seed,

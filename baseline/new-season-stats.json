@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "source": "src/engine",
   "seasons": 100,
   "seed": 20260723,
@@ -122,6 +122,26 @@
     },
     "minimumTeamOvr85PlusCount": {
       "mean": 2,
+      "standardDeviation": 0
+    },
+    "latentFactorMaximumRate": {
+      "mean": 0.962897,
+      "standardDeviation": 0.00654
+    },
+    "potentialGap40PlusRate": {
+      "mean": 0.039881,
+      "standardDeviation": 0.007149
+    },
+    "meanMaximumPotentialGap": {
+      "mean": 29.417526,
+      "standardDeviation": 0.173516
+    },
+    "meanAveragePotentialGap": {
+      "mean": 18.922653,
+      "standardDeviation": 0.101791
+    },
+    "elitePotentialRate": {
+      "mean": 0,
       "standardDeviation": 0
     }
   }
