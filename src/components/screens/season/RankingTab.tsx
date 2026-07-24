@@ -1,9 +1,5 @@
 import { TINFO } from '../../../data';
-import {
-  averageText,
-  ops,
-  qualifiesForRate,
-} from '../../../engine';
+import { ops, qualifiesForRate } from '../../../engine';
 import type { Player, PlayerStats, TeamKey } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
 import { Card, EmptyState, SectionTitle } from '../../ui';
