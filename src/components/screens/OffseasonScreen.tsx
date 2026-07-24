@@ -22,6 +22,91 @@ import { TradeScreen } from './TradeScreen';
 type OffseasonPhase = 'growth' | 'retire' | 'fa' | 'foreign' | 'trade' | 'draft';
 type GameStateValue = ReturnType<typeof useGameState>;
 
+const OFFSEASON_STEPS: Array<{ id: OffseasonPhase; label: string }> = [
+  { id: 'growth', label: '成長' },
+  { id: 'retire', label: '引退' },
+  { id: 'fa', label: 'FA' },
+  { id: 'foreign', label: '外国人' },
+  { id: 'trade', label: 'トレード' },
+  { id: 'draft', label: 'ドラフト' },
+];
+
+function OffseasonStepper({ phase }: { phase: OffseasonPhase }) {
+  const currentIndex = OFFSEASON_STEPS.findIndex((step) => step.id === phase);
+  return (
+    <ol
+      aria-label="オフシーズンの進行状況"
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: 4,
+        margin: '10px 0 0',
+        padding: 0,
+        listStyle: 'none',
+      }}
+    >
+      {OFFSEASON_STEPS.map((step, index) => {
+        const state = index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'upcoming';
+        return (
+          <li key={step.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span
+              aria-current={state === 'current' ? 'step' : undefined}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '5px 10px',
+                border: `1px solid ${
+                  state === 'current'
+                    ? 'var(--color-accent)'
+                    : state === 'done'
+                      ? 'var(--color-success)'
+                      : 'var(--color-border)'
+                }`,
+                borderRadius: 999,
+                background: state === 'current' ? 'var(--color-accent-soft)' : 'transparent',
+                color:
+                  state === 'current'
+                    ? 'var(--color-accent)'
+                    : state === 'done'
+                      ? 'var(--color-success)'
+                      : 'var(--color-text-faint)',
+                fontSize: 12,
+                fontWeight: 800,
+              }}
+            >
+              {state === 'done' ? (
+                <span aria-hidden="true">✓</span>
+              ) : (
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: 2,
+                    background: state === 'current' ? 'var(--color-leader)' : 'var(--color-border-strong)',
+                    boxShadow:
+                      state === 'current'
+                        ? '0 0 5px 1px color-mix(in srgb, var(--color-leader) 55%, transparent)'
+                        : undefined,
+                  }}
+                />
+              )}
+              {step.label}
+            </span>
+            {index < OFFSEASON_STEPS.length - 1 && (
+              <span aria-hidden="true" style={{ color: 'var(--color-border-strong)', fontSize: 11 }}>
+                →
+              </span>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 export function OffseasonScreen() {
   const game = useGameState();
   if (!game.teams || !game.playerTeam) return null;
@@ -108,9 +193,7 @@ function OffseasonContent({
     <PageShell>
       <header style={{ marginBottom: 16 }}>
         <h1 style={{ margin: 0 }}>{game.season.year}年オフシーズン</h1>
-        <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 5 }}>
-          成長 → 引退 → FA → 外国人 → トレード → ドラフト / 現在: {phase}
-        </div>
+        <OffseasonStepper phase={phase} />
       </header>
 
       {phase === 'growth' && (

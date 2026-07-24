@@ -239,7 +239,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
             id: `system:2026:start:${teamKey}`,
             kind: 'system',
             title: `${teams[teamKey].ab}で新規開始`,
-            body: 'TypeScript版でシーズンを開始しました。',
+            body: '新しいペナントレースが開幕しました。',
             tone: 'good',
             date: '2026年開幕',
             teamKey,

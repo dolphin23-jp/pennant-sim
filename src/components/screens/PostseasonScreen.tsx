@@ -91,36 +91,218 @@ function simulateSeries(
   };
 }
 
-function SeriesCard({ title, series }: { title: string; series: SeriesResult }) {
+function TeamPill({ teamKey, won, wins }: { teamKey: TeamKey; won: boolean; wins: number }) {
+  const info = TINFO[teamKey];
   return (
-    <Card>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 8,
+        padding: '6px 10px',
+        border: `1px solid ${won ? info.c : 'var(--color-border)'}`,
+        borderRadius: 8,
+        background: won
+          ? `color-mix(in srgb, ${info.c} 16%, var(--color-surface-raised))`
+          : 'var(--color-surface-raised)',
+        boxShadow: won ? `0 0 8px color-mix(in srgb, ${info.c} 45%, transparent)` : undefined,
+      }}
+    >
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800 }}>
+        <span
+          aria-hidden="true"
+          style={{ width: 8, height: 8, borderRadius: 2, background: info.c, flex: 'none' }}
+        />
+        {info.ab}
+      </span>
+      <strong
+        style={{
+          fontFamily: 'var(--font-display)',
+          color: won ? info.c : 'var(--color-text-muted)',
+        }}
+      >
+        {wins}
+      </strong>
+    </div>
+  );
+}
+
+function PendingPill({ teamKey }: { teamKey: TeamKey }) {
+  const info = TINFO[teamKey];
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '6px 10px',
+        border: '1px solid var(--color-border)',
+        borderRadius: 8,
+        background: 'var(--color-surface-raised)',
+        color: 'var(--color-text-muted)',
+        fontWeight: 800,
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{ width: 8, height: 8, borderRadius: 2, background: info.c, flex: 'none' }}
+      />
+      {info.ab}
+    </div>
+  );
+}
+
+function SeriesCard({
+  title,
+  series,
+  first,
+  second,
+  note,
+}: {
+  title: string;
+  series: SeriesResult | null;
+  first: TeamKey;
+  second: TeamKey;
+  note?: string;
+}) {
+  return (
+    <Card ariaLabel={title}>
       <SectionTitle>{title}</SectionTitle>
-      <div style={{ fontWeight: 900, marginBottom: 5 }}>
-        {TINFO[series.first].ab} {series.firstWins} - {series.secondWins}{' '}
-        {TINFO[series.second].ab}
-      </div>
-      <div style={{ color: '#7f9ab4', fontSize: 12, marginBottom: 9 }}>
-        勝者: {TINFO[series.winner].n}
-      </div>
-      <div style={{ display: 'grid', gap: 4 }}>
-        {series.games.map((game) => (
-          <div
-            key={game.game}
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              padding: '5px 7px',
-              background: '#0f2233',
-              borderRadius: 5,
-              fontSize: 11,
-            }}
-          >
-            <span>G{game.game} {TINFO[game.home].ab} vs {TINFO[game.away].ab}</span>
-            <span>{game.homeScore}-{game.awayScore}{game.winner ? '' : '（引分）'}</span>
+      {note && (
+        <div style={{ color: 'var(--color-text-faint)', fontSize: 11, marginBottom: 8 }}>{note}</div>
+      )}
+      {!series ? (
+        <div style={{ display: 'grid', gap: 6 }}>
+          <PendingPill teamKey={first} />
+          <PendingPill teamKey={second} />
+        </div>
+      ) : (
+        <>
+          <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
+            <TeamPill teamKey={series.first} won={series.winner === series.first} wins={series.firstWins} />
+            <TeamPill
+              teamKey={series.second}
+              won={series.winner === series.second}
+              wins={series.secondWins}
+            />
           </div>
-        ))}
-      </div>
+          <div style={{ display: 'grid', gap: 4 }}>
+            {series.games.map((game) => (
+              <div
+                key={game.game}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  padding: '5px 7px',
+                  background: 'var(--color-surface-muted)',
+                  borderRadius: 5,
+                  color: 'var(--color-text-muted)',
+                  fontSize: 11,
+                }}
+              >
+                <span>
+                  G{game.game} {TINFO[game.home].ab} vs {TINFO[game.away].ab}
+                </span>
+                <span style={{ fontFamily: 'var(--font-display)' }}>
+                  {game.homeScore}-{game.awayScore}
+                  {game.winner ? '' : '（引分）'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </Card>
+  );
+}
+
+function BracketArrow() {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'var(--color-border-strong)',
+        fontSize: 22,
+      }}
+    >
+      →
+    </div>
+  );
+}
+
+function LeagueBracketRow({
+  leagueLabel,
+  first,
+  second,
+  third,
+  firstSeries,
+  finalSeries,
+}: {
+  leagueLabel: string;
+  first: TeamKey;
+  second: TeamKey;
+  third: TeamKey;
+  firstSeries: SeriesResult | null;
+  finalSeries: SeriesResult | null;
+}) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(200px,1fr) 30px minmax(200px,1fr)',
+        gap: 8,
+        alignItems: 'center',
+      }}
+    >
+      <SeriesCard
+        title={`${leagueLabel} CS 1st`}
+        series={firstSeries}
+        first={second}
+        second={third}
+        note={`2位 ${TINFO[second].ab} vs 3位 ${TINFO[third].ab}`}
+      />
+      <BracketArrow />
+      <SeriesCard
+        title={`${leagueLabel} CS Final`}
+        series={finalSeries}
+        first={first}
+        second={firstSeries?.winner ?? second}
+        note={`1位 ${TINFO[first].ab} に1勝のアドバンテージ`}
+      />
+    </div>
+  );
+}
+
+function ChampionPennant({ teamKey }: { teamKey: TeamKey }) {
+  const info = TINFO[teamKey];
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        padding: '14px 18px',
+        border: `1px solid ${info.c}`,
+        borderRadius: 10,
+        background: `color-mix(in srgb, ${info.c} 12%, var(--color-surface-raised))`,
+        boxShadow: `0 0 20px color-mix(in srgb, ${info.c} 35%, transparent)`,
+      }}
+    >
+      <svg width="46" height="52" viewBox="0 0 46 52" role="img" aria-label={`${info.n}が日本一`}>
+        <path d="M6 2 L6 50 L40 26 Z" fill={info.c} stroke="var(--color-bg)" strokeWidth="1.5" />
+        <line x1="6" y1="2" x2="6" y2="50" stroke="var(--color-text-faint)" strokeWidth="2" />
+      </svg>
+      <div>
+        <div style={{ color: 'var(--color-text-faint)', fontSize: 11, fontWeight: 700 }}>
+          日本一 CHAMPION
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: info.c }}>{info.n}</div>
+      </div>
+    </div>
   );
 }
 
@@ -139,48 +321,30 @@ export function PostseasonScreen() {
   if (!teams) return null;
 
   const runPostseason = () => {
-    const centralFirst = simulateSeries(
-      centralRanking[1],
-      centralRanking[2],
-      3,
-      teams,
-    );
-    const pacificFirst = simulateSeries(
-      pacificRanking[1],
-      pacificRanking[2],
-      3,
-      teams,
-    );
-    const centralFinal = simulateSeries(
-      centralRanking[0],
-      centralFirst.winner,
-      7,
-      teams,
-      1,
-    );
-    const pacificFinal = simulateSeries(
-      pacificRanking[0],
-      pacificFirst.winner,
-      7,
-      teams,
-      1,
-    );
-    const japanSeries = simulateSeries(
-      centralFinal.winner,
-      pacificFinal.winner,
-      7,
-      teams,
-    );
+    const centralFirst = simulateSeries(centralRanking[1], centralRanking[2], 3, teams);
+    const pacificFirst = simulateSeries(pacificRanking[1], pacificRanking[2], 3, teams);
+    const centralFinal = simulateSeries(centralRanking[0], centralFirst.winner, 7, teams, 1);
+    const pacificFinal = simulateSeries(pacificRanking[0], pacificFirst.winner, 7, teams, 1);
+    const japanSeries = simulateSeries(centralFinal.winner, pacificFinal.winner, 7, teams);
     setResults({ centralFirst, centralFinal, pacificFirst, pacificFinal, japanSeries });
   };
 
   return (
     <PageShell>
-      <header style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 16 }}>
+      <header
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: 12,
+          alignItems: 'center',
+          marginBottom: 16,
+          flexWrap: 'wrap',
+        }}
+      >
         <div>
           <h1 style={{ margin: 0 }}>ポストシーズン</h1>
-          <div style={{ color: '#7f9ab4', fontSize: 12, marginTop: 5 }}>
-            Phase Bの試合エンジンで各シリーズを実行します。
+          <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 5 }}>
+            クライマックスシリーズと日本シリーズをまとめて実行します。
           </div>
         </div>
         {!results ? (
@@ -190,32 +354,48 @@ export function PostseasonScreen() {
         )}
       </header>
 
-      {!results ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 12 }}>
-          <Card>
-            <SectionTitle>Central League</SectionTitle>
-            {centralRanking.slice(0, 3).map((teamKey, index) => (
-              <div key={teamKey} style={{ padding: '6px 0' }}>{index + 1}. {TINFO[teamKey].n}</div>
-            ))}
-          </Card>
-          <Card>
-            <SectionTitle>Pacific League</SectionTitle>
-            {pacificRanking.slice(0, 3).map((teamKey, index) => (
-              <div key={teamKey} style={{ padding: '6px 0' }}>{index + 1}. {TINFO[teamKey].n}</div>
-            ))}
-          </Card>
+      <div style={{ display: 'grid', gap: 14 }}>
+        <LeagueBracketRow
+          leagueLabel="セ・リーグ"
+          first={centralRanking[0]}
+          second={centralRanking[1]}
+          third={centralRanking[2]}
+          firstSeries={results?.centralFirst ?? null}
+          finalSeries={results?.centralFinal ?? null}
+        />
+        <LeagueBracketRow
+          leagueLabel="パ・リーグ"
+          first={pacificRanking[0]}
+          second={pacificRanking[1]}
+          third={pacificRanking[2]}
+          firstSeries={results?.pacificFirst ?? null}
+          finalSeries={results?.pacificFinal ?? null}
+        />
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0,1fr) 30px minmax(200px,320px)',
+            gap: 8,
+            alignItems: 'center',
+          }}
+        >
+          <div />
+          <BracketArrow />
+          <SeriesCard
+            title="日本シリーズ"
+            series={results?.japanSeries ?? null}
+            first={results?.centralFinal.winner ?? centralRanking[0]}
+            second={results?.pacificFinal.winner ?? pacificRanking[0]}
+          />
         </div>
-      ) : (
-        <div style={{ display: 'grid', gap: 12 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 12 }}>
-            <SeriesCard title="セ・リーグ CS 1st" series={results.centralFirst} />
-            <SeriesCard title="パ・リーグ CS 1st" series={results.pacificFirst} />
-            <SeriesCard title="セ・リーグ CS Final" series={results.centralFinal} />
-            <SeriesCard title="パ・リーグ CS Final" series={results.pacificFinal} />
+
+        {results && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
+            <ChampionPennant teamKey={results.japanSeries.winner} />
           </div>
-          <SeriesCard title="日本シリーズ" series={results.japanSeries} />
-        </div>
-      )}
+        )}
+      </div>
     </PageShell>
   );
 }
