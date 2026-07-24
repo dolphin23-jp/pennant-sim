@@ -47,6 +47,11 @@ test('current engine stays within two percent of the recorded balance baseline',
     'pitcherOvr85PlusCount',
     'averageTeamOvr85PlusCount',
     'minimumTeamOvr85PlusCount',
+    'latentFactorMaximumRate',
+    'potentialGap40PlusRate',
+    'meanMaximumPotentialGap',
+    'meanAveragePotentialGap',
+    'elitePotentialRate',
   ];
   for (const metric of metrics) {
     const baselineMetric = baseline.summary[metric];
