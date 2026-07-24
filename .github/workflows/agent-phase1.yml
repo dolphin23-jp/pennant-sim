@@ -1,0 +1,40 @@
+name: Temporary phase 1 validation
+
+on:
+  push:
+    branches:
+      - agent/balance-phase1
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/balance-phase1
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply phase 1
+        run: node scripts/agent-phase1.mjs
+      - name: Format
+        run: npx prettier --write src/engine/game.ts scripts/balance-new-engine.ts scripts/npb-targets.mjs
+      - run: npm run build
+      - run: npm run test:unit
+      - name: Generate recorded baseline
+        run: npm run baseline
+      - name: Commit validated changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/engine/game.ts scripts/balance-new-engine.ts scripts/npb-targets.mjs baseline/season-stats.json
+          git commit -m "Implement phase 1 stolen-base balance"
+          git push origin HEAD:agent/balance-phase1
