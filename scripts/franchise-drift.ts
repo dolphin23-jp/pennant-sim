@@ -6,9 +6,11 @@ import {
   accumulateStatsAll,
   calcOVR,
   configureRandom,
+  countForeignPlayers,
   effectiveOVR,
   generateSchedule,
   initTeams,
+  isForeignPlayer,
   resetRandom,
   runAutomatedOffseason,
   simulateGame,
@@ -137,11 +139,13 @@ function rosterSnapshot(teams: Teams) {
       averageOvr: round(average([...pitcherOvrs, ...fielderOvrs]), 3),
       pitcherOvr: round(average(pitcherOvrs), 3),
       fielderOvr: round(average(fielderOvrs), 3),
+      foreignPlayers: countForeignPlayers(team),
     };
   });
   const pitchers = teamKeys(teams).flatMap((teamKey) => teams[teamKey].pitchers);
   const fielders = teamKeys(teams).flatMap((teamKey) => teams[teamKey].fielders);
   const players = [...pitchers, ...fielders];
+  const foreignPlayers = players.filter(isForeignPlayer);
   const ageBand = (minimum: number, maximum: number) => {
     const members = players.filter((player) => player.age >= minimum && player.age <= maximum);
     return {
@@ -161,6 +165,21 @@ function rosterSnapshot(teams: Teams) {
     oldestAge: Math.max(...players.map((player) => player.age)),
     elitePotentialPlayers: players.filter((player) => player.potentialClass === 'elite').length,
     ovr85Plus: players.filter((player) => playerOvr(player) >= 85).length,
+    foreignPlayers: {
+      total: foreignPlayers.length,
+      pitchers: foreignPlayers.filter((player) => player.isP).length,
+      fielders: foreignPlayers.filter((player) => !player.isP).length,
+      averageNpbSeasons: round(
+        average(foreignPlayers.map((player) => player.foreignProfile?.npbSeasons ?? 0)),
+        3,
+      ),
+      adaptationBelowPointNine: foreignPlayers.filter(
+        (player) => (player.foreignProfile?.adaptationFactor ?? 1) < 0.9,
+      ).length,
+      adaptationAboveOnePointOne: foreignPlayers.filter(
+        (player) => (player.foreignProfile?.adaptationFactor ?? 1) > 1.1,
+      ).length,
+    },
     ageBands: {
       age22AndUnder: ageBand(0, 22),
       age23To27: ageBand(23, 27),
@@ -261,6 +280,8 @@ function retirementSummary(retired: RosterExit[]) {
     ageAndPerformance: 0,
     draftOpportunity: 0,
     rosterCompetition: 0,
+    foreignRelease: 0,
+    mlbTransfer: 0,
   };
   for (const player of retired) byReason[player.reason] += 1;
   return {
@@ -295,6 +316,9 @@ interface YearReport {
     draft: ReturnType<typeof draftSummary>;
     freeAgentSignings: number;
     foreignSignings: number;
+    foreignRenewals: number;
+    foreignReleases: number;
+    mlbTransfers: number;
   };
   closingRoster: RosterSnapshot;
 }
@@ -331,6 +355,14 @@ function driftSummary(years: YearReport[]) {
       homeRuns: last.season.homeRuns - first.season.homeRuns,
     },
     largestClosingTeamOvrGap: largestGap,
+    foreignLifecycle: {
+      finalActivePlayers: last.closingRoster.foreignPlayers.total,
+      peakActivePlayers: Math.max(...years.map((year) => year.closingRoster.foreignPlayers.total)),
+      signings: years.reduce((total, year) => total + year.offseason.foreignSignings, 0),
+      renewals: years.reduce((total, year) => total + year.offseason.foreignRenewals, 0),
+      releases: years.reduce((total, year) => total + year.offseason.foreignReleases, 0),
+      mlbTransfers: years.reduce((total, year) => total + year.offseason.mlbTransfers, 0),
+    },
     npbTargetEvaluation: {
       firstSeason: first.targetEvaluation,
       finalSeason: last.targetEvaluation,
@@ -374,7 +406,11 @@ async function simulateFranchise(options: CliOptions) {
       }
       const season = seasonSnapshot(accumulated, schedule.length, totalRuns);
       const targetEvaluation = evaluateNpbScoringTargets(season);
-      const offseason = runAutomatedOffseason(teams, { draftRounds: DRAFT_ROUNDS });
+      const offseason = runAutomatedOffseason(teams, {
+        draftRounds: DRAFT_ROUNDS,
+        year,
+        seasonStats: accumulated,
+      });
       teams = offseason.teams;
       const closingRoster = rosterSnapshot(teams);
       if (closingRoster.players !== openingRoster.players)
@@ -393,6 +429,9 @@ async function simulateFranchise(options: CliOptions) {
           draft: draftSummary(offseason.draftPicks),
           freeAgentSignings: offseason.freeAgentSignings,
           foreignSignings: offseason.foreignSignings,
+          foreignRenewals: offseason.foreignRenewals,
+          foreignReleases: offseason.foreignReleases,
+          mlbTransfers: offseason.mlbTransfers,
         },
         closingRoster,
       });
@@ -402,11 +441,12 @@ async function simulateFranchise(options: CliOptions) {
           `OVR F ${openingRoster.averageOvr.fielders.toFixed(1)}→${closingRoster.averageOvr.fielders.toFixed(1)}, ` +
           `P ${openingRoster.averageOvr.pitchers.toFixed(1)}→${closingRoster.averageOvr.pitchers.toFixed(1)} | ` +
           `exited ${offseason.exits.length}, drafted ${offseason.draftPicks.length}, ` +
-          `FA ${offseason.freeAgentSignings}, foreign ${offseason.foreignSignings}`,
+          `FA ${offseason.freeAgentSignings}, foreign ${offseason.foreignSignings} ` +
+          `(renew ${offseason.foreignRenewals}, release ${offseason.foreignReleases}, MLB ${offseason.mlbTransfers})`,
       );
     }
     return {
-      schemaVersion: 3,
+      schemaVersion: 4,
       source: 'continuous-franchise-diagnostic',
       targets: NPB_SCORING_TARGETS,
       configuration: {
@@ -419,8 +459,13 @@ async function simulateFranchise(options: CliOptions) {
         offseasonEngine: {
           scope: 'shared with production CPU roster management',
           rosterTargets: { pitchers: 28, fielders: 35 },
+          foreignRegistration: {
+            registeredLimit: 5,
+            simultaneousHitterLimit: 3,
+          },
           minimumRoster: { pitchers: 18, fielders: 22 },
           stages: [
+            'foreign contract review',
             'growth',
             'CPU roster preparation',
             'free agency',

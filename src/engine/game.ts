@@ -7,6 +7,8 @@ import {
 } from './pitcherPlan';
 import { clamp, random } from './random';
 import { bestLineup, calcOVR, masteryFromAccum } from './ratings';
+import { isForeignPlayer } from './foreign';
+import { FOREIGN_PLAYER_BALANCE } from '../data';
 import { hasGold, hasSpecial } from './specials';
 import type {
   AccumulatedStats,
@@ -30,7 +32,11 @@ function resolveLineup(team: Team, supplied?: Player[] | null): Player[] {
     if (!current || (current.injuryDays ?? 0) > 0) continue;
     resolved.push({ ...current, _assignedPos: player._assignedPos ?? current.pos });
   }
-  return resolved.length >= 9 ? resolved.slice(0, 9) : bestLineup(team);
+  const selected = resolved.slice(0, 9);
+  return resolved.length >= 9 &&
+    selected.filter(isForeignPlayer).length <= FOREIGN_PLAYER_BALANCE.simultaneousHitterLimit
+    ? selected
+    : bestLineup(team);
 }
 export function simHalf(
   gameState: GameState,

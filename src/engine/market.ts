@@ -1,4 +1,10 @@
-import { CENTRAL, FIELD_POSITIONS, PACIFIC, TINFO } from '../data';
+import { CENTRAL, FIELD_POSITIONS, FOREIGN_PLAYER_BALANCE, PACIFIC, TINFO } from '../data';
+import {
+  canRegisterForeignPlayer,
+  countForeignPlayers,
+  createForeignPlayerProfile,
+  isForeignPlayer,
+} from './foreign';
 import { generateBatter, generatePitcher } from './players';
 import { bestLineup, calcOVR, effectiveOVR } from './ratings';
 import { clamp, gaussian, random, randomChoice, randomInt } from './random';
@@ -68,27 +74,29 @@ export function genFreeAgentMarket(): Player[] {
       (first.isP ? calcOVR(first) : effectiveOVR(first, first.pos)),
   );
 }
-export function genForeignMarket(): Player[] {
+export function genForeignMarket(arrivalYear = 2026): Player[] {
   const output: Player[] = [],
     batterPositions: FieldPosition[] = ['一塁手', '三塁手', '左翼手', '中堅手', '右翼手'];
-  for (let index = 0; index < 8; index += 1) {
-    if (index < 3) {
+  for (let index = 0; index < FOREIGN_PLAYER_BALANCE.marketPlayers; index += 1) {
+    if (index < FOREIGN_PLAYER_BALANCE.marketPitchers) {
       const age = randomInt(25, 31),
         quality = generateMarketQuality(72, 7, 58, 92),
         role = index === 0 ? '先発' : 'リリーフ',
         player = generatePitcher('foreign', age, quality, role);
+      player.foreignProfile = createForeignPlayerProfile(arrivalYear);
       player.tk = '外';
       player.ask = marketPlayerCost(player, 1.25);
-      player.note = '外国人候補';
+      player.note = `${player.foreignProfile.origin}・外国人候補・${player.foreignProfile.contractYearsRemaining}年契約`;
       output.push(player);
     } else {
       const age = randomInt(24, 31),
         quality = generateMarketQuality(73, 7, 60, 94),
         position = randomChoice(batterPositions),
         player = generateBatter('foreign', age, position, quality);
+      player.foreignProfile = createForeignPlayerProfile(arrivalYear);
       player.tk = '外';
       player.ask = marketPlayerCost(player, 1.2);
-      player.note = '外国人候補';
+      player.note = `${player.foreignProfile.origin}・外国人候補・${player.foreignProfile.contractYearsRemaining}年契約`;
       output.push(player);
     }
   }
@@ -99,6 +107,7 @@ export function genForeignMarket(): Player[] {
   );
 }
 export function signPlayerToTeam(teams: Teams, teamKey: TeamKey, player: Player): Teams {
+  if (isForeignPlayer(player) && !canRegisterForeignPlayer(teams[teamKey])) return teams;
   const team = { ...teams[teamKey] },
     signedPlayer = { ...player, tk: teamKey, signedVia: player.note || '市場' };
   if (signedPlayer.isP) team.pitchers = [...team.pitchers, signedPlayer];
@@ -129,7 +138,12 @@ export function cpuAutoSignMarket(
   for (const pick of candidates) {
     if (!remaining.some((candidate) => candidate.id === pick.id)) continue;
     const bids = clubs
-        .filter((teamKey) => !signedClubs.has(teamKey))
+        .filter(
+          (teamKey) =>
+            !signedClubs.has(teamKey) &&
+            (type !== 'foreign' ||
+              countForeignPlayers(nextTeams[teamKey]) < FOREIGN_PLAYER_BALANCE.registeredLimit),
+        )
         .map((teamKey) => {
           const budget = (TINFO[teamKey].bd || 50) * 100;
           if ((pick.ask || 0) > budget + 1500) return null;

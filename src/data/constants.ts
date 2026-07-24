@@ -78,6 +78,54 @@ export const PLAYER_DEVELOPMENT_BALANCE = {
   },
 } as const;
 
+export const FOREIGN_PLAYER_BALANCE = {
+  registeredLimit: 5,
+  simultaneousHitterLimit: 3,
+  marketPlayers: 20,
+  marketPitchers: 8,
+  originWeights: {
+    アメリカ: 0.42,
+    ドミニカ共和国: 0.22,
+    ベネズエラ: 0.12,
+    キューバ: 0.08,
+    メキシコ: 0.05,
+    韓国: 0.04,
+    台湾: 0.04,
+    その他: 0.03,
+  },
+  contractYearWeights: {
+    oneYear: 0.62,
+    twoYears: 0.28,
+    threeYears: 0.1,
+  },
+  adaptation: {
+    standardMean: 0.99,
+    standardDeviation: 0.055,
+    disappointmentRate: 0.12,
+    disappointmentMinimum: 0.82,
+    disappointmentMaximum: 0.93,
+    immediateBreakthroughRate: 0.03,
+    breakthroughMinimum: 1.1,
+    breakthroughMaximum: 1.2,
+    annualRegressionToAverage: 0.28,
+    annualPerformanceShare: 0.025,
+    annualVariation: 0.018,
+    annualBreakthroughRate: 0.025,
+    annualSetbackRate: 0.075,
+    minimumFactor: 0.8,
+    maximumFactor: 1.25,
+  },
+  contractReview: {
+    renewalScoreThreshold: 58,
+    mlbMinimumOvr: 90,
+    mlbMaximumAge: 32,
+    mlbMinimumPerformanceSignal: 0.2,
+    mlbBaseRate: 0.04,
+    mlbOvrRate: 0.015,
+    mlbMaximumRate: 0.25,
+  },
+} as const;
+
 // simAB probability model. Context multipliers intentionally stay small so player ratings remain primary.
 export const AT_BAT_BALANCE = {
   strikeout: {
