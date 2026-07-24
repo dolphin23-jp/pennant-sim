@@ -1,8 +1,25 @@
-import { TINFO } from '../../../data';
+import { useState } from 'react';
+
+import { CENTRAL, PACIFIC, TINFO } from '../../../data';
 import { ops, qualifiesForRate } from '../../../engine';
 import type { Player, PlayerStats, TeamKey } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
-import { Card, EmptyState, SectionTitle, teamTextColor } from '../../ui';
+import { Card, EmptyState, SectionTitle, SegmentedControl, teamTextColor } from '../../ui';
+
+type League = 'central' | 'pacific';
+
+const LEAGUE_TEAMS: Record<League, readonly TeamKey[]> = {
+  central: CENTRAL,
+  pacific: PACIFIC,
+};
+const LEAGUE_LABEL: Record<League, string> = {
+  central: 'セ・リーグ',
+  pacific: 'パ・リーグ',
+};
+
+function leagueOf(teamKey: TeamKey): League {
+  return (CENTRAL as readonly TeamKey[]).includes(teamKey) ? 'central' : 'pacific';
+}
 
 interface RankingDefinition {
   id: string;
@@ -266,14 +283,16 @@ function RankingCard({
 
 export function RankingTab() {
   const game = useGameState();
+  const [league, setLeague] = useState<League | null>(null);
   if (!game.teams || !game.playerTeam) return null;
 
   const teams = game.teams;
   const playerTeam = game.playerTeam;
-  const players = Object.values(teams).flatMap((team) => [
-    ...team.fielders,
-    ...team.pitchers,
-  ]);
+  const activeLeague = league ?? leagueOf(playerTeam);
+  const leagueTeamSet = new Set<TeamKey>(LEAGUE_TEAMS[activeLeague]);
+  const players = Object.entries(teams)
+    .filter(([teamKey]) => leagueTeamSet.has(teamKey as TeamKey))
+    .flatMap(([, team]) => [...team.fielders, ...team.pitchers]);
   const gamesByTeam = Object.fromEntries(
     (Object.keys(game.standings) as TeamKey[]).map((teamKey) => [
       teamKey,
@@ -283,8 +302,26 @@ export function RankingTab() {
 
   return (
     <div style={{ display: 'grid', gap: 18 }}>
-      <section aria-label="打者タイトルランキング">
-        <SectionTitle>Batter Rankings</SectionTitle>
+      <Card ariaLabel="ランキングの対象リーグ">
+        <SectionTitle>League</SectionTitle>
+        <SegmentedControl<League>
+          ariaLabel="ランキングを表示するリーグ"
+          value={activeLeague}
+          onChange={setLeague}
+          options={[
+            { id: 'central', label: 'セ・リーグ', ariaLabel: 'セ・リーグのランキングを表示' },
+            { id: 'pacific', label: 'パ・リーグ', ariaLabel: 'パ・リーグのランキングを表示' },
+          ]}
+        />
+      </Card>
+
+      <section aria-label={`${LEAGUE_LABEL[activeLeague]} 打者タイトルランキング`}>
+        <SectionTitle>
+          Batter Rankings
+          <span style={{ marginLeft: 8, color: 'var(--color-text-faint)', fontSize: 12, fontWeight: 700 }}>
+            {LEAGUE_LABEL[activeLeague]}
+          </span>
+        </SectionTitle>
         <div
           style={{
             display: 'grid',
@@ -306,8 +343,13 @@ export function RankingTab() {
         </div>
       </section>
 
-      <section aria-label="投手タイトルランキング">
-        <SectionTitle>Pitcher Rankings</SectionTitle>
+      <section aria-label={`${LEAGUE_LABEL[activeLeague]} 投手タイトルランキング`}>
+        <SectionTitle>
+          Pitcher Rankings
+          <span style={{ marginLeft: 8, color: 'var(--color-text-faint)', fontSize: 12, fontWeight: 700 }}>
+            {LEAGUE_LABEL[activeLeague]}
+          </span>
+        </SectionTitle>
         <div
           style={{
             display: 'grid',

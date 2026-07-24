@@ -10,6 +10,7 @@ import { RosterTab } from './season/RosterTab';
 import { RotationTab } from './season/RotationTab';
 import { StandingsTab } from './season/StandingsTab';
 import { StatsTab } from './season/StatsTab';
+import { TeamReportTab } from './season/TeamReportTab';
 
 type SeasonTab =
   | 'dashboard'
@@ -18,6 +19,7 @@ type SeasonTab =
   | 'stats'
   | 'ranking'
   | 'standings'
+  | 'teamReport'
   | 'roster';
 
 const tabs: Array<{ id: SeasonTab; label: string }> = [
@@ -27,6 +29,7 @@ const tabs: Array<{ id: SeasonTab; label: string }> = [
   { id: 'stats', label: '成績' },
   { id: 'ranking', label: 'ランキング' },
   { id: 'standings', label: '順位表' },
+  { id: 'teamReport', label: '球団情報' },
   { id: 'roster', label: '選手一覧' },
 ];
 
@@ -177,10 +180,11 @@ export function SeasonScreen() {
           <StandingsTab
             onSelectTeam={(teamKey) => {
               game.setViewTeam(teamKey);
-              requestTabChange('roster');
+              requestTabChange('teamReport');
             }}
           />
         )}
+        {activeTab === 'teamReport' && <TeamReportTab />}
         {activeTab === 'roster' && <RosterTab />}
       </section>
     </PageShell>

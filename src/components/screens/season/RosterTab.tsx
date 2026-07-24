@@ -1,9 +1,8 @@
-import { TINFO } from '../../../data';
 import type { Player, TeamKey, Teams } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
-import { Card, SectionTitle } from '../../ui';
 import { RosterTable } from '../../widgets/RosterTable';
 import { SquadBoard } from '../../widgets/SquadBoard';
+import { TeamSwitcher } from '../../widgets/TeamSwitcher';
 
 function withToggledActiveRoster(teams: Teams, teamKey: TeamKey, player: Player): Teams {
   const team = teams[teamKey];
@@ -31,27 +30,14 @@ export function RosterTab() {
 
   return (
     <>
-      <Card style={{ marginBottom: 12 }} ariaLabel="表示する球団を選択">
-        <SectionTitle>Roster Browser</SectionTitle>
-        <select
-          aria-label="ロスターを表示する球団"
-          value={viewedKey}
-          onChange={(event) => game.setViewTeam(event.target.value as TeamKey)}
-          style={{
-            background: 'var(--color-bg-soft)',
-            color: 'var(--color-text)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 7,
-            padding: '8px 10px',
-          }}
-        >
-          {(Object.keys(game.teams) as TeamKey[]).map((teamKey) => (
-            <option key={teamKey} value={teamKey}>
-              {TINFO[teamKey].n}
-            </option>
-          ))}
-        </select>
-      </Card>
+      <TeamSwitcher
+        title="Roster Browser"
+        cardAriaLabel="表示する球団を選択"
+        selectAriaLabel="ロスターを表示する球団"
+        value={viewedKey}
+        teamKeys={Object.keys(game.teams) as TeamKey[]}
+        onChange={game.setViewTeam}
+      />
       {isOwnTeam && (
         <SquadBoard
           team={viewedTeam}

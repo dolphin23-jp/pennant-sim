@@ -3,45 +3,9 @@ import { useMemo } from 'react';
 import { TINFO } from '../../../data';
 import { bestLineup, deriveTeamForm } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
-import { Button, Card, LampFigure, SectionTitle, teamTextColor } from '../../ui';
+import { Button, Card, LampFigure, SectionTitle, StatChip, teamTextColor } from '../../ui';
 import { BoxScore } from '../../widgets/BoxScore';
 import { NoticeCenter } from '../../widgets/NoticeCenter';
-
-function StatChip({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: string;
-}) {
-  return (
-    <div
-      style={{
-        minWidth: 76,
-        padding: '6px 10px',
-        border: '1px solid var(--color-border)',
-        borderRadius: 8,
-        background: 'var(--color-surface-raised)',
-        textAlign: 'center',
-      }}
-    >
-      <div style={{ color: 'var(--color-text-faint)', fontSize: 10, fontWeight: 700 }}>{label}</div>
-      <div
-        style={{
-          marginTop: 2,
-          color: tone ?? 'var(--color-text)',
-          fontFamily: 'var(--font-display)',
-          fontSize: 15,
-          fontWeight: 700,
-        }}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
 
 export function DashboardTab() {
   const game = useGameState();
