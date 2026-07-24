@@ -19,6 +19,8 @@ import type {
 } from '../../engine';
 import { Card, EmptyState, SectionTitle } from '../ui';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
+import { hasGoldSpecial } from './specialDisplay';
+import './phaseB.css';
 
 type StatsSource = 'current' | 'career' | 'yearly';
 type PlayerKind = 'bat' | 'pit';
@@ -205,6 +207,95 @@ function compareValues(
       ? first.localeCompare(second, 'ja')
       : Number(first) - Number(second);
   return direction === 'asc' ? comparison : -comparison;
+}
+
+function highlightedValue(row: StatsRow, key: SortKey): boolean {
+  const value = sortValue(row, key);
+  return (
+    (key === 'average' && typeof value === 'number' && value >= 0.3) ||
+    (key === 'ops' && typeof value === 'number' && value >= 0.8) ||
+    (key === 'era' && typeof value === 'number' && value < 3) ||
+    (key === 'w' && typeof value === 'number' && value >= 10)
+  );
+}
+
+function StatsMobileCard({
+  row,
+  playerKind,
+  columns,
+  onSelect,
+}: {
+  row: StatsRow;
+  playerKind: PlayerKind;
+  columns: Column[];
+  onSelect(): void;
+}) {
+  const gold = hasGoldSpecial(row.player);
+  const metrics = playerKind === 'bat'
+    ? [
+        { key: 'average' as const, label: '打率', value: formattedValue(row, 'average') },
+        { key: 'hr' as const, label: '本塁打', value: formattedValue(row, 'hr') },
+        { key: 'rbi' as const, label: '打点', value: formattedValue(row, 'rbi') },
+      ]
+    : [
+        { key: 'era' as const, label: '防御率', value: formattedValue(row, 'era') },
+        { key: 'w' as const, label: '勝敗', value: `${formattedValue(row, 'w')}-${formattedValue(row, 'l')}` },
+        { key: 'sv' as const, label: 'セーブ', value: formattedValue(row, 'sv') },
+      ];
+  const excluded = new Set<SortKey>(
+    playerKind === 'bat'
+      ? ['name', 'team', 'average', 'hr', 'rbi']
+      : ['name', 'team', 'era', 'w', 'l', 'sv'],
+  );
+  const details = columns.filter((column) => !excluded.has(column.key));
+
+  return (
+    <article className={`player-summary-card${gold ? ' player-summary-card--gold' : ''}`}>
+      <div className="player-summary-card__header">
+        <div className="player-summary-card__identity">
+          <button
+            className="roster-player-button"
+            type="button"
+            aria-label={`${row.player.name}の詳細を表示`}
+            onClick={onSelect}
+          >
+            {row.player.name}
+          </button>
+          <div className="player-summary-card__meta">
+            {row.teamKey ? TINFO[row.teamKey].ab : '-'}
+            {gold ? ' / ★ゴールド特殊能力' : ''}
+          </div>
+        </div>
+        <PlayerStatusBadges player={row.player} compact />
+      </div>
+      <div className="player-summary-card__metrics">
+        {metrics.map((metric) => (
+          <div className="player-summary-card__metric" key={metric.label}>
+            <span>{metric.label}</span>
+            <strong
+              className={
+                highlightedValue(row, metric.key)
+                  ? 'metric-highlight'
+                  : metric.key === 'hr' && Number(sortValue(row, 'hr')) >= 30
+                    ? 'metric-power'
+                    : undefined
+              }
+            >
+              {metric.value}
+            </strong>
+          </div>
+        ))}
+      </div>
+      <dl className="player-summary-card__details">
+        {details.map((column) => (
+          <div className="player-summary-card__detail" key={column.key}>
+            <dt>{column.label}</dt>
+            <dd>{formattedValue(row, column.key)}</dd>
+          </div>
+        ))}
+      </dl>
+    </article>
+  );
 }
 
 export function SortableStatsTable({
@@ -413,91 +504,141 @@ export function SortableStatsTable({
             : '条件に一致する成績がありません。'}
         </EmptyState>
       ) : (
-        <div className="table-scroll">
-          <table className="data-table" aria-label={`${playerKind === 'bat' ? '打者' : '投手'}成績一覧`}>
-            <caption>
-              列名を選択すると昇順・降順を切り替えます。{rows.length}名を表示中です。
-            </caption>
-            <thead>
-              <tr>
-                {columns.map((column) => {
-                  const selected = effectiveSort.key === column.key;
-                  const nextDirection =
-                    selected && effectiveSort.direction === 'asc' ? '降順' : '昇順';
-                  return (
-                    <th
-                      key={column.key}
-                      scope="col"
-                      title={column.description}
-                      style={{ textAlign: column.align ?? 'center', whiteSpace: 'nowrap' }}
-                    >
-                      <button
-                        type="button"
-                        aria-label={`${column.label}で${nextDirection}に並べ替え`}
-                        onClick={() => handleSort(column.key)}
-                        style={{
-                          padding: 0,
-                          border: 0,
-                          color: selected ? 'var(--color-accent)' : 'var(--color-text-faint)',
-                          background: 'transparent',
-                          fontWeight: 900,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {column.label}
-                        {selected ? (effectiveSort.direction === 'asc' ? ' ↑' : ' ↓') : ''}
-                      </button>
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.player.id}>
+        <>
+          <div className="mobile-table-sort" aria-label="モバイル用成績並べ替え">
+            <label>
+              並び順
+              <select
+                aria-label="成績カードの並び順"
+                value={effectiveSort.key}
+                onChange={(event) => {
+                  const key = event.target.value as SortKey;
+                  setSort({
+                    key,
+                    direction: key === 'name' || key === 'team' || key === 'era' ? 'asc' : 'desc',
+                  });
+                }}
+              >
+                {columns.map((column) => (
+                  <option key={column.key} value={column.key}>{column.label}</option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              aria-label={`現在${effectiveSort.direction === 'asc' ? '昇順' : '降順'}。順序を反転`}
+              onClick={() => setSort({
+                key: effectiveSort.key,
+                direction: effectiveSort.direction === 'asc' ? 'desc' : 'asc',
+              })}
+            >
+              {effectiveSort.direction === 'asc' ? '昇順 ↑' : '降順 ↓'}
+            </button>
+          </div>
+
+          <div className="table-scroll desktop-table-view">
+            <table className="data-table" aria-label={`${playerKind === 'bat' ? '打者' : '投手'}成績一覧`}>
+              <caption>
+                列名を選択すると昇順・降順を切り替えます。{rows.length}名を表示中です。
+              </caption>
+              <thead>
+                <tr>
                   {columns.map((column) => {
-                    if (column.key === 'name') {
-                      return (
-                        <th key={column.key} scope="row" style={{ textAlign: 'left' }}>
-                          <button
-                            className="roster-player-button"
-                            type="button"
-                            aria-label={`${row.player.name}の詳細を表示`}
-                            onClick={() => onSelect(row.player)}
-                          >
-                            {row.player.name}
-                          </button>
-                          <div style={{ marginTop: 4 }}>
-                            <PlayerStatusBadges player={row.player} compact />
-                          </div>
-                        </th>
-                      );
-                    }
-                    const value = sortValue(row, column.key);
-                    const highlighted =
-                      (column.key === 'average' && typeof value === 'number' && value >= 0.3) ||
-                      (column.key === 'ops' && typeof value === 'number' && value >= 0.8) ||
-                      (column.key === 'era' && typeof value === 'number' && value < 3) ||
-                      (column.key === 'w' && typeof value === 'number' && value >= 10);
-                    const power =
-                      column.key === 'hr' && typeof value === 'number' && value >= 30;
+                    const selected = effectiveSort.key === column.key;
+                    const nextDirection =
+                      selected && effectiveSort.direction === 'asc' ? '降順' : '昇順';
                     return (
-                      <td
+                      <th
                         key={column.key}
-                        className={
-                          highlighted ? 'metric-highlight' : power ? 'metric-power' : undefined
-                        }
-                        style={{ textAlign: 'center', whiteSpace: 'nowrap' }}
+                        scope="col"
+                        title={column.description}
+                        style={{ textAlign: column.align ?? 'center', whiteSpace: 'nowrap' }}
                       >
-                        {formattedValue(row, column.key)}
-                      </td>
+                        <button
+                          type="button"
+                          aria-label={`${column.label}で${nextDirection}に並べ替え`}
+                          onClick={() => handleSort(column.key)}
+                          style={{
+                            padding: 0,
+                            border: 0,
+                            color: selected ? 'var(--color-accent)' : 'var(--color-text-faint)',
+                            background: 'transparent',
+                            fontWeight: 900,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {column.label}
+                          {selected ? (effectiveSort.direction === 'asc' ? ' ↑' : ' ↓') : ''}
+                        </button>
+                      </th>
                     );
                   })}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.player.id}>
+                    {columns.map((column) => {
+                      if (column.key === 'name') {
+                        return (
+                          <th
+                            className={hasGoldSpecial(row.player) ? 'gold-player-cell' : undefined}
+                            key={column.key}
+                            scope="row"
+                            style={{ textAlign: 'left' }}
+                          >
+                            <button
+                              className="roster-player-button"
+                              type="button"
+                              aria-label={`${row.player.name}の詳細を表示`}
+                              onClick={() => onSelect(row.player)}
+                            >
+                              {row.player.name}
+                            </button>
+                            <div style={{ marginTop: 4 }}>
+                              <PlayerStatusBadges player={row.player} compact />
+                            </div>
+                          </th>
+                        );
+                      }
+                      const value = sortValue(row, column.key);
+                      const highlighted = highlightedValue(row, column.key);
+                      const power = column.key === 'hr' && typeof value === 'number' && value >= 30;
+                      return (
+                        <td
+                          key={column.key}
+                          className={
+                            highlighted ? 'metric-highlight' : power ? 'metric-power' : undefined
+                          }
+                          style={{ textAlign: 'center', whiteSpace: 'nowrap' }}
+                        >
+                          {formattedValue(row, column.key)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div
+            className="mobile-card-list"
+            role="list"
+            aria-label={`${playerKind === 'bat' ? '打者' : '投手'}成績カード一覧`}
+          >
+            {rows.map((row) => (
+              <div role="listitem" key={row.player.id}>
+                <StatsMobileCard
+                  row={row}
+                  playerKind={playerKind}
+                  columns={columns}
+                  onSelect={() => onSelect(row.player)}
+                />
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </Card>
   );
