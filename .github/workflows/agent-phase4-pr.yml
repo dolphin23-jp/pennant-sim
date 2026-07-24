@@ -28,11 +28,11 @@ jobs:
         run: npx prettier --write src/data/constants.ts
       - name: Build
         run: npm run build > baseline/phase4-build.log 2>&1
-      - name: Unit tests
-        run: npm run test:unit > baseline/phase4-unit.log 2>&1
       - name: Generate 100-season candidate baseline
         continue-on-error: true
         run: npm run baseline:new > baseline/phase4-baseline.log 2>&1
+      - name: Unit tests against candidate
+        run: npm run test:unit > baseline/phase4-unit.log 2>&1
       - name: Commit candidate and diagnostics
         if: always()
         run: |
