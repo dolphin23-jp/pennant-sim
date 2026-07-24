@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 
 import { FIELD_POSITIONS } from '../../data';
-import { aptitudeFor, displayOVRBreakdown, effectiveOVR } from '../../engine';
+import { aptitudeFor, aptitudeRank, displayOVRBreakdown, effectiveOVR } from '../../engine';
 import type { FieldPosition, Player } from '../../engine';
 import { Button, EmptyState } from '../ui';
 import { aptitudeToneColor } from './aptitudeDisplay';
@@ -119,6 +119,7 @@ export function PositionPickerSheet({
                 const injured = (player.injuryDays ?? 0) > 0;
                 const current = currentSlot === slot;
                 const difference = slot === 'extra' ? null : breakdown.base - best.value;
+                const rank = aptitude === null ? null : aptitudeRank(aptitude);
                 const aptitudeColor = aptitudeToneColor(aptitude);
                 const borderColor =
                   aptitudeColor ?? (current ? 'var(--color-accent)' : 'var(--color-border)');
@@ -132,7 +133,7 @@ export function PositionPickerSheet({
                     key={player.id}
                     type="button"
                     disabled={injured}
-                    aria-label={`${player.name}を${slotLabel}に配置、基本総合値${breakdown.base}から特殊込み${breakdown.total}${aptitude === null ? '' : `、適性${aptitude}%`}${currentSlot && !current ? `、現在は${currentSlot === 'extra' ? '追加打者' : currentSlot}` : ''}`}
+                    aria-label={`${player.name}を${slotLabel}に配置、基本総合値${breakdown.base}から特殊込み${breakdown.total}${aptitude === null ? '' : `、適性ランク${rank}、${aptitude}%`}${currentSlot && !current ? `、現在は${currentSlot === 'extra' ? '追加打者' : currentSlot}` : ''}`}
                     onClick={() => onSelect(player)}
                     style={{
                       display: 'grid',
@@ -187,7 +188,7 @@ export function PositionPickerSheet({
                         適性
                       </span>
                       <strong style={{ color: aptitudeColor ?? undefined }}>
-                        {aptitude === null ? '-' : `${aptitude}%`}
+                        {aptitude === null ? '-' : `${rank} ${aptitude}%`}
                       </strong>
                     </span>
                     <span style={{ textAlign: 'center' }}>

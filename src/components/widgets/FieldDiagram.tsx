@@ -1,4 +1,4 @@
-import { aptitudeFor, calcOVR, displayOVRBreakdown, effectiveOVR } from '../../engine';
+import { aptitudeFor, aptitudeRank, calcOVR, displayOVRBreakdown, effectiveOVR } from '../../engine';
 import type { FieldPosition, Player } from '../../engine';
 import { Card, SectionTitle, TermTooltip } from '../ui';
 import { aptitudeToneColor } from './aptitudeDisplay';
@@ -57,6 +57,7 @@ function SlotButton({
   const position = slot === 'extra' ? undefined : slot;
   const breakdown = player ? displayOVRBreakdown(player, position) : null;
   const aptitude = slotAptitude(slot, player);
+  const rank = aptitude === null ? null : aptitudeRank(aptitude);
   const aptitudeColor = aptitudeToneColor(aptitude);
   const label = slot === 'extra' ? '追加打者' : slot;
   const borderColor = aptitudeColor ?? (selected ? 'var(--color-accent)' : 'var(--color-border-strong)');
@@ -68,7 +69,7 @@ function SlotButton({
   return (
     <button
       type="button"
-      aria-label={`${label}${player ? `、${player.name}、基本総合値${breakdown?.base}から特殊込み${breakdown?.total}${aptitude === null ? '' : `、適性${aptitude}%`}` : '、未選択'}を変更`}
+      aria-label={`${label}${player ? `、${player.name}、基本総合値${breakdown?.base}から特殊込み${breakdown?.total}${aptitude === null ? '' : `、適性ランク${rank}、${aptitude}%`}` : '、未選択'}を変更`}
       aria-pressed={selected}
       onClick={() => onSelect(slot)}
       style={{
@@ -123,7 +124,7 @@ function SlotButton({
         ) : (
           <>
             {' / 適性 '}
-            <strong style={{ color: aptitudeColor ?? undefined }}>{aptitude}%</strong>
+            <strong style={{ color: aptitudeColor ?? undefined }}>{rank} {aptitude}%</strong>
           </>
         )}
       </span>
