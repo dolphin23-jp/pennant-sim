@@ -8,13 +8,47 @@ import {
 const THEME_KEY = 'pennant-sim-theme';
 type Theme = 'dark' | 'light';
 
+function relativeLuminance(hex: string): number {
+  const channels = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const [r, g, b] = channels.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrastRatio(hexA: string, hexB: string): number {
+  const [lighter, darker] = [relativeLuminance(hexA), relativeLuminance(hexB)].sort((a, b) => b - a);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+// Team colors are arbitrary brand hues unrelated to the active theme, so a fixed
+// text color can't guarantee legibility (e.g. white-on-amber fails badly). Pick
+// whichever of black/white contrasts more against the actual fill.
 const buttonStyle = (background: string): CSSProperties => {
+  if (background.startsWith('#')) {
+    const onWhite = contrastRatio(background, '#ffffff');
+    const onBlack = contrastRatio(background, '#000000');
+    return {
+      '--button-color': background,
+      color: onWhite >= onBlack ? '#fff' : '#000',
+    } as CSSProperties;
+  }
   const neutral = background.includes('surface');
   return {
     '--button-color': background,
-    color: neutral ? 'var(--color-text)' : '#fff',
+    // Design tokens run light-on-dark-theme / dark-on-light-theme, so the page's
+    // own bg color reliably contrasts against them (unlike a fixed white).
+    color: neutral ? 'var(--color-text)' : 'var(--color-bg)',
   } as CSSProperties;
 };
+
+// Team brand colors span very light to very dark hues, so using one verbatim as
+// running text fails contrast against a card for roughly half the league (e.g.
+// #FFB300 on a white card is ~1.8:1). Diluting it with the theme's own text
+// color keeps the team hue recognizable while guaranteeing legible contrast,
+// and stays theme-correct automatically since color-mix resolves the var() at
+// paint time.
+export function teamTextColor(hex: string): string {
+  return `color-mix(in srgb, ${hex} 45%, var(--color-text) 55%)`;
+}
 
 export function PageShell({
   children,

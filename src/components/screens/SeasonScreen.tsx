@@ -1,7 +1,7 @@
 import { useState, type KeyboardEvent } from 'react';
 
 import { useGameState } from '../../state/gameState';
-import { Button, PageShell } from '../ui';
+import { Button, PageShell, teamTextColor } from '../ui';
 import { SaveSlotControls } from '../widgets/SaveSlotControls';
 import { DashboardTab } from './season/DashboardTab';
 import { LineupTab } from './season/LineupTab';
@@ -88,7 +88,7 @@ export function SeasonScreen() {
         }}
       >
         <div>
-          <div style={{ color: playerTeam.c, fontSize: 12, fontWeight: 900 }}>{playerTeam.ab}</div>
+          <div style={{ color: teamTextColor(playerTeam.c), fontSize: 12, fontWeight: 900 }}>{playerTeam.ab}</div>
           <h1 id="season-screen-title" style={{ margin: '3px 0' }}>
             {game.season.year}年シーズン
           </h1>

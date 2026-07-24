@@ -2,7 +2,7 @@ import { TINFO } from '../../data';
 import { calcOVR, effectiveOVR } from '../../engine';
 import type { Player, TeamKey } from '../../engine';
 import type { TradeOffer } from '../../state/offseason';
-import { Button, Card, EmptyState, SectionTitle } from '../ui';
+import { Button, Card, EmptyState, SectionTitle, teamTextColor } from '../ui';
 
 function playerOverall(player: Player): number {
   return player.isP ? calcOVR(player) : effectiveOVR(player, player.pos);
@@ -72,7 +72,7 @@ function TradeOfferCard({
           marginBottom: 10,
         }}
       >
-        <span style={{ color: TINFO[offer.fromTeam].c, fontWeight: 900, fontSize: 12 }}>
+        <span style={{ color: teamTextColor(TINFO[offer.fromTeam].c), fontWeight: 900, fontSize: 12 }}>
           {TINFO[offer.fromTeam].ab}からのオファー
         </span>
         <span

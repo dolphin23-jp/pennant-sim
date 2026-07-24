@@ -1,7 +1,7 @@
 import { CENTRAL, PACIFIC, TINFO } from '../../data';
 import { deriveTeamForm } from '../../engine';
 import type { ScheduleGame, StandingRecord, TeamKey } from '../../engine';
-import { Card, SectionTitle, TermTooltip } from '../ui';
+import { Card, SectionTitle, TermTooltip, teamTextColor } from '../ui';
 
 function recordText(record: { w: number; l: number; d: number }): string {
   return `${record.w}-${record.l}-${record.d}`;
@@ -83,7 +83,7 @@ function LeagueTable({
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: 6,
-                          color: TINFO[teamKey].c,
+                          color: teamTextColor(TINFO[teamKey].c),
                         }}
                       >
                         <span
@@ -99,7 +99,7 @@ function LeagueTable({
                         {TINFO[teamKey].ab}
                       </button>
                     ) : (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: TINFO[teamKey].c }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: teamTextColor(TINFO[teamKey].c) }}>
                         <span
                           aria-hidden="true"
                           style={{

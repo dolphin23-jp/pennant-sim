@@ -1,7 +1,7 @@
 import { CENTRAL, PACIFIC, TINFO } from '../../data';
 import type { TeamKey } from '../../engine';
 import { useGameState } from '../../state/gameState';
-import { Button, Card, PageShell, SectionTitle } from '../ui';
+import { Button, Card, PageShell, SectionTitle, teamTextColor } from '../ui';
 
 const STRENGTH_MIN = 55;
 const STRENGTH_MAX = 85;
@@ -68,7 +68,7 @@ function LeagueChoices({ title, teams }: { title: string; teams: readonly TeamKe
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <TeamPennant color={team.c} />
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: team.c }}>{team.ab}</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: teamTextColor(team.c) }}>{team.ab}</div>
                   <div style={{ fontSize: 13, marginTop: 2 }}>{team.n}</div>
                 </div>
               </div>

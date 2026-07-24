@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { TINFO } from '../../../data';
 import { bestLineup, deriveTeamForm } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
-import { Button, Card, LampFigure, SectionTitle } from '../../ui';
+import { Button, Card, LampFigure, SectionTitle, teamTextColor } from '../../ui';
 import { BoxScore } from '../../widgets/BoxScore';
 import { NoticeCenter } from '../../widgets/NoticeCenter';
 
@@ -105,7 +105,7 @@ export function DashboardTab() {
                     padding: '5px 12px',
                     border: `1px solid ${TINFO[nextGame.awayKey].c}`,
                     borderRadius: 8,
-                    color: TINFO[nextGame.awayKey].c,
+                    color: teamTextColor(TINFO[nextGame.awayKey].c),
                     background: `color-mix(in srgb, ${TINFO[nextGame.awayKey].c} 12%, transparent)`,
                     fontFamily: 'var(--font-display)',
                     fontSize: 17,
@@ -129,7 +129,7 @@ export function DashboardTab() {
                     padding: '5px 12px',
                     border: `1px solid ${TINFO[nextGame.homeKey].c}`,
                     borderRadius: 8,
-                    color: TINFO[nextGame.homeKey].c,
+                    color: teamTextColor(TINFO[nextGame.homeKey].c),
                     background: `color-mix(in srgb, ${TINFO[nextGame.homeKey].c} 12%, transparent)`,
                     fontFamily: 'var(--font-display)',
                     fontSize: 17,

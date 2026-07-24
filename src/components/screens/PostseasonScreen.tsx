@@ -4,7 +4,7 @@ import { CENTRAL, PACIFIC, TINFO } from '../../data';
 import { simulateGame } from '../../engine';
 import type { TeamKey, Teams } from '../../engine';
 import { useGameState } from '../../state/gameState';
-import { Button, Card, PageShell, SectionTitle } from '../ui';
+import { Button, Card, PageShell, SectionTitle, teamTextColor } from '../ui';
 
 interface SeriesGame {
   game: number;
@@ -119,7 +119,7 @@ function TeamPill({ teamKey, won, wins }: { teamKey: TeamKey; won: boolean; wins
       <strong
         style={{
           fontFamily: 'var(--font-display)',
-          color: won ? info.c : 'var(--color-text-muted)',
+          color: won ? teamTextColor(info.c) : 'var(--color-text-muted)',
         }}
       >
         {wins}
@@ -300,7 +300,7 @@ function ChampionPennant({ teamKey }: { teamKey: TeamKey }) {
         <div style={{ color: 'var(--color-text-faint)', fontSize: 11, fontWeight: 700 }}>
           日本一 CHAMPION
         </div>
-        <div style={{ fontSize: 22, fontWeight: 900, color: info.c }}>{info.n}</div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: teamTextColor(info.c) }}>{info.n}</div>
       </div>
     </div>
   );

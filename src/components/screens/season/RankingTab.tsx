@@ -2,7 +2,7 @@ import { TINFO } from '../../../data';
 import { ops, qualifiesForRate } from '../../../engine';
 import type { Player, PlayerStats, TeamKey } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
-import { Card, EmptyState, SectionTitle } from '../../ui';
+import { Card, EmptyState, SectionTitle, teamTextColor } from '../../ui';
 
 interface RankingDefinition {
   id: string;
@@ -204,7 +204,7 @@ function RankingCard({
                       {entry.player.name}
                     </button>
                   </th>
-                  <td style={{ textAlign: 'center', color: TINFO[entry.teamKey].c }}>
+                  <td style={{ textAlign: 'center', color: teamTextColor(TINFO[entry.teamKey].c) }}>
                     {TINFO[entry.teamKey].ab}
                   </td>
                   <td
