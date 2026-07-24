@@ -8,10 +8,13 @@ import { Button, Card, SectionTitle } from '../../ui';
 import { BullpenBoard } from '../../widgets/BullpenBoard';
 import { BullpenPickerSheet } from '../../widgets/BullpenPickerSheet';
 import { reorderIds } from '../../widgets/dragUtils';
+import { RotationCandidatesList } from '../../widgets/RotationCandidatesList';
 import { RotationOrderList } from '../../widgets/RotationOrderList';
+import { RotationSwapSheet } from '../../widgets/RotationSwapSheet';
 
 interface EditorState {
   rotationIds: string[];
+  candidateIds: string[];
   closerIds: string[];
   rotationAutomatic: boolean;
   closerAutomatic: boolean;
@@ -32,13 +35,23 @@ function orderedIds(players: Player[], preferredIds: string[]): string[] {
   return output;
 }
 
+export function rotationSlotCount(team: Team): number {
+  return Math.max(1, team.rotSize || 6);
+}
+
 function createEditorState(team: Team, plan: PitcherPlan): EditorState {
   const starters = team.pitchers
     .filter((pitcher) => pitcher.role === '先発')
     .sort((first, second) => calcOVR(second) - calcOVR(first));
   const closers = resolveCloserOrder(team, plan.closerPriority);
+  // The rotation itself holds only rotSize slots (engine slices to the same
+  // count in resolveStarterRotation); the rest of the 先発 staff becomes the
+  // candidate pool. Old saves that stored every starter migrate by slicing.
+  const orderedStarterIds = orderedIds(starters, plan.rotationOrder);
+  const slotCount = rotationSlotCount(team);
   return {
-    rotationIds: orderedIds(starters, plan.rotationOrder),
+    rotationIds: orderedStarterIds.slice(0, slotCount),
+    candidateIds: orderedStarterIds.slice(slotCount),
     closerIds: closers.map((pitcher) => pitcher.id),
     rotationAutomatic: plan.rotationOrder.length === 0,
     closerAutomatic: plan.closerPriority.length === 0,
@@ -77,8 +90,14 @@ function RotationEditor({
   onDirtyChange(dirty: boolean): void;
 }) {
   const [editor, setEditor] = useState<EditorState>(() => createEditorState(team, plan));
-  const [savedSignature, setSavedSignature] = useState(() => planSignature(plan));
+  // Signature comes from the normalized editor state, not the raw saved plan:
+  // old saves stored every starter, and comparing against the sliced rotation
+  // would flag a phantom "unsaved change" on load.
+  const [savedSignature, setSavedSignature] = useState(() =>
+    planSignature(planFromEditor(createEditorState(team, plan))),
+  );
   const [selectedCloserIndex, setSelectedCloserIndex] = useState<number | null>(null);
+  const [promotingId, setPromotingId] = useState<string | null>(null);
   const [status, setStatus] = useState('');
 
   const currentPlan = planFromEditor(editor);
@@ -87,6 +106,14 @@ function RotationEditor({
   const rotationPitchers = useMemo(
     () => playersFromIds(editor.rotationIds, team.pitchers),
     [editor.rotationIds, team.pitchers],
+  );
+  const candidatePitchers = useMemo(
+    () => playersFromIds(editor.candidateIds, team.pitchers),
+    [editor.candidateIds, team.pitchers],
+  );
+  const promotingPitcher = useMemo(
+    () => (promotingId ? candidatePitchers.find((pitcher) => pitcher.id === promotingId) ?? null : null),
+    [candidatePitchers, promotingId],
   );
   const closerPitchers = useMemo(
     () => playersFromIds(editor.closerIds, team.pitchers),
@@ -144,6 +171,26 @@ function RotationEditor({
     setStatus('先発順を入れ替えました。変更はまだ保存されていません。');
   }, []);
 
+  const promoteCandidate = (slotIndex: number) => {
+    const candidateId = promotingId;
+    if (!candidateId) return;
+    setEditor((current) => {
+      if (slotIndex < 0 || slotIndex >= current.rotationIds.length) return current;
+      if (!current.candidateIds.includes(candidateId)) return current;
+      const rotationIds = [...current.rotationIds];
+      const displacedId = rotationIds[slotIndex] as string;
+      rotationIds[slotIndex] = candidateId;
+      const overallById = new Map(team.pitchers.map((pitcher) => [pitcher.id, calcOVR(pitcher)]));
+      const candidateIds = [
+        ...current.candidateIds.filter((id) => id !== candidateId),
+        displacedId,
+      ].sort((first, second) => (overallById.get(second) ?? 0) - (overallById.get(first) ?? 0));
+      return { ...current, rotationIds, candidateIds, rotationAutomatic: false };
+    });
+    setPromotingId(null);
+    setStatus('ローテーションを入れ替えました。変更はまだ保存されていません。');
+  };
+
   const selectCloser = (pitcher: Player) => {
     if (selectedCloserIndex === null) return;
     setEditor((current) => {
@@ -171,8 +218,9 @@ function RotationEditor({
   const discardChanges = () => {
     const next = createEditorState(team, plan);
     setEditor(next);
-    setSavedSignature(planSignature(plan));
+    setSavedSignature(planSignature(planFromEditor(next)));
     setSelectedCloserIndex(null);
+    setPromotingId(null);
     setStatus('変更を破棄しました。');
   };
 
@@ -180,6 +228,7 @@ function RotationEditor({
     const next = createEditorState(team, { rotationOrder: [], closerPriority: [] });
     setEditor(next);
     setSelectedCloserIndex(null);
+    setPromotingId(null);
     setStatus('自動選出へ戻しました。保存するまで確定しません。');
   };
 
@@ -198,7 +247,7 @@ function RotationEditor({
           <div>
             <SectionTitle>Pitcher Plan Editor</SectionTitle>
             <div style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
-              先発順はドラッグまたは矢印、抑え優先順位は抑え枠のタップで変更します。
+              ローテーションは{rotationSlotCount(team)}枠。先発順はドラッグまたは矢印、候補からの入れ替えは「昇格」、抑えは枠のタップで変更します。
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -248,12 +297,20 @@ function RotationEditor({
           alignItems: 'start',
         }}
       >
-        <RotationOrderList
-          pitchers={rotationPitchers}
-          onMove={moveStarter}
-          onReorder={reorderStarters}
-          onSelectPlayer={onSelectPlayer}
-        />
+        <div style={{ display: 'grid', gap: 12 }}>
+          <RotationOrderList
+            pitchers={rotationPitchers}
+            slotCount={rotationSlotCount(team)}
+            onMove={moveStarter}
+            onReorder={reorderStarters}
+            onSelectPlayer={onSelectPlayer}
+          />
+          <RotationCandidatesList
+            pitchers={candidatePitchers}
+            onPromote={(pitcher) => setPromotingId(pitcher.id)}
+            onSelectPlayer={onSelectPlayer}
+          />
+        </div>
         <BullpenBoard
           closers={closerPitchers}
           relievers={relievers}
@@ -268,6 +325,15 @@ function RotationEditor({
           closers={closerPitchers}
           onSelect={selectCloser}
           onClose={() => setSelectedCloserIndex(null)}
+        />
+      )}
+
+      {promotingPitcher && (
+        <RotationSwapSheet
+          candidate={promotingPitcher}
+          rotation={rotationPitchers}
+          onSwap={promoteCandidate}
+          onClose={() => setPromotingId(null)}
         />
       )}
     </div>

@@ -5,6 +5,7 @@ import type { FieldPosition, Player, Team } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
 import { Button, Card, SectionTitle } from '../../ui';
 import { BattingOrderList } from '../../widgets/BattingOrderList';
+import { BenchPanel } from '../../widgets/BenchPanel';
 import { reorderIds, swapRecordValues } from '../../widgets/dragUtils';
 import {
   FIELD_SLOT_ORDER,
@@ -140,6 +141,7 @@ function LineupEditor({
   const [editor, setEditor] = useState<EditorState>(() => createEditorState(lineup, team.fielders));
   const [savedSignature, setSavedSignature] = useState(() => editorSignature(editor));
   const [selectedSlot, setSelectedSlot] = useState<LineupSlot | null>(null);
+  const [armedBenchId, setArmedBenchId] = useState<string | null>(null);
   const [status, setStatus] = useState('');
 
   const signature = editorSignature(editor);
@@ -149,6 +151,19 @@ function LineupEditor({
     LINEUP_SLOT_ORDER.every((slot) => Boolean(editor.assignments[slot])) &&
     new Set(LINEUP_SLOT_ORDER.map((slot) => editor.assignments[slot]?.id)).size === 9 &&
     battingOrder.length === 9;
+  const benchPlayers = useMemo(() => {
+    const startingIds = new Set(
+      LINEUP_SLOT_ORDER.map((slot) => editor.assignments[slot]?.id).filter(
+        (id): id is string => Boolean(id),
+      ),
+    );
+    return team.fielders
+      .filter((player) => !startingIds.has(player.id))
+      .sort((first, second) => calcOVR(second) - calcOVR(first));
+  }, [editor.assignments, team.fielders]);
+  const armedPlayer = armedBenchId
+    ? (benchPlayers.find((player) => player.id === armedBenchId) ?? null)
+    : null;
 
   useEffect(() => {
     onDirtyChange(dirty);
@@ -173,16 +188,15 @@ function LineupEditor({
 
   const closePicker = useCallback(() => setSelectedSlot(null), []);
 
-  const assignPlayer = (player: Player) => {
-    if (!selectedSlot) return;
+  const assignPlayer = (slot: LineupSlot, player: Player) => {
     setEditor((current) => {
       const assignments = { ...current.assignments };
       const existingSlot = LINEUP_SLOT_ORDER.find(
-        (slot) => assignments[slot]?.id === player.id,
+        (candidateSlot) => assignments[candidateSlot]?.id === player.id,
       );
-      const displaced = assignments[selectedSlot];
-      assignments[selectedSlot] = player;
-      if (existingSlot && existingSlot !== selectedSlot) assignments[existingSlot] = displaced;
+      const displaced = assignments[slot];
+      assignments[slot] = player;
+      if (existingSlot && existingSlot !== slot) assignments[existingSlot] = displaced;
 
       let orderIds = [...current.orderIds];
       if (!orderIds.includes(player.id)) {
@@ -193,9 +207,31 @@ function LineupEditor({
       orderIds = normalizeOrder(orderIds, assignments);
       return { assignments, orderIds };
     });
-    setSelectedSlot(null);
     setStatus('変更はまだ保存されていません。');
   };
+
+  const handleSelectSlot = (slot: LineupSlot) => {
+    if (armedPlayer) {
+      assignPlayer(slot, armedPlayer);
+      setArmedBenchId(null);
+      return;
+    }
+    setSelectedSlot(slot);
+  };
+
+  const toggleArmBench = (player: Player) => {
+    setArmedBenchId((current) => (current === player.id ? null : player.id));
+    setSelectedSlot(null);
+  };
+
+  useEffect(() => {
+    if (!armedBenchId) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setArmedBenchId(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [armedBenchId]);
 
   const swapSlots = useCallback((firstSlot: LineupSlot, secondSlot: LineupSlot) => {
     setEditor((current) => {
@@ -239,12 +275,14 @@ function LineupEditor({
     setEditor(next);
     setSavedSignature(editorSignature(next));
     setSelectedSlot(null);
+    setArmedBenchId(null);
     setStatus('変更を破棄しました。');
   };
 
   const applyRecommended = () => {
     const next = createEditorState(bestLineup(team), team.fielders);
     setEditor(next);
+    setArmedBenchId(null);
     setStatus('AIおすすめを反映しました。保存するまで確定しません。');
   };
 
@@ -263,7 +301,7 @@ function LineupEditor({
           <div>
             <SectionTitle>Lineup Editor</SectionTitle>
             <div style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
-              守備位置はタップまたはグリップのドラッグ、打順はドラッグまたは矢印で変更します。
+              守備位置はタップまたはグリップのドラッグ、打順はドラッグまたは矢印、ベンチ選手はタップしてから配置先をタップで変更します。
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -297,9 +335,11 @@ function LineupEditor({
           aria-live="polite"
           style={{ marginTop: 10, color: dirty ? 'var(--color-warning)' : 'var(--color-text-muted)' }}
         >
-          {!complete
-            ? '9つの枠すべてに異なる選手を配置してください。'
-            : status || (dirty ? '未保存の変更があります。' : '保存済みです。')}
+          {armedPlayer
+            ? `${armedPlayer.name}を配置する守備位置をタップしてください。`
+            : !complete
+              ? '9つの枠すべてに異なる選手を配置してください。'
+              : status || (dirty ? '未保存の変更があります。' : '保存済みです。')}
         </div>
       </Card>
 
@@ -314,7 +354,8 @@ function LineupEditor({
         <FieldDiagram
           assignments={editor.assignments}
           selectedSlot={selectedSlot}
-          onSelectSlot={setSelectedSlot}
+          armedPlayerName={armedPlayer?.name ?? null}
+          onSelectSlot={handleSelectSlot}
           onSwapSlots={swapSlots}
         />
         <BattingOrderList
@@ -326,12 +367,19 @@ function LineupEditor({
         />
       </div>
 
+      <BenchPanel
+        players={benchPlayers}
+        armedPlayerId={armedBenchId}
+        onToggleArm={toggleArmBench}
+        onSelectPlayer={onSelectPlayer}
+      />
+
       {selectedSlot && (
         <PositionPickerSheet
           slot={selectedSlot}
           players={team.fielders}
           assignments={editor.assignments}
-          onSelect={assignPlayer}
+          onSelect={(player) => assignPlayer(selectedSlot, player)}
           onClose={closePicker}
         />
       )}

@@ -8,11 +8,13 @@ import { usePointerDrag } from './usePointerDrag';
 
 export function RotationOrderList({
   pitchers,
+  slotCount,
   onMove,
   onReorder,
   onSelectPlayer,
 }: {
   pitchers: Player[];
+  slotCount: number;
   onMove(index: number, direction: -1 | 1): void;
   onReorder(activeId: string, overId: string): void;
   onSelectPlayer(player: Player): void;
@@ -30,7 +32,27 @@ export function RotationOrderList({
 
   return (
     <Card ariaLabel="先発ローテーションの編集">
-      <SectionTitle>Starting Rotation</SectionTitle>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 10,
+          flexWrap: 'wrap',
+          marginBottom: 4,
+        }}
+      >
+        <SectionTitle>Starting Rotation</SectionTitle>
+        <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
+          <strong
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}
+          >
+            {pitchers.length}
+          </strong>
+          {' / '}
+          {slotCount}枠
+        </span>
+      </div>
       {!pitchers.length ? (
         <EmptyState>先発ロールの投手がいません。</EmptyState>
       ) : (

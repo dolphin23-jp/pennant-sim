@@ -53,6 +53,7 @@ function SlotButton({
   selected,
   dragging,
   dropTarget,
+  armedHint,
   dragHandleProps,
   onSelect,
 }: {
@@ -61,6 +62,7 @@ function SlotButton({
   selected: boolean;
   dragging: boolean;
   dropTarget: boolean;
+  armedHint: string | null;
   dragHandleProps: PointerDragHandleProps;
   onSelect(slot: LineupSlot): void;
 }) {
@@ -70,14 +72,19 @@ function SlotButton({
   const rank = aptitude === null ? null : aptitudeRank(aptitude);
   const aptitudeColor = aptitudeToneColor(aptitude);
   const label = slot === 'extra' ? '追加打者' : slot;
+  const armedTarget = Boolean(armedHint) && !dropTarget;
   const borderColor = dropTarget
     ? 'var(--color-accent)'
-    : aptitudeColor ?? (selected ? 'var(--color-accent)' : 'var(--color-border-strong)');
-  const background = aptitudeColor
-    ? `color-mix(in srgb, ${aptitudeColor} ${selected ? 18 : 10}%, ${selected ? 'var(--color-accent-soft)' : 'var(--color-surface-raised)'})`
-    : selected
-      ? 'var(--color-accent-soft)'
-      : 'var(--color-surface-raised)';
+    : armedTarget
+      ? 'var(--color-accent)'
+      : aptitudeColor ?? (selected ? 'var(--color-accent)' : 'var(--color-border-strong)');
+  const background = armedTarget
+    ? 'color-mix(in srgb, var(--color-accent) 14%, var(--color-surface-raised))'
+    : aptitudeColor
+      ? `color-mix(in srgb, ${aptitudeColor} ${selected ? 18 : 10}%, ${selected ? 'var(--color-accent-soft)' : 'var(--color-surface-raised)'})`
+      : selected
+        ? 'var(--color-accent-soft)'
+        : 'var(--color-surface-raised)';
   return (
     <div
       data-drop-id={slot}
@@ -91,7 +98,7 @@ function SlotButton({
     >
       <button
         type="button"
-        aria-label={`${label}${player ? `、${player.name}、基本総合値${breakdown?.base}から特殊込み${breakdown?.total}${aptitude === null ? '' : `、適性ランク${rank}、${aptitude}%`}` : '、未選択'}を変更`}
+        aria-label={`${label}${player ? `、${player.name}、基本総合値${breakdown?.base}から特殊込み${breakdown?.total}${aptitude === null ? '' : `、適性ランク${rank}、${aptitude}%`}` : '、未選択'}を変更${armedHint ? `。${armedHint}をここに配置` : ''}`}
         aria-pressed={selected}
         onClick={() => onSelect(slot)}
         style={{
@@ -99,6 +106,7 @@ function SlotButton({
           minHeight: 70,
           padding: '7px 32px 7px 8px',
           border: `1px solid ${borderColor}`,
+          borderStyle: armedTarget ? 'dashed' : 'solid',
           borderRadius: 10,
           color: 'var(--color-text)',
           background,
@@ -187,11 +195,13 @@ function SlotButton({
 export function FieldDiagram({
   assignments,
   selectedSlot,
+  armedPlayerName = null,
   onSelectSlot,
   onSwapSlots,
 }: {
   assignments: LineupAssignments;
   selectedSlot: LineupSlot | null;
+  armedPlayerName?: string | null;
   onSelectSlot(slot: LineupSlot): void;
   onSwapSlots(first: LineupSlot, second: LineupSlot): void;
 }) {
@@ -216,6 +226,7 @@ export function FieldDiagram({
       selected={selectedSlot === slot}
       dragging={drag.activeId === slot}
       dropTarget={drag.activeId !== null && drag.overId === slot && drag.activeId !== slot}
+      armedHint={armedPlayerName}
       dragHandleProps={drag.handleProps(slot)}
       onSelect={onSelectSlot}
     />
@@ -247,6 +258,23 @@ export function FieldDiagram({
           />
         </div>
       </div>
+      {armedPlayerName && (
+        <div
+          role="status"
+          style={{
+            marginTop: 8,
+            padding: '7px 10px',
+            border: '1px dashed var(--color-accent)',
+            borderRadius: 8,
+            color: 'var(--color-accent)',
+            background: 'var(--color-accent-soft)',
+            fontSize: 12,
+            fontWeight: 700,
+          }}
+        >
+          {armedPlayerName}を配置します。守備位置をタップしてください。
+        </div>
+      )}
 
       <div
         style={{
