@@ -1,4 +1,5 @@
 import { AT_BAT_BALANCE } from '../data';
+import { foreignPerformanceMultiplier } from './foreign';
 import { clamp, random, randomChoice, randomInt } from './random';
 import { hasGold, specialLevel, specialMultiplier } from './specials';
 import type {
@@ -21,6 +22,8 @@ export function simAB(
 ): AtBatOutcome {
   const pitcherParams = pitcher.p,
     batterParams = batter.p,
+    pitcherAdaptation = foreignPerformanceMultiplier(pitcher),
+    batterAdaptation = foreignPerformanceMultiplier(batter),
     staminaRatio = clamp((situation.pStam || 80) / 100, 0.2, 1),
     pitcherHand = pitcher.hand.th ?? '右',
     batterHand = batter.hand.bat ?? '右',
@@ -50,10 +53,10 @@ export function simAB(
   const breakingBallContribution = bestBreakingPitch
     ? (bestBreakingPitch.shr - 50) / AT_BAT_BALANCE.strikeout.breakingBallScale
     : 0;
-  const adjustedVelocity = (pitcherParams.vel ?? 50) * pitcherMasteryMultiplier,
-    adjustedMovement = (pitcherParams.nobi ?? 50) * pitcherMasteryMultiplier,
-    adjustedFastballContact = (batterParams.cf ?? 50) * batterMasteryMultiplier,
-    adjustedBreakingContact = (batterParams.cb ?? 50) * batterMasteryMultiplier,
+  const adjustedVelocity = (pitcherParams.vel ?? 50) * pitcherMasteryMultiplier * pitcherAdaptation,
+    adjustedMovement = (pitcherParams.nobi ?? 50) * pitcherMasteryMultiplier * pitcherAdaptation,
+    adjustedFastballContact = (batterParams.cf ?? 50) * batterMasteryMultiplier * batterAdaptation,
+    adjustedBreakingContact = (batterParams.cb ?? 50) * batterMasteryMultiplier * batterAdaptation,
     adjustedContact = (adjustedFastballContact + adjustedBreakingContact) / 2;
   let strikeoutRate =
     AT_BAT_BALANCE.strikeout.baseRate +
@@ -85,8 +88,8 @@ export function simAB(
     AT_BAT_BALANCE.strikeout.minRate,
     AT_BAT_BALANCE.strikeout.maxRate,
   );
-  const adjustedControl = (pitcherParams.ctrl ?? 50) * pitcherMasteryMultiplier,
-    adjustedDiscipline = (batterParams.dc ?? 50) * batterMasteryMultiplier;
+  const adjustedControl = (pitcherParams.ctrl ?? 50) * pitcherMasteryMultiplier * pitcherAdaptation,
+    adjustedDiscipline = (batterParams.dc ?? 50) * batterMasteryMultiplier * batterAdaptation;
   let walkRate =
     AT_BAT_BALANCE.walk.baseRate -
     (adjustedControl - 50) / AT_BAT_BALANCE.walk.controlScale +
@@ -104,7 +107,7 @@ export function simAB(
     AT_BAT_BALANCE.hitByPitch.minRate,
     AT_BAT_BALANCE.hitByPitch.maxRate,
   );
-  const adjustedPower = (batterParams.pw ?? 50) * batterMasteryMultiplier;
+  const adjustedPower = (batterParams.pw ?? 50) * batterMasteryMultiplier * batterAdaptation;
   let homeRunRate =
     AT_BAT_BALANCE.homeRun.baseRate -
     (adjustedVelocity - 50) / AT_BAT_BALANCE.homeRun.velocityScale -
@@ -126,7 +129,7 @@ export function simAB(
   groundBallRate *= 1 - specialLevel(batter, 'pull') * 0.018;
   groundBallRate *= 1 + specialLevel(batter, 'oppo') * 0.015;
   if (hasGold(pitcher, 'heavy_gold')) groundBallRate *= 1.08;
-  const adjustedSpeed = (batterParams.sp ?? 50) * batterMasteryMultiplier;
+  const adjustedSpeed = (batterParams.sp ?? 50) * batterMasteryMultiplier * batterAdaptation;
   let ballsInPlayAverage =
     AT_BAT_BALANCE.ballsInPlay.baseAverage +
     (adjustedSpeed - 50) / AT_BAT_BALANCE.ballsInPlay.speedScale +
@@ -163,8 +166,7 @@ export function simAB(
         result = 'DP';
       else result = 'GO';
     } else {
-      if (ballInPlayRoll < ballsInPlayAverage * AT_BAT_BALANCE.airBall.tripleShare)
-        result = '3B';
+      if (ballInPlayRoll < ballsInPlayAverage * AT_BAT_BALANCE.airBall.tripleShare) result = '3B';
       else if (
         ballInPlayRoll <
         ballsInPlayAverage *

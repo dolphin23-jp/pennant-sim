@@ -51,9 +51,7 @@ function StatGrid({ stats }: { stats: PlayerStats | undefined }) {
             )}
           </dt>
           <dd
-            className={
-              item.elite ? 'stat-value--elite' : item.power ? 'metric-power' : undefined
-            }
+            className={item.elite ? 'stat-value--elite' : item.power ? 'metric-power' : undefined}
           >
             {item.value}
           </dd>
@@ -133,7 +131,13 @@ function GrowthChart({ player, overall }: { player: Player; overall: number }) {
         .map((point) => `${point.age}歳 ${point.value}`)
         .join('、')}`}
     >
-      <line className="growth-chart__grid" x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} />
+      <line
+        className="growth-chart__grid"
+        x1={padding}
+        y1={height - padding}
+        x2={width - padding}
+        y2={height - padding}
+      />
       <polyline
         className="growth-chart__line"
         points={coordinates.map((point) => `${point.x},${point.y}`).join(' ')}
@@ -178,12 +182,11 @@ function BasicTab({ player, overall }: { player: Player; overall: number }) {
   const radarAbilities = player.isP
     ? abilities
     : abilities.filter((ability) => ability.label !== 'バント');
-  const positions =
-    player.positions?.length
-      ? [...player.positions].sort((first, second) => second.apt - first.apt)
-      : player.pos
-        ? [{ pos: player.pos, apt: 100 }]
-        : [];
+  const positions = player.positions?.length
+    ? [...player.positions].sort((first, second) => second.apt - first.apt)
+    : player.pos
+      ? [{ pos: player.pos, apt: 100 }]
+      : [];
 
   return (
     <div className="detail-grid">
@@ -200,8 +203,35 @@ function BasicTab({ player, overall }: { player: Player; overall: number }) {
           </div>
           <div>
             <dt>投打</dt>
-            <dd>{player.hand.th ?? '-'}投 {player.hand.bat ?? '-'}打</dd>
+            <dd>
+              {player.hand.th ?? '-'}投 {player.hand.bat ?? '-'}打
+            </dd>
           </div>
+          {player.foreignProfile && (
+            <>
+              <div>
+                <dt>出身</dt>
+                <dd>{player.foreignProfile.origin}</dd>
+              </div>
+              <div>
+                <dt>NPB在籍</dt>
+                <dd>{player.foreignProfile.npbSeasons}季</dd>
+              </div>
+              <div>
+                <dt>残り契約</dt>
+                <dd>{player.foreignProfile.contractYearsRemaining}年</dd>
+              </div>
+              <div>
+                <dt>
+                  <TermTooltip
+                    term="適応"
+                    description="日本野球への適応度です。1.00を基準に、実際の打席・投球能力へ反映されます。毎年の経験と成績で変化します。"
+                  />
+                </dt>
+                <dd>{player.foreignProfile.adaptationFactor.toFixed(2)}</dd>
+              </div>
+            </>
+          )}
           <div>
             <dt>
               <TermTooltip
@@ -210,10 +240,7 @@ function BasicTab({ player, overall }: { player: Player; overall: number }) {
               />
             </dt>
             <dd>
-              <DisplayOVRValue
-                player={player}
-                position={player.isP ? undefined : player.pos}
-              />
+              <DisplayOVRValue player={player} position={player.isP ? undefined : player.pos} />
             </dd>
           </div>
         </dl>
@@ -245,7 +272,9 @@ function BasicTab({ player, overall }: { player: Player; overall: number }) {
                   >
                     <span>
                       <span>{position.pos}</span>
-                      <strong>{rank} {position.apt}%</strong>
+                      <strong>
+                        {rank} {position.apt}%
+                      </strong>
                     </span>
                   </div>
                 );
@@ -358,7 +387,9 @@ export function PlayerDetailModal({
     const nextTab = tabs[nextIndex];
     if (!nextTab) return;
     setActiveTab(nextTab.id);
-    window.requestAnimationFrame(() => document.getElementById(`player-tab-${nextTab.id}`)?.focus());
+    window.requestAnimationFrame(() =>
+      document.getElementById(`player-tab-${nextTab.id}`)?.focus(),
+    );
   };
 
   const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
@@ -420,7 +451,11 @@ export function PlayerDetailModal({
               compact
               ariaLabel={`特殊込みOVR ${headline.total}、基本総合値 ${headline.base}から算出`}
             />
-            <Button onClick={onClose} color="var(--color-surface-muted)" ariaLabel="選手詳細を閉じる">
+            <Button
+              onClick={onClose}
+              color="var(--color-surface-muted)"
+              ariaLabel="選手詳細を閉じる"
+            >
               閉じる
             </Button>
           </div>

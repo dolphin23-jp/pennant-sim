@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 
-import { TINFO } from '../../data';
+import { FOREIGN_PLAYER_BALANCE, TINFO } from '../../data';
 import {
   calcOVR,
+  countForeignPlayers,
   cpuAutoSignMarketRounds,
   cpuAutoTradeBetweenTeams,
   finalizeCpuRosters,
@@ -10,11 +11,13 @@ import {
   genFreeAgentMarket,
   growthPhase,
   prepareCpuRostersForDraft,
+  reviewForeignPlayers,
   signPlayerToTeam,
 } from '../../engine';
 import type { Player, TeamKey, Teams } from '../../engine';
 import { useGameState } from '../../state/gameState';
 import { createOffseasonDevelopmentNotices } from '../../state/notices';
+import type { Notice } from '../../state/storage';
 import { applyTrade, generateTradeOffers } from '../../state/offseason';
 import { Button, Card, EmptyState, PageShell, SectionTitle } from '../ui';
 import { DraftScreen } from './DraftScreen';
@@ -40,22 +43,57 @@ function OffseasonContent({
   playerTeam: TeamKey;
 }) {
   const [phase, setPhase] = useState<OffseasonPhase>('growth');
-  const [growthResult] = useState(() => growthPhase(initialTeams));
+  const [foreignReview] = useState(() =>
+    reviewForeignPlayers(initialTeams, game.leagueAccumulated, game.season.year),
+  );
+  const [foreignNotices] = useState<Notice[]>(() =>
+    foreignReview.events
+      .filter((event) => event.teamKey === playerTeam)
+      .map((event) => ({
+        id: `foreign:${game.season.year}:${event.playerId}:${event.type}`,
+        kind: 'system',
+        title:
+          event.type === 'renewed'
+            ? `${event.name}と${event.contractYearsRemaining}年契約で更新`
+            : event.type === 'mlbTransfer'
+              ? `${event.name}がMLBへ移籍`
+              : event.type === 'released'
+                ? `${event.name}が契約満了で退団`
+                : event.adaptationAfter >= event.adaptationBefore
+                  ? `${event.name}が日本野球へ適応`
+                  : `${event.name}が日本野球への対応に苦戦`,
+        body: `${event.origin}出身・NPB ${event.npbSeasons}季・適応 ${event.adaptationAfter.toFixed(2)}・OVR ${event.ovr}`,
+        tone:
+          event.type === 'renewed' ||
+          (event.type === 'adaptation' && event.adaptationAfter >= event.adaptationBefore)
+            ? 'good'
+            : event.type === 'mlbTransfer'
+              ? 'info'
+              : 'warn',
+        date: `${game.season.year}年オフ`,
+        playerId: event.playerId,
+        teamKey: playerTeam,
+      })),
+  );
+  const [growthResult] = useState(() => growthPhase(foreignReview.teams));
   const [cpuPreparation] = useState(() =>
     prepareCpuRostersForDraft(growthResult.teams, { excludedTeam: playerTeam }),
   );
-  const [developmentNotices] = useState(() =>
-    createOffseasonDevelopmentNotices(
-      initialTeams[playerTeam],
+  const [developmentNotices] = useState(() => [
+    ...createOffseasonDevelopmentNotices(
+      foreignReview.teams[playerTeam],
       growthResult.teams[playerTeam],
       growthResult.awakeEvents,
       playerTeam,
       game.season.year,
     ),
-  );
+    ...foreignNotices,
+  ]);
   const [workTeams, setWorkTeams] = useState<Teams>(cpuPreparation.teams);
   const [faMarket, setFaMarket] = useState<Player[]>(() => genFreeAgentMarket());
-  const [foreignMarket, setForeignMarket] = useState<Player[]>(() => genForeignMarket());
+  const [foreignMarket, setForeignMarket] = useState<Player[]>(() =>
+    genForeignMarket(game.season.year + 1),
+  );
   const [retireIds, setRetireIds] = useState<string[]>([]);
   const [tradeOffers, setTradeOffers] = useState(() =>
     generateTradeOffers(growthResult.teams, playerTeam),
@@ -105,6 +143,8 @@ function OffseasonContent({
     setFaMarket((market) => market.filter((candidate) => candidate.id !== player.id));
   };
   const signForeignPlayer = (player: Player) => {
+    if (countForeignPlayers(workTeams[playerTeam]) >= FOREIGN_PLAYER_BALANCE.registeredLimit)
+      return;
     setWorkTeams((teams) => signPlayerToTeam(teams, playerTeam, player));
     setForeignMarket((market) => market.filter((candidate) => candidate.id !== player.id));
   };
@@ -301,6 +341,10 @@ function OffseasonContent({
           players={foreignMarket}
           accent={teamInfo.c}
           onSign={signForeignPlayer}
+          signDisabled={
+            countForeignPlayers(workTeams[playerTeam]) >= FOREIGN_PLAYER_BALANCE.registeredLimit
+          }
+          signDisabledReason={`外国人登録枠（${FOREIGN_PLAYER_BALANCE.registeredLimit}人）が満員です`}
           onNext={() => {
             const result = cpuAutoSignMarketRounds(
               workTeams,

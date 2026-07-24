@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   configureRandom,
+  countForeignPlayers,
   genFreeAgentMarket,
   initTeams,
   prepareCpuRostersForDraft,
@@ -74,9 +75,11 @@ test('shared automated offseason keeps stable rosters through generational turno
     let sawMandatoryRetirement = false;
     let sawForeignSigning = false;
     let sawFreeAgentSigning = false;
+    let sawForeignRenewal = false;
+    let sawForeignRelease = false;
 
     for (let season = 0; season < 25; season += 1) {
-      const result = runAutomatedOffseason(teams);
+      const result = runAutomatedOffseason(teams, { year: 2026 + season });
       teams = result.teams;
       assert.equal(result.draftPicks.length, 12 * 6);
       sawMandatoryRetirement ||= result.exits.some(
@@ -84,6 +87,8 @@ test('shared automated offseason keeps stable rosters through generational turno
       );
       sawForeignSigning ||= result.foreignSignings > 0;
       sawFreeAgentSigning ||= result.freeAgentSignings > 0;
+      sawForeignRenewal ||= result.foreignRenewals > 0;
+      sawForeignRelease ||= result.foreignReleases > 0;
 
       for (const team of Object.values(teams)) {
         assert.equal(team.pitchers.length, 28);
@@ -92,6 +97,7 @@ test('shared automated offseason keeps stable rosters through generational turno
           [...team.pitchers, ...team.fielders].every((player) => player.age < 42),
           'players at the mandatory retirement age must leave the active roster',
         );
+        assert.ok(countForeignPlayers(team) <= 5);
       }
     }
 
@@ -103,6 +109,8 @@ test('shared automated offseason keeps stable rosters through generational turno
     assert.ok(sawMandatoryRetirement);
     assert.ok(sawForeignSigning);
     assert.ok(sawFreeAgentSigning);
+    assert.ok(sawForeignRenewal);
+    assert.ok(sawForeignRelease);
   } finally {
     resetRandom();
   }

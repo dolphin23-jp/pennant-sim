@@ -18,6 +18,22 @@ export type PitcherRole = '先発' | 'リリーフ' | 'クローザー';
 export type Maturity = '超早熟' | '早熟' | '通常' | '晩成' | '超晩成';
 export type PotentialClass = 'standard' | 'elite';
 export type DraftOrigin = '高卒' | '大卒' | '社会人';
+export type ForeignOrigin =
+  | 'アメリカ'
+  | 'ドミニカ共和国'
+  | 'ベネズエラ'
+  | 'キューバ'
+  | 'メキシコ'
+  | '韓国'
+  | '台湾'
+  | 'その他';
+export interface ForeignPlayerProfile {
+  origin: ForeignOrigin;
+  arrivalYear: number;
+  contractYearsRemaining: number;
+  npbSeasons: number;
+  adaptationFactor: number;
+}
 export type TrainPolicyId =
   'balanced' | 'power' | 'contact' | 'speed' | 'defense' | 'velocity' | 'control' | 'stamina_t';
 export type PlayerTeamKey = TeamKey | 'foreign' | '外' | 'fa' | 'FA' | 'draft';
@@ -122,6 +138,7 @@ export interface Player {
   note?: string;
   signedVia?: string;
   draftOrigin?: DraftOrigin;
+  foreignProfile?: ForeignPlayerProfile;
   [key: string]: unknown;
 }
 export interface Team extends TeamInfo {
