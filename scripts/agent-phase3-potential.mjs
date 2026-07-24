@@ -15,7 +15,10 @@ await update('src/engine/types.ts', (source) => {
       "export type Maturity = '超早熟' | '早熟' | '通常' | '晩成' | '超晩成';\nexport type PotentialClass = 'standard' | 'elite';",
     );
   if (!next.includes('  potentialClass?: PotentialClass;'))
-    next = next.replace('  pot: PotentialParams;\n', '  pot: PotentialParams;\n  potentialClass?: PotentialClass;\n');
+    next = next.replace(
+      '  pot: PotentialParams;\n',
+      '  pot: PotentialParams;\n  potentialClass?: PotentialClass;\n',
+    );
   return next;
 });
 
@@ -113,9 +116,14 @@ await update('src/engine/players.ts', (source) => {
     trainPolicy: 'balanced',`,
     );
 
-  if ((next.match(/potentialClass,/g) ?? []).length < 4)
-    throw new Error('Potential class was not connected to both player generators');
-  if (next.includes('generatePotential(velocity)') || next.includes('generatePotential(contactFastball)'))
+  const classAssignments = next.match(/potentialClass: PotentialClass = random\(\) < 0\.05/g) ?? [];
+  const storedClasses = next.match(/^\s+potentialClass,$/gm) ?? [];
+  if (classAssignments.length !== 2 || storedClasses.length !== 2)
+    throw new Error('Potential class was not connected exactly once to each player generator');
+  if (
+    next.includes('generatePotential(velocity)') ||
+    next.includes('generatePotential(contactFastball)')
+  )
     throw new Error('Legacy potential call sites remain');
   return next;
 });
