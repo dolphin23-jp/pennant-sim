@@ -8,9 +8,10 @@ import {
   type TouchEvent,
 } from 'react';
 
-import { calcOVR, effectiveOVR, specialLevel, statItems, yearlyRows } from '../../engine';
+import { aptitudeRank, calcOVR, effectiveOVR, specialLevel, statItems, yearlyRows } from '../../engine';
 import type { AccumulatedStats, Player, PlayerStats } from '../../engine';
 import { Button, Card, EmptyState, SectionTitle, TermTooltip } from '../ui';
+import { AbilityRadarChart, type AbilityRadarItem } from './AbilityRadarChart';
 import { DisplayOVRValue } from './DisplayOVRValue';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
 
@@ -148,24 +149,27 @@ const positionStyle = (aptitude: number): CSSProperties =>
   ({ '--aptitude': `${Math.max(0, Math.min(100, aptitude))}%` }) as CSSProperties;
 
 function BasicTab({ player, overall }: { player: Player; overall: number }) {
-  const abilities = player.isP
+  const abilities: AbilityRadarItem[] = player.isP
     ? [
-        ['球速', player.p.vel],
-        ['制球', player.p.ctrl],
-        ['スタミナ', player.p.stam],
-        ['ノビ', player.p.nobi],
-        ['守備', player.p.fld],
+        { label: '球速', value: player.p.vel },
+        { label: '制球', value: player.p.ctrl },
+        { label: 'スタミナ', value: player.p.stam },
+        { label: 'ノビ', value: player.p.nobi },
+        { label: '守備', value: player.p.fld },
       ]
     : [
-        ['直球対応', player.p.cf],
-        ['変化対応', player.p.cb],
-        ['長打力', player.p.pw],
-        ['選球眼', player.p.dc],
-        ['走力', player.p.sp],
-        ['守備力', player.p.df],
-        ['肩力', player.p.arm],
-        ['バント', player.p.bnt],
+        { label: '直球対応', value: player.p.cf },
+        { label: '変化対応', value: player.p.cb },
+        { label: '長打力', value: player.p.pw },
+        { label: '選球眼', value: player.p.dc },
+        { label: '走力', value: player.p.sp },
+        { label: '守備力', value: player.p.df },
+        { label: '肩力', value: player.p.arm },
+        { label: 'バント', value: player.p.bnt },
       ];
+  const radarAbilities = player.isP
+    ? abilities
+    : abilities.filter((ability) => ability.label !== 'バント');
   const positions =
     player.positions?.length
       ? [...player.positions].sort((first, second) => second.apt - first.apt)
@@ -206,12 +210,15 @@ function BasicTab({ player, overall }: { player: Player; overall: number }) {
           </div>
         </dl>
       </Card>
-      <Card className="detail-card" ariaLabel="能力値">
+      <Card className="detail-card detail-card--wide" ariaLabel="能力値">
         <SectionTitle>Abilities</SectionTitle>
-        <div className="ability-list">
-          {abilities.map(([label, value]) => (
-            <AbilityBar key={String(label)} label={String(label)} value={value as number | undefined} />
-          ))}
+        <div className="abilities-layout">
+          <AbilityRadarChart items={radarAbilities} />
+          <div className="ability-list">
+            {abilities.map((ability) => (
+              <AbilityBar key={ability.label} label={ability.label} value={ability.value} />
+            ))}
+          </div>
         </div>
       </Card>
       {!player.isP && (
@@ -219,19 +226,22 @@ function BasicTab({ player, overall }: { player: Player; overall: number }) {
           <SectionTitle>Position Aptitude</SectionTitle>
           {positions.length ? (
             <div className="position-grid">
-              {positions.map((position) => (
-                <div
-                  className="position-chip"
-                  key={position.pos}
-                  style={positionStyle(position.apt)}
-                  aria-label={`${position.pos} 適性 ${position.apt}`}
-                >
-                  <span>
-                    <span>{position.pos}</span>
-                    <strong>{position.apt}</strong>
-                  </span>
-                </div>
-              ))}
+              {positions.map((position) => {
+                const rank = aptitudeRank(position.apt);
+                return (
+                  <div
+                    className="position-chip"
+                    key={position.pos}
+                    style={positionStyle(position.apt)}
+                    aria-label={`${position.pos} 適性ランク ${rank}、${position.apt}%`}
+                  >
+                    <span>
+                      <span>{position.pos}</span>
+                      <strong>{rank} {position.apt}%</strong>
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <EmptyState>ポジション適性が登録されていません。</EmptyState>
