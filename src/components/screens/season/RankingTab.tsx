@@ -17,7 +17,6 @@ interface RankingDefinition {
 interface RankingEntry {
   player: Player;
   teamKey: TeamKey;
-  stats: PlayerStats;
   value: number;
 }
 
@@ -152,7 +151,7 @@ function RankingCard({
       if (!stats || !teamKey || stats.type !== definition.kind) return null;
       if (definition.rate && !qualifiesForRate(stats, gamesByTeam[teamKey])) return null;
       const value = definition.value(stats);
-      return value === null ? null : { player, teamKey, stats, value };
+      return value === null ? null : { player, teamKey, value };
     })
     .filter((entry): entry is RankingEntry => entry !== null)
     .sort((first, second) => {
@@ -269,7 +268,9 @@ export function RankingTab() {
   const game = useGameState();
   if (!game.teams || !game.playerTeam) return null;
 
-  const players = Object.values(game.teams).flatMap((team) => [
+  const teams = game.teams;
+  const playerTeam = game.playerTeam;
+  const players = Object.values(teams).flatMap((team) => [
     ...team.fielders,
     ...team.pitchers,
   ]);
@@ -296,7 +297,7 @@ export function RankingTab() {
               key={definition.id}
               definition={definition}
               players={players}
-              playerTeam={game.playerTeam}
+              playerTeam={playerTeam}
               gamesByTeam={gamesByTeam}
               statsByPlayer={game.leagueAccumulated}
               onSelect={game.selectPlayer}
@@ -319,7 +320,7 @@ export function RankingTab() {
               key={definition.id}
               definition={definition}
               players={players}
-              playerTeam={game.playerTeam}
+              playerTeam={playerTeam}
               gamesByTeam={gamesByTeam}
               statsByPlayer={game.leagueAccumulated}
               onSelect={game.selectPlayer}
