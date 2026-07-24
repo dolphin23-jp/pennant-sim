@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 
-import { calcOVR, effectiveOVR, ops } from '../../engine';
+import { calcOVR, displayOVR, displayOVRBreakdown, effectiveOVR, ops } from '../../engine';
 import type { AccumulatedStats, Player } from '../../engine';
 import { Button, EmptyState, SectionTitle } from '../ui';
 
@@ -12,10 +12,11 @@ interface CompareMetric {
 }
 
 const integerText = (value: number): string => String(Math.round(value));
+const signedText = (value: number): string => `${value >= 0 ? '+' : ''}${(Math.round(value * 10) / 10).toFixed(1)}`;
 const decimalText = (value: number): string => value.toFixed(2);
 const rateText = (value: number): string => value.toFixed(3).replace(/^0/, '');
 
-function playerOVR(player: Player): number {
+function playerRawOVR(player: Player): number {
   return calcOVR(player);
 }
 
@@ -23,10 +24,26 @@ function playerEffectiveOVR(player: Player): number {
   return player.isP ? calcOVR(player) : effectiveOVR(player, player._assignedPos ?? player.pos);
 }
 
+function playerSpecialAdjustment(player: Player): number {
+  return displayOVRBreakdown(player, player._assignedPos ?? player.pos).specialAdjustment;
+}
+
 const basicMetrics: CompareMetric[] = [
   { id: 'age', label: '年齢', value: (player) => player.age, format: integerText },
-  { id: 'ovr', label: 'OVR', value: playerOVR, format: integerText },
-  { id: 'effective-ovr', label: '実効OVR', value: playerEffectiveOVR, format: integerText },
+  { id: 'raw-ovr', label: '能力値OVR', value: playerRawOVR, format: integerText },
+  { id: 'effective-ovr', label: '基本総合値', value: playerEffectiveOVR, format: integerText },
+  {
+    id: 'special-adjustment',
+    label: '特殊能力補正',
+    value: playerSpecialAdjustment,
+    format: signedText,
+  },
+  {
+    id: 'display-ovr',
+    label: '特殊込み総合値',
+    value: (player) => displayOVR(player, player._assignedPos ?? player.pos),
+    format: integerText,
+  },
 ];
 
 const batterAbilityMetrics: CompareMetric[] = [
@@ -219,7 +236,7 @@ export function PlayerCompareModal({
             <h1 className="player-modal__title" id="player-compare-title">
               選手比較
             </h1>
-            <div className="player-modal__meta">最大値を強調表示しています。</div>
+            <div className="player-modal__meta">基本総合値と特殊込み総合値を分けて比較します。</div>
           </div>
           <Button onClick={onClose} color="var(--color-surface-muted)" ariaLabel="選手比較を閉じる">
             閉じる
