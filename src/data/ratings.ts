@@ -1,4 +1,11 @@
 import type { FieldPosition, PitcherRole, PlayerParams, TrainPolicyId } from '../engine/types';
+
+export const DISPLAY_OVR_NORMAL_SPECIAL_MULTIPLIER = 10;
+export const DISPLAY_OVR_GOLD_SPECIAL_MULTIPLIER = 150;
+export const DISPLAY_OVR_SPECIAL_ADJUSTMENT_MIN = -10;
+export const DISPLAY_OVR_SPECIAL_ADJUSTMENT_MAX = 10;
+export const NEGATIVE_SPECIAL_IDS = ['px', 'ldx', 'cx', 'fbx'] as const;
+
 export const OVR_W: Record<
   FieldPosition,
   Required<Pick<PlayerParams, 'cf' | 'cb' | 'pw' | 'dc' | 'sp' | 'df' | 'arm' | 'ld' | 'stam'>>
