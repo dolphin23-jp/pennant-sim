@@ -325,8 +325,8 @@ function ageDistribution(
 function generateRosterQuality(baseDevelopment: number): number {
   const baseMean = baseDevelopment * 0.75,
     tierRoll = random();
-  if (tierRoll < 0.018) return clamp(gaussian(baseMean + 70, 8), 98, 138);
-  if (tierRoll < 0.108) return clamp(gaussian(baseMean + 45, 10), 75, 122);
+  if (tierRoll < 0.025) return clamp(gaussian(baseMean + 95, 6), 125, 160);
+  if (tierRoll < 0.125) return clamp(gaussian(baseMean + 65, 8), 105, 140);
   return clamp(gaussian(baseMean, 15), 28, 92);
 }
 export function initTeams(): Teams {
