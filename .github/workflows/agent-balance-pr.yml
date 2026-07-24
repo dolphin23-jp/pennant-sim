@@ -29,7 +29,10 @@ jobs:
         run: |
           mkdir -p baseline
           set +e
-          node scripts/agent-tune-1.mjs > baseline/agent-patch.log 2>&1
+          {
+            node scripts/agent-tune-1.mjs
+            node scripts/agent-tune-2.mjs
+          } > baseline/agent-patch.log 2>&1
           status=$?
           set -e
           cat baseline/agent-patch.log
@@ -41,6 +44,7 @@ jobs:
           npx prettier --write
           src/engine/game.ts
           src/engine/players.ts
+          src/engine/market.ts
           scripts/balance-new-engine.ts
           tests/balance-generation.test.ts
       - name: Build
@@ -63,6 +67,7 @@ jobs:
           git add \
             src/engine/game.ts \
             src/engine/players.ts \
+            src/engine/market.ts \
             scripts/balance-new-engine.ts \
             tests/balance-generation.test.ts
           git add -f baseline/agent-*.log baseline/agent-patch.status 2>/dev/null || true
@@ -73,5 +78,5 @@ jobs:
             echo "No generated changes to commit"
             exit 0
           fi
-          git commit -m "Tune simulation balance metrics"
+          git commit -m "Validate tuned simulation balance"
           git push origin HEAD:agent/balance-core
