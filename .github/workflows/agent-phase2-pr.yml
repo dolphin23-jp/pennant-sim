@@ -32,6 +32,7 @@ jobs:
           {
             node scripts/agent-phase2.mjs
             node scripts/agent-phase2-tune.mjs
+            node scripts/agent-phase2-floor.mjs
           } > baseline/phase2-patch.log 2>&1
           status=$?
           set -e
