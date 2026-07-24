@@ -55,7 +55,7 @@ export const AT_BAT_BALANCE = {
     velocityScale: 210,
     movementScale: 270,
     breakingBallScale: 320,
-    batterContactScale: 220,
+    batterContactScale: 190,
     fatiguePenalty: 0.26,
     minRate: 0.07,
     maxRate: 0.52,
