@@ -29,7 +29,10 @@ jobs:
         run: |
           mkdir -p baseline
           set +e
-          node scripts/agent-phase2.mjs > baseline/phase2-patch.log 2>&1
+          {
+            node scripts/agent-phase2.mjs
+            node scripts/agent-phase2-tune.mjs
+          } > baseline/phase2-patch.log 2>&1
           status=$?
           set -e
           cat baseline/phase2-patch.log
