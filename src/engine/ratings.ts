@@ -103,13 +103,14 @@ export function displayOVRBreakdown(
     const sign = negativeIds.has(special.id) ? -1 : 1;
     return total + sign * special.p * level * multiplier;
   }, 0);
-  const specialAdjustment =
+  const clampedAdjustment =
     options.clampAdjustment === false
       ? rawSpecialAdjustment
       : Math.max(
           DISPLAY_OVR_SPECIAL_ADJUSTMENT_MIN,
           Math.min(DISPLAY_OVR_SPECIAL_ADJUSTMENT_MAX, rawSpecialAdjustment),
         );
+  const specialAdjustment = Math.round(clampedAdjustment * 10) / 10;
 
   return {
     base,
