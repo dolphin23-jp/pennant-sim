@@ -52,7 +52,7 @@ export const PLAYER_DEVELOPMENT_BALANCE = {
 export const AT_BAT_BALANCE = {
   strikeout: {
     baseRate: 0.205,
-    velocityScale: 240,
+    velocityScale: 210,
     movementScale: 270,
     breakingBallScale: 320,
     batterContactScale: 190,
@@ -73,7 +73,7 @@ export const AT_BAT_BALANCE = {
     baseRate: 0.028,
     velocityScale: 1500,
     movementScale: 1500,
-    powerScale: 1500,
+    powerScale: 1250,
     fatigueBonus: 0.18,
     environmentMultiplier: 0.45,
     minRate: 0.001,
