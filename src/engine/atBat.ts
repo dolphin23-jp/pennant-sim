@@ -1,4 +1,4 @@
-import { AT_BAT_BALANCE } from '../data';
+import { AT_BAT_BALANCE, PITCHER_USAGE_BALANCE } from '../data';
 import { foreignPerformanceMultiplier } from './foreign';
 import { clamp, random, randomChoice, randomInt } from './random';
 import { hasGold, specialLevel, specialMultiplier } from './specials';
@@ -10,6 +10,13 @@ import type {
   PlateAppearanceResult,
   Player,
 } from './types';
+
+function softRatingDelta(value: number): number {
+  const raw = value - 50,
+    softness = PITCHER_USAGE_BALANCE.strikeoutTail.ratingDeltaSoftness;
+  return raw / (1 + Math.abs(raw) / softness);
+}
+
 export function simAB(
   pitcher: Player,
   batter: Player,
@@ -51,19 +58,22 @@ export function simAB(
     .filter((pitch) => pitch.type !== '直球')
     .sort((a, b) => b.shr - a.shr)[0];
   const breakingBallContribution = bestBreakingPitch
-    ? (bestBreakingPitch.shr - 50) / AT_BAT_BALANCE.strikeout.breakingBallScale
+    ? softRatingDelta(bestBreakingPitch.shr) / AT_BAT_BALANCE.strikeout.breakingBallScale
     : 0;
   const adjustedVelocity = (pitcherParams.vel ?? 50) * pitcherMasteryMultiplier * pitcherAdaptation,
     adjustedMovement = (pitcherParams.nobi ?? 50) * pitcherMasteryMultiplier * pitcherAdaptation,
     adjustedFastballContact = (batterParams.cf ?? 50) * batterMasteryMultiplier * batterAdaptation,
     adjustedBreakingContact = (batterParams.cb ?? 50) * batterMasteryMultiplier * batterAdaptation,
     adjustedContact = (adjustedFastballContact + adjustedBreakingContact) / 2;
+  const strikeoutRatingEdge =
+    softRatingDelta(adjustedVelocity) / AT_BAT_BALANCE.strikeout.velocityScale +
+    softRatingDelta(adjustedMovement) / AT_BAT_BALANCE.strikeout.movementScale +
+    breakingBallContribution -
+    softRatingDelta(adjustedContact) / AT_BAT_BALANCE.strikeout.batterContactScale;
   let strikeoutRate =
     AT_BAT_BALANCE.strikeout.baseRate +
-    (adjustedVelocity - 50) / AT_BAT_BALANCE.strikeout.velocityScale +
-    (adjustedMovement - 50) / AT_BAT_BALANCE.strikeout.movementScale +
-    breakingBallContribution -
-    (adjustedContact - 50) / AT_BAT_BALANCE.strikeout.batterContactScale;
+    Math.tanh(strikeoutRatingEdge / PITCHER_USAGE_BALANCE.strikeoutTail.ratingEffectSoftness) *
+      PITCHER_USAGE_BALANCE.strikeoutTail.maximumRatingEffect;
   strikeoutRate *= catcherLeadMultiplier;
   strikeoutRate *= 1 - (1 - staminaRatio) * AT_BAT_BALANCE.strikeout.fatiguePenalty;
   strikeoutRate *= specialMultiplier(pitcher, 'nobi', 0.025);
@@ -92,8 +102,8 @@ export function simAB(
     adjustedDiscipline = (batterParams.dc ?? 50) * batterMasteryMultiplier * batterAdaptation;
   let walkRate =
     AT_BAT_BALANCE.walk.baseRate -
-    (adjustedControl - 50) / AT_BAT_BALANCE.walk.controlScale +
-    (adjustedDiscipline - 50) / AT_BAT_BALANCE.walk.disciplineScale;
+    softRatingDelta(adjustedControl) / AT_BAT_BALANCE.walk.controlScale +
+    softRatingDelta(adjustedDiscipline) / AT_BAT_BALANCE.walk.disciplineScale;
   walkRate *= 1 + (1 - staminaRatio) * AT_BAT_BALANCE.walk.fatigueBonus;
   walkRate *= catcherLeadMultiplier;
   walkRate *= 1 - specialLevel(pitcher, 'cnr') * 0.03;
@@ -110,9 +120,9 @@ export function simAB(
   const adjustedPower = (batterParams.pw ?? 50) * batterMasteryMultiplier * batterAdaptation;
   let homeRunRate =
     AT_BAT_BALANCE.homeRun.baseRate -
-    (adjustedVelocity - 50) / AT_BAT_BALANCE.homeRun.velocityScale -
-    (adjustedMovement - 50) / AT_BAT_BALANCE.homeRun.movementScale +
-    (adjustedPower - 50) / AT_BAT_BALANCE.homeRun.powerScale;
+    softRatingDelta(adjustedVelocity) / AT_BAT_BALANCE.homeRun.velocityScale -
+    softRatingDelta(adjustedMovement) / AT_BAT_BALANCE.homeRun.movementScale +
+    softRatingDelta(adjustedPower) / AT_BAT_BALANCE.homeRun.powerScale;
   homeRunRate *= catcherLeadMultiplier;
   homeRunRate *= 1 + (1 - staminaRatio) * AT_BAT_BALANCE.homeRun.fatigueBonus;
   homeRunRate *= 1 - specialLevel(pitcher, 'heavy') * 0.05;
@@ -226,7 +236,13 @@ export function advBases(
       let runs = (runnerOnThird ? 1 : 0) + (runnerOnSecond ? 1 : 0);
       const next: BaseState = [false, true, false];
       if (runnerOnFirst) {
-        if (random() < (isFast ? 0.55 : 0.4)) runs += 1;
+        if (
+          random() <
+          (isFast
+            ? AT_BAT_BALANCE.baseRunning.scoreFromFirstOnDouble.fast
+            : AT_BAT_BALANCE.baseRunning.scoreFromFirstOnDouble.standard)
+        )
+          runs += 1;
         else next[2] = runnerOnFirst;
       }
       return { bases: next, runs };
@@ -235,7 +251,13 @@ export function advBases(
       let runs = runnerOnThird ? 1 : 0;
       const next: BaseState = [true, false, false];
       if (runnerOnSecond) {
-        if (random() < (isFast ? 0.22 : 0.14)) runs += 1;
+        if (
+          random() <
+          (isFast
+            ? AT_BAT_BALANCE.baseRunning.scoreFromSecondOnSingle.fast
+            : AT_BAT_BALANCE.baseRunning.scoreFromSecondOnSingle.standard)
+        )
+          runs += 1;
         else next[2] = runnerOnSecond;
       }
       if (runnerOnFirst) next[1] = runnerOnFirst;
@@ -248,16 +270,26 @@ export function advBases(
         third = runnerOnFirst && runnerOnSecond ? true : runnerOnThird;
       return { bases: [true, second, third], runs };
     }
-    case 'GO':
+    case 'GO': {
+      const scores =
+        Boolean(runnerOnThird) &&
+        outs < 2 &&
+        random() < AT_BAT_BALANCE.baseRunning.scoreFromThirdOnGroundOut;
       return {
-        bases: [runnerOnFirst, runnerOnSecond, false],
-        runs: runnerOnThird && outs < 2 && random() < 0.55 ? 1 : 0,
+        bases: [runnerOnFirst, runnerOnSecond, scores ? false : runnerOnThird],
+        runs: scores ? 1 : 0,
       };
-    case 'FO':
+    }
+    case 'FO': {
+      const scores =
+        Boolean(runnerOnThird) &&
+        outs < 2 &&
+        random() < AT_BAT_BALANCE.baseRunning.scoreFromThirdOnFlyOut;
       return {
-        bases: [runnerOnFirst, runnerOnSecond, runnerOnThird],
-        runs: runnerOnThird && outs < 2 && random() < 0.38 ? 1 : 0,
+        bases: [runnerOnFirst, runnerOnSecond, scores ? false : runnerOnThird],
+        runs: scores ? 1 : 0,
       };
+    }
     case 'DP':
       return { bases: [false, runnerOnSecond, runnerOnThird], runs: 0 };
     default:

@@ -1,14 +1,20 @@
+import { FOREIGN_PLAYER_BALANCE, PITCHER_USAGE_BALANCE } from '../data';
 import { advBases, buildDesc, simAB } from './atBat';
+import { isForeignPlayer } from './foreign';
 import { applyPostGamePlayerEvents } from './playerEvents';
 import {
   resolveStarterRotation,
   selectCloserByPriority,
   type PitcherPlanInput,
 } from './pitcherPlan';
+import {
+  applyPitcherWorkloads,
+  bullpenSelectionScore,
+  isPitcherSelectable,
+  prepareTeamPitchersForGame,
+} from './pitcherUsage';
 import { clamp, random } from './random';
-import { bestLineup, calcOVR, masteryFromAccum } from './ratings';
-import { isForeignPlayer } from './foreign';
-import { FOREIGN_PLAYER_BALANCE } from '../data';
+import { bestLineup, masteryFromAccum } from './ratings';
 import { hasGold, hasSpecial } from './specials';
 import type {
   AccumulatedStats,
@@ -52,21 +58,35 @@ export function simHalf(
     catcherGameCalling = catcher?.p.ld || 50;
   const maybeChangePitcher = (): void => {
     const currentPitcher = gameState.curP[fieldingSide],
-      pitchCount = gameState.pc[fieldingSide];
-    const maximumPitchCount =
-      currentPitcher.role === '先発'
-        ? Math.round(66 + currentPitcher.p.stam * 0.3 + (random() * 10 - 5))
-        : currentPitcher.role === 'クローザー'
-          ? Math.round(20 + currentPitcher.p.stam * 0.2 + (random() * 6 - 3))
-          : Math.round(24 + currentPitcher.p.stam * 0.28 + (random() * 8 - 4));
+      pitchCount = gameState.pc[fieldingSide],
+      pitchBalance = PITCHER_USAGE_BALANCE.pitchCount,
+      gameStarter = fieldingSide === 'home' ? gameState.starterH : gameState.starterA,
+      isStartingPitcher = currentPitcher.id === gameStarter.id;
+    const maximumPitchCount = isStartingPitcher
+      ? Math.round(
+          pitchBalance.starterBase +
+            currentPitcher.p.stam * pitchBalance.starterStaminaShare +
+            (random() * pitchBalance.starterVariation - pitchBalance.starterVariation / 2),
+        )
+      : currentPitcher.role === 'クローザー'
+        ? Math.round(
+            pitchBalance.closerBase +
+              currentPitcher.p.stam * pitchBalance.closerStaminaShare +
+              (random() * pitchBalance.closerVariation - pitchBalance.closerVariation / 2),
+          )
+        : Math.round(
+            pitchBalance.relieverBase +
+              currentPitcher.p.stam * pitchBalance.relieverStaminaShare +
+              (random() * pitchBalance.relieverVariation - pitchBalance.relieverVariation / 2),
+          );
     if (pitchCount < maximumPitchCount) return;
-    const available = gameState.teams[fieldingSide].pitchers.filter(
+    const bullpen = gameState.teams[fieldingSide].pitchers.filter(
       (p) =>
-        p.role !== '先発' &&
-        !gameState.usedR[fieldingSide].has(p.id) &&
-        (p.injuryDays ?? 0) <= 0 &&
-        (p.fatigue || 0) < 95,
+        p.role !== '先発' && !gameState.usedR[fieldingSide].has(p.id) && (p.injuryDays ?? 0) <= 0,
     );
+    const rested = bullpen.filter((pitcher) => isPitcherSelectable(pitcher));
+    const available =
+      rested.length > 0 ? rested : bullpen.filter((pitcher) => isPitcherSelectable(pitcher, true));
     if (!available.length) return;
     const close = Math.abs(gameState.score.home - gameState.score.away) <= 3,
       closers = available.filter((p) => p.role === 'クローザー'),
@@ -75,8 +95,13 @@ export function simHalf(
     if (inning >= 8 && close && closers.length)
       nextPitcher = selectCloserByPriority(closers, closerPriority) as Player;
     else if (relievers.length)
-      nextPitcher = relievers.sort((a, b) => calcOVR(b) - calcOVR(a))[0] as Player;
-    else nextPitcher = available[0] as Player;
+      nextPitcher = relievers.sort(
+        (a, b) => bullpenSelectionScore(b) - bullpenSelectionScore(a),
+      )[0] as Player;
+    else
+      nextPitcher = available.sort(
+        (a, b) => bullpenSelectionScore(b) - bullpenSelectionScore(a),
+      )[0] as Player;
     gameState.changes.push({
       inning: inning + 1,
       isBot: battingSide === 'home',
@@ -243,9 +268,10 @@ export function simulateGame(
   accumulatedStats: AccumulatedStats = {},
   homePitcherPlan?: PitcherPlanInput | null,
   awayPitcherPlan?: PitcherPlanInput | null,
+  gameDate?: string,
 ): GameState {
-  const homeTeam = teams[homeKey],
-    awayTeam = teams[awayKey],
+  const homeTeam = prepareTeamPitchersForGame(teams[homeKey], gameDate),
+    awayTeam = prepareTeamPitchersForGame(teams[awayKey], gameDate),
     resolvedHomeLineup = resolveLineup(homeTeam, homeLineup),
     resolvedAwayLineup = resolveLineup(awayTeam, awayLineup),
     homeStarters = resolveStarterRotation(homeTeam, homePitcherPlan?.rotationOrder ?? []),
@@ -360,14 +386,26 @@ export function simulateGame(
       return ids;
     },
     homePostGame = applyPostGamePlayerEvents(homeTeam, participantIds('home')),
-    awayPostGame = applyPostGamePlayerEvents(awayTeam, participantIds('away'));
-  gameState.teams = { home: homePostGame.team, away: awayPostGame.team };
+    awayPostGame = applyPostGamePlayerEvents(awayTeam, participantIds('away')),
+    homeAfterWorkload = applyPitcherWorkloads(
+      homePostGame.team,
+      gameState.atBatLog,
+      gameDate,
+      gameState.starterH.id,
+    ),
+    awayAfterWorkload = applyPitcherWorkloads(
+      awayPostGame.team,
+      gameState.atBatLog,
+      gameDate,
+      gameState.starterA.id,
+    );
+  gameState.teams = { home: homeAfterWorkload, away: awayAfterWorkload };
   gameState.postGameEvents = {
     awakenings: [...homePostGame.events.awakenings, ...awayPostGame.events.awakenings],
     injuries: [...homePostGame.events.injuries, ...awayPostGame.events.injuries],
   };
   // Deliberately persist post-game roster state for every caller, including CPU skips and diagnostics.
-  teams[homeKey] = homePostGame.team;
-  teams[awayKey] = awayPostGame.team;
+  teams[homeKey] = homeAfterWorkload;
+  teams[awayKey] = awayAfterWorkload;
   return gameState;
 }

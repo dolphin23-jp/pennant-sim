@@ -200,6 +200,9 @@ async function simulateSeason(seasonIndex: number, baseSeed: number) {
       rotations[game.homeKey],
       rotations[game.awayKey],
       {},
+      null,
+      null,
+      game.date,
     );
     accumulatedStats = accumulateStatsAll(result, accumulatedStats);
     rotations[game.homeKey] += 1;
