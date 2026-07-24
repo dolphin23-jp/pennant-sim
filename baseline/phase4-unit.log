@@ -6,23 +6,23 @@ TAP version 13
 # Subtest: aptitudeToneColor maps aptitude thresholds to shared theme colors
 ok 1 - aptitudeToneColor maps aptitude thresholds to shared theme colors
   ---
-  duration_ms: 2.735023
+  duration_ms: 1.192727
   type: 'test'
   ...
 # Subtest: aptitudeRank maps aptitude values using configurable display thresholds
 ok 2 - aptitudeRank maps aptitude values using configurable display thresholds
   ---
-  duration_ms: 0.317421
+  duration_ms: 0.294063
   type: 'test'
   ...
 # Subtest: current engine stays within two percent of the recorded balance baseline
 not ok 3 - current engine stays within two percent of the recorded balance baseline
   ---
-  duration_ms: 13.161986
+  duration_ms: 17.623861
   type: 'test'
   location: '/home/runner/work/pennant-sim/pennant-sim/tests/baseline.test.ts:1:388'
   failureType: 'testCodeFailure'
-  error: 'era standard deviation diverged by more than 2%'
+  error: 'battingAverage standard deviation diverged by more than 2%'
   code: 'ERR_ASSERTION'
   name: 'AssertionError'
   expected: true
@@ -36,205 +36,205 @@ not ok 3 - current engine stays within two percent of the recorded balance basel
 # Subtest: in-season awakening notices include localized boosts, breakthrough, and a new special
 ok 4 - in-season awakening notices include localized boosts, breakthrough, and a new special
   ---
-  duration_ms: 1.651921
+  duration_ms: 1.931514
   type: 'test'
   ...
 # Subtest: skipped-game notices detect only awakening logs added after the skip
 ok 5 - skipped-game notices detect only awakening logs added after the skip
   ---
-  duration_ms: 50.183382
+  duration_ms: 34.019212
   type: 'test'
   ...
 # Subtest: offseason notices include major OVR changes and awakening details
 ok 6 - offseason notices include major OVR changes and awakening details
   ---
-  duration_ms: 49.359351
+  duration_ms: 35.60216
   type: 'test'
   ...
 # Subtest: legacy notices receive stable ids and structured defaults during save migration
 ok 7 - legacy notices receive stable ids and structured defaults during save migration
   ---
-  duration_ms: 26.620001
+  duration_ms: 18.832576
   type: 'test'
   ...
 # Subtest: mergeNotices removes duplicate ids and caps history
 ok 8 - mergeNotices removes duplicate ids and caps history
   ---
-  duration_ms: 0.457818
+  duration_ms: 0.454264
   type: 'test'
   ...
 # Subtest: 特殊能力がなければ従来の実効OVRと同じ
 ok 9 - 特殊能力がなければ従来の実効OVRと同じ
   ---
-  duration_ms: 1.724664
+  duration_ms: 1.173598
   type: 'test'
   ...
 # Subtest: 通常特殊能力は p × level × 通常係数で加算する
 ok 10 - 通常特殊能力は p × level × 通常係数で加算する
   ---
-  duration_ms: 0.398288
+  duration_ms: 0.29904
   type: 'test'
   ...
 # Subtest: ゴールド特殊能力にはゴールド係数を使う
 ok 11 - ゴールド特殊能力にはゴールド係数を使う
   ---
-  duration_ms: 0.230962
+  duration_ms: 0.158338
   type: 'test'
   ...
 # Subtest: 明示されたネガティブ特殊能力IDは減点する
 ok 12 - 明示されたネガティブ特殊能力IDは減点する
   ---
-  duration_ms: 0.316649
+  duration_ms: 0.212541
   type: 'test'
   ...
 # Subtest: 特殊能力補正は±10にクランプする
 ok 13 - 特殊能力補正は±10にクランプする
   ---
-  duration_ms: 0.657713
+  duration_ms: 0.459222
   type: 'test'
   ...
 # Subtest: includeSpecials=falseなら表示補正を無効化できる
 ok 14 - includeSpecials=falseなら表示補正を無効化できる
   ---
-  duration_ms: 0.271947
+  duration_ms: 0.191839
   type: 'test'
   ...
 # Subtest: calcOVRとeffectiveOVRの値は表示用計算を呼んでも変化しない
 ok 15 - calcOVRとeffectiveOVRの値は表示用計算を呼んでも変化しない
   ---
-  duration_ms: 0.32238
+  duration_ms: 0.222666
   type: 'test'
   ...
 # Subtest: reorderIds moves an item to the hovered item position without mutating input
 ok 16 - reorderIds moves an item to the hovered item position without mutating input
   ---
-  duration_ms: 2.096906
+  duration_ms: 1.761904
   type: 'test'
   ...
 # Subtest: reorderIds supports moving upward and ignores invalid or identical targets
 ok 17 - reorderIds supports moving upward and ignores invalid or identical targets
   ---
-  duration_ms: 0.267048
+  duration_ms: 0.267814
   type: 'test'
   ...
 # Subtest: swapRecordValues exchanges field assignments without mutating the source record
 ok 18 - swapRecordValues exchanges field assignments without mutating the source record
   ---
-  duration_ms: 0.374425
+  duration_ms: 0.394544
   type: 'test'
   ...
 # Subtest: Phase B engine preserves league structure and can complete a game
 ok 19 - Phase B engine preserves league structure and can complete a game
   ---
-  duration_ms: 92.330947
+  duration_ms: 70.954719
   type: 'test'
   ...
 # Subtest: a rainout can be rescheduled as a doubleheader without changing game totals
 ok 20 - a rainout can be rescheduled as a doubleheader without changing game totals
   ---
-  duration_ms: 14.120022
+  duration_ms: 6.52263
   type: 'test'
   ...
 # Subtest: platoon, park and prior-matchup context can benefit the batter
 ok 21 - platoon, park and prior-matchup context can benefit the batter
   ---
-  duration_ms: 33.71739
+  duration_ms: 35.540062
   type: 'test'
   ...
 # Subtest: growPlayer records a non-zero change when normal development rounds to zero
 ok 22 - growPlayer records a non-zero change when normal development rounds to zero
   ---
-  duration_ms: 0.851614
+  duration_ms: 0.765383
   type: 'test'
   ...
 # Subtest: post-game processing awakens a participant and can award a special ability
 ok 23 - post-game processing awakens a participant and can award a special ability
   ---
-  duration_ms: 49.847414
+  duration_ms: 28.360552
   type: 'test'
   ...
 # Subtest: post-game injuries set severity and exclude the player from the next lineup
 ok 24 - post-game injuries set severity and exclude the player from the next lineup
   ---
-  duration_ms: 25.807319
+  duration_ms: 32.647455
   type: 'test'
   ...
 # Subtest: calcStandings records wins, losses, runs and ranks
 ok 25 - calcStandings records wins, losses, runs and ranks
   ---
-  duration_ms: 17.438376
+  duration_ms: 28.690395
   type: 'test'
   ...
 # Subtest: legacy saves migrate with an empty pitcher plan
 ok 26 - legacy saves migrate with an empty pitcher plan
   ---
-  duration_ms: 44.028608
+  duration_ms: 60.433207
   type: 'test'
   ...
 # Subtest: pitcher plan migration preserves valid string ids and removes invalid entries
 ok 27 - pitcher plan migration preserves valid string ids and removes invalid entries
   ---
-  duration_ms: 33.145583
+  duration_ms: 47.316751
   type: 'test'
   ...
 # Subtest: empty rotation order exactly preserves automatic starter ordering
 ok 28 - empty rotation order exactly preserves automatic starter ordering
   ---
-  duration_ms: 16.27011
+  duration_ms: 18.546115
   type: 'test'
   ...
 # Subtest: specified starters are prioritized and invalid ids fall back to automatic ordering
 ok 29 - specified starters are prioritized and invalid ids fall back to automatic ordering
   ---
-  duration_ms: 17.2759
+  duration_ms: 19.466656
   type: 'test'
   ...
 # Subtest: closer priority uses the highest available configured closer and otherwise preserves array order
 ok 30 - closer priority uses the highest available configured closer and otherwise preserves array order
   ---
-  duration_ms: 20.941483
+  duration_ms: 15.544754
   type: 'test'
   ...
 # Subtest: empty pitcher plans keep skip simulation byte-for-byte equivalent to the legacy path
 ok 31 - empty pitcher plans keep skip simulation byte-for-byte equivalent to the legacy path
   ---
-  duration_ms: 134.378439
+  duration_ms: 109.61741
   type: 'test'
   ...
 # Subtest: initial rosters contain multiple stars while retaining a broad distribution
 ok 32 - initial rosters contain multiple stars while retaining a broad distribution
   ---
-  duration_ms: 38.308834
+  duration_ms: 47.139603
   type: 'test'
   ...
 # Subtest: FA and foreign markets occasionally produce marquee players
 ok 33 - FA and foreign markets occasionally produce marquee players
   ---
-  duration_ms: 51.547102
+  duration_ms: 47.376921
   type: 'test'
   ...
 # Subtest: elite potential is rare and creates clearly larger multi-year growth
 ok 34 - elite potential is rare and creates clearly larger multi-year growth
   ---
-  duration_ms: 64.809616
+  duration_ms: 61.604245
   type: 'test'
   ...
 # Subtest: legacy single save is copied to slot 1 without deleting the old key
 ok 35 - legacy single save is copied to slot 1 without deleting the old key
   ---
-  duration_ms: 48.392052
+  duration_ms: 51.543602
   type: 'test'
   ...
 # Subtest: save slots are independent and active-slot save/load uses the selected key
 ok 36 - save slots are independent and active-slot save/load uses the selected key
   ---
-  duration_ms: 127.00307
+  duration_ms: 137.067376
   type: 'test'
   ...
 # Subtest: export and import preserve save data including schedule metadata
 ok 37 - export and import preserve save data including schedule metadata
   ---
-  duration_ms: 44.52995
+  duration_ms: 46.89197
   type: 'test'
   ...
 1..37
@@ -245,4 +245,4 @@ ok 37 - export and import preserve save data including schedule metadata
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 1744.186808
+# duration_ms 1511.818515
