@@ -49,17 +49,23 @@ jobs:
           echo "status=$status" >> "$GITHUB_OUTPUT"
       - name: Format changed files
         if: steps.patch.outputs.status == '0'
-        run: >-
-          npx prettier --write
-          src/engine/game.ts
-          src/engine/players.ts
-          src/engine/market.ts
-          src/engine/types.ts
-          src/state/offseason.ts
-          src/data/constants.ts
-          scripts/balance-new-engine.ts
-          scripts/npb-targets.mjs
-          tests/balance-generation.test.ts
+        run: |
+          candidates=(
+            src/engine/game.ts
+            src/engine/players.ts
+            src/engine/market.ts
+            src/engine/types.ts
+            src/state/offseason.ts
+            src/data/constants.ts
+            scripts/balance-new-engine.ts
+            scripts/npb-targets.mjs
+            tests/balance-generation.test.ts
+          )
+          existing=()
+          for file in "${candidates[@]}"; do
+            if [ -f "$file" ]; then existing+=("$file"); fi
+          done
+          npx prettier --write "${existing[@]}"
       - name: Build
         if: steps.patch.outputs.status == '0'
         continue-on-error: true
@@ -82,23 +88,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
-            src/engine/game.ts \
-            src/engine/players.ts \
-            src/engine/market.ts \
-            src/engine/types.ts \
-            src/state/offseason.ts \
-            src/data/constants.ts \
-            scripts/balance-new-engine.ts \
-            scripts/npb-targets.mjs \
-            tests/balance-generation.test.ts 2>/dev/null || true
-          git add -f baseline/agent-*.log baseline/agent-patch.status 2>/dev/null || true
-          if [ -f baseline/season-stats.json ]; then
-            git add -f baseline/season-stats.json
-          fi
-          if [ -f baseline/new-season-stats.json ]; then
-            git add -f baseline/new-season-stats.json
-          fi
+          git add -A
           if git diff --cached --quiet; then
             echo "No generated changes to commit"
             exit 0
