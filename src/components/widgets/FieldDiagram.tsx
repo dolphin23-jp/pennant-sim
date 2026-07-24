@@ -10,7 +10,7 @@ import { usePointerDrag } from './usePointerDrag';
 export type LineupSlot = FieldPosition | 'extra';
 export type LineupAssignments = Record<LineupSlot, Player | null>;
 
-const POSITION_LAYOUT: Record<FieldPosition, { left: string; top: string }> = {
+export const POSITION_LAYOUT: Record<FieldPosition, { left: string; top: string }> = {
   捕手: { left: '50%', top: '86%' },
   一塁手: { left: '78%', top: '64%' },
   二塁手: { left: '63%', top: '47%' },

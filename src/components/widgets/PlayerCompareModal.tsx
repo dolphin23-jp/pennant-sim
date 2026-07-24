@@ -2,7 +2,34 @@ import { useEffect, useMemo, useRef } from 'react';
 
 import { calcOVR, displayOVR, displayOVRBreakdown, effectiveOVR, ops } from '../../engine';
 import type { AccumulatedStats, Player } from '../../engine';
-import { Button, EmptyState, SectionTitle } from '../ui';
+import { Button, Card, EmptyState, SectionTitle } from '../ui';
+import {
+  AbilityRadarChart,
+  type AbilityRadarItem,
+  type AbilityRadarSeries,
+} from './AbilityRadarChart';
+
+const RADAR_COLORS = ['var(--color-accent)', 'var(--color-warning)', 'var(--color-growth)'];
+
+function abilityItems(player: Player): AbilityRadarItem[] {
+  return player.isP
+    ? [
+        { label: '球速', value: player.p.vel },
+        { label: '制球', value: player.p.ctrl },
+        { label: 'スタミナ', value: player.p.stam },
+        { label: 'ノビ', value: player.p.nobi },
+        { label: '守備', value: player.p.fld },
+      ]
+    : [
+        { label: '直球対応', value: player.p.cf },
+        { label: '変化対応', value: player.p.cb },
+        { label: '長打力', value: player.p.pw },
+        { label: '選球眼', value: player.p.dc },
+        { label: '走力', value: player.p.sp },
+        { label: '守備力', value: player.p.df },
+        { label: '肩力', value: player.p.arm },
+      ];
+}
 
 interface CompareMetric {
   id: string;
@@ -12,7 +39,8 @@ interface CompareMetric {
 }
 
 const integerText = (value: number): string => String(Math.round(value));
-const signedText = (value: number): string => `${value >= 0 ? '+' : ''}${(Math.round(value * 10) / 10).toFixed(1)}`;
+const signedText = (value: number): string =>
+  `${value >= 0 ? '+' : ''}${(Math.round(value * 10) / 10).toFixed(1)}`;
 const decimalText = (value: number): string => value.toFixed(2);
 const rateText = (value: number): string => value.toFixed(3).replace(/^0/, '');
 
@@ -47,22 +75,87 @@ const basicMetrics: CompareMetric[] = [
 ];
 
 const batterAbilityMetrics: CompareMetric[] = [
-  { id: 'cf', label: '直球対応', value: (player) => player.isP ? null : (player.p.cf ?? null), format: integerText },
-  { id: 'cb', label: '変化対応', value: (player) => player.isP ? null : (player.p.cb ?? null), format: integerText },
-  { id: 'pw', label: '長打力', value: (player) => player.isP ? null : (player.p.pw ?? null), format: integerText },
-  { id: 'dc', label: '選球眼', value: (player) => player.isP ? null : (player.p.dc ?? null), format: integerText },
-  { id: 'sp', label: '走力', value: (player) => player.isP ? null : (player.p.sp ?? null), format: integerText },
-  { id: 'df', label: '守備力', value: (player) => player.isP ? null : (player.p.df ?? null), format: integerText },
-  { id: 'arm', label: '肩力', value: (player) => player.isP ? null : (player.p.arm ?? null), format: integerText },
-  { id: 'bnt', label: 'バント', value: (player) => player.isP ? null : (player.p.bnt ?? null), format: integerText },
+  {
+    id: 'cf',
+    label: '直球対応',
+    value: (player) => (player.isP ? null : (player.p.cf ?? null)),
+    format: integerText,
+  },
+  {
+    id: 'cb',
+    label: '変化対応',
+    value: (player) => (player.isP ? null : (player.p.cb ?? null)),
+    format: integerText,
+  },
+  {
+    id: 'pw',
+    label: '長打力',
+    value: (player) => (player.isP ? null : (player.p.pw ?? null)),
+    format: integerText,
+  },
+  {
+    id: 'dc',
+    label: '選球眼',
+    value: (player) => (player.isP ? null : (player.p.dc ?? null)),
+    format: integerText,
+  },
+  {
+    id: 'sp',
+    label: '走力',
+    value: (player) => (player.isP ? null : (player.p.sp ?? null)),
+    format: integerText,
+  },
+  {
+    id: 'df',
+    label: '守備力',
+    value: (player) => (player.isP ? null : (player.p.df ?? null)),
+    format: integerText,
+  },
+  {
+    id: 'arm',
+    label: '肩力',
+    value: (player) => (player.isP ? null : (player.p.arm ?? null)),
+    format: integerText,
+  },
+  {
+    id: 'bnt',
+    label: 'バント',
+    value: (player) => (player.isP ? null : (player.p.bnt ?? null)),
+    format: integerText,
+  },
 ];
 
 const pitcherAbilityMetrics: CompareMetric[] = [
-  { id: 'vel', label: '球速', value: (player) => player.isP ? (player.p.vel ?? null) : null, format: integerText },
-  { id: 'ctrl', label: '制球', value: (player) => player.isP ? (player.p.ctrl ?? null) : null, format: integerText },
-  { id: 'stam', label: 'スタミナ', value: (player) => player.isP ? player.p.stam : null, format: integerText },
-  { id: 'nobi', label: 'ノビ', value: (player) => player.isP ? (player.p.nobi ?? null) : null, format: integerText },
-  { id: 'fld', label: '守備', value: (player) => player.isP ? (player.p.fld ?? null) : null, format: integerText },
+  {
+    id: 'vel',
+    label: '球速',
+    value: (player) => (player.isP ? (player.p.vel ?? null) : null),
+    format: integerText,
+  },
+  {
+    id: 'ctrl',
+    label: '制球',
+    value: (player) => (player.isP ? (player.p.ctrl ?? null) : null),
+    format: integerText,
+  },
+  {
+    id: 'stam',
+    label: 'スタミナ',
+    value: (player) => (player.isP ? player.p.stam : null),
+    format: integerText,
+  },
+  {
+    id: 'nobi',
+    label: 'ノビ',
+    value: (player) => (player.isP ? (player.p.nobi ?? null) : null),
+    format: integerText,
+  },
+  {
+    id: 'fld',
+    label: '守備',
+    value: (player) => (player.isP ? (player.p.fld ?? null) : null),
+    format: integerText,
+  },
 ];
 
 function currentMetrics(accumulated: AccumulatedStats): CompareMetric[] {
@@ -200,6 +293,16 @@ export function PlayerCompareModal({
   const metrics = useMemo(() => currentMetrics(accumulated), [accumulated]);
   const hasBatter = players.some((player) => !player.isP);
   const hasPitcher = players.some((player) => player.isP);
+  // A radar mixing batter and pitcher axes wouldn't mean anything, so the
+  // overlay only renders when every selected player is the same kind.
+  const radarSeries: AbilityRadarSeries[] =
+    players.length >= 2 && !(hasBatter && hasPitcher)
+      ? players.map((player, index) => ({
+          label: player.name,
+          color: RADAR_COLORS[index % RADAR_COLORS.length] as string,
+          items: abilityItems(player),
+        }))
+      : [];
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -246,64 +349,96 @@ export function PlayerCompareModal({
           {players.length < 2 ? (
             <EmptyState>比較する選手を2人以上選択してください。</EmptyState>
           ) : (
-            <div className="table-scroll">
-              <table className="data-table" aria-label="選手能力と今季成績の比較">
-                <thead>
-                  <tr>
-                    <th scope="col" style={{ textAlign: 'left' }}>項目</th>
-                    {players.map((player) => (
-                      <th scope="col" key={player.id} style={{ minWidth: 150, textAlign: 'center' }}>
-                        <button
-                          type="button"
-                          className="roster-player-button"
-                          aria-label={`${player.name}の詳細を表示`}
-                          onClick={() => onSelect(player)}
-                        >
-                          {player.name}
-                        </button>
-                        <div style={{ marginTop: 4, color: 'var(--color-text-muted)', fontSize: 11 }}>
-                          {player.isP ? player.role : player._assignedPos ?? player.pos}
-                        </div>
+            <>
+              {radarSeries.length > 0 && (
+                <Card
+                  className="detail-card"
+                  style={{ marginBottom: 12 }}
+                  ariaLabel="能力比較レーダー"
+                >
+                  <SectionTitle>Ability Overlay</SectionTitle>
+                  <AbilityRadarChart series={radarSeries} />
+                </Card>
+              )}
+              <div className="table-scroll">
+                <table className="data-table" aria-label="選手能力と今季成績の比較">
+                  <thead>
+                    <tr>
+                      <th scope="col" style={{ textAlign: 'left' }}>
+                        項目
                       </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <th colSpan={players.length + 1} style={{ textAlign: 'left', color: 'var(--color-accent)' }}>
-                      <SectionTitle>Basic</SectionTitle>
-                    </th>
-                  </tr>
-                  <MetricRows metrics={basicMetrics} players={players} />
-                  {hasBatter && (
-                    <>
-                      <tr>
-                        <th colSpan={players.length + 1} style={{ textAlign: 'left', color: 'var(--color-accent)' }}>
-                          <SectionTitle>Batter Abilities</SectionTitle>
+                      {players.map((player) => (
+                        <th
+                          scope="col"
+                          key={player.id}
+                          style={{ minWidth: 150, textAlign: 'center' }}
+                        >
+                          <button
+                            type="button"
+                            className="roster-player-button"
+                            aria-label={`${player.name}の詳細を表示`}
+                            onClick={() => onSelect(player)}
+                          >
+                            {player.name}
+                          </button>
+                          <div
+                            style={{ marginTop: 4, color: 'var(--color-text-muted)', fontSize: 11 }}
+                          >
+                            {player.isP ? player.role : (player._assignedPos ?? player.pos)}
+                          </div>
                         </th>
-                      </tr>
-                      <MetricRows metrics={batterAbilityMetrics} players={players} />
-                    </>
-                  )}
-                  {hasPitcher && (
-                    <>
-                      <tr>
-                        <th colSpan={players.length + 1} style={{ textAlign: 'left', color: 'var(--color-accent)' }}>
-                          <SectionTitle>Pitcher Abilities</SectionTitle>
-                        </th>
-                      </tr>
-                      <MetricRows metrics={pitcherAbilityMetrics} players={players} />
-                    </>
-                  )}
-                  <tr>
-                    <th colSpan={players.length + 1} style={{ textAlign: 'left', color: 'var(--color-accent)' }}>
-                      <SectionTitle>Current Season</SectionTitle>
-                    </th>
-                  </tr>
-                  <MetricRows metrics={metrics} players={players} />
-                </tbody>
-              </table>
-            </div>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th
+                        colSpan={players.length + 1}
+                        style={{ textAlign: 'left', color: 'var(--color-accent)' }}
+                      >
+                        <SectionTitle>Basic</SectionTitle>
+                      </th>
+                    </tr>
+                    <MetricRows metrics={basicMetrics} players={players} />
+                    {hasBatter && (
+                      <>
+                        <tr>
+                          <th
+                            colSpan={players.length + 1}
+                            style={{ textAlign: 'left', color: 'var(--color-accent)' }}
+                          >
+                            <SectionTitle>Batter Abilities</SectionTitle>
+                          </th>
+                        </tr>
+                        <MetricRows metrics={batterAbilityMetrics} players={players} />
+                      </>
+                    )}
+                    {hasPitcher && (
+                      <>
+                        <tr>
+                          <th
+                            colSpan={players.length + 1}
+                            style={{ textAlign: 'left', color: 'var(--color-accent)' }}
+                          >
+                            <SectionTitle>Pitcher Abilities</SectionTitle>
+                          </th>
+                        </tr>
+                        <MetricRows metrics={pitcherAbilityMetrics} players={players} />
+                      </>
+                    )}
+                    <tr>
+                      <th
+                        colSpan={players.length + 1}
+                        style={{ textAlign: 'left', color: 'var(--color-accent)' }}
+                      >
+                        <SectionTitle>Current Season</SectionTitle>
+                      </th>
+                    </tr>
+                    <MetricRows metrics={metrics} players={players} />
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>

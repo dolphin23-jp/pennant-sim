@@ -5,6 +5,12 @@ export interface AbilityRadarItem {
   value: number | undefined;
 }
 
+export interface AbilityRadarSeries {
+  label: string;
+  color: string;
+  items: AbilityRadarItem[];
+}
+
 const SIZE = 260;
 const CENTER = SIZE / 2;
 const RADIUS = 84;
@@ -27,16 +33,36 @@ function polygonPoints(count: number, radius: number): string {
   }).join(' ');
 }
 
-export function AbilityRadarChart({ items }: { items: AbilityRadarItem[] }) {
-  if (items.length < 3) return null;
-  const valuePoints = items
+function valuePolygon(items: AbilityRadarItem[]): string {
+  return items
     .map((item, index) => {
       const normalized = Math.max(0, Math.min(MAX_VALUE, Math.round(item.value ?? 0))) / MAX_VALUE;
       const point = pointAt(index, items.length, RADIUS * normalized);
       return `${point.x},${point.y}`;
     })
     .join(' ');
-  const summary = items.map((item) => `${item.label}${Math.round(item.value ?? 0)}`).join('、');
+}
+
+export function AbilityRadarChart({
+  items,
+  series,
+}: {
+  items?: AbilityRadarItem[];
+  series?: AbilityRadarSeries[];
+}) {
+  const resolvedSeries: AbilityRadarSeries[] =
+    series ?? (items ? [{ label: '', color: 'var(--color-accent)', items }] : []);
+  const axis = resolvedSeries[0]?.items ?? [];
+  if (axis.length < 3) return null;
+  const multi = resolvedSeries.length > 1;
+  const summary = resolvedSeries
+    .map((entry) => {
+      const values = entry.items
+        .map((item) => `${item.label}${Math.round(item.value ?? 0)}`)
+        .join('、');
+      return entry.label ? `${entry.label}: ${values}` : values;
+    })
+    .join('。');
 
   return (
     <figure className="ability-radar">
@@ -50,12 +76,12 @@ export function AbilityRadarChart({ items }: { items: AbilityRadarItem[] }) {
           <polygon
             className="ability-radar__grid"
             key={level}
-            points={polygonPoints(items.length, RADIUS * level)}
+            points={polygonPoints(axis.length, RADIUS * level)}
           />
         ))}
-        {items.map((item, index) => {
-          const outer = pointAt(index, items.length, RADIUS);
-          const label = pointAt(index, items.length, LABEL_RADIUS);
+        {axis.map((item, index) => {
+          const outer = pointAt(index, axis.length, RADIUS);
+          const label = pointAt(index, axis.length, LABEL_RADIUS);
           const anchor = label.x < CENTER - 8 ? 'end' : label.x > CENTER + 8 ? 'start' : 'middle';
           return (
             <g key={item.label}>
@@ -78,14 +104,47 @@ export function AbilityRadarChart({ items }: { items: AbilityRadarItem[] }) {
             </g>
           );
         })}
-        <polygon className="ability-radar__value" points={valuePoints} />
-        {items.map((item, index) => {
-          const normalized = Math.max(0, Math.min(MAX_VALUE, Math.round(item.value ?? 0))) / MAX_VALUE;
-          const point = pointAt(index, items.length, RADIUS * normalized);
-          return <circle className="ability-radar__point" key={item.label} cx={point.x} cy={point.y} r={3.5} />;
-        })}
+        {resolvedSeries.map((entry, seriesIndex) => (
+          <polygon
+            className="ability-radar__value"
+            key={entry.label || seriesIndex}
+            points={valuePolygon(entry.items)}
+            style={{
+              fill: `color-mix(in srgb, ${entry.color} ${multi ? 14 : 24}%, transparent)`,
+              stroke: entry.color,
+            }}
+          />
+        ))}
+        {resolvedSeries.map((entry, seriesIndex) =>
+          entry.items.map((item, index) => {
+            const normalized =
+              Math.max(0, Math.min(MAX_VALUE, Math.round(item.value ?? 0))) / MAX_VALUE;
+            const point = pointAt(index, entry.items.length, RADIUS * normalized);
+            return (
+              <circle
+                className="ability-radar__point"
+                key={`${entry.label || seriesIndex}-${item.label}`}
+                cx={point.x}
+                cy={point.y}
+                r={multi ? 2.5 : 3.5}
+                style={{ stroke: entry.color }}
+              />
+            );
+          }),
+        )}
       </svg>
-      <figcaption>能力バランス</figcaption>
+      {multi ? (
+        <ul className="ability-radar__legend" aria-hidden="true">
+          {resolvedSeries.map((entry, seriesIndex) => (
+            <li key={entry.label || seriesIndex}>
+              <span className="ability-radar__legend-swatch" style={{ background: entry.color }} />
+              {entry.label}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <figcaption>能力バランス</figcaption>
+      )}
     </figure>
   );
 }

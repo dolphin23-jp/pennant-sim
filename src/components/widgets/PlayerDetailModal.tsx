@@ -8,6 +8,7 @@ import {
   type TouchEvent,
 } from 'react';
 
+import { TINFO } from '../../data';
 import {
   aptitudeRank,
   calcOVR,
@@ -17,11 +18,19 @@ import {
   statItems,
   yearlyRows,
 } from '../../engine';
-import type { AccumulatedStats, Player, PlayerStats } from '../../engine';
+import type { AccumulatedStats, Player, PlayerStats, TeamKey } from '../../engine';
 import { Button, Card, EmptyState, LampFigure, SectionTitle, TermTooltip } from '../ui';
 import { AbilityRadarChart, type AbilityRadarItem } from './AbilityRadarChart';
+import { AptitudeFieldMap } from './AptitudeFieldMap';
 import { DisplayOVRValue } from './DisplayOVRValue';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
+
+const TEAM_KEY_SET = new Set<string>(Object.keys(TINFO));
+
+function teamColorFor(player: Player): string | null {
+  const candidate = String(player.tk);
+  return TEAM_KEY_SET.has(candidate) ? TINFO[candidate as TeamKey].c : null;
+}
 
 type TabId = 'basic' | 'season' | 'career' | 'special';
 interface GrowthPoint {
@@ -51,9 +60,7 @@ function StatGrid({ stats }: { stats: PlayerStats | undefined }) {
             )}
           </dt>
           <dd
-            className={
-              item.elite ? 'stat-value--elite' : item.power ? 'metric-power' : undefined
-            }
+            className={item.elite ? 'stat-value--elite' : item.power ? 'metric-power' : undefined}
           >
             {item.value}
           </dd>
@@ -133,7 +140,13 @@ function GrowthChart({ player, overall }: { player: Player; overall: number }) {
         .map((point) => `${point.age}歳 ${point.value}`)
         .join('、')}`}
     >
-      <line className="growth-chart__grid" x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} />
+      <line
+        className="growth-chart__grid"
+        x1={padding}
+        y1={height - padding}
+        x2={width - padding}
+        y2={height - padding}
+      />
       <polyline
         className="growth-chart__line"
         points={coordinates.map((point) => `${point.x},${point.y}`).join(' ')}
@@ -178,12 +191,11 @@ function BasicTab({ player, overall }: { player: Player; overall: number }) {
   const radarAbilities = player.isP
     ? abilities
     : abilities.filter((ability) => ability.label !== 'バント');
-  const positions =
-    player.positions?.length
-      ? [...player.positions].sort((first, second) => second.apt - first.apt)
-      : player.pos
-        ? [{ pos: player.pos, apt: 100 }]
-        : [];
+  const positions = player.positions?.length
+    ? [...player.positions].sort((first, second) => second.apt - first.apt)
+    : player.pos
+      ? [{ pos: player.pos, apt: 100 }]
+      : [];
 
   return (
     <div className="detail-grid">
@@ -200,7 +212,9 @@ function BasicTab({ player, overall }: { player: Player; overall: number }) {
           </div>
           <div>
             <dt>投打</dt>
-            <dd>{player.hand.th ?? '-'}投 {player.hand.bat ?? '-'}打</dd>
+            <dd>
+              {player.hand.th ?? '-'}投 {player.hand.bat ?? '-'}打
+            </dd>
           </div>
           <div>
             <dt>
@@ -210,10 +224,7 @@ function BasicTab({ player, overall }: { player: Player; overall: number }) {
               />
             </dt>
             <dd>
-              <DisplayOVRValue
-                player={player}
-                position={player.isP ? undefined : player.pos}
-              />
+              <DisplayOVRValue player={player} position={player.isP ? undefined : player.pos} />
             </dd>
           </div>
         </dl>
@@ -233,24 +244,29 @@ function BasicTab({ player, overall }: { player: Player; overall: number }) {
         <Card className="detail-card detail-card--wide" ariaLabel="ポジション適性">
           <SectionTitle>Position Aptitude</SectionTitle>
           {positions.length ? (
-            <div className="position-grid">
-              {positions.map((position) => {
-                const rank = aptitudeRank(position.apt);
-                return (
-                  <div
-                    className="position-chip"
-                    key={position.pos}
-                    style={positionStyle(position.apt)}
-                    aria-label={`${position.pos} 適性ランク ${rank}、${position.apt}%`}
-                  >
-                    <span>
-                      <span>{position.pos}</span>
-                      <strong>{rank} {position.apt}%</strong>
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+            <>
+              <AptitudeFieldMap positions={positions} />
+              <div className="position-grid">
+                {positions.map((position) => {
+                  const rank = aptitudeRank(position.apt);
+                  return (
+                    <div
+                      className="position-chip"
+                      key={position.pos}
+                      style={positionStyle(position.apt)}
+                      aria-label={`${position.pos} 適性ランク ${rank}、${position.apt}%`}
+                    >
+                      <span>
+                        <span>{position.pos}</span>
+                        <strong>
+                          {rank} {position.apt}%
+                        </strong>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           ) : (
             <EmptyState>ポジション適性が登録されていません。</EmptyState>
           )}
@@ -337,6 +353,7 @@ export function PlayerDetailModal({
   if (!player) return null;
   const baseOverall = player.isP ? calcOVR(player) : effectiveOVR(player, player.pos);
   const headline = displayOVRBreakdown(player, player.isP ? undefined : player.pos);
+  const teamColor = teamColorFor(player);
   const current = accumulated[player.id];
   const career = careerAccumulated[player.id];
   const history = yearlyRows(yearlyStats, player.id);
@@ -358,7 +375,9 @@ export function PlayerDetailModal({
     const nextTab = tabs[nextIndex];
     if (!nextTab) return;
     setActiveTab(nextTab.id);
-    window.requestAnimationFrame(() => document.getElementById(`player-tab-${nextTab.id}`)?.focus());
+    window.requestAnimationFrame(() =>
+      document.getElementById(`player-tab-${nextTab.id}`)?.focus(),
+    );
   };
 
   const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
@@ -401,14 +420,29 @@ export function PlayerDetailModal({
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        <header className="player-modal__header">
+        <header
+          className="player-modal__header"
+          style={{
+            borderLeft: `5px solid ${teamColor ?? 'var(--color-accent)'}`,
+          }}
+        >
           <div>
             <h1 className="player-modal__title" id="player-modal-title">
               {player.name}
             </h1>
             <div className="player-modal__meta" id="player-modal-description">
-              <span>{player.age}歳</span>
-              <span>{player.isP ? player.role : player.pos}</span>
+              <span
+                className="player-modal__ticket"
+                style={{ borderColor: teamColor ?? undefined }}
+              >
+                {player.age}歳
+              </span>
+              <span
+                className="player-modal__ticket"
+                style={{ borderColor: teamColor ?? undefined }}
+              >
+                {player.isP ? player.role : player.pos}
+              </span>
               <PlayerStatusBadges player={player} />
             </div>
           </div>
@@ -420,7 +454,11 @@ export function PlayerDetailModal({
               compact
               ariaLabel={`特殊込みOVR ${headline.total}、基本総合値 ${headline.base}から算出`}
             />
-            <Button onClick={onClose} color="var(--color-surface-muted)" ariaLabel="選手詳細を閉じる">
+            <Button
+              onClick={onClose}
+              color="var(--color-surface-muted)"
+              ariaLabel="選手詳細を閉じる"
+            >
               閉じる
             </Button>
           </div>

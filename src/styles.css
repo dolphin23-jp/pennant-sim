@@ -361,6 +361,13 @@ input:focus-visible,
   font-size: 0.8rem;
 }
 
+.player-modal__ticket {
+  padding: 2px 9px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  font-weight: 800;
+}
+
 .player-modal__tabs {
   display: flex;
   gap: 4px;
@@ -615,12 +622,14 @@ input:focus-visible,
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 3;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, currentColor 65%, transparent));
 }
 
 .growth-chart__point {
   fill: var(--color-surface);
   stroke: currentColor;
   stroke-width: 3;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, currentColor 70%, transparent));
 }
 
 .growth-chart__label {
