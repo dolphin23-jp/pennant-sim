@@ -1,4 +1,5 @@
 import {
+  FOREIGN_PLAYER_BALANCE,
   DISPLAY_OVR_GOLD_SPECIAL_MULTIPLIER,
   DISPLAY_OVR_NORMAL_SPECIAL_MULTIPLIER,
   DISPLAY_OVR_SPECIAL_ADJUSTMENT_MAX,
@@ -8,6 +9,7 @@ import {
   OVR_W_PIT,
   SPECIAL_INDEX,
 } from '../data';
+import { foreignPerformanceMultiplier, isForeignPlayer } from './foreign';
 import { specialLevel } from './specials';
 import type { AccumulatedStats, FieldPosition, Player, SpecialAbility, Team } from './types';
 
@@ -36,22 +38,24 @@ export const APTITUDE_RANK_THRESHOLDS = [
 
 export function calcOVR(player: Player | undefined, position?: FieldPosition): number {
   if (!player) return 50;
+  const adaptationFactor = foreignPerformanceMultiplier(player);
   if (player.isP) {
     const weights = OVR_W_PIT[player.role ?? 'リリーフ'],
       params = player.p;
     return Math.round(
-      (params.vel ?? 50) * weights.vel +
+      ((params.vel ?? 50) * weights.vel +
         (params.ctrl ?? 50) * weights.ctrl +
         (params.stam ?? 50) * weights.stam +
         (params.nobi ?? 50) * weights.nobi +
-        (params.fld ?? 50) * weights.fld,
+        (params.fld ?? 50) * weights.fld) *
+        adaptationFactor,
     );
   }
   const resolved = position ?? player._assignedPos ?? player.pos ?? '左翼手',
     weights = OVR_W[resolved],
     params = player.p;
   return Math.round(
-    (params.cf ?? 50) * weights.cf +
+    ((params.cf ?? 50) * weights.cf +
       (params.cb ?? 50) * weights.cb +
       (params.pw ?? 50) * weights.pw +
       (params.dc ?? 50) * weights.dc +
@@ -59,7 +63,8 @@ export function calcOVR(player: Player | undefined, position?: FieldPosition): n
       (params.df ?? 50) * weights.df +
       (params.arm ?? 50) * weights.arm +
       (params.ld ?? 0) * weights.ld +
-      (params.stam ?? 50) * weights.stam,
+      (params.stam ?? 50) * weights.stam) *
+      adaptationFactor,
   );
 }
 export function aptitudeFor(player: Player, position: FieldPosition): number {
@@ -164,6 +169,9 @@ export function bestLineup(team: Team): Player[] {
       .filter(
         (f) =>
           !used.has(f.id) &&
+          (!isForeignPlayer(f) ||
+            lineup.filter(isForeignPlayer).length <
+              FOREIGN_PLAYER_BALANCE.simultaneousHitterLimit) &&
           (f.pos === position || f.positions?.some((entry) => entry.pos === position)),
       )
       .sort((a, b) => effectiveOVR(b, position) - effectiveOVR(a, position));
@@ -173,11 +181,17 @@ export function bestLineup(team: Team): Player[] {
       lineup.push({ ...selected, _assignedPos: position });
     }
   }
-  pool
-    .filter((f) => !used.has(f.id))
-    .sort((a, b) => calcOVR(b) - calcOVR(a))
-    .slice(0, 9 - lineup.length)
-    .forEach((f) => lineup.push({ ...f, _assignedPos: f.pos }));
+  for (const fielder of pool
+    .filter((player) => !used.has(player.id))
+    .sort((first, second) => calcOVR(second) - calcOVR(first))) {
+    if (lineup.length >= 9) break;
+    if (
+      isForeignPlayer(fielder) &&
+      lineup.filter(isForeignPlayer).length >= FOREIGN_PLAYER_BALANCE.simultaneousHitterLimit
+    )
+      continue;
+    lineup.push({ ...fielder, _assignedPos: fielder.pos });
+  }
   return lineup.slice(0, 9);
 }
 export function topStarters(team: Team): Player[] {
