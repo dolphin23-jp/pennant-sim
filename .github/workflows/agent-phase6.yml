@@ -1,0 +1,64 @@
+name: Temporary phase 6 draft validation
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: github.head_ref == 'agent/balance-phase6' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply phase 6
+        id: patch
+        run: |
+          set +e
+          node scripts/agent-phase6-draft.mjs > baseline/phase6-patch.log 2>&1
+          status=$?
+          set -e
+          cat baseline/phase6-patch.log
+          echo "$status" > baseline/phase6-patch.status
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - name: Format
+        if: steps.patch.outputs.status == '0'
+        run: npx prettier --write src/engine/types.ts src/state/offseason.ts tests/draft-origin.test.ts
+      - name: Lint
+        if: steps.patch.outputs.status == '0'
+        continue-on-error: true
+        run: npm run lint > baseline/phase6-lint.log 2>&1
+      - name: Test
+        if: steps.patch.outputs.status == '0'
+        continue-on-error: true
+        run: npm test > baseline/phase6-test.log 2>&1
+      - name: Build
+        if: steps.patch.outputs.status == '0'
+        continue-on-error: true
+        run: npm run build > baseline/phase6-build.log 2>&1
+      - name: Commit source and diagnostics
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/engine/types.ts src/state/offseason.ts tests/draft-origin.test.ts 2>/dev/null || true
+          git add -f baseline/phase6-*.log baseline/phase6-*.status 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No generated changes to commit"
+            exit 0
+          fi
+          git commit -m "Validate phase 6 draft origins"
+          git push origin HEAD:${{ github.head_ref }}
