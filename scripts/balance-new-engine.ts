@@ -79,6 +79,7 @@ function finalizeSeason(accumulatedStats: AccumulatedStats, games: number) {
     era: safeRatio(earnedRuns * 27, pitchingOuts),
     homeRuns,
     stolenBaseSuccessRate: safeRatio(stolenBases, stolenBases + caughtStealing),
+    stolenBaseAttemptsPerTeamGame: safeRatio(stolenBases + caughtStealing, games * 2),
     walkRate: safeRatio(walks, plateAppearances),
   };
 }
@@ -136,11 +137,15 @@ async function main(): Promise<void> {
         summarize(seasonStats.map((stats) => stats.stolenBaseSuccessRate)),
         6,
       ),
+      stolenBaseAttemptsPerTeamGame: roundSummary(
+        summarize(seasonStats.map((stats) => stats.stolenBaseAttemptsPerTeamGame)),
+        6,
+      ),
       walkRate: roundSummary(summarize(seasonStats.map((stats) => stats.walkRate)), 6),
     },
     targetEvaluation = evaluateNpbScoringTargets(summary),
     output = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       source: 'src/engine',
       seasons: options.seasons,
       seed: options.seed,
@@ -155,7 +160,9 @@ async function main(): Promise<void> {
   console.log(`NPB target evaluation: ${JSON.stringify(targetEvaluation)}`);
   console.log(`Wrote ${options.seasons}-season new-engine baseline to ${outputPath}`);
   if (!targetEvaluation.passed) {
-    console.error('Initial engine scoring environment is outside the configured NPB target ranges.');
+    console.error(
+      'Initial engine scoring environment is outside the configured NPB target ranges.',
+    );
     process.exitCode = 1;
   }
 }

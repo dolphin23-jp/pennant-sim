@@ -35,6 +35,7 @@ test('current engine stays within two percent of the recorded balance baseline',
     'era',
     'homeRuns',
     'stolenBaseSuccessRate',
+    'stolenBaseAttemptsPerTeamGame',
     'walkRate',
   ];
   for (const metric of metrics) {

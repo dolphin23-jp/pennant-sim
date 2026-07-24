@@ -91,7 +91,7 @@ export function simHalf(
     if (bases[0] && !bases[1] && outs < 2) {
       const runner = bases[0],
         runnerPlayer = typeof runner === 'object' ? runner : undefined;
-      let attemptRate = clamp(((runnerPlayer?.p.sp || 50) - 50) / 400, 0.01, 0.08);
+      let attemptRate = clamp(((runnerPlayer?.p.sp || 50) - 30) / 260, 0.02, 0.22);
       if (runnerPlayer && hasSpecial(runnerPlayer, 'sb')) attemptRate *= 1.4;
       if (runnerPlayer && hasGold(runnerPlayer, 'sb_gold')) attemptRate *= 1.6;
       if (random() < attemptRate) {
