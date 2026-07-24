@@ -11,9 +11,7 @@ permissions:
 
 jobs:
   validate:
-    if: >-
-      github.head_ref == 'agent/balance-core' ||
-      startsWith(github.head_ref, 'agent/balance-phase')
+    if: github.head_ref == 'agent/balance-core'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -31,17 +29,10 @@ jobs:
         run: |
           mkdir -p baseline
           set +e
-          if [ "${{ github.head_ref }}" = "agent/balance-core" ]; then
-            {
-              node scripts/agent-tune-1.mjs
-              node scripts/agent-tune-2.mjs
-            } > baseline/agent-patch.log 2>&1
-          elif [ "${{ github.head_ref }}" = "agent/balance-phase1" ]; then
-            node scripts/agent-phase1.mjs > baseline/agent-patch.log 2>&1
-          else
-            echo "No patch runner configured for ${{ github.head_ref }}" > baseline/agent-patch.log
-            exit 2
-          fi
+          {
+            node scripts/agent-tune-1.mjs
+            node scripts/agent-tune-2.mjs
+          } > baseline/agent-patch.log 2>&1
           status=$?
           set -e
           cat baseline/agent-patch.log
@@ -77,12 +68,7 @@ jobs:
       - name: Generate 100-season baseline
         if: steps.patch.outputs.status == '0'
         continue-on-error: true
-        run: |
-          if [ "${{ github.head_ref }}" = "agent/balance-phase1" ]; then
-            npm run baseline > baseline/agent-baseline.log 2>&1
-          else
-            npm run baseline:new > baseline/agent-baseline.log 2>&1
-          fi
+        run: npm run baseline:new > baseline/agent-baseline.log 2>&1
       - name: Commit source and diagnostics
         if: always()
         run: |
