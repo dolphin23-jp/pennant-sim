@@ -27,62 +27,62 @@
     }
   },
   "targetEvaluation": {
-    "passed": false,
+    "passed": true,
     "comparison": {
       "battingAverage": {
-        "value": 0.239859,
+        "value": 0.239857,
         "minimum": 0.232,
         "target": 0.244,
         "maximum": 0.257,
         "passed": true
       },
       "era": {
-        "value": 2.597481,
+        "value": 2.602298,
         "minimum": 2.21,
         "target": 3.01,
         "maximum": 3.6,
         "passed": true
       },
       "homeRuns": {
-        "value": 1096.09,
+        "value": 1103.13,
         "minimum": 1000,
         "target": 1096,
         "maximum": 1200,
         "passed": true
       },
       "stolenBaseAttemptsPerTeamGame": {
-        "value": 0.843555,
+        "value": 0.456329,
         "minimum": 0.3,
         "target": 0.45,
         "maximum": 0.6,
-        "passed": false
+        "passed": true
       }
     }
   },
   "summary": {
     "battingAverage": {
-      "mean": 0.239859,
-      "standardDeviation": 0.004105
+      "mean": 0.239857,
+      "standardDeviation": 0.003869
     },
     "era": {
-      "mean": 2.597481,
-      "standardDeviation": 0.130682
+      "mean": 2.602298,
+      "standardDeviation": 0.123818
     },
     "homeRuns": {
-      "mean": 1096.09,
-      "standardDeviation": 63.437
+      "mean": 1103.13,
+      "standardDeviation": 63.901
     },
     "stolenBaseSuccessRate": {
-      "mean": 0.620231,
-      "standardDeviation": 0.013251
+      "mean": 0.618021,
+      "standardDeviation": 0.017994
     },
     "stolenBaseAttemptsPerTeamGame": {
-      "mean": 0.843555,
-      "standardDeviation": 0.022542
+      "mean": 0.456329,
+      "standardDeviation": 0.016406
     },
     "walkRate": {
-      "mean": 0.066113,
-      "standardDeviation": 0.002769
+      "mean": 0.066128,
+      "standardDeviation": 0.002999
     }
   }
 }
