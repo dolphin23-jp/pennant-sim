@@ -351,6 +351,9 @@ export function simCpuUntilNext(
       nextRotations[game.homeKey] || 0,
       nextRotations[game.awayKey] || 0,
       accumulatedStats,
+      null,
+      null,
+      game.date,
     );
     nextSchedule[index] = { ...game, played: true, hs: result.score.home, as: result.score.away };
     leagueStats = accumulateStatsAll(result, leagueStats);
@@ -402,6 +405,9 @@ export function skipGames(
         nextRotations[game.homeKey] || 0,
         nextRotations[game.awayKey] || 0,
         accumulatedStats,
+        null,
+        null,
+        game.date,
       );
     nextSchedule[index] = { ...game, played: true, hs: result.score.home, as: result.score.away };
     leagueStats = accumulateStatsAll(result, leagueStats);

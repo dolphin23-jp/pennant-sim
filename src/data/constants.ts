@@ -126,32 +126,67 @@ export const FOREIGN_PLAYER_BALANCE = {
   },
 } as const;
 
+export const PITCHER_USAGE_BALANCE = {
+  fatigue: {
+    recoveryPerCalendarDay: 16,
+    maximumSelectable: 65,
+    emergencyMaximum: 96,
+    selectionPenaltyPerPoint: 1.25,
+    consecutiveAppearancePenalty: 12,
+    starterBaseLoad: 10,
+    starterPitchLoad: 0.85,
+    relieverBaseLoad: 18,
+    relieverPitchLoad: 2,
+    closerBaseLoad: 20,
+    closerPitchLoad: 2,
+    staminaLoadAdjustment: 0.0035,
+    minimumStaminaMultiplier: 0.78,
+    maximumStaminaMultiplier: 1.18,
+  },
+  pitchCount: {
+    starterBase: 76,
+    starterStaminaShare: 0.34,
+    starterVariation: 10,
+    relieverBase: 10,
+    relieverStaminaShare: 0.08,
+    relieverVariation: 6,
+    closerBase: 9,
+    closerStaminaShare: 0.08,
+    closerVariation: 4,
+  },
+  strikeoutTail: {
+    ratingDeltaSoftness: 45,
+    ratingEffectSoftness: 0.16,
+    maximumRatingEffect: 0.045,
+  },
+} as const;
+
 // simAB probability model. Context multipliers intentionally stay small so player ratings remain primary.
 export const AT_BAT_BALANCE = {
   strikeout: {
-    baseRate: 0.16,
+    baseRate: 0.22,
     velocityScale: 210,
     movementScale: 270,
     breakingBallScale: 320,
     batterContactScale: 190,
     fatiguePenalty: 0.26,
     minRate: 0.07,
-    maxRate: 0.52,
+    maxRate: 0.34,
   },
   walk: {
     baseRate: 0.068,
-    controlScale: 750,
-    disciplineScale: 750,
+    controlScale: 2000,
+    disciplineScale: 1100,
     fatigueBonus: 0.16,
     minRate: 0.018,
     maxRate: 0.16,
   },
   hitByPitch: { baseRate: 0.009, fatigueBonus: 0.004, minRate: 0.004, maxRate: 0.022 },
   homeRun: {
-    baseRate: 0.028,
-    velocityScale: 1500,
-    movementScale: 1500,
-    powerScale: 1250,
+    baseRate: 0.03,
+    velocityScale: 4000,
+    movementScale: 4000,
+    powerScale: 1850,
     fatigueBonus: 0.18,
     environmentMultiplier: 0.45,
     minRate: 0.001,
@@ -165,6 +200,12 @@ export const AT_BAT_BALANCE = {
   airBall: {
     tripleShare: 0.02,
     doubleShare: 0.2,
+  },
+  baseRunning: {
+    scoreFromFirstOnDouble: { standard: 0.43, fast: 0.58 },
+    scoreFromSecondOnSingle: { standard: 0.45, fast: 0.58 },
+    scoreFromThirdOnGroundOut: 0.55,
+    scoreFromThirdOnFlyOut: 0.38,
   },
   ballsInPlay: {
     baseAverage: 0.298,
