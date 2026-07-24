@@ -51,11 +51,11 @@ export const PLAYER_DEVELOPMENT_BALANCE = {
 // simAB probability model. Context multipliers intentionally stay small so player ratings remain primary.
 export const AT_BAT_BALANCE = {
   strikeout: {
-    baseRate: 0.205,
+    baseRate: 0.16,
     velocityScale: 210,
     movementScale: 270,
     breakingBallScale: 320,
-    batterContactScale: 220,
+    batterContactScale: 190,
     fatiguePenalty: 0.26,
     minRate: 0.07,
     maxRate: 0.52,
@@ -73,7 +73,7 @@ export const AT_BAT_BALANCE = {
     baseRate: 0.028,
     velocityScale: 1500,
     movementScale: 1500,
-    powerScale: 1500,
+    powerScale: 1250,
     fatigueBonus: 0.18,
     environmentMultiplier: 0.45,
     minRate: 0.001,
@@ -89,7 +89,7 @@ export const AT_BAT_BALANCE = {
     doubleShare: 0.2,
   },
   ballsInPlay: {
-    baseAverage: 0.292,
+    baseAverage: 0.298,
     speedScale: 1600,
     contactScale: 1500,
     minAverage: 0.22,
