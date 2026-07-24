@@ -30,28 +30,28 @@
     "passed": true,
     "comparison": {
       "battingAverage": {
-        "value": 0.246199,
+        "value": 0.246238,
         "minimum": 0.232,
         "target": 0.244,
         "maximum": 0.257,
         "passed": true
       },
       "era": {
-        "value": 2.989636,
+        "value": 2.991766,
         "minimum": 2.21,
         "target": 3.01,
         "maximum": 3.6,
         "passed": true
       },
       "homeRuns": {
-        "value": 1119.78,
+        "value": 1121.82,
         "minimum": 1000,
         "target": 1096,
         "maximum": 1200,
         "passed": true
       },
       "stolenBaseAttemptsPerTeamGame": {
-        "value": 0.463619,
+        "value": 0.46669,
         "minimum": 0.3,
         "target": 0.45,
         "maximum": 0.6,
@@ -61,88 +61,88 @@
   },
   "summary": {
     "battingAverage": {
-      "mean": 0.246199,
-      "standardDeviation": 0.007667
+      "mean": 0.246238,
+      "standardDeviation": 0.006311
     },
     "era": {
-      "mean": 2.989636,
-      "standardDeviation": 0.26534
+      "mean": 2.991766,
+      "standardDeviation": 0.229607
     },
     "homeRuns": {
-      "mean": 1119.78,
-      "standardDeviation": 108.17
+      "mean": 1121.82,
+      "standardDeviation": 94.34
     },
     "stolenBaseSuccessRate": {
-      "mean": 0.620499,
-      "standardDeviation": 0.01585
+      "mean": 0.622516,
+      "standardDeviation": 0.01744
     },
     "stolenBaseAttemptsPerTeamGame": {
-      "mean": 0.463619,
-      "standardDeviation": 0.020532
+      "mean": 0.46669,
+      "standardDeviation": 0.018335
     },
     "walkRate": {
-      "mean": 0.076272,
-      "standardDeviation": 0.004549
+      "mean": 0.076368,
+      "standardDeviation": 0.003875
     },
     "batterOvrStandardDeviation": {
-      "mean": 20.019186,
-      "standardDeviation": 0.822114
+      "mean": 20.29749,
+      "standardDeviation": 0.941873
     },
     "pitcherOvrStandardDeviation": {
-      "mean": 17.941413,
-      "standardDeviation": 1.193922
+      "mean": 18.009153,
+      "standardDeviation": 0.996379
     },
     "batterOvrTop1Percent": {
-      "mean": 110.73,
-      "standardDeviation": 3.771
+      "mean": 111.21,
+      "standardDeviation": 3.748
     },
     "batterOvrTop5Percent": {
-      "mean": 84.53,
-      "standardDeviation": 4.698
+      "mean": 85.22,
+      "standardDeviation": 5.025
     },
     "pitcherOvrTop1Percent": {
-      "mean": 102.92,
-      "standardDeviation": 4.558
+      "mean": 102.67,
+      "standardDeviation": 4.324
     },
     "pitcherOvrTop5Percent": {
-      "mean": 79.19,
-      "standardDeviation": 5.822
+      "mean": 79.65,
+      "standardDeviation": 5.043
     },
     "batterOvr85PlusCount": {
-      "mean": 21.9,
-      "standardDeviation": 3.719
+      "mean": 22.54,
+      "standardDeviation": 3.933
     },
     "pitcherOvr85PlusCount": {
-      "mean": 13.5,
-      "standardDeviation": 3.754
+      "mean": 13.31,
+      "standardDeviation": 3.358
     },
     "averageTeamOvr85PlusCount": {
-      "mean": 2.95,
-      "standardDeviation": 0.334
+      "mean": 2.987,
+      "standardDeviation": 0.376
     },
     "minimumTeamOvr85PlusCount": {
       "mean": 2,
       "standardDeviation": 0
     },
     "latentFactorMaximumRate": {
-      "mean": 0.332421,
-      "standardDeviation": 0.014508
+      "mean": 0.336984,
+      "standardDeviation": 0.015171
     },
     "potentialGap40PlusRate": {
-      "mean": 0.048598,
-      "standardDeviation": 0.007584
+      "mean": 0.051852,
+      "standardDeviation": 0.007665
     },
     "meanMaximumPotentialGap": {
-      "mean": 19.831468,
-      "standardDeviation": 0.331003
+      "mean": 19.981627,
+      "standardDeviation": 0.370013
     },
     "meanAveragePotentialGap": {
-      "mean": 12.962707,
-      "standardDeviation": 0.27018
+      "mean": 13.089589,
+      "standardDeviation": 0.289821
     },
     "elitePotentialRate": {
-      "mean": 0.048611,
-      "standardDeviation": 0.007579
+      "mean": 0.051852,
+      "standardDeviation": 0.007665
     }
   }
 }
