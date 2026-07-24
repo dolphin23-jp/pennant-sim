@@ -25,6 +25,7 @@ export function SeasonScreen() {
   const game = useGameState();
   const [saveStatus, setSaveStatus] = useState('');
   const [activeTab, setActiveTab] = useState<SeasonTab>('dashboard');
+  const [lineupDirty, setLineupDirty] = useState(false);
 
   if (!game.teams || !game.playerTeam) return null;
   const playerTeam = game.teams[game.playerTeam];
@@ -36,14 +37,27 @@ export function SeasonScreen() {
     window.setTimeout(() => setSaveStatus(''), 1800);
   };
 
+  const requestTabChange = (nextTab: SeasonTab): boolean => {
+    if (nextTab === activeTab) return true;
+    if (
+      activeTab === 'lineup' &&
+      lineupDirty &&
+      !window.confirm('オーダーに未保存の変更があります。変更を破棄して別のタブへ移動しますか？')
+    ) {
+      return false;
+    }
+    if (activeTab === 'lineup') setLineupDirty(false);
+    setActiveTab(nextTab);
+    return true;
+  };
+
   const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
     event.preventDefault();
     const direction = event.key === 'ArrowRight' ? 1 : -1;
     const nextIndex = (index + direction + tabs.length) % tabs.length;
     const nextTab = tabs[nextIndex];
-    if (!nextTab) return;
-    setActiveTab(nextTab.id);
+    if (!nextTab || !requestTabChange(nextTab.id)) return;
     window.requestAnimationFrame(() => document.getElementById(`season-tab-${nextTab.id}`)?.focus());
   };
 
@@ -112,7 +126,7 @@ export function SeasonScreen() {
               aria-selected={selected}
               aria-controls={`season-panel-${tab.id}`}
               tabIndex={selected ? 0 : -1}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => requestTabChange(tab.id)}
               onKeyDown={(event) => handleTabKeyDown(event, index)}
               style={{
                 flex: '0 0 auto',
@@ -142,7 +156,7 @@ export function SeasonScreen() {
         tabIndex={0}
       >
         {activeTab === 'dashboard' && <DashboardTab />}
-        {activeTab === 'lineup' && <LineupTab />}
+        {activeTab === 'lineup' && <LineupTab onDirtyChange={setLineupDirty} />}
         {activeTab === 'stats' && <StatsTab />}
         {activeTab === 'ranking' && <RankingTab />}
         {activeTab === 'standings' && <StandingsTab />}
