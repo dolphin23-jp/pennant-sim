@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "source": "src/engine",
   "seasons": 100,
   "seed": 20260723,
@@ -19,54 +19,70 @@
       "minimum": 1000,
       "target": 1096,
       "maximum": 1200
+    },
+    "stolenBaseAttemptsPerTeamGame": {
+      "minimum": 0.3,
+      "target": 0.45,
+      "maximum": 0.6
     }
   },
   "targetEvaluation": {
-    "passed": true,
+    "passed": false,
     "comparison": {
       "battingAverage": {
-        "value": 0.240051,
+        "value": 0.239859,
         "minimum": 0.232,
         "target": 0.244,
         "maximum": 0.257,
         "passed": true
       },
       "era": {
-        "value": 2.61982,
+        "value": 2.597481,
         "minimum": 2.21,
         "target": 3.01,
         "maximum": 3.6,
         "passed": true
       },
       "homeRuns": {
-        "value": 1106.37,
+        "value": 1096.09,
         "minimum": 1000,
         "target": 1096,
         "maximum": 1200,
         "passed": true
+      },
+      "stolenBaseAttemptsPerTeamGame": {
+        "value": 0.843555,
+        "minimum": 0.3,
+        "target": 0.45,
+        "maximum": 0.6,
+        "passed": false
       }
     }
   },
   "summary": {
     "battingAverage": {
-      "mean": 0.240051,
-      "standardDeviation": 0.003581
+      "mean": 0.239859,
+      "standardDeviation": 0.004105
     },
     "era": {
-      "mean": 2.61982,
-      "standardDeviation": 0.116778
+      "mean": 2.597481,
+      "standardDeviation": 0.130682
     },
     "homeRuns": {
-      "mean": 1106.37,
-      "standardDeviation": 64.117
+      "mean": 1096.09,
+      "standardDeviation": 63.437
     },
     "stolenBaseSuccessRate": {
-      "mean": 0.62088,
-      "standardDeviation": 0.04888
+      "mean": 0.620231,
+      "standardDeviation": 0.013251
+    },
+    "stolenBaseAttemptsPerTeamGame": {
+      "mean": 0.843555,
+      "standardDeviation": 0.022542
     },
     "walkRate": {
-      "mean": 0.066272,
-      "standardDeviation": 0.002854
+      "mean": 0.066113,
+      "standardDeviation": 0.002769
     }
   }
 }
