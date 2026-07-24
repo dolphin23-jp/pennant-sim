@@ -148,6 +148,48 @@ export function displayOVR(
   return displayOVRBreakdown(player, position, options).total;
 }
 
+function takeHighestScoring(
+  players: Player[],
+  used: Set<string>,
+  score: (player: Player) => number,
+): Player | undefined {
+  const selected = players
+    .filter((player) => !used.has(player.id))
+    .sort((first, second) => score(second) - score(first))[0];
+  if (selected) used.add(selected.id);
+  return selected;
+}
+
+export function orderBattingLineup(players: Player[]): Player[] {
+  if (players.length < 3) return [...players];
+  const used = new Set<string>(),
+    contact = (player: Player) => ((player.p.cf ?? 50) + (player.p.cb ?? 50)) / 2,
+    discipline = (player: Player) => player.p.dc ?? 50,
+    power = (player: Player) => player.p.pw ?? 50,
+    speed = (player: Player) => player.p.sp ?? 50,
+    onBase = (player: Player) => contact(player) * 0.7 + discipline(player) * 0.3,
+    runCreation = (player: Player) =>
+      contact(player) * 0.45 + discipline(player) * 0.2 + power(player) * 0.35,
+    cleanup = (player: Player) =>
+      power(player) * 0.65 + contact(player) * 0.25 + discipline(player) * 0.1,
+    leadoff = (player: Player) => onBase(player) * 0.7 + speed(player) * 0.3,
+    secondHitter = (player: Player) =>
+      contact(player) * 0.5 + onBase(player) * 0.35 + speed(player) * 0.15;
+  const slots: Array<Player | undefined> = Array.from({ length: players.length });
+  slots[3] = takeHighestScoring(players, used, cleanup);
+  slots[2] = takeHighestScoring(players, used, runCreation);
+  slots[4] = takeHighestScoring(players, used, cleanup);
+  slots[0] = takeHighestScoring(players, used, leadoff);
+  slots[1] = takeHighestScoring(players, used, secondHitter);
+  const remaining = players
+    .filter((player) => !used.has(player.id))
+    .sort((first, second) => runCreation(second) - runCreation(first));
+  let remainingIndex = 0;
+  for (let index = 0; index < slots.length; index += 1)
+    if (!slots[index]) slots[index] = remaining[remainingIndex++];
+  return slots.filter((player): player is Player => Boolean(player));
+}
+
 export function bestLineup(team: Team): Player[] {
   const used = new Set<string>(),
     lineup: Player[] = [];
@@ -192,7 +234,7 @@ export function bestLineup(team: Team): Player[] {
       continue;
     lineup.push({ ...fielder, _assignedPos: fielder.pos });
   }
-  return lineup.slice(0, 9);
+  return orderBattingLineup(lineup.slice(0, 9));
 }
 export function topStarters(team: Team): Player[] {
   const healthy = team.pitchers.filter(

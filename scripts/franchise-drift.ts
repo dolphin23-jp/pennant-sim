@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import process from 'node:process';
 
+import { AT_BAT_BALANCE, PITCHER_USAGE_BALANCE } from '../src/data';
 import {
   accumulateStatsAll,
   calcOVR,
@@ -224,6 +225,14 @@ function leader<T extends PlayerStats>(
   return top ? { name: top.name, value: round(value(top), 3) } : null;
 }
 
+function minimum<T extends PlayerStats>(
+  lines: T[],
+  value: (line: T) => number,
+): { name: string; value: number } | null {
+  const lowest = [...lines].sort((first, second) => value(first) - value(second))[0];
+  return lowest ? { name: lowest.name, value: round(value(lowest), 3) } : null;
+}
+
 function seasonSnapshot(stats: AccumulatedStats, games: number, totalRuns: number) {
   const lines = Object.values(stats);
   const batting = lines.filter((line) => line.type === 'bat');
@@ -256,17 +265,28 @@ function seasonSnapshot(stats: AccumulatedStats, games: number, totalRuns: numbe
     individualDistributions: {
       batting: {
         homeRuns30Plus: batting.filter((line) => line.hr >= 30).length,
+        homeRuns40Plus: batting.filter((line) => line.hr >= 40).length,
+        homeRuns50Plus: batting.filter((line) => line.hr >= 50).length,
+        homeRuns60Plus: batting.filter((line) => line.hr >= 60).length,
         runsBattedIn100Plus: batting.filter((line) => line.rbi >= 100).length,
+        runsBattedIn120Plus: batting.filter((line) => line.rbi >= 120).length,
+        runsBattedIn140Plus: batting.filter((line) => line.rbi >= 140).length,
         homeRunLeader: leader(batting, (line) => line.hr),
         runsBattedInLeader: leader(batting, (line) => line.rbi),
       },
       pitching: {
         qualifiedPitchers: qualifiedPitchers.length,
+        eraBelowOne: qualifiedPitchers.filter((line) => pitcherEra(line) < 1).length,
         eraBelowTwo: qualifiedPitchers.filter((line) => pitcherEra(line) < 2).length,
+        eraLeader: minimum(qualifiedPitchers, pitcherEra),
+        strikeouts180Plus: pitching.filter((line) => line.k >= 180).length,
         strikeouts200Plus: pitching.filter((line) => line.k >= 200).length,
         strikeoutLeader: leader(pitching, (line) => line.k),
+        reliefAppearances60Plus: reliefPitchers.filter((line) => line.g >= 60).length,
         reliefAppearances70Plus: reliefPitchers.filter((line) => line.g >= 70).length,
         reliefAppearanceLeader: leader(reliefPitchers, (line) => line.g),
+        reliefInnings90Plus: reliefPitchers.filter((line) => line.ip3 >= 90 * 3).length,
+        reliefInningsLeader: leader(reliefPitchers, (line) => line.ip3 / 3),
       },
     },
   };
@@ -398,6 +418,9 @@ async function simulateFranchise(options: CliOptions) {
           rotations[game.homeKey],
           rotations[game.awayKey],
           accumulated,
+          null,
+          null,
+          game.date,
         );
         accumulated = accumulateStatsAll(result, accumulated);
         totalRuns += result.score.home + result.score.away;
@@ -446,7 +469,7 @@ async function simulateFranchise(options: CliOptions) {
       );
     }
     return {
-      schemaVersion: 4,
+      schemaVersion: 5,
       source: 'continuous-franchise-diagnostic',
       targets: NPB_SCORING_TARGETS,
       configuration: {
@@ -456,6 +479,18 @@ async function simulateFranchise(options: CliOptions) {
         weather: 'disabled to isolate roster and growth drift',
         draftRounds: DRAFT_ROUNDS,
         initialRosterCaps: caps,
+        pitcherUsage: {
+          fatigue: PITCHER_USAGE_BALANCE.fatigue,
+          pitchCount: PITCHER_USAGE_BALANCE.pitchCount,
+          annualStatCaps: false,
+          reference: '2025 NPB official individual pitching statistics',
+        },
+        battingTail: {
+          homeRun: AT_BAT_BALANCE.homeRun,
+          annualStatCaps: false,
+          forcedPlayerCounts: false,
+          reference: '2022-2025 NPB official individual batting statistics and season records',
+        },
         offseasonEngine: {
           scope: 'shared with production CPU roster management',
           rosterTargets: { pitchers: 28, fielders: 35 },

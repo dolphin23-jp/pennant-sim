@@ -129,6 +129,9 @@ export interface Player {
   specialLevels?: Record<string, number>;
   trainPolicy: TrainPolicyId;
   fatigue?: number;
+  fatigueUpdatedOn?: string;
+  lastPitchedOn?: string;
+  consecutivePitchingGames?: number;
   injuryDays?: number;
   injurySeverity?: 'light' | 'mid' | 'heavy';
   awakeCount?: number;

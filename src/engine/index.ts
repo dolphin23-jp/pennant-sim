@@ -7,6 +7,7 @@ export * from './market';
 export * from './offseason';
 export * from './pitcherPlan';
 export * from './pitcherPlanSeason';
+export * from './pitcherUsage';
 export * from './playerEvents';
 export * from './players';
 export * from './random';

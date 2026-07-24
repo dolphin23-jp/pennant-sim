@@ -160,12 +160,22 @@ function finalizeSeason(accumulatedStats: AccumulatedStats, games: number) {
     walks = sumStats(batting, 'bb'),
     plateAppearances = sumStats(batting, 'pa'),
     earnedRuns = sumStats(pitching, 'er'),
-    pitchingOuts = sumStats(pitching, 'ip3');
+    pitchingOuts = sumStats(pitching, 'ip3'),
+    homeRunLeader = Math.max(0, ...batting.map((line) => line.hr)),
+    runsBattedInLeader = Math.max(0, ...batting.map((line) => line.rbi));
   return {
     games,
     battingAverage: safeRatio(hits, atBats),
     era: safeRatio(earnedRuns * 27, pitchingOuts),
     homeRuns,
+    homeRunLeader,
+    homeRuns30Plus: batting.filter((line) => line.hr >= 30).length,
+    homeRuns40Plus: batting.filter((line) => line.hr >= 40).length,
+    homeRuns50Plus: batting.filter((line) => line.hr >= 50).length,
+    homeRuns60Plus: batting.filter((line) => line.hr >= 60).length,
+    runsBattedInLeader,
+    runsBattedIn100Plus: batting.filter((line) => line.rbi >= 100).length,
+    runsBattedIn120Plus: batting.filter((line) => line.rbi >= 120).length,
     stolenBaseSuccessRate: safeRatio(stolenBases, stolenBases + caughtStealing),
     stolenBaseAttemptsPerTeamGame: safeRatio(stolenBases + caughtStealing, games * 2),
     walkRate: safeRatio(walks, plateAppearances),
@@ -200,6 +210,9 @@ async function simulateSeason(seasonIndex: number, baseSeed: number) {
       rotations[game.homeKey],
       rotations[game.awayKey],
       {},
+      null,
+      null,
+      game.date,
     );
     accumulatedStats = accumulateStatsAll(result, accumulatedStats);
     rotations[game.homeKey] += 1;
@@ -214,13 +227,32 @@ async function main(): Promise<void> {
     const stats = await simulateSeason(seasonIndex, options.seed);
     seasonStats.push(stats);
     console.log(
-      `Season ${seasonIndex + 1}/${options.seasons}: AVG ${stats.battingAverage.toFixed(3)}, ERA ${stats.era.toFixed(2)}, HR ${stats.homeRuns}`,
+      `Season ${seasonIndex + 1}/${options.seasons}: AVG ${stats.battingAverage.toFixed(3)}, ` +
+        `ERA ${stats.era.toFixed(2)}, HR ${stats.homeRuns} (leader ${stats.homeRunLeader}), ` +
+        `RBI leader ${stats.runsBattedInLeader}`,
     );
   }
   const summary = {
       battingAverage: roundSummary(summarize(seasonStats.map((stats) => stats.battingAverage)), 6),
       era: roundSummary(summarize(seasonStats.map((stats) => stats.era)), 6),
       homeRuns: roundSummary(summarize(seasonStats.map((stats) => stats.homeRuns)), 3),
+      homeRunLeader: roundSummary(summarize(seasonStats.map((stats) => stats.homeRunLeader)), 3),
+      homeRuns30Plus: roundSummary(summarize(seasonStats.map((stats) => stats.homeRuns30Plus)), 3),
+      homeRuns40Plus: roundSummary(summarize(seasonStats.map((stats) => stats.homeRuns40Plus)), 3),
+      homeRuns50Plus: roundSummary(summarize(seasonStats.map((stats) => stats.homeRuns50Plus)), 3),
+      homeRuns60Plus: roundSummary(summarize(seasonStats.map((stats) => stats.homeRuns60Plus)), 3),
+      runsBattedInLeader: roundSummary(
+        summarize(seasonStats.map((stats) => stats.runsBattedInLeader)),
+        3,
+      ),
+      runsBattedIn100Plus: roundSummary(
+        summarize(seasonStats.map((stats) => stats.runsBattedIn100Plus)),
+        3,
+      ),
+      runsBattedIn120Plus: roundSummary(
+        summarize(seasonStats.map((stats) => stats.runsBattedIn120Plus)),
+        3,
+      ),
       stolenBaseSuccessRate: roundSummary(
         summarize(seasonStats.map((stats) => stats.stolenBaseSuccessRate)),
         6,
@@ -293,7 +325,7 @@ async function main(): Promise<void> {
     },
     targetEvaluation = evaluateNpbScoringTargets(summary),
     output = {
-      schemaVersion: 5,
+      schemaVersion: 6,
       source: 'src/engine',
       seasons: options.seasons,
       seed: options.seed,
