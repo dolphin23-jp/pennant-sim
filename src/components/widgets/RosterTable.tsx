@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { FIELD_POSITIONS, SPECIAL_INDEX } from '../../data';
-import { calcOVR, effectiveOVR } from '../../engine';
+import { calcOVR, displayOVR, effectiveOVR } from '../../engine';
 import type { AccumulatedStats, FieldPosition, Player, Team } from '../../engine';
 import { Button, Card, EmptyState, SectionTitle, TermTooltip } from '../ui';
+import { DisplayOVRValue } from './DisplayOVRValue';
 import { PlayerCompareModal } from './PlayerCompareModal';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
 
-type SortKey = 'name' | 'age' | 'ovr' | 'effective' | 'status';
+type SortKey = 'name' | 'age' | 'ovr' | 'effective' | 'display' | 'status';
 type SortDirection = 'asc' | 'desc';
 type KindFilter = 'all' | 'fielder' | 'pitcher';
 type AgeFilter = 'all' | 'under24' | '25to29' | 'over30';
@@ -19,6 +20,10 @@ function playerOVR(player: Player): number {
 
 function playerEffectiveOVR(player: Player): number {
   return player.isP ? calcOVR(player) : effectiveOVR(player, player._assignedPos ?? player.pos);
+}
+
+function playerDisplayOVR(player: Player): number {
+  return displayOVR(player, player._assignedPos ?? player.pos);
 }
 
 function statusScore(player: Player): number {
@@ -53,6 +58,7 @@ function sortValue(player: Player, key: SortKey): number | string {
   if (key === 'age') return player.age;
   if (key === 'ovr') return playerOVR(player);
   if (key === 'effective') return playerEffectiveOVR(player);
+  if (key === 'display') return playerDisplayOVR(player);
   return statusScore(player);
 }
 
@@ -184,7 +190,7 @@ export function RosterTable({
   onSelect(player: Player): void;
 }) {
   const [sort, setSort] = useState<{ key: SortKey; direction: SortDirection }>({
-    key: 'effective',
+    key: 'display',
     direction: 'desc',
   });
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
@@ -334,7 +340,7 @@ export function RosterTable({
         ) : (
           <div className="roster-table-wrap">
             <table className="roster-table" aria-label={`${team.n}の選手一覧`}>
-              <caption>選手名を選択すると詳細を表示します。比較は2〜3人まで選択できます。</caption>
+              <caption>選手名を選択すると詳細を表示します。基本総合値から特殊込み総合値への変化を表示します。</caption>
               <thead>
                 <tr>
                   <th scope="col">比較</th>
@@ -346,12 +352,12 @@ export function RosterTable({
                   </th>
                   <th scope="col">役割</th>
                   <th scope="col">
-                    <TermTooltip term="OVR" description="適性補正前の総合評価です。" />{' '}
+                    <TermTooltip term="能力値OVR" description="守備位置適性と特殊能力を含めない能力値ベースのOVRです。" />{' '}
                     <SortHeader sortKey="ovr" label="並替" activeKey={sort.key} direction={sort.direction} onSort={handleSort} />
                   </th>
                   <th scope="col">
-                    <TermTooltip term="実効OVR" description="現在の守備位置適性を反映した総合評価です。" />{' '}
-                    <SortHeader sortKey="effective" label="並替" activeKey={sort.key} direction={sort.direction} onSort={handleSort} />
+                    <TermTooltip term="基本 → 特殊込み" description="従来の実効OVRから、特殊能力を表示上だけ加減した総合値への変化です。" />{' '}
+                    <SortHeader sortKey="display" label="並替" activeKey={sort.key} direction={sort.direction} onSort={handleSort} />
                   </th>
                   <th scope="col">
                     <SortHeader sortKey="status" label="状態" activeKey={sort.key} direction={sort.direction} onSort={handleSort} />
@@ -363,7 +369,6 @@ export function RosterTable({
               <tbody>
                 {filteredPlayers.map((player) => {
                   const overall = playerOVR(player);
-                  const effective = playerEffectiveOVR(player);
                   const selected = selectedIds.includes(player.id);
                   const selectionDisabled = selectedIds.length >= 3 && !selected;
                   return (
@@ -397,11 +402,12 @@ export function RosterTable({
                       >
                         {overall}
                       </td>
-                      <td
-                        className={effective >= 80 ? 'metric-highlight' : undefined}
-                        style={{ textAlign: 'center', fontWeight: 900 }}
-                      >
-                        {effective}
+                      <td style={{ textAlign: 'center' }}>
+                        <DisplayOVRValue
+                          player={player}
+                          position={player.isP ? undefined : player._assignedPos ?? player.pos}
+                          compact
+                        />
                       </td>
                       <td style={{ textAlign: 'center' }} title={statusText(player)}>
                         <PlayerStatusBadges player={player} compact />
