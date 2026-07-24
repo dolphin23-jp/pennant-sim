@@ -35,6 +35,16 @@ export interface ChampionRecord {
   keyPitchers?: string[];
 }
 
+export interface PitcherPlan {
+  rotationOrder: string[];
+  closerPriority: string[];
+}
+
+export const createEmptyPitcherPlan = (): PitcherPlan => ({
+  rotationOrder: [],
+  closerPriority: [],
+});
+
 export interface GameSaveData {
   teams: Teams;
   playerTeam: TeamKey | null;
@@ -42,6 +52,7 @@ export interface GameSaveData {
   season: SeasonState;
   rotN: Record<TeamKey, number>;
   lineup: Player[];
+  pitcherPlan: PitcherPlan;
   standings: Record<TeamKey, StandingRecord>;
   accumulated: AccumulatedStats;
   leagueAccumulated: AccumulatedStats;
@@ -164,6 +175,15 @@ const migrateSchedule = (schedule: ScheduleGame[] | undefined): ScheduleGame[] =
       }))
     : [];
 
+const migratePitcherPlan = (plan: PitcherPlan | undefined): PitcherPlan => ({
+  rotationOrder: Array.isArray(plan?.rotationOrder)
+    ? plan.rotationOrder.filter((id): id is string => typeof id === 'string')
+    : [],
+  closerPriority: Array.isArray(plan?.closerPriority)
+    ? plan.closerPriority.filter((id): id is string => typeof id === 'string')
+    : [],
+});
+
 export function migrateSaveData(raw: unknown): GameSaveData | null {
   if (!raw || typeof raw !== 'object') return null;
   const legacy = raw as Partial<GameSaveData>;
@@ -184,6 +204,7 @@ export function migrateSaveData(raw: unknown): GameSaveData | null {
     season,
     rotN: rotations,
     lineup: Array.isArray(legacy.lineup) ? legacy.lineup : [],
+    pitcherPlan: migratePitcherPlan(legacy.pitcherPlan ?? createEmptyPitcherPlan()),
     standings: legacy.standings ?? calcStandings(season.schedule),
     accumulated: legacy.accumulated ?? {},
     leagueAccumulated: legacy.leagueAccumulated ?? {},

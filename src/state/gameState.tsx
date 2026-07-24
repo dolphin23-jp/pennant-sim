@@ -18,7 +18,7 @@ import {
   registerExistingNames,
   simCpuUntilNext,
   simulateGame,
-  skipGames,
+  skipGamesWithPitcherPlan,
 } from '../engine';
 import type {
   AccumulatedStats,
@@ -30,12 +30,14 @@ import type {
   Teams,
 } from '../engine';
 import {
+  createEmptyPitcherPlan,
   createEmptyRotations,
   loadGame,
   saveGame,
   type ChampionRecord,
   type GameSaveData,
   type Notice,
+  type PitcherPlan,
   type SeasonState,
 } from './storage';
 
@@ -55,6 +57,7 @@ interface RuntimeState {
   season: SeasonState;
   rotN: Record<TeamKey, number>;
   lineup: Player[];
+  pitcherPlan: PitcherPlan;
   standings: Record<TeamKey, StandingRecord>;
   accumulated: AccumulatedStats;
   leagueAccumulated: AccumulatedStats;
@@ -78,6 +81,7 @@ interface GameContextValue extends RuntimeState {
   setScreen(screen: GameScreen): void;
   setViewTeam(teamKey: TeamKey): void;
   setLineup(lineup: Player[]): void;
+  setPitcherPlan(plan: PitcherPlan): void;
   selectPlayer(player: Player | null): void;
   replaceTeams(teams: Teams): void;
   completeOffseason(teams: Teams): void;
@@ -92,6 +96,7 @@ const initialState: RuntimeState = {
   season: { year: 2026, schedule: [] },
   rotN: createEmptyRotations(),
   lineup: [],
+  pitcherPlan: createEmptyPitcherPlan(),
   standings: calcStandings([]),
   accumulated: {},
   leagueAccumulated: {},
@@ -134,6 +139,7 @@ function snapshotFromState(state: RuntimeState): GameSaveData | null {
     season: state.season,
     rotN: state.rotN,
     lineup: state.lineup,
+    pitcherPlan: state.pitcherPlan,
     standings: state.standings,
     accumulated: state.accumulated,
     leagueAccumulated: state.leagueAccumulated,
@@ -232,6 +238,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         current.rotN[nextGame.homeKey] || 0,
         current.rotN[nextGame.awayKey] || 0,
         current.accumulated,
+        nextGame.homeKey === current.playerTeam ? current.pitcherPlan : null,
+        nextGame.awayKey === current.playerTeam ? current.pitcherPlan : null,
       );
       const playedSchedule = current.season.schedule.map((game) =>
         game.id === nextGame.id
@@ -283,13 +291,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const skip = useCallback((mode: 'next' | 'week' | 'month' | 'season') => {
     setState((current) => {
       if (!current.teams || !current.playerTeam) return current;
-      const result = skipGames(
+      const result = skipGamesWithPitcherPlan(
         current.season.schedule,
         current.teams,
         current.rotN,
         current.playerTeam,
         mode,
         current.accumulated,
+        current.pitcherPlan,
       );
       const accumulated = mergeStats(current.accumulated, result.distStats);
       const leagueAccumulated = mergeStats(current.leagueAccumulated, result.leagueDistStats);
@@ -356,6 +365,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setScreen: (screen) => setState((current) => ({ ...current, screen })),
       setViewTeam: (viewTeam) => setState((current) => ({ ...current, viewTeam })),
       setLineup: (lineup) => setState((current) => ({ ...current, lineup })),
+      setPitcherPlan: (pitcherPlan) => setState((current) => ({ ...current, pitcherPlan })),
       selectPlayer: (selectedPlayer) =>
         setState((current) => ({ ...current, selectedPlayer })),
       replaceTeams: (teams) => setState((current) => ({ ...current, teams })),
