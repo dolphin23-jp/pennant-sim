@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { bestLineup, calcOVR, effectiveOVR } from '../../../engine';
-import type { FieldPosition, Player } from '../../../engine';
+import type { FieldPosition, Player, Team } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
 import { Button, Card, SectionTitle } from '../../ui';
 import { BattingOrderList } from '../../widgets/BattingOrderList';
@@ -121,21 +121,23 @@ function lineupFromEditor(editor: EditorState): Player[] {
     .filter((player): player is Player => Boolean(player));
 }
 
-export function LineupTab({ onDirtyChange }: { onDirtyChange(dirty: boolean): void }) {
-  const game = useGameState();
-  if (!game.teams || !game.playerTeam) return null;
-  const team = game.teams[game.playerTeam];
-  const [editor, setEditor] = useState<EditorState>(() => createEditorState(game.lineup, team.fielders));
+function LineupEditor({
+  team,
+  lineup,
+  onCommit,
+  onSelectPlayer,
+  onDirtyChange,
+}: {
+  team: Team;
+  lineup: Player[];
+  onCommit(lineup: Player[]): void;
+  onSelectPlayer(player: Player): void;
+  onDirtyChange(dirty: boolean): void;
+}) {
+  const [editor, setEditor] = useState<EditorState>(() => createEditorState(lineup, team.fielders));
   const [savedSignature, setSavedSignature] = useState(() => editorSignature(editor));
   const [selectedSlot, setSelectedSlot] = useState<LineupSlot | null>(null);
   const [status, setStatus] = useState('');
-
-  useEffect(() => {
-    const next = createEditorState(game.lineup, team.fielders);
-    setEditor(next);
-    setSavedSignature(editorSignature(next));
-    setSelectedSlot(null);
-  }, [game.lineup, team.fielders]);
 
   const signature = editorSignature(editor);
   const dirty = signature !== savedSignature;
@@ -205,14 +207,13 @@ export function LineupTab({ onDirtyChange }: { onDirtyChange(dirty: boolean): vo
 
   const saveLineup = () => {
     if (!complete) return;
-    const lineup = lineupFromEditor(editor);
-    game.setLineup(lineup);
+    onCommit(lineupFromEditor(editor));
     setSavedSignature(signature);
     setStatus('✓ オーダーを保存しました。');
   };
 
   const discardChanges = () => {
-    const next = createEditorState(game.lineup, team.fielders);
+    const next = createEditorState(lineup, team.fielders);
     setEditor(next);
     setSavedSignature(editorSignature(next));
     setSelectedSlot(null);
@@ -274,14 +275,16 @@ export function LineupTab({ onDirtyChange }: { onDirtyChange(dirty: boolean): vo
           aria-live="polite"
           style={{ marginTop: 10, color: dirty ? 'var(--color-warning)' : 'var(--color-text-muted)' }}
         >
-          {!complete ? '9つの枠すべてに異なる選手を配置してください。' : status || (dirty ? '未保存の変更があります。' : '保存済みです。')}
+          {!complete
+            ? '9つの枠すべてに異なる選手を配置してください。'
+            : status || (dirty ? '未保存の変更があります。' : '保存済みです。')}
         </div>
       </Card>
 
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(0,1.55fr) minmax(280px,0.75fr)',
+          gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,320px),1fr))',
           gap: 12,
           alignItems: 'start',
         }}
@@ -295,7 +298,7 @@ export function LineupTab({ onDirtyChange }: { onDirtyChange(dirty: boolean): vo
           players={battingOrder}
           assignments={editor.assignments}
           onMove={moveBatter}
-          onSelectPlayer={game.selectPlayer}
+          onSelectPlayer={onSelectPlayer}
         />
       </div>
 
@@ -309,5 +312,19 @@ export function LineupTab({ onDirtyChange }: { onDirtyChange(dirty: boolean): vo
         />
       )}
     </div>
+  );
+}
+
+export function LineupTab({ onDirtyChange }: { onDirtyChange(dirty: boolean): void }) {
+  const game = useGameState();
+  if (!game.teams || !game.playerTeam) return null;
+  return (
+    <LineupEditor
+      team={game.teams[game.playerTeam]}
+      lineup={game.lineup}
+      onCommit={game.setLineup}
+      onSelectPlayer={game.selectPlayer}
+      onDirtyChange={onDirtyChange}
+    />
   );
 }
