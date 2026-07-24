@@ -17,6 +17,7 @@ import {
   TINFO,
 } from '../data';
 import { clamp, gaussian, random, randomChoice, randomInt, uid, weightedRandom } from './random';
+import { calcOVR } from './ratings';
 import { syncSpecialsFromLevels } from './specials';
 import type {
   FieldPosition,
@@ -322,6 +323,54 @@ function ageDistribution(
   while (ages.length < count) ages.push(randomInt(minAge, maxAge));
   return ages.sort(() => random() - 0.5);
 }
+function generateRosterQuality(baseDevelopment: number): number {
+  const baseMean = baseDevelopment * 0.75,
+    tierRoll = random();
+  if (tierRoll < 0.025) return clamp(gaussian(baseMean + 95, 6), 125, 160);
+  if (tierRoll < 0.125) return clamp(gaussian(baseMean + 65, 8), 105, 140);
+  return clamp(gaussian(baseMean, 15), 28, 92);
+}
+function ensureMinimumRosterStars(
+  teamKey: TeamKey,
+  pitchers: Player[],
+  fielders: Player[],
+): { pitchers: Player[]; fielders: Player[] } {
+  const nextPitchers = [...pitchers],
+    nextFielders = [...fielders],
+    preferredPositions: FieldPosition[] = ['一塁手', '左翼手', '右翼手', '三塁手', '中堅手'];
+  let starCount =
+    nextPitchers.filter((player) => calcOVR(player) >= 85).length +
+    nextFielders.filter((player) => calcOVR(player, player.pos) >= 85).length;
+  const candidates = nextFielders
+    .map((player, index) => ({
+      player,
+      index,
+      positionPriority: preferredPositions.indexOf(player.pos as FieldPosition),
+    }))
+    .filter(({ player }) => calcOVR(player, player.pos) < 85)
+    .sort(
+      (first, second) =>
+        (first.positionPriority < 0 ? 99 : first.positionPriority) -
+          (second.positionPriority < 0 ? 99 : second.positionPriority) ||
+        Math.abs(first.player.age - 27) - Math.abs(second.player.age - 27),
+    );
+  for (const { player: original, index } of candidates) {
+    if (starCount >= 2) break;
+    let replacement = original;
+    for (
+      let attempt = 0;
+      attempt < 10 && calcOVR(replacement, replacement.pos) < 85;
+      attempt += 1
+    ) {
+      const candidate = generateBatter(teamKey, original.age, original.pos as FieldPosition, 190);
+      if (calcOVR(candidate, candidate.pos) > calcOVR(replacement, replacement.pos))
+        replacement = candidate;
+    }
+    nextFielders[index] = replacement;
+    if (calcOVR(replacement, replacement.pos) >= 85) starCount += 1;
+  }
+  return { pitchers: nextPitchers, fielders: nextFielders };
+}
 export function initTeams(): Teams {
   registerExistingNames({});
   return Object.fromEntries(
@@ -332,7 +381,7 @@ export function initTeams(): Teams {
         generatePitcher(
           teamKey,
           age,
-          clamp(gaussian(bd * 0.75, 12), 35, 98),
+          generateRosterQuality(bd),
           index / all.length < 0.46
             ? '先発'
             : index / all.length < 0.75
@@ -348,10 +397,20 @@ export function initTeams(): Teams {
           teamKey,
           age,
           positionPool[index % positionPool.length] as FieldPosition,
-          clamp(gaussian(bd * 0.75, 12), 35, 98),
+          generateRosterQuality(bd),
         ),
       );
-      return [teamKey, { ...TINFO[teamKey], key: teamKey, pitchers, fielders, rotSize: 6 }];
+      const starredRoster = ensureMinimumRosterStars(teamKey, pitchers, fielders);
+      return [
+        teamKey,
+        {
+          ...TINFO[teamKey],
+          key: teamKey,
+          pitchers: starredRoster.pitchers,
+          fielders: starredRoster.fielders,
+          rotSize: 6,
+        },
+      ];
     }),
   ) as Teams;
 }
