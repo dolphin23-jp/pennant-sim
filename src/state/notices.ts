@@ -88,6 +88,42 @@ export function createInSeasonDevelopmentNotices(
     }));
 }
 
+function awakeningEntries(player: Player) {
+  return (player.growthLog ?? []).filter((entry) => entry.type === 'awakening');
+}
+
+export function createSkippedInSeasonDevelopmentNotices(
+  beforeTeam: Team,
+  afterTeam: Team,
+  playerTeam: TeamKey,
+  date: string,
+): Notice[] {
+  const beforeCounts = new Map(
+    [...beforeTeam.pitchers, ...beforeTeam.fielders].map((player) => [
+      player.id,
+      awakeningEntries(player).length,
+    ]),
+  );
+  return [...afterTeam.pitchers, ...afterTeam.fielders].flatMap<Notice>((player) => {
+    const entries = awakeningEntries(player);
+    const priorCount = beforeCounts.get(player.id) ?? 0;
+    return entries.slice(priorCount).map((entry, index) => ({
+      id: noticeId(['skip-awakening', date, player.id, priorCount + index]),
+      kind: 'awakening',
+      title: entry.isBreakthrough ? `限界突破！ ${player.name}` : `覚醒！ ${player.name}`,
+      body: awakeningBody({
+        changes: entry.events ?? [],
+        isBreakthrough: Boolean(entry.isBreakthrough),
+        newSpecial: entry.newSpecial ?? null,
+      }),
+      tone: 'good',
+      date,
+      playerId: player.id,
+      teamKey: playerTeam,
+    }));
+  });
+}
+
 function latestAnnualGrowth(player: Player) {
   return [...(player.growthLog ?? [])]
     .reverse()
