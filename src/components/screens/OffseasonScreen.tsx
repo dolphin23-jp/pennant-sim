@@ -5,9 +5,11 @@ import {
   calcOVR,
   cpuAutoSignMarketRounds,
   cpuAutoTradeBetweenTeams,
+  finalizeCpuRosters,
   genForeignMarket,
   genFreeAgentMarket,
   growthPhase,
+  prepareCpuRostersForDraft,
   signPlayerToTeam,
 } from '../../engine';
 import type { Player, TeamKey, Teams } from '../../engine';
@@ -39,6 +41,9 @@ function OffseasonContent({
 }) {
   const [phase, setPhase] = useState<OffseasonPhase>('growth');
   const [growthResult] = useState(() => growthPhase(initialTeams));
+  const [cpuPreparation] = useState(() =>
+    prepareCpuRostersForDraft(growthResult.teams, { excludedTeam: playerTeam }),
+  );
   const [developmentNotices] = useState(() =>
     createOffseasonDevelopmentNotices(
       initialTeams[playerTeam],
@@ -48,7 +53,7 @@ function OffseasonContent({
       game.season.year,
     ),
   );
-  const [workTeams, setWorkTeams] = useState<Teams>(growthResult.teams);
+  const [workTeams, setWorkTeams] = useState<Teams>(cpuPreparation.teams);
   const [faMarket, setFaMarket] = useState<Player[]>(() => genFreeAgentMarket());
   const [foreignMarket, setForeignMarket] = useState<Player[]>(() => genForeignMarket());
   const [retireIds, setRetireIds] = useState<string[]>([]);
@@ -253,7 +258,9 @@ function OffseasonContent({
                         )
                       }
                     />
-                    <span style={{ flex: 1 }}>{player.name} / {player.age}歳</span>
+                    <span style={{ flex: 1 }}>
+                      {player.name} / {player.age}歳
+                    </span>
                     <strong>OVR {calcOVR(player, player.pos)}</strong>
                   </label>
                 );
@@ -279,7 +286,7 @@ function OffseasonContent({
           accent={teamInfo.c}
           onSign={signFreeAgent}
           onNext={() => {
-            const result = cpuAutoSignMarketRounds(workTeams, faMarket, 'fa', 4);
+            const result = cpuAutoSignMarketRounds(workTeams, faMarket, 'fa', 4, playerTeam);
             setWorkTeams(result.teams);
             setFaMarket(result.remaining);
             setPhase('foreign');
@@ -295,7 +302,13 @@ function OffseasonContent({
           accent={teamInfo.c}
           onSign={signForeignPlayer}
           onNext={() => {
-            const result = cpuAutoSignMarketRounds(workTeams, foreignMarket, 'foreign', 4);
+            const result = cpuAutoSignMarketRounds(
+              workTeams,
+              foreignMarket,
+              'foreign',
+              4,
+              playerTeam,
+            );
             const traded = cpuAutoTradeBetweenTeams(result.teams, playerTeam, 8);
             setWorkTeams(traded);
             setForeignMarket(result.remaining);
@@ -325,7 +338,10 @@ function OffseasonContent({
         <DraftScreen
           teams={workTeams}
           playerTeam={playerTeam}
-          onComplete={(draftedTeams) => game.completeOffseason(draftedTeams, developmentNotices)}
+          onComplete={(draftedTeams) => {
+            const finalized = finalizeCpuRosters(draftedTeams, { excludedTeam: playerTeam });
+            game.completeOffseason(finalized.teams, developmentNotices);
+          }}
         />
       )}
     </PageShell>

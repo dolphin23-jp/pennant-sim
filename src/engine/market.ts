@@ -7,7 +7,7 @@ export function teamNeedsScore(team: Team, player: Player): number {
   if (player.isP) {
     const starters = team.pitchers.filter((pitcher) => pitcher.role === '先発').length,
       relievers = team.pitchers.filter((pitcher) => pitcher.role !== '先発').length;
-    let need = 0;
+    let need = Math.max(0, 28 - team.pitchers.length) * 12;
     if (player.role === '先発') need += starters < 6 ? 12 : 0;
     else need += relievers < 7 ? 10 : 0;
     return need + calcOVR(player) * 0.6;
@@ -17,8 +17,9 @@ export function teamNeedsScore(team: Team, player: Player): number {
       (fielder) =>
         fielder.positions?.some((entry) => entry.pos === position) || fielder.pos === position,
     ).length,
-    weakSpot = Math.max(0, 3 - count) * 8;
-  return weakSpot + effectiveOVR(player, position) * 0.7;
+    weakSpot = Math.max(0, 3 - count) * 8,
+    rosterNeed = Math.max(0, 35 - team.fielders.length) * 12;
+  return rosterNeed + weakSpot + effectiveOVR(player, position) * 0.7;
 }
 export function marketPlayerCost(player: Player, multiplier = 1): number {
   const overall = Math.round(player.isP ? calcOVR(player) : effectiveOVR(player, player.pos));
@@ -108,10 +109,11 @@ export function cpuAutoSignMarket(
   teams: Teams,
   market: Player[],
   type: 'fa' | 'foreign' = 'fa',
+  excludedTeam: TeamKey | null = null,
 ): { teams: Teams; remaining: Player[] } {
   let nextTeams = { ...teams },
     remaining = [...market];
-  const clubs = [...CENTRAL, ...PACIFIC],
+  const clubs = [...CENTRAL, ...PACIFIC].filter((teamKey) => teamKey !== excludedTeam),
     signedClubs = new Set<TeamKey>(),
     bidScore = (teamKey: TeamKey, pick: Player): number => {
       const need = teamNeedsScore(nextTeams[teamKey], pick) + (type === 'foreign' ? 3 : 0),
@@ -148,11 +150,12 @@ export function cpuAutoSignMarketRounds(
   market: Player[],
   type: 'fa' | 'foreign' = 'fa',
   rounds = 2,
+  excludedTeam: TeamKey | null = null,
 ): { teams: Teams; remaining: Player[] } {
   let nextTeams = { ...teams },
     remaining = [...market];
   for (let round = 0; round < rounds && remaining.length; round += 1) {
-    const result = cpuAutoSignMarket(nextTeams, remaining, type);
+    const result = cpuAutoSignMarket(nextTeams, remaining, type, excludedTeam);
     nextTeams = result.teams;
     remaining = result.remaining;
   }
