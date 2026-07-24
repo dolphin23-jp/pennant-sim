@@ -98,7 +98,7 @@ function SlotButton({
     >
       <button
         type="button"
-        aria-label={`${label}${player ? `、${player.name}、基本総合値${breakdown?.base}から特殊込み${breakdown?.total}${aptitude === null ? '' : `、適性ランク${rank}、${aptitude}%`}` : '、未選択'}を変更${armedHint ? `。${armedHint}をここに配置` : ''}`}
+        aria-label={`${label}${player ? `、${player.name}、基本総合値${breakdown?.base}から特殊込み${breakdown?.total}${aptitude === null ? '' : `、適性ランク${rank}、${aptitude}%`}${player.activeRoster === false ? '、二軍登録中' : ''}` : '、未選択'}を変更${armedHint ? `。${armedHint}をここに配置` : ''}`}
         aria-pressed={selected}
         onClick={() => onSelect(slot)}
         style={{
@@ -120,7 +120,9 @@ function SlotButton({
       >
         <span
           style={{
-            display: 'block',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
             color: selected ? 'var(--color-accent)' : 'var(--color-text-faint)',
             fontSize: 10,
             fontWeight: 900,
@@ -128,6 +130,20 @@ function SlotButton({
           }}
         >
           {label}
+          {player?.activeRoster === false && (
+            <span
+              title="二軍に登録されています"
+              style={{
+                padding: '1px 4px',
+                borderRadius: 4,
+                color: 'var(--color-warning)',
+                background: 'color-mix(in srgb, var(--color-warning) 20%, transparent)',
+                fontSize: 9,
+              }}
+            >
+              二軍
+            </span>
+          )}
         </span>
         <strong
           style={{

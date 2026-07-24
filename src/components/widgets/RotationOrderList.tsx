@@ -123,7 +123,7 @@ export function RotationOrderList({
                   <button
                     type="button"
                     className="roster-player-button"
-                    aria-label={`${pitcher.name}の詳細を表示`}
+                    aria-label={`${pitcher.name}の詳細を表示${pitcher.activeRoster === false ? '、二軍登録中' : ''}`}
                     onClick={() => onSelectPlayer(pitcher)}
                     style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}
                   >
@@ -131,6 +131,22 @@ export function RotationOrderList({
                   </button>
                   <div style={{ marginTop: 3, color: 'var(--color-text-muted)', fontSize: 11 }}>
                     OVR {calcOVR(pitcher)} / スタミナ {Math.round(pitcher.p.stam)}
+                    {pitcher.activeRoster === false && (
+                      <span
+                        title="二軍に登録されています"
+                        style={{
+                          marginLeft: 5,
+                          padding: '1px 4px',
+                          borderRadius: 4,
+                          color: 'var(--color-warning)',
+                          background: 'color-mix(in srgb, var(--color-warning) 20%, transparent)',
+                          fontSize: 9,
+                          fontWeight: 900,
+                        }}
+                      >
+                        二軍
+                      </span>
+                    )}
                   </div>
                   <div style={{ marginTop: 3 }}>
                     <PlayerStatusBadges player={pitcher} compact />

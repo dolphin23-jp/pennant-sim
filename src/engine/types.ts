@@ -122,6 +122,8 @@ export interface Player {
   note?: string;
   signedVia?: string;
   draftOrigin?: DraftOrigin;
+  /** 一軍登録フラグ。undefined/true = 一軍、false = 二軍。既存セーブは全員一軍扱い。 */
+  activeRoster?: boolean;
   [key: string]: unknown;
 }
 export interface Team extends TeamInfo {

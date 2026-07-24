@@ -55,6 +55,10 @@ function createEditorState(lineup: Player[], fielders: Player[]): EditorState {
     })
     .filter((player): player is Player => player !== null);
   const used = new Set<string>();
+  // Auto-fill only pulls from the 一軍 roster; a saved slot referencing a
+  // player since sent to 二軍 stays visible above (flagged, not dropped) so
+  // the mismatch is legible instead of silently rewritten.
+  const activeFielders = fielders.filter((player) => player.activeRoster !== false);
 
   for (const position of FIELD_SLOT_ORDER) {
     const savedAtPosition = savedPlayers.find(
@@ -63,7 +67,7 @@ function createEditorState(lineup: Player[], fielders: Player[]): EditorState {
     const naturalAtPosition = savedPlayers.find(
       (player) => !used.has(player.id) && player.pos === position,
     );
-    const bestAvailable = fielders
+    const bestAvailable = activeFielders
       .filter((player) => !used.has(player.id))
       .sort((first, second) => effectiveOVR(second, position) - effectiveOVR(first, position))[0];
     const selected = savedAtPosition ?? naturalAtPosition ?? bestAvailable ?? null;
@@ -72,7 +76,7 @@ function createEditorState(lineup: Player[], fielders: Player[]): EditorState {
   }
 
   const savedExtra = savedPlayers.find((player) => !used.has(player.id));
-  const bestExtra = fielders
+  const bestExtra = activeFielders
     .filter((player) => !used.has(player.id))
     .sort((first, second) => calcOVR(second) - calcOVR(first))[0];
   assignments.extra = savedExtra ?? bestExtra ?? null;
@@ -151,16 +155,23 @@ function LineupEditor({
     LINEUP_SLOT_ORDER.every((slot) => Boolean(editor.assignments[slot])) &&
     new Set(LINEUP_SLOT_ORDER.map((slot) => editor.assignments[slot]?.id)).size === 9 &&
     battingOrder.length === 9;
+  const activeFielders = useMemo(
+    () => team.fielders.filter((player) => player.activeRoster !== false),
+    [team.fielders],
+  );
   const benchPlayers = useMemo(() => {
     const startingIds = new Set(
       LINEUP_SLOT_ORDER.map((slot) => editor.assignments[slot]?.id).filter(
         (id): id is string => Boolean(id),
       ),
     );
-    return team.fielders
+    // Bench = 一軍 fielders not currently starting. 二軍 players aren't "on
+    // the bench" in NPB terms, so they're excluded here (SquadBoard is where
+    // 一軍/二軍 status changes, not this tab).
+    return activeFielders
       .filter((player) => !startingIds.has(player.id))
       .sort((first, second) => calcOVR(second) - calcOVR(first));
-  }, [editor.assignments, team.fielders]);
+  }, [activeFielders, editor.assignments]);
   const armedPlayer = armedBenchId
     ? (benchPlayers.find((player) => player.id === armedBenchId) ?? null)
     : null;
@@ -377,7 +388,7 @@ function LineupEditor({
       {selectedSlot && (
         <PositionPickerSheet
           slot={selectedSlot}
-          players={team.fielders}
+          players={activeFielders}
           assignments={editor.assignments}
           onSelect={(player) => assignPlayer(selectedSlot, player)}
           onClose={closePicker}

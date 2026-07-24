@@ -146,9 +146,17 @@ export function displayOVR(
 export function bestLineup(team: Team): Player[] {
   const used = new Set<string>(),
     lineup: Player[] = [];
-  const healthy = team.fielders.filter((f) => (f.injuryDays ?? 0) <= 0 && (f.fatigue ?? 0) < 85);
-  const pool =
-    healthy.length >= 9 ? healthy : team.fielders.filter((f) => (f.injuryDays ?? 0) <= 0);
+  // Prefer the 一軍 roster; only reach into 二軍 players if 一軍 alone can't
+  // fill 9 slots (activeRoster is undefined for every existing save/CPU
+  // player, so this collapses to the original two-pool fallback for them).
+  const active = team.fielders.filter((f) => f.activeRoster !== false);
+  const pools = [
+    active.filter((f) => (f.injuryDays ?? 0) <= 0 && (f.fatigue ?? 0) < 85),
+    active.filter((f) => (f.injuryDays ?? 0) <= 0),
+    team.fielders.filter((f) => (f.injuryDays ?? 0) <= 0 && (f.fatigue ?? 0) < 85),
+    team.fielders.filter((f) => (f.injuryDays ?? 0) <= 0),
+  ];
+  const pool = pools.find((candidate) => candidate.length >= 9) ?? (pools[pools.length - 1] as Player[]);
   const priority: FieldPosition[] = [
     '捕手',
     '遊撃手',
@@ -181,13 +189,20 @@ export function bestLineup(team: Team): Player[] {
   return lineup.slice(0, 9);
 }
 export function topStarters(team: Team): Player[] {
-  const healthy = team.pitchers.filter(
-    (p) => p.role === '先発' && (p.injuryDays ?? 0) <= 0 && (p.fatigue ?? 0) < 85,
-  );
-  const pool = healthy.length
-    ? healthy
-    : team.pitchers.filter((p) => p.role === '先発' && (p.injuryDays ?? 0) <= 0);
-  return pool.sort((a, b) => calcOVR(b) - calcOVR(a)).slice(0, team.rotSize || 6);
+  const slotCount = team.rotSize || 6;
+  const starters = team.pitchers.filter((p) => p.role === '先発');
+  const active = starters.filter((p) => p.activeRoster !== false);
+  const pools = [
+    active.filter((p) => (p.injuryDays ?? 0) <= 0 && (p.fatigue ?? 0) < 85),
+    active.filter((p) => (p.injuryDays ?? 0) <= 0),
+    starters.filter((p) => (p.injuryDays ?? 0) <= 0 && (p.fatigue ?? 0) < 85),
+    starters.filter((p) => (p.injuryDays ?? 0) <= 0),
+  ];
+  // Matches the original fallback exactly: "any healthy starters at all" wins
+  // (not "enough to fill every slot") — a thin healthy pool still starts.
+  const pool =
+    pools.find((candidate) => candidate.length > 0) ?? (pools[pools.length - 1] as Player[]);
+  return pool.sort((a, b) => calcOVR(b) - calcOVR(a)).slice(0, slotCount);
 }
 export function masteryFromAccum(player: Player, accumulated: AccumulatedStats): number {
   const stats = accumulated[player.id];

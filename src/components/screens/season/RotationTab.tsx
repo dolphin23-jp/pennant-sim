@@ -43,7 +43,13 @@ function createEditorState(team: Team, plan: PitcherPlan): EditorState {
   const starters = team.pitchers
     .filter((pitcher) => pitcher.role === '先発')
     .sort((first, second) => calcOVR(second) - calcOVR(first));
-  const closers = resolveCloserOrder(team, plan.closerPriority);
+  const startersById = new Map(starters.map((pitcher) => [pitcher.id, pitcher]));
+  // Closers/candidates only ever surface 一軍 pitchers as new picks; a 二軍
+  // pitcher already holding a rotation slot stays put (badged), matching the
+  // lineup editor's bench behavior.
+  const closers = resolveCloserOrder(team, plan.closerPriority).filter(
+    (pitcher) => pitcher.activeRoster !== false,
+  );
   // The rotation itself holds only rotSize slots (engine slices to the same
   // count in resolveStarterRotation); the rest of the 先発 staff becomes the
   // candidate pool. Old saves that stored every starter migrate by slicing.
@@ -51,7 +57,9 @@ function createEditorState(team: Team, plan: PitcherPlan): EditorState {
   const slotCount = rotationSlotCount(team);
   return {
     rotationIds: orderedStarterIds.slice(0, slotCount),
-    candidateIds: orderedStarterIds.slice(slotCount),
+    candidateIds: orderedStarterIds
+      .slice(slotCount)
+      .filter((id) => startersById.get(id)?.activeRoster !== false),
     closerIds: closers.map((pitcher) => pitcher.id),
     rotationAutomatic: plan.rotationOrder.length === 0,
     closerAutomatic: plan.closerPriority.length === 0,
@@ -122,7 +130,7 @@ function RotationEditor({
   const relievers = useMemo(
     () =>
       team.pitchers
-        .filter((pitcher) => pitcher.role === 'リリーフ')
+        .filter((pitcher) => pitcher.role === 'リリーフ' && pitcher.activeRoster !== false)
         .sort((first, second) => calcOVR(second) - calcOVR(first)),
     [team.pitchers],
   );
