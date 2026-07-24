@@ -95,8 +95,7 @@ test('offseason notices include major OVR changes and awakening details', () => 
   const originalTeam = structuredClone(teams.tigers);
   const grownTeam = structuredClone(teams.tigers);
   const player = grownTeam.fielders[0];
-  const originalPlayer = originalTeam.fielders[0];
-  assert.ok(player && originalPlayer);
+  assert.ok(player);
 
   const changes = [
     { param: 'cf' as const, before: player.p.cf ?? 50, after: (player.p.cf ?? 50) + 12, diff: 12 },
@@ -124,7 +123,7 @@ test('offseason notices include major OVR changes and awakening details', () => 
         tk: 'tigers',
         name: player.name,
         player,
-        events: [{ param: 'arm', boost: 10, isBreakthrough: true }],
+        events: [{ param: 'arm', boost: 10 }],
         isBreakthrough: true,
         newSpecial: { id: 'test', n: '鉄砲肩', c: '#fff', p: 1, tierMax: 1, rarity: 'normal' },
       },
