@@ -29,7 +29,7 @@ export function DisplayOVRValue({
           {breakdown.total}
         </strong>
         {changed && (
-          <small style={{ marginLeft: 4, color: breakdown.specialAdjustment > 0 ? 'var(--color-good)' : 'var(--color-danger)' }}>
+          <small style={{ marginLeft: 4, color: breakdown.specialAdjustment > 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
             {signed(breakdown.specialAdjustment)}
           </small>
         )}
