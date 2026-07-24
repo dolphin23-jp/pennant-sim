@@ -11,6 +11,7 @@ import {
 import { calcOVR, effectiveOVR, specialLevel, statItems, yearlyRows } from '../../engine';
 import type { AccumulatedStats, Player, PlayerStats } from '../../engine';
 import { Button, Card, EmptyState, SectionTitle, TermTooltip } from '../ui';
+import { DisplayOVRValue } from './DisplayOVRValue';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
 
 type TabId = 'basic' | 'season' | 'career' | 'special';
@@ -192,11 +193,16 @@ function BasicTab({ player, overall }: { player: Player; overall: number }) {
           <div>
             <dt>
               <TermTooltip
-                term="OVR"
-                description="複数の能力値を役割ごとの重みでまとめた総合評価です。"
+                term="総合値"
+                description="基本総合値は従来の実効OVR、特殊込みは特殊能力を表示上だけ加減した値です。"
               />
             </dt>
-            <dd>{overall}</dd>
+            <dd>
+              <DisplayOVRValue
+                player={player}
+                position={player.isP ? undefined : player.pos}
+              />
+            </dd>
           </div>
         </dl>
       </Card>
@@ -311,7 +317,7 @@ export function PlayerDetailModal({
   }, [onClose, player]);
 
   if (!player) return null;
-  const overall = player.isP ? calcOVR(player) : effectiveOVR(player, player.pos);
+  const baseOverall = player.isP ? calcOVR(player) : effectiveOVR(player, player.pos);
   const current = accumulated[player.id];
   const career = careerAccumulated[player.id];
   const history = yearlyRows(yearlyStats, player.id);
@@ -384,13 +390,11 @@ export function PlayerDetailModal({
             <div className="player-modal__meta" id="player-modal-description">
               <span>{player.age}歳</span>
               <span>{player.isP ? player.role : player.pos}</span>
-              <span>
-                <TermTooltip
-                  term="OVR"
-                  description="複数の能力値を役割ごとの重みでまとめた総合評価です。"
-                />{' '}
-                {overall}
-              </span>
+              <DisplayOVRValue
+                player={player}
+                position={player.isP ? undefined : player.pos}
+                compact
+              />
               <PlayerStatusBadges player={player} />
             </div>
           </div>
@@ -425,7 +429,7 @@ export function PlayerDetailModal({
             role="tabpanel"
             aria-labelledby={`player-tab-${activeTab}`}
           >
-            {activeTab === 'basic' && <BasicTab player={player} overall={overall} />}
+            {activeTab === 'basic' && <BasicTab player={player} overall={baseOverall} />}
             {activeTab === 'season' && (
               <Card className="detail-card" ariaLabel="今季成績">
                 <SectionTitle>Current Season</SectionTitle>
