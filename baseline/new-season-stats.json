@@ -27,31 +27,31 @@
     }
   },
   "targetEvaluation": {
-    "passed": false,
+    "passed": true,
     "comparison": {
       "battingAverage": {
-        "value": 0.230238,
+        "value": 0.237134,
         "minimum": 0.232,
         "target": 0.244,
         "maximum": 0.257,
-        "passed": false
+        "passed": true
       },
       "era": {
-        "value": 2.587213,
+        "value": 2.809966,
         "minimum": 2.21,
         "target": 3.01,
         "maximum": 3.6,
         "passed": true
       },
       "homeRuns": {
-        "value": 1013.24,
+        "value": 1097.08,
         "minimum": 1000,
         "target": 1096,
         "maximum": 1200,
         "passed": true
       },
       "stolenBaseAttemptsPerTeamGame": {
-        "value": 0.44701,
+        "value": 0.458001,
         "minimum": 0.3,
         "target": 0.45,
         "maximum": 0.6,
@@ -61,68 +61,68 @@
   },
   "summary": {
     "battingAverage": {
-      "mean": 0.230238,
-      "standardDeviation": 0.006169
+      "mean": 0.237134,
+      "standardDeviation": 0.007593
     },
     "era": {
-      "mean": 2.587213,
-      "standardDeviation": 0.205494
+      "mean": 2.809966,
+      "standardDeviation": 0.252705
     },
     "homeRuns": {
-      "mean": 1013.24,
-      "standardDeviation": 87.974
+      "mean": 1097.08,
+      "standardDeviation": 98.7
     },
     "stolenBaseSuccessRate": {
-      "mean": 0.621065,
-      "standardDeviation": 0.017303
+      "mean": 0.622703,
+      "standardDeviation": 0.016716
     },
     "stolenBaseAttemptsPerTeamGame": {
-      "mean": 0.44701,
-      "standardDeviation": 0.020824
+      "mean": 0.458001,
+      "standardDeviation": 0.017026
     },
     "walkRate": {
-      "mean": 0.073435,
-      "standardDeviation": 0.003915
+      "mean": 0.077049,
+      "standardDeviation": 0.0043
     },
     "batterOvrStandardDeviation": {
-      "mean": 19.671914,
-      "standardDeviation": 0.746717
+      "mean": 20.249245,
+      "standardDeviation": 0.815962
     },
     "pitcherOvrStandardDeviation": {
-      "mean": 19.311056,
-      "standardDeviation": 0.797151
+      "mean": 17.821662,
+      "standardDeviation": 1.080015
     },
     "batterOvrTop1Percent": {
-      "mean": 109.52,
-      "standardDeviation": 3.654
+      "mean": 111.12,
+      "standardDeviation": 3.436
     },
     "batterOvrTop5Percent": {
-      "mean": 82.9,
-      "standardDeviation": 4.374
+      "mean": 85.48,
+      "standardDeviation": 4.071
     },
     "pitcherOvrTop1Percent": {
-      "mean": 109.08,
-      "standardDeviation": 3.123
+      "mean": 102.32,
+      "standardDeviation": 4.56
     },
     "pitcherOvrTop5Percent": {
-      "mean": 84.2,
-      "standardDeviation": 4.354
+      "mean": 78.55,
+      "standardDeviation": 5.228
     },
     "batterOvr85PlusCount": {
-      "mean": 20.69,
-      "standardDeviation": 3.227
+      "mean": 22.54,
+      "standardDeviation": 3.208
     },
     "pitcherOvr85PlusCount": {
-      "mean": 16.57,
-      "standardDeviation": 2.351
+      "mean": 12.92,
+      "standardDeviation": 3.39
     },
     "averageTeamOvr85PlusCount": {
-      "mean": 3.105,
-      "standardDeviation": 0.337
+      "mean": 2.955,
+      "standardDeviation": 0.335
     },
     "minimumTeamOvr85PlusCount": {
-      "mean": 2.01,
-      "standardDeviation": 0.099
+      "mean": 2,
+      "standardDeviation": 0
     }
   }
 }
