@@ -7,14 +7,23 @@ import { DashboardTab } from './season/DashboardTab';
 import { LineupTab } from './season/LineupTab';
 import { RankingTab } from './season/RankingTab';
 import { RosterTab } from './season/RosterTab';
+import { RotationTab } from './season/RotationTab';
 import { StandingsTab } from './season/StandingsTab';
 import { StatsTab } from './season/StatsTab';
 
-type SeasonTab = 'dashboard' | 'lineup' | 'stats' | 'ranking' | 'standings' | 'roster';
+type SeasonTab =
+  | 'dashboard'
+  | 'lineup'
+  | 'rotation'
+  | 'stats'
+  | 'ranking'
+  | 'standings'
+  | 'roster';
 
 const tabs: Array<{ id: SeasonTab; label: string }> = [
   { id: 'dashboard', label: 'ダッシュボード' },
-  { id: 'lineup', label: '編成' },
+  { id: 'lineup', label: '野手編成' },
+  { id: 'rotation', label: '投手編成' },
   { id: 'stats', label: '成績' },
   { id: 'ranking', label: 'ランキング' },
   { id: 'standings', label: '順位表' },
@@ -26,6 +35,7 @@ export function SeasonScreen() {
   const [saveStatus, setSaveStatus] = useState('');
   const [activeTab, setActiveTab] = useState<SeasonTab>('dashboard');
   const [lineupDirty, setLineupDirty] = useState(false);
+  const [rotationDirty, setRotationDirty] = useState(false);
 
   if (!game.teams || !game.playerTeam) return null;
   const playerTeam = game.teams[game.playerTeam];
@@ -39,14 +49,17 @@ export function SeasonScreen() {
 
   const requestTabChange = (nextTab: SeasonTab): boolean => {
     if (nextTab === activeTab) return true;
+    const editorDirty =
+      activeTab === 'lineup' ? lineupDirty : activeTab === 'rotation' ? rotationDirty : false;
+    const editorLabel = activeTab === 'rotation' ? '投手編成' : 'オーダー';
     if (
-      activeTab === 'lineup' &&
-      lineupDirty &&
-      !window.confirm('オーダーに未保存の変更があります。変更を破棄して別のタブへ移動しますか？')
+      editorDirty &&
+      !window.confirm(`${editorLabel}に未保存の変更があります。変更を破棄して別のタブへ移動しますか？`)
     ) {
       return false;
     }
     if (activeTab === 'lineup') setLineupDirty(false);
+    if (activeTab === 'rotation') setRotationDirty(false);
     setActiveTab(nextTab);
     return true;
   };
@@ -157,6 +170,7 @@ export function SeasonScreen() {
       >
         {activeTab === 'dashboard' && <DashboardTab />}
         {activeTab === 'lineup' && <LineupTab onDirtyChange={setLineupDirty} />}
+        {activeTab === 'rotation' && <RotationTab onDirtyChange={setRotationDirty} />}
         {activeTab === 'stats' && <StatsTab />}
         {activeTab === 'ranking' && <RankingTab />}
         {activeTab === 'standings' && <StandingsTab />}
