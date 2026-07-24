@@ -13,7 +13,7 @@ import {
   teamNeedsScore,
   topStarters,
 } from '../engine';
-import type { FieldPosition, Player, Team, TeamKey, Teams } from '../engine';
+import type { DraftOrigin, FieldPosition, Player, Team, TeamKey, Teams } from '../engine';
 
 export interface TradeOffer {
   id: string;
@@ -29,8 +29,10 @@ export type DraftPick = Player & { teamKey: TeamKey; round: number };
 export function teamStrength(team: Team): number {
   const lineup = bestLineup(team).slice(0, 9);
   const batting = lineup.length
-    ? lineup.reduce((total, player) => total + effectiveOVR(player, player._assignedPos ?? player.pos), 0) /
-      lineup.length
+    ? lineup.reduce(
+        (total, player) => total + effectiveOVR(player, player._assignedPos ?? player.pos),
+        0,
+      ) / lineup.length
     : 50;
   const starters = topStarters(team).slice(0, 5);
   const starting = starters.length
@@ -50,10 +52,7 @@ export function generateTradeOffers(teams: Teams, playerTeam: TeamKey): TradeOff
   const userTeam = teams[playerTeam];
   const bench = [...userTeam.fielders]
     .filter((player) => !bestLineup(userTeam).some((starter) => starter.id === player.id))
-    .sort(
-      (first, second) =>
-        effectiveOVR(second, second.pos) - effectiveOVR(first, first.pos),
-    );
+    .sort((first, second) => effectiveOVR(second, second.pos) - effectiveOVR(first, first.pos));
   const relief = [...userTeam.pitchers]
     .filter((player) => player.role !== '先発')
     .sort((first, second) => calcOVR(second) - calcOVR(first));
@@ -66,8 +65,7 @@ export function generateTradeOffers(teams: Teams, playerTeam: TeamKey): TradeOff
     .map((teamKey, index) => {
       const opponent = teams[teamKey];
       const target = [...opponent.fielders, ...opponent.pitchers].sort(
-        (first, second) =>
-          teamNeedsScore(userTeam, second) - teamNeedsScore(userTeam, first),
+        (first, second) => teamNeedsScore(userTeam, second) - teamNeedsScore(userTeam, first),
       )[0];
       if (!target) return null;
       return {
@@ -105,16 +103,10 @@ export function applyTrade(teams: Teams, playerTeam: TeamKey, offer: TradeOffer)
   }
   if (offer.give.isP) {
     opponent.pitchers = remove(opponent.pitchers, offer.give.id);
-    user.pitchers = [
-      ...remove(user.pitchers, offer.receive.id),
-      { ...offer.give, tk: playerTeam },
-    ];
+    user.pitchers = [...remove(user.pitchers, offer.receive.id), { ...offer.give, tk: playerTeam }];
   } else {
     opponent.fielders = remove(opponent.fielders, offer.give.id);
-    user.fielders = [
-      ...remove(user.fielders, offer.receive.id),
-      { ...offer.give, tk: playerTeam },
-    ];
+    user.fielders = [...remove(user.fielders, offer.receive.id), { ...offer.give, tk: playerTeam }];
   }
   next[playerTeam] = user;
   next[offer.fromTeam] = opponent;
@@ -133,16 +125,28 @@ export function generateDraftProspects(): Player[] {
     '先発',
   ];
   for (let index = 0; index < 80; index += 1) {
-    const position = randomChoice(positions);
-    const age = randomInt(18, 22);
+    const position = randomChoice(positions),
+      originRoll = random(),
+      draftOrigin: DraftOrigin = originRoll < 0.46 ? '高卒' : originRoll < 0.82 ? '大卒' : '社会人',
+      age =
+        draftOrigin === '高卒'
+          ? randomInt(18, 19)
+          : draftOrigin === '大卒'
+            ? randomInt(21, 22)
+            : randomInt(23, 25),
+      immediateChance = draftOrigin === '高卒' ? 0.07 : draftOrigin === '大卒' ? 0.13 : 0.16,
+      monsterChance = draftOrigin === '高卒' ? 0.012 : draftOrigin === '大卒' ? 0.027 : 0.035;
     let quality = Math.max(32, Math.min(96, gaussian(58, 14)));
-    if (random() < 0.1) quality = Math.max(60, Math.min(104, gaussian(78, 8)));
-    if (random() < 0.02) quality = Math.max(82, Math.min(112, gaussian(94, 6)));
+    if (random() < immediateChance) quality = Math.max(60, Math.min(104, gaussian(78, 8)));
+    if (random() < monsterChance) quality = Math.max(82, Math.min(112, gaussian(94, 6)));
     const player =
       position === '先発' || position === 'リリーフ' || position === 'クローザー'
         ? generatePitcher('draft', age, quality, position)
         : generateBatter('draft', age, position, quality);
-    player.note = quality >= 90 ? '怪物候補' : quality >= 75 ? '即戦力候補' : age <= 19 ? '素材型' : '有望株';
+    player.draftOrigin = draftOrigin;
+    const prospectLabel =
+      quality >= 90 ? '怪物候補' : quality >= 75 ? '即戦力候補' : age <= 19 ? '素材型' : '有望株';
+    player.note = `${draftOrigin}・${prospectLabel}`;
     pool.push(player);
   }
   return pool.sort(
