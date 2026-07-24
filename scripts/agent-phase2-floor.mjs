@@ -94,4 +94,4 @@ if (!source.includes('const starredRoster = ensureMinimumRosterStars'))
   throw new Error('Star floor was not connected to initTeams');
 
 await writeFile(path, source, 'utf8');
-console.log('Guaranteed one OVR85 pitcher and batter per initial roster.');
+console.log('Guaranteed one OVR85 pitcher and batter per initial roster for the final phase 2 run.');
