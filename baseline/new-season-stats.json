@@ -1,8 +1,25 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "source": "src/engine",
   "seasons": 100,
   "seed": 20260723,
+  "definitions": {
+    "battingAverage": "hits / at-bats",
+    "era": "earned runs * 27 / pitching outs",
+    "homeRuns": "league-wide total per season",
+    "stolenBaseSuccessRate": "stolen bases / (stolen bases + caught stealing)",
+    "stolenBaseAttemptsPerTeamGame": "(stolen bases + caught stealing) / (games * 2)",
+    "speedStolenBaseCorrelation": "Pearson correlation between player speed and seasonal stolen bases",
+    "batterOvrStandardDeviation": "population standard deviation of initial batter OVR",
+    "pitcherOvrStandardDeviation": "population standard deviation of initial pitcher OVR",
+    "batterOvrTop1Percent": "99th percentile threshold of initial batter OVR",
+    "batterOvrTop5Percent": "95th percentile threshold of initial batter OVR",
+    "pitcherOvrTop1Percent": "99th percentile threshold of initial pitcher OVR",
+    "pitcherOvrTop5Percent": "95th percentile threshold of initial pitcher OVR",
+    "batterOvr85PlusCount": "league-wide initial batters with OVR at least 85",
+    "pitcherOvr85PlusCount": "league-wide initial pitchers with OVR at least 85",
+    "latentFactorMaximumRate": "share of initial players with awakening potential gap at least 20"
+  },
   "targets": {
     "reference": "2025 NPB league environment",
     "battingAverage": {
@@ -19,54 +36,110 @@
       "minimum": 1000,
       "target": 1096,
       "maximum": 1200
+    },
+    "stolenBaseAttemptsPerTeamGame": {
+      "minimum": 0.3,
+      "target": 0.45,
+      "maximum": 0.6
     }
   },
   "targetEvaluation": {
-    "passed": true,
+    "passed": false,
     "comparison": {
       "battingAverage": {
-        "value": 0.240051,
+        "value": 0.238071,
         "minimum": 0.232,
         "target": 0.244,
         "maximum": 0.257,
         "passed": true
       },
       "era": {
-        "value": 2.61982,
+        "value": 2.55769,
         "minimum": 2.21,
         "target": 3.01,
         "maximum": 3.6,
         "passed": true
       },
       "homeRuns": {
-        "value": 1106.37,
+        "value": 1087.1,
         "minimum": 1000,
         "target": 1096,
         "maximum": 1200,
         "passed": true
+      },
+      "stolenBaseAttemptsPerTeamGame": {
+        "value": 0.839458,
+        "minimum": 0.3,
+        "target": 0.45,
+        "maximum": 0.6,
+        "passed": false
       }
     }
   },
   "summary": {
     "battingAverage": {
-      "mean": 0.240051,
-      "standardDeviation": 0.003581
+      "mean": 0.238071,
+      "standardDeviation": 0.003525
     },
     "era": {
-      "mean": 2.61982,
-      "standardDeviation": 0.116778
+      "mean": 2.55769,
+      "standardDeviation": 0.118379
     },
     "homeRuns": {
-      "mean": 1106.37,
-      "standardDeviation": 64.117
+      "mean": 1087.1,
+      "standardDeviation": 66.553
     },
     "stolenBaseSuccessRate": {
-      "mean": 0.62088,
-      "standardDeviation": 0.04888
+      "mean": 0.621531,
+      "standardDeviation": 0.012581
+    },
+    "stolenBaseAttemptsPerTeamGame": {
+      "mean": 0.839458,
+      "standardDeviation": 0.024235
+    },
+    "speedStolenBaseCorrelation": {
+      "mean": 0,
+      "standardDeviation": 0
     },
     "walkRate": {
-      "mean": 0.066272,
-      "standardDeviation": 0.002854
+      "mean": 0.06648,
+      "standardDeviation": 0.002292
+    },
+    "batterOvrStandardDeviation": {
+      "mean": 10.553397,
+      "standardDeviation": 0.384098
+    },
+    "pitcherOvrStandardDeviation": {
+      "mean": 9.638689,
+      "standardDeviation": 0.420589
+    },
+    "batterOvrTop1Percent": {
+      "mean": 63.13,
+      "standardDeviation": 2.217
+    },
+    "batterOvrTop5Percent": {
+      "mean": 53.5,
+      "standardDeviation": 1.466
+    },
+    "pitcherOvrTop1Percent": {
+      "mean": 61.74,
+      "standardDeviation": 2.599
+    },
+    "pitcherOvrTop5Percent": {
+      "mean": 52.27,
+      "standardDeviation": 1.58
+    },
+    "batterOvr85PlusCount": {
+      "mean": 0.03,
+      "standardDeviation": 0.171
+    },
+    "pitcherOvr85PlusCount": {
+      "mean": 0.01,
+      "standardDeviation": 0.099
+    },
+    "latentFactorMaximumRate": {
+      "mean": 0.980807,
+      "standardDeviation": 0.005253
     }
   }
 }

@@ -27,12 +27,23 @@ export function marketPlayerCost(player: Player, multiplier = 1): number {
     Math.round(((overall * overall * 1.8 + (player.age < 27 ? 1500 : 0)) * multiplier) / 100) * 100,
   );
 }
+function generateMarketQuality(
+  base: number,
+  standardDeviation: number,
+  minimum: number,
+  maximum: number,
+): number {
+  let quality = clamp(gaussian(base, standardDeviation), minimum, maximum);
+  if (random() < 0.1) quality = clamp(gaussian(base + 16, 8), minimum + 8, 106);
+  if (random() < 0.02) quality = clamp(gaussian(base + 29, 6), 82, 118);
+  return quality;
+}
 export function genFreeAgentMarket(): Player[] {
   const output: Player[] = [];
   for (let index = 0; index < 14; index += 1) {
     if (index < 6) {
       const age = randomInt(28, 36),
-        quality = clamp(gaussian(67, 8), 50, 88),
+        quality = generateMarketQuality(67, 10, 45, 90),
         role = index < 2 ? '先発' : index < 5 ? 'リリーフ' : 'クローザー',
         player = generatePitcher('fa', age, quality, role);
       player.tk = 'FA';
@@ -41,7 +52,7 @@ export function genFreeAgentMarket(): Player[] {
       output.push(player);
     } else {
       const age = randomInt(27, 35),
-        quality = clamp(gaussian(66, 8), 48, 86),
+        quality = generateMarketQuality(66, 10, 43, 89),
         position = randomChoice(FIELD_POSITIONS),
         player = generateBatter('fa', age, position, quality);
       player.tk = 'FA';
@@ -62,7 +73,7 @@ export function genForeignMarket(): Player[] {
   for (let index = 0; index < 8; index += 1) {
     if (index < 3) {
       const age = randomInt(25, 31),
-        quality = clamp(gaussian(72, 7), 58, 92),
+        quality = generateMarketQuality(72, 9, 52, 96),
         role = index === 0 ? '先発' : 'リリーフ',
         player = generatePitcher('foreign', age, quality, role);
       player.tk = '外';
@@ -71,7 +82,7 @@ export function genForeignMarket(): Player[] {
       output.push(player);
     } else {
       const age = randomInt(24, 31),
-        quality = clamp(gaussian(73, 7), 60, 94),
+        quality = generateMarketQuality(73, 9, 54, 98),
         position = randomChoice(batterPositions),
         player = generateBatter('foreign', age, position, quality);
       player.tk = '外';

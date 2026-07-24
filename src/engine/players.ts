@@ -61,8 +61,7 @@ function maturityModifier(age: number, maturity: Maturity): number {
 }
 function generatePotential(value: number, margin?: number): number {
   const base = margin || 22;
-  if (random() < 0.05)
-    return Math.max(value + 15, value + Math.round(gaussian(48, 12)));
+  if (random() < 0.05) return Math.max(value + 15, value + Math.round(gaussian(48, 12)));
   return Math.max(value + 5, value + Math.round(gaussian(base, 11)));
 }
 function generateSecondaryPositions(primary: FieldPosition): PositionAptitude[] {
@@ -155,8 +154,7 @@ function specialProfileMultiplier(specialId: string, params: PlayerParams): numb
   if (!profileValues.length || !relatedValues.length) return 1;
   const mean = profileValues.reduce((sum, value) => sum + value, 0) / profileValues.length,
     variance =
-      profileValues.reduce((sum, value) => sum + (value - mean) ** 2, 0) /
-      profileValues.length,
+      profileValues.reduce((sum, value) => sum + (value - mean) ** 2, 0) / profileValues.length,
     standardDeviation = Math.max(8, Math.sqrt(variance)),
     relatedMean = relatedValues.reduce((sum, value) => sum + value, 0) / relatedValues.length,
     relativeScore = (relatedMean - mean) / standardDeviation;
@@ -401,10 +399,8 @@ function ageDistribution(
 }
 function generateRosterQuality(baseDevelopment: number): number {
   let quality = clamp(gaussian(baseDevelopment * 0.75, 14), 28, 90);
-  if (random() < 0.08)
-    quality = clamp(gaussian(baseDevelopment * 0.75 + 18, 9), 55, 108);
-  if (random() < 0.015)
-    quality = clamp(gaussian(baseDevelopment * 0.75 + 32, 7), 82, 122);
+  if (random() < 0.08) quality = clamp(gaussian(baseDevelopment * 0.75 + 18, 9), 55, 108);
+  if (random() < 0.015) quality = clamp(gaussian(baseDevelopment * 0.75 + 32, 7), 82, 122);
   return quality;
 }
 export function initTeams(): Teams {

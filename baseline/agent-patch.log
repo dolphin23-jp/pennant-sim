@@ -1,0 +1,12 @@
+file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-patch-players.mjs:9
+    throw new Error(`Expected source is not unique in ${path}: ${before.slice(0, 100)}`);
+          ^
+
+Error: Expected source is not unique in src/engine/players.ts:           clamp(gaussian(bd * 0.75, 12), 35, 98),
+    at replaceOnce (file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-patch-players.mjs:9:11)
+    at async patch (file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-patch-players.mjs:16:7)
+    at async file:///home/runner/work/pennant-sim/pennant-sim/scripts/agent-patch-players.mjs:263:1
+
+Node.js v22.23.1
+Patched src/engine/game.ts, src/engine/market.ts, src/engine/types.ts, src/state/offseason.ts, src/data/constants.ts, scripts/npb-targets.mjs
+Patched scripts/balance-new-engine.ts
