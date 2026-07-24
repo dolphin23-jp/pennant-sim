@@ -1,7 +1,72 @@
+import { useEffect, useMemo, useState } from 'react';
+
+import { FIELD_POSITIONS, SPECIAL_INDEX } from '../../data';
 import { calcOVR, effectiveOVR } from '../../engine';
-import type { AccumulatedStats, Player, Team } from '../../engine';
-import { Card, EmptyState, SectionTitle, TermTooltip } from '../ui';
+import type { AccumulatedStats, FieldPosition, Player, Team } from '../../engine';
+import { Button, Card, EmptyState, SectionTitle, TermTooltip } from '../ui';
+import { PlayerCompareModal } from './PlayerCompareModal';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
+
+type SortKey = 'name' | 'age' | 'ovr' | 'effective' | 'status';
+type SortDirection = 'asc' | 'desc';
+type KindFilter = 'all' | 'fielder' | 'pitcher';
+type AgeFilter = 'all' | 'under24' | '25to29' | 'over30';
+type PositionFilter = 'all' | FieldPosition;
+
+function playerOVR(player: Player): number {
+  return calcOVR(player);
+}
+
+function playerEffectiveOVR(player: Player): number {
+  return player.isP ? calcOVR(player) : effectiveOVR(player, player._assignedPos ?? player.pos);
+}
+
+function statusScore(player: Player): number {
+  if ((player.injuryDays ?? 0) > 0) return 1000 + (player.injuryDays ?? 0);
+  return player.fatigue ?? 0;
+}
+
+function statusText(player: Player): string {
+  if ((player.injuryDays ?? 0) > 0) return `故障 ${player.injuryDays}日`;
+  if (typeof player.fatigue === 'number') return `疲労 ${Math.round(player.fatigue)}`;
+  return '通常';
+}
+
+function supportsPosition(player: Player, position: FieldPosition): boolean {
+  if (player.isP) return false;
+  return (
+    player._assignedPos === position ||
+    player.pos === position ||
+    Boolean(player.positions?.some((entry) => entry.pos === position))
+  );
+}
+
+function matchesAge(player: Player, filter: AgeFilter): boolean {
+  if (filter === 'under24') return player.age <= 24;
+  if (filter === '25to29') return player.age >= 25 && player.age <= 29;
+  if (filter === 'over30') return player.age >= 30;
+  return true;
+}
+
+function sortValue(player: Player, key: SortKey): number | string {
+  if (key === 'name') return player.name;
+  if (key === 'age') return player.age;
+  if (key === 'ovr') return playerOVR(player);
+  if (key === 'effective') return playerEffectiveOVR(player);
+  return statusScore(player);
+}
+
+function compareValues(
+  first: number | string,
+  second: number | string,
+  direction: SortDirection,
+): number {
+  const comparison =
+    typeof first === 'string' && typeof second === 'string'
+      ? first.localeCompare(second, 'ja')
+      : Number(first) - Number(second);
+  return direction === 'asc' ? comparison : -comparison;
+}
 
 function BatterStatLine({ player, accumulated }: { player: Player; accumulated: AccumulatedStats }) {
   const stats = accumulated[player.id];
@@ -37,6 +102,78 @@ function PitcherStatLine({ player, accumulated }: { player: Player; accumulated:
   );
 }
 
+function SpecialSummary({ player }: { player: Player }) {
+  const specials = player.specials ?? [];
+  const hasGold = specials.some(
+    (special) => (SPECIAL_INDEX[special.id] ?? special).rarity === 'gold',
+  );
+  if (!specials.length) return <span style={{ color: 'var(--color-text-faint)' }}>なし</span>;
+  return (
+    <span
+      aria-label={`特殊能力${specials.length}個${hasGold ? '、ゴールド特殊能力あり' : ''}`}
+      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+    >
+      <strong>{specials.length}</strong>
+      <span aria-hidden="true" style={{ display: 'inline-flex', gap: 3 }}>
+        {specials.map((special) => {
+          const definition = SPECIAL_INDEX[special.id] ?? special;
+          return (
+            <span
+              key={special.id}
+              title={definition.n}
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: 999,
+                background: definition.c,
+              }}
+            />
+          );
+        })}
+      </span>
+      {hasGold && (
+        <span className="special-badge special-badge--gold" aria-label="ゴールド特殊能力あり">
+          ★
+        </span>
+      )}
+    </span>
+  );
+}
+
+function SortHeader({
+  sortKey,
+  label,
+  activeKey,
+  direction,
+  onSort,
+}: {
+  sortKey: SortKey;
+  label: string;
+  activeKey: SortKey;
+  direction: SortDirection;
+  onSort(key: SortKey): void;
+}) {
+  const selected = sortKey === activeKey;
+  const nextDirection = selected && direction === 'asc' ? '降順' : '昇順';
+  return (
+    <button
+      type="button"
+      aria-label={`${label}で${nextDirection}に並べ替え`}
+      onClick={() => onSort(sortKey)}
+      style={{
+        padding: 0,
+        border: 0,
+        color: selected ? 'var(--color-accent)' : 'var(--color-text-faint)',
+        background: 'transparent',
+        fontWeight: 900,
+        cursor: 'pointer',
+      }}
+    >
+      {label}{selected ? (direction === 'asc' ? ' ↑' : ' ↓') : ''}
+    </button>
+  );
+}
+
 export function RosterTable({
   team,
   accumulated,
@@ -46,73 +183,318 @@ export function RosterTable({
   accumulated: AccumulatedStats;
   onSelect(player: Player): void;
 }) {
-  const players = [...team.fielders, ...team.pitchers];
+  const [sort, setSort] = useState<{ key: SortKey; direction: SortDirection }>({
+    key: 'effective',
+    direction: 'desc',
+  });
+  const [kindFilter, setKindFilter] = useState<KindFilter>('all');
+  const [positionFilter, setPositionFilter] = useState<PositionFilter>('all');
+  const [ageFilter, setAgeFilter] = useState<AgeFilter>('all');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const players = useMemo(() => [...team.fielders, ...team.pitchers], [team]);
+
+  useEffect(() => {
+    setSelectedIds([]);
+    setCompareOpen(false);
+  }, [team.key]);
+
+  const filteredPlayers = useMemo(
+    () =>
+      players
+        .filter((player) => {
+          if (kindFilter === 'fielder' && player.isP) return false;
+          if (kindFilter === 'pitcher' && !player.isP) return false;
+          if (positionFilter !== 'all' && !supportsPosition(player, positionFilter)) return false;
+          return matchesAge(player, ageFilter);
+        })
+        .sort((first, second) => {
+          const comparison = compareValues(
+            sortValue(first, sort.key),
+            sortValue(second, sort.key),
+            sort.direction,
+          );
+          return comparison || first.name.localeCompare(second.name, 'ja');
+        }),
+    [ageFilter, kindFilter, players, positionFilter, sort.direction, sort.key],
+  );
+
+  const comparePlayers = selectedIds
+    .map((id) => players.find((player) => player.id === id))
+    .filter((player): player is Player => Boolean(player));
+
+  const handleSort = (key: SortKey) => {
+    setSort((current) => {
+      if (current.key === key) {
+        return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, direction: key === 'name' ? 'asc' : 'desc' };
+    });
+  };
+
+  const toggleCompare = (playerId: string) => {
+    setSelectedIds((current) => {
+      if (current.includes(playerId)) return current.filter((id) => id !== playerId);
+      return current.length < 3 ? [...current, playerId] : current;
+    });
+  };
+
   if (!players.length) return <EmptyState>登録選手がいません。</EmptyState>;
 
   return (
-    <Card ariaLabel={`${team.n}のロスター`}>
-      <SectionTitle>Roster</SectionTitle>
-      <div className="roster-table-wrap">
-        <table className="roster-table" aria-label={`${team.n}の選手一覧`}>
-          <caption>選手名を選択すると詳細を表示します。</caption>
-          <thead>
-            <tr>
-              <th scope="col" style={{ textAlign: 'left' }}>選手</th>
-              <th scope="col">年齢</th>
-              <th scope="col">役割</th>
-              <th scope="col">
-                <TermTooltip
-                  term="OVR"
-                  description="複数の能力値を役割ごとの重みでまとめた総合評価です。"
-                />
-              </th>
-              <th scope="col">状態</th>
-              <th scope="col" style={{ textAlign: 'left' }}>今季</th>
-            </tr>
-          </thead>
-          <tbody>
-            {players.map((player) => {
-              const overall = player.isP
-                ? calcOVR(player)
-                : effectiveOVR(player, player._assignedPos ?? player.pos);
-              return (
-                <tr key={player.id}>
-                  <td>
-                    <button
-                      className="roster-player-button"
-                      type="button"
-                      onClick={() => onSelect(player)}
-                      aria-label={`${player.name}の詳細を表示`}
-                    >
-                      {player.name}
-                    </button>
-                  </td>
-                  <td style={{ textAlign: 'center' }}>{player.age}</td>
-                  <td style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                    {player.isP ? player.role : player.pos}
-                  </td>
-                  <td
-                    className={overall >= 80 ? 'metric-highlight' : undefined}
-                    style={{ textAlign: 'center', fontWeight: 900 }}
-                  >
-                    {overall}
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <PlayerStatusBadges player={player} compact />
-                  </td>
-                  <td style={{ color: 'var(--color-text-muted)' }}>
-                    {player.isP ? (
-                      <PitcherStatLine player={player} accumulated={accumulated} />
-                    ) : (
-                      <BatterStatLine player={player} accumulated={accumulated} />
-                    )}
-                  </td>
+    <>
+      <Card ariaLabel={`${team.n}のロスター`}>
+        <SectionTitle>Roster</SectionTitle>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'end',
+            gap: 10,
+            marginBottom: 12,
+          }}
+        >
+          <label style={{ display: 'grid', gap: 4, color: 'var(--color-text-muted)', fontSize: 11 }}>
+            投打
+            <select
+              aria-label="投手と野手で絞り込む"
+              value={kindFilter}
+              onChange={(event) => {
+                const next = event.target.value as KindFilter;
+                setKindFilter(next);
+                if (next === 'pitcher') setPositionFilter('all');
+              }}
+              style={{
+                minHeight: 38,
+                padding: '7px 10px',
+                border: '1px solid var(--color-border)',
+                borderRadius: 8,
+                color: 'var(--color-text)',
+                background: 'var(--color-bg-soft)',
+              }}
+            >
+              <option value="all">すべて</option>
+              <option value="fielder">野手</option>
+              <option value="pitcher">投手</option>
+            </select>
+          </label>
+          <label style={{ display: 'grid', gap: 4, color: 'var(--color-text-muted)', fontSize: 11 }}>
+            守備位置
+            <select
+              aria-label="守備位置で絞り込む"
+              value={positionFilter}
+              onChange={(event) => {
+                const next = event.target.value as PositionFilter;
+                setPositionFilter(next);
+                if (next !== 'all') setKindFilter('fielder');
+              }}
+              style={{
+                minHeight: 38,
+                padding: '7px 10px',
+                border: '1px solid var(--color-border)',
+                borderRadius: 8,
+                color: 'var(--color-text)',
+                background: 'var(--color-bg-soft)',
+              }}
+            >
+              <option value="all">すべて</option>
+              {FIELD_POSITIONS.map((position) => (
+                <option key={position} value={position}>{position}</option>
+              ))}
+            </select>
+          </label>
+          <label style={{ display: 'grid', gap: 4, color: 'var(--color-text-muted)', fontSize: 11 }}>
+            年齢帯
+            <select
+              aria-label="年齢帯で絞り込む"
+              value={ageFilter}
+              onChange={(event) => setAgeFilter(event.target.value as AgeFilter)}
+              style={{
+                minHeight: 38,
+                padding: '7px 10px',
+                border: '1px solid var(--color-border)',
+                borderRadius: 8,
+                color: 'var(--color-text)',
+                background: 'var(--color-bg-soft)',
+              }}
+            >
+              <option value="all">すべて</option>
+              <option value="under24">24歳以下</option>
+              <option value="25to29">25〜29歳</option>
+              <option value="over30">30歳以上</option>
+            </select>
+          </label>
+          <span style={{ color: 'var(--color-text-faint)', fontSize: 11 }}>
+            {filteredPlayers.length} / {players.length}名
+          </span>
+        </div>
+
+        {!filteredPlayers.length ? (
+          <EmptyState>条件に一致する選手がいません。</EmptyState>
+        ) : (
+          <div className="roster-table-wrap">
+            <table className="roster-table" aria-label={`${team.n}の選手一覧`}>
+              <caption>選手名を選択すると詳細を表示します。比較は2〜3人まで選択できます。</caption>
+              <thead>
+                <tr>
+                  <th scope="col">比較</th>
+                  <th scope="col" style={{ textAlign: 'left' }}>
+                    <SortHeader sortKey="name" label="選手" activeKey={sort.key} direction={sort.direction} onSort={handleSort} />
+                  </th>
+                  <th scope="col">
+                    <SortHeader sortKey="age" label="年齢" activeKey={sort.key} direction={sort.direction} onSort={handleSort} />
+                  </th>
+                  <th scope="col">役割</th>
+                  <th scope="col">
+                    <TermTooltip term="OVR" description="適性補正前の総合評価です。" />{' '}
+                    <SortHeader sortKey="ovr" label="並替" activeKey={sort.key} direction={sort.direction} onSort={handleSort} />
+                  </th>
+                  <th scope="col">
+                    <TermTooltip term="実効OVR" description="現在の守備位置適性を反映した総合評価です。" />{' '}
+                    <SortHeader sortKey="effective" label="並替" activeKey={sort.key} direction={sort.direction} onSort={handleSort} />
+                  </th>
+                  <th scope="col">
+                    <SortHeader sortKey="status" label="状態" activeKey={sort.key} direction={sort.direction} onSort={handleSort} />
+                  </th>
+                  <th scope="col">特殊</th>
+                  <th scope="col" style={{ textAlign: 'left' }}>今季</th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </Card>
+              </thead>
+              <tbody>
+                {filteredPlayers.map((player) => {
+                  const overall = playerOVR(player);
+                  const effective = playerEffectiveOVR(player);
+                  const selected = selectedIds.includes(player.id);
+                  const selectionDisabled = selectedIds.length >= 3 && !selected;
+                  return (
+                    <tr key={player.id}>
+                      <td style={{ textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          aria-label={`${player.name}を比較対象に${selected ? '選択済み' : '追加'}`}
+                          checked={selected}
+                          disabled={selectionDisabled}
+                          onChange={() => toggleCompare(player.id)}
+                        />
+                      </td>
+                      <td>
+                        <button
+                          className="roster-player-button"
+                          type="button"
+                          onClick={() => onSelect(player)}
+                          aria-label={`${player.name}の詳細を表示`}
+                        >
+                          {player.name}
+                        </button>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>{player.age}</td>
+                      <td style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                        {player.isP ? player.role : player._assignedPos ?? player.pos}
+                      </td>
+                      <td
+                        className={overall >= 80 ? 'metric-highlight' : undefined}
+                        style={{ textAlign: 'center', fontWeight: 900 }}
+                      >
+                        {overall}
+                      </td>
+                      <td
+                        className={effective >= 80 ? 'metric-highlight' : undefined}
+                        style={{ textAlign: 'center', fontWeight: 900 }}
+                      >
+                        {effective}
+                      </td>
+                      <td style={{ textAlign: 'center' }} title={statusText(player)}>
+                        <PlayerStatusBadges player={player} compact />
+                        {!((player.injuryDays ?? 0) > 0) && !player.fatigue && (
+                          <span style={{ color: 'var(--color-text-faint)' }}>通常</span>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <SpecialSummary player={player} />
+                      </td>
+                      <td style={{ color: 'var(--color-text-muted)' }}>
+                        {player.isP ? (
+                          <PitcherStatLine player={player} accumulated={accumulated} />
+                        ) : (
+                          <BatterStatLine player={player} accumulated={accumulated} />
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {selectedIds.length > 0 && (
+        <div
+          role="region"
+          aria-label="選手比較の操作"
+          style={{
+            position: 'fixed',
+            right: 12,
+            bottom: 12,
+            left: 12,
+            zIndex: 80,
+            display: 'flex',
+            width: 'min(720px,calc(100% - 24px))',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 10,
+            margin: '0 auto',
+            padding: 12,
+            border: '1px solid var(--color-border-strong)',
+            borderRadius: 12,
+            background: 'var(--color-surface-raised)',
+            boxShadow: '0 14px 36px rgb(0 0 0 / 32%)',
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <strong>{selectedIds.length}人を選択中</strong>
+            <div
+              style={{
+                overflow: 'hidden',
+                color: 'var(--color-text-muted)',
+                fontSize: 11,
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {comparePlayers.map((player) => player.name).join('、')}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flex: '0 0 auto' }}>
+            <Button
+              onClick={() => setSelectedIds([])}
+              color="var(--color-surface-muted)"
+              ariaLabel="比較対象の選択をすべて解除"
+            >
+              解除
+            </Button>
+            <Button
+              onClick={() => setCompareOpen(true)}
+              disabled={selectedIds.length < 2}
+              ariaLabel="選択した選手を比較"
+            >
+              比較する
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {compareOpen && (
+        <PlayerCompareModal
+          players={comparePlayers}
+          accumulated={accumulated}
+          onSelect={(player) => {
+            setCompareOpen(false);
+            onSelect(player);
+          }}
+          onClose={() => setCompareOpen(false)}
+        />
+      )}
+    </>
   );
 }
