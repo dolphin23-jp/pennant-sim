@@ -8,9 +8,17 @@ import {
   type TouchEvent,
 } from 'react';
 
-import { aptitudeRank, calcOVR, effectiveOVR, specialLevel, statItems, yearlyRows } from '../../engine';
+import {
+  aptitudeRank,
+  calcOVR,
+  displayOVRBreakdown,
+  effectiveOVR,
+  specialLevel,
+  statItems,
+  yearlyRows,
+} from '../../engine';
 import type { AccumulatedStats, Player, PlayerStats } from '../../engine';
-import { Button, Card, EmptyState, SectionTitle, TermTooltip } from '../ui';
+import { Button, Card, EmptyState, LampFigure, SectionTitle, TermTooltip } from '../ui';
 import { AbilityRadarChart, type AbilityRadarItem } from './AbilityRadarChart';
 import { DisplayOVRValue } from './DisplayOVRValue';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
@@ -328,6 +336,7 @@ export function PlayerDetailModal({
 
   if (!player) return null;
   const baseOverall = player.isP ? calcOVR(player) : effectiveOVR(player, player.pos);
+  const headline = displayOVRBreakdown(player, player.isP ? undefined : player.pos);
   const current = accumulated[player.id];
   const career = careerAccumulated[player.id];
   const history = yearlyRows(yearlyStats, player.id);
@@ -400,17 +409,21 @@ export function PlayerDetailModal({
             <div className="player-modal__meta" id="player-modal-description">
               <span>{player.age}歳</span>
               <span>{player.isP ? player.role : player.pos}</span>
-              <DisplayOVRValue
-                player={player}
-                position={player.isP ? undefined : player.pos}
-                compact
-              />
               <PlayerStatusBadges player={player} />
             </div>
           </div>
-          <Button onClick={onClose} color="var(--color-surface-muted)" ariaLabel="選手詳細を閉じる">
-            閉じる
-          </Button>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: '0 0 auto' }}>
+            <LampFigure
+              label="特殊込みOVR"
+              value={headline.total}
+              elite={headline.total >= 80}
+              compact
+              ariaLabel={`特殊込みOVR ${headline.total}、基本総合値 ${headline.base}から算出`}
+            />
+            <Button onClick={onClose} color="var(--color-surface-muted)" ariaLabel="選手詳細を閉じる">
+              閉じる
+            </Button>
+          </div>
         </header>
 
         <div className="player-modal__tabs" role="tablist" aria-label="選手詳細の表示項目">

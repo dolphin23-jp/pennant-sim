@@ -208,7 +208,7 @@ function RankingCard({
                     {TINFO[entry.teamKey].ab}
                   </td>
                   <td
-                    className={index === 0 ? 'metric-highlight' : undefined}
+                    className={index === 0 ? 'rank-leader-value' : undefined}
                     style={{ textAlign: 'center', fontWeight: 900 }}
                   >
                     {definition.format(entry.value)}

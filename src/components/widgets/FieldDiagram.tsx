@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 
 import { aptitudeFor, aptitudeRank, calcOVR, displayOVRBreakdown, effectiveOVR } from '../../engine';
 import type { FieldPosition, Player } from '../../engine';
-import { Card, SectionTitle, TermTooltip } from '../ui';
+import { Card, LampFigure, SectionTitle, TermTooltip } from '../ui';
 import { aptitudeToneColor } from './aptitudeDisplay';
 import type { PointerDragHandleProps } from './usePointerDrag';
 import { usePointerDrag } from './usePointerDrag';
@@ -116,6 +116,7 @@ function SlotButton({
             color: selected ? 'var(--color-accent)' : 'var(--color-text-faint)',
             fontSize: 10,
             fontWeight: 900,
+            letterSpacing: '0.04em',
           }}
         >
           {label}
@@ -232,12 +233,18 @@ export function FieldDiagram({
         }}
       >
         <SectionTitle>Field Diagram</SectionTitle>
-        <div style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <TermTooltip
             term="平均特殊込みOVR"
             description="各守備位置の基本総合値へ特殊能力の表示補正を加えた値の平均です。試合計算には影響しません。"
-          />{' '}
-          <strong className={average >= 75 ? 'metric-highlight' : undefined}>{average.toFixed(1)}</strong>
+          />
+          <LampFigure
+            label="Avg OVR"
+            value={average.toFixed(1)}
+            elite={average >= 75}
+            ariaLabel={`平均特殊込みOVR ${average.toFixed(1)}`}
+            compact
+          />
         </div>
       </div>
 
@@ -251,21 +258,39 @@ export function FieldDiagram({
           border: '1px solid var(--color-border)',
           borderRadius: 18,
           background:
-            'radial-gradient(circle at 50% 82%, rgb(186 142 78 / 32%) 0 11%, transparent 11.5%), linear-gradient(145deg,rgb(33 116 71 / 36%),rgb(15 69 49 / 20%))',
+            'radial-gradient(ellipse 90% 55% at 50% 0%, var(--field-sky), transparent 60%), linear-gradient(175deg, var(--field-turf-1) 0%, var(--field-turf-2) 55%, var(--field-turf-3) 100%)',
         }}
       >
-        <div
+        <svg
           aria-hidden="true"
-          style={{
-            position: 'absolute',
-            left: '50%',
-            top: '57%',
-            width: '42%',
-            aspectRatio: '1',
-            border: '1px solid rgb(255 255 255 / 22%)',
-            transform: 'translate(-50%,-50%) rotate(45deg)',
-          }}
-        />
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+        >
+          <defs>
+            <pattern id="fd-mow" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(28)">
+              <rect width="9" height="9" fill="transparent" />
+              <rect width="4.5" height="9" fill="var(--field-mow-line)" />
+            </pattern>
+          </defs>
+          <rect width="100" height="100" fill="url(#fd-mow)" />
+          <polygon
+            points="50,88 74,65 50,49 26,65"
+            fill="var(--field-dirt)"
+            stroke="var(--field-dirt-line)"
+            strokeWidth="0.4"
+          />
+          <circle cx="50" cy="71" r="4" fill="var(--field-dirt)" stroke="var(--field-dirt-line)" strokeWidth="0.3" />
+          <line x1="50" y1="88" x2="3" y2="4" stroke="var(--field-chalk)" strokeWidth="0.5" />
+          <line x1="50" y1="88" x2="97" y2="4" stroke="var(--field-chalk)" strokeWidth="0.5" />
+          <polygon
+            points="50,88 74,65 50,49 26,65"
+            fill="none"
+            stroke="var(--field-chalk-strong)"
+            strokeWidth="0.55"
+            strokeDasharray="1.6 1.6"
+          />
+        </svg>
         {FIELD_SLOT_ORDER.map((position) => {
           const coordinates = POSITION_LAYOUT[position];
           return (

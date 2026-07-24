@@ -96,6 +96,38 @@ export function EmptyState({ children }: { children: ReactNode }) {
   return <div className="empty-state">{children}</div>;
 }
 
+export function LampFigure({
+  label,
+  value,
+  elite = false,
+  compact = false,
+  ariaLabel,
+}: {
+  label: string;
+  value: ReactNode;
+  elite?: boolean;
+  compact?: boolean;
+  ariaLabel: string;
+}) {
+  const className = [
+    'lamp-figure',
+    elite && 'lamp-figure--elite',
+    compact && 'lamp-figure--sm',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  return (
+    <div className={className} role="img" aria-label={ariaLabel}>
+      <span className="lamp-figure__label" aria-hidden="true">
+        {label}
+      </span>
+      <span className="lamp-figure__value" aria-hidden="true">
+        {value}
+      </span>
+    </div>
+  );
+}
+
 export function TermTooltip({
   term,
   description,
