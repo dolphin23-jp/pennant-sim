@@ -1,0 +1,68 @@
+name: Temporary phase 3 balance validation
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: github.head_ref == 'agent/balance-phase3' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply phase 3 measurement
+        id: patch
+        run: |
+          mkdir -p baseline
+          set +e
+          node scripts/agent-phase3-measure.mjs > baseline/phase3-patch.log 2>&1
+          status=$?
+          set -e
+          cat baseline/phase3-patch.log
+          echo "$status" > baseline/phase3-patch.status
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - name: Apply phase 3 potential redesign
+        if: steps.patch.outputs.status == '0' && hashFiles('scripts/agent-phase3-potential.mjs') != ''
+        run: node scripts/agent-phase3-potential.mjs >> baseline/phase3-patch.log 2>&1
+      - name: Format
+        if: steps.patch.outputs.status == '0'
+        run: npx prettier --write src/engine/players.ts src/engine/types.ts scripts/balance-new-engine.ts
+      - name: Build
+        if: steps.patch.outputs.status == '0'
+        continue-on-error: true
+        run: npm run build > baseline/phase3-build.log 2>&1
+      - name: Unit tests
+        if: steps.patch.outputs.status == '0'
+        continue-on-error: true
+        run: npm run test:unit > baseline/phase3-unit.log 2>&1
+      - name: Generate 100-season candidate baseline
+        if: steps.patch.outputs.status == '0'
+        continue-on-error: true
+        run: npm run baseline:new > baseline/phase3-baseline.log 2>&1
+      - name: Commit source and diagnostics
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/engine/players.ts src/engine/types.ts scripts/balance-new-engine.ts 2>/dev/null || true
+          git add -f baseline/new-season-stats.json baseline/phase3-*.log baseline/phase3-*.status 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No generated changes to commit"
+            exit 0
+          fi
+          git commit -m "Validate phase 3 potential distribution"
+          git push origin HEAD:${{ github.head_ref }}
