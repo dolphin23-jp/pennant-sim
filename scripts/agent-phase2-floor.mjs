@@ -14,63 +14,50 @@ const floorHelper = `function ensureMinimumRosterStars(
   fielders: Player[],
 ): { pitchers: Player[]; fielders: Player[] } {
   const nextPitchers = [...pitchers],
-    nextFielders = [...fielders];
-  if (!nextPitchers.some((player) => calcOVR(player) >= 85)) {
-    const candidateIndex = nextPitchers
-      .map((player, index) => ({ player, index }))
-      .filter(({ player }) => player.role === '先発')
-      .sort(
-        (first, second) =>
-          Math.abs(first.player.age - 27) - Math.abs(second.player.age - 27),
-      )[0]?.index;
-    if (candidateIndex !== undefined) {
-      const original = nextPitchers[candidateIndex] as Player;
-      let replacement = original;
-      for (let attempt = 0; attempt < 10 && calcOVR(replacement) < 85; attempt += 1) {
-        const candidate = generatePitcher(teamKey, original.age, 185, original.role);
-        if (calcOVR(candidate) > calcOVR(replacement)) replacement = candidate;
-      }
-      nextPitchers[candidateIndex] = replacement;
+    nextFielders = [...fielders],
+    preferredPositions: FieldPosition[] = ['一塁手', '左翼手', '右翼手', '三塁手', '中堅手'];
+  let starCount =
+    nextPitchers.filter((player) => calcOVR(player) >= 85).length +
+    nextFielders.filter((player) => calcOVR(player, player.pos) >= 85).length;
+  const candidates = nextFielders
+    .map((player, index) => ({
+      player,
+      index,
+      positionPriority: preferredPositions.indexOf(player.pos as FieldPosition),
+    }))
+    .filter(({ player }) => calcOVR(player, player.pos) < 85)
+    .sort(
+      (first, second) =>
+        (first.positionPriority < 0 ? 99 : first.positionPriority) -
+          (second.positionPriority < 0 ? 99 : second.positionPriority) ||
+        Math.abs(first.player.age - 27) - Math.abs(second.player.age - 27),
+    );
+  for (const { player: original, index } of candidates) {
+    if (starCount >= 2) break;
+    let replacement = original;
+    for (
+      let attempt = 0;
+      attempt < 10 && calcOVR(replacement, replacement.pos) < 85;
+      attempt += 1
+    ) {
+      const candidate = generateBatter(
+        teamKey,
+        original.age,
+        original.pos as FieldPosition,
+        190,
+      );
+      if (calcOVR(candidate, candidate.pos) > calcOVR(replacement, replacement.pos))
+        replacement = candidate;
     }
-  }
-  if (!nextFielders.some((player) => calcOVR(player, player.pos) >= 85)) {
-    const preferredPositions: FieldPosition[] = ['一塁手', '左翼手', '右翼手', '三塁手', '中堅手'];
-    const candidateIndex = nextFielders
-      .map((player, index) => ({
-        player,
-        index,
-        positionPriority: preferredPositions.indexOf(player.pos as FieldPosition),
-      }))
-      .sort(
-        (first, second) =>
-          (first.positionPriority < 0 ? 99 : first.positionPriority) -
-            (second.positionPriority < 0 ? 99 : second.positionPriority) ||
-          Math.abs(first.player.age - 27) - Math.abs(second.player.age - 27),
-      )[0]?.index;
-    if (candidateIndex !== undefined) {
-      const original = nextFielders[candidateIndex] as Player;
-      let replacement = original;
-      for (
-        let attempt = 0;
-        attempt < 10 && calcOVR(replacement, replacement.pos) < 85;
-        attempt += 1
-      ) {
-        const candidate = generateBatter(
-          teamKey,
-          original.age,
-          original.pos as FieldPosition,
-          190,
-        );
-        if (calcOVR(candidate, candidate.pos) > calcOVR(replacement, replacement.pos))
-          replacement = candidate;
-      }
-      nextFielders[candidateIndex] = replacement;
-    }
+    nextFielders[index] = replacement;
+    if (calcOVR(replacement, replacement.pos) >= 85) starCount += 1;
   }
   return { pitchers: nextPitchers, fielders: nextFielders };
 }`;
 
-if (!source.includes('function ensureMinimumRosterStars(')) {
+if (/function ensureMinimumRosterStars\([\s\S]*?\n\}/.test(source)) {
+  source = source.replace(/function ensureMinimumRosterStars\([\s\S]*?\n\}/, floorHelper);
+} else {
   const marker = 'export function initTeams(): Teams {';
   if (!source.includes(marker)) throw new Error('initTeams marker not found');
   source = source.replace(marker, `${floorHelper}\n${marker}`);
@@ -94,4 +81,4 @@ if (!source.includes('const starredRoster = ensureMinimumRosterStars'))
   throw new Error('Star floor was not connected to initTeams');
 
 await writeFile(path, source, 'utf8');
-console.log('Guaranteed one OVR85 pitcher and batter per initial roster for the final phase 2 run.');
+console.log('Guaranteed at least two OVR85 players per roster, filling deficits with batters.');
