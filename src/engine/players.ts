@@ -322,6 +322,13 @@ function ageDistribution(
   while (ages.length < count) ages.push(randomInt(minAge, maxAge));
   return ages.sort(() => random() - 0.5);
 }
+function generateRosterQuality(baseDevelopment: number): number {
+  const baseMean = baseDevelopment * 0.75,
+    tierRoll = random();
+  if (tierRoll < 0.018) return clamp(gaussian(baseMean + 70, 8), 98, 138);
+  if (tierRoll < 0.108) return clamp(gaussian(baseMean + 45, 10), 75, 122);
+  return clamp(gaussian(baseMean, 15), 28, 92);
+}
 export function initTeams(): Teams {
   registerExistingNames({});
   return Object.fromEntries(
@@ -332,7 +339,7 @@ export function initTeams(): Teams {
         generatePitcher(
           teamKey,
           age,
-          clamp(gaussian(bd * 0.75, 12), 35, 98),
+          generateRosterQuality(bd),
           index / all.length < 0.46
             ? '先発'
             : index / all.length < 0.75
@@ -348,7 +355,7 @@ export function initTeams(): Teams {
           teamKey,
           age,
           positionPool[index % positionPool.length] as FieldPosition,
-          clamp(gaussian(bd * 0.75, 12), 35, 98),
+          generateRosterQuality(bd),
         ),
       );
       return [teamKey, { ...TINFO[teamKey], key: teamKey, pitchers, fielders, rotSize: 6 }];

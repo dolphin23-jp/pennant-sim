@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import process from 'node:process';
 import {
   accumulateStatsAll,
+  calcOVR,
   configureRandom,
   generateSchedule,
   initTeams,
@@ -10,6 +11,7 @@ import {
   type AccumulatedStats,
   type PlayerStats,
   type TeamKey,
+  type Teams,
 } from '../src/engine/index';
 import { evaluateNpbScoringTargets, NPB_SCORING_TARGETS } from './npb-targets.mjs';
 const DEFAULT_SEASONS = 100,
@@ -60,6 +62,41 @@ function sumStats(lines: PlayerStats[], key: string): number {
 }
 const safeRatio = (numerator: number, denominator: number): number =>
   denominator > 0 ? numerator / denominator : 0;
+function populationStandardDeviation(values: number[]): number {
+  if (!values.length) return 0;
+  const mean = values.reduce((total, value) => total + value, 0) / values.length;
+  return Math.sqrt(values.reduce((total, value) => total + (value - mean) ** 2, 0) / values.length);
+}
+function percentile(values: number[], fraction: number): number {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((first, second) => first - second),
+    index = Math.max(0, Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1));
+  return sorted[index] as number;
+}
+function rosterMetrics(teams: Teams) {
+  const batters = Object.values(teams).flatMap((team) => team.fielders),
+    pitchers = Object.values(teams).flatMap((team) => team.pitchers),
+    batterOvrs = batters.map((player) => calcOVR(player, player.pos)),
+    pitcherOvrs = pitchers.map((player) => calcOVR(player)),
+    teamOvr85Counts = Object.values(teams).map(
+      (team) =>
+        team.fielders.filter((player) => calcOVR(player, player.pos) >= 85).length +
+        team.pitchers.filter((player) => calcOVR(player) >= 85).length,
+    );
+  return {
+    batterOvrStandardDeviation: populationStandardDeviation(batterOvrs),
+    pitcherOvrStandardDeviation: populationStandardDeviation(pitcherOvrs),
+    batterOvrTop1Percent: percentile(batterOvrs, 0.99),
+    batterOvrTop5Percent: percentile(batterOvrs, 0.95),
+    pitcherOvrTop1Percent: percentile(pitcherOvrs, 0.99),
+    pitcherOvrTop5Percent: percentile(pitcherOvrs, 0.95),
+    batterOvr85PlusCount: batterOvrs.filter((overall) => overall >= 85).length,
+    pitcherOvr85PlusCount: pitcherOvrs.filter((overall) => overall >= 85).length,
+    averageTeamOvr85PlusCount:
+      teamOvr85Counts.reduce((total, count) => total + count, 0) / teamOvr85Counts.length,
+    minimumTeamOvr85PlusCount: Math.min(...teamOvr85Counts),
+  };
+}
 function finalizeSeason(accumulatedStats: AccumulatedStats, games: number) {
   const lines = Object.values(accumulatedStats),
     batting = lines.filter((line) => line.type === 'bat'),
@@ -117,7 +154,7 @@ async function simulateSeason(seasonIndex: number, baseSeed: number) {
     rotations[game.homeKey] += 1;
     rotations[game.awayKey] += 1;
   }
-  return finalizeSeason(accumulatedStats, schedule.length);
+  return { ...finalizeSeason(accumulatedStats, schedule.length), ...rosterMetrics(teams) };
 }
 async function main(): Promise<void> {
   const options = parseArguments(process.argv.slice(2)),
@@ -142,10 +179,50 @@ async function main(): Promise<void> {
         6,
       ),
       walkRate: roundSummary(summarize(seasonStats.map((stats) => stats.walkRate)), 6),
+      batterOvrStandardDeviation: roundSummary(
+        summarize(seasonStats.map((stats) => stats.batterOvrStandardDeviation)),
+        6,
+      ),
+      pitcherOvrStandardDeviation: roundSummary(
+        summarize(seasonStats.map((stats) => stats.pitcherOvrStandardDeviation)),
+        6,
+      ),
+      batterOvrTop1Percent: roundSummary(
+        summarize(seasonStats.map((stats) => stats.batterOvrTop1Percent)),
+        3,
+      ),
+      batterOvrTop5Percent: roundSummary(
+        summarize(seasonStats.map((stats) => stats.batterOvrTop5Percent)),
+        3,
+      ),
+      pitcherOvrTop1Percent: roundSummary(
+        summarize(seasonStats.map((stats) => stats.pitcherOvrTop1Percent)),
+        3,
+      ),
+      pitcherOvrTop5Percent: roundSummary(
+        summarize(seasonStats.map((stats) => stats.pitcherOvrTop5Percent)),
+        3,
+      ),
+      batterOvr85PlusCount: roundSummary(
+        summarize(seasonStats.map((stats) => stats.batterOvr85PlusCount)),
+        3,
+      ),
+      pitcherOvr85PlusCount: roundSummary(
+        summarize(seasonStats.map((stats) => stats.pitcherOvr85PlusCount)),
+        3,
+      ),
+      averageTeamOvr85PlusCount: roundSummary(
+        summarize(seasonStats.map((stats) => stats.averageTeamOvr85PlusCount)),
+        3,
+      ),
+      minimumTeamOvr85PlusCount: roundSummary(
+        summarize(seasonStats.map((stats) => stats.minimumTeamOvr85PlusCount)),
+        3,
+      ),
     },
     targetEvaluation = evaluateNpbScoringTargets(summary),
     output = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       source: 'src/engine',
       seasons: options.seasons,
       seed: options.seed,
