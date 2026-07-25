@@ -33,3 +33,4 @@ jobs:
           git add -A
           git commit -m "feat: add yearly player career ledger"
           git push origin HEAD:agent/phase4-career-ledger
+# trigger: 2
