@@ -22,14 +22,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: python scripts/phase6-implement.py
-      - name: Commit implementation
+      - run: python scripts/phase6-fix.py
+      - name: Commit fixes
         run: |
-          rm -f scripts/phase6-implement.py
+          rm -f scripts/phase6-fix.py
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add -A
-          git commit -m "feat: generate fictional league history at new game"
+          git commit -m "fix: resolve phase 6 build errors"
           git push origin HEAD:agent/phase6-fictional-history-v2
       - run: npm run lint
       - run: npm test
