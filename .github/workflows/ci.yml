@@ -1,4 +1,4 @@
-name: CI
+name: CI diagnostics
 
 on:
   push:
@@ -22,6 +22,20 @@ jobs:
       - name: Lint
         run: npm run lint
       - name: Test
-        run: npm test
+        id: tests
+        continue-on-error: true
+        run: npm test > test-output.txt 2>&1
+      - name: Upload test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-final-test-diagnostics
+          path: |
+            test-output.txt
+            baseline/new-season-stats.json
+          if-no-files-found: ignore
+      - name: Fail when tests fail
+        if: steps.tests.outcome == 'failure'
+        run: exit 1
       - name: Build
         run: npm run build
