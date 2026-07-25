@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { buildGameBoxScore, isNotableGame, toSummary } from '../src/engine/boxScore';
-import type { AtBatLogEntry, GameState, Player, Team, TeamKey } from '../src/engine/types';
+import { accumulateStatsAll, mergeStatMaps } from '../src/engine/stats';
+import type { AccumulatedStats, AtBatLogEntry, BatterStats, GameState, Player, Team, TeamKey } from '../src/engine/types';
 
 function makeBatter(id: string, teamKey: TeamKey): Player {
   return {
@@ -351,5 +352,126 @@ test('toSummaryは打者・投手成績と注目記録を除きhasBoxScoreをfal
     isNotableGame(box),
     true,
     '完封(1-0)なのでshutoutTeamが立ちnotableと判定される',
+  );
+});
+
+test('mergeStatMapsはbaseのネストしたPlayerStatsを変異させない(同一baseを複数回再利用しても二重加算しない)', () => {
+  const seasonStatsSoFar: AccumulatedStats = {
+    p1: {
+      type: 'bat', name: 'p1', g: 10, pa: 40, ab: 36, h: 10, s: 8, d: 1, t: 0,
+      hr: 1, bb: 3, k: 6, rbi: 5, sb: 1, cs: 0, bnt: 0, sf: 0,
+    } as BatterStats,
+  };
+  const frozenBefore = JSON.parse(JSON.stringify(seasonStatsSoFar)) as AccumulatedStats;
+
+  // season.ts の simCpuUntilNext/skipGames と同じ反復パターン:
+  // バッチ内の各試合ごとに `mergeStatMaps(seasonStatsSoFar, leagueStats)` を
+  // 同じ seasonStatsSoFar 参照へ何度も適用し、leagueStats は試合ごとに成長する。
+  let leagueStats: AccumulatedStats = {};
+  mergeStatMaps(seasonStatsSoFar, leagueStats); // game1: p1は出場せず
+
+  leagueStats = {
+    p1: {
+      type: 'bat', name: 'p1', g: 1, pa: 4, ab: 4, h: 1, s: 1, d: 0, t: 0,
+      hr: 0, bb: 0, k: 0, rbi: 0, sb: 0, cs: 0, bnt: 0, sf: 0,
+    } as BatterStats,
+  };
+  const snapshotBeforeGame3 = mergeStatMaps(seasonStatsSoFar, leagueStats); // game3直前のスナップショット
+
+  assert.deepEqual(
+    seasonStatsSoFar,
+    frozenBefore,
+    'seasonStatsSoFar(呼び出し元が使い回す通算成績オブジェクト)はmergeStatMaps呼び出し後も変化してはいけない',
+  );
+  assert.equal((seasonStatsSoFar.p1 as BatterStats).h, 10, 'base自体は元の10安打のまま');
+  assert.equal(
+    (snapshotBeforeGame3.p1 as BatterStats).h,
+    11,
+    '戻り値では10安打(既存)+1安打(game2)=11安打に正しく合算される',
+  );
+});
+
+test('CPU消化バッチで同一選手が複数試合に出場しても、他球団選手の試合後通算成績が二重加算されない', () => {
+  const scorer = makeBatter('cpuBatter', 'giants');
+  const opposingPitcher = makePitcher('cpuPitcher', 'tigers');
+  const unusedHomeStarter = makePitcher('unusedHomeStarter', 'giants');
+
+  function singleHitGame(): GameState {
+    const atBatLog: AtBatLogEntry[] = [
+      entry({
+        inning: 1, isBot: true, batter: 'cpuBatter', batterId: 'cpuBatter', bSide: 'giants',
+        pitcher: 'cpuPitcher', pitcherId: 'cpuPitcher', pSide: 'tigers', result: '1B',
+        snap: { home: 0, away: 0 },
+      }),
+    ];
+    return {
+      // 本塁打者側(home)の投手陣は空にし、この検証に無関係なaway投手線だけを見る。
+      teams: { home: makeTeam('giants', [scorer], []), away: makeTeam('tigers', [], [opposingPitcher]) },
+      lineups: { home: [scorer], away: [] },
+      park: { homeRun: 1, hit: 1 },
+      matchupCounts: {},
+      score: { home: 0, away: 0 },
+      innings: [{ home: 0, away: 0 }],
+      atBatLog,
+      changes: [],
+      curP: { home: unusedHomeStarter, away: opposingPitcher },
+      pc: { home: 0, away: 0 },
+      batIdx: { home: 0, away: 0 },
+      usedR: { home: new Set(), away: new Set([opposingPitcher.id]) },
+      starterH: unusedHomeStarter,
+      starterA: opposingPitcher,
+      winnerPitcherId: null,
+      loserPitcherId: null,
+      savePitcherId: null,
+      holdPitcherIds: [],
+      postGameEvents: { awakenings: [], injuries: [] },
+    } as unknown as GameState;
+  }
+
+  // 呼び出し元(state/gameState.tsx)が current.leagueAccumulated をそのまま
+  // seasonStatsSoFar として毎バッチ渡す。この選手は既に9安打を持っているとする。
+  const seasonStatsSoFar: AccumulatedStats = {
+    cpuBatter: {
+      type: 'bat', name: 'cpuBatter', g: 20, pa: 80, ab: 72, h: 9, s: 8, d: 1, t: 0,
+      hr: 0, bb: 5, k: 10, rbi: 4, sb: 0, cs: 0, bnt: 0, sf: 0,
+    } as BatterStats,
+  };
+
+  // season.ts の simCpuUntilNext/skipGames のループを模倣: 同じ選手が
+  // バッチ内の3試合(CPU同士、自チームは絡まない)に連続出場する。
+  // バグがあると2回目以降のmergeStatMaps呼び出しでseasonStatsSoFarが書き換わり、
+  // 3試合目以降の通算成績が加速度的に膨張する。
+  let leagueStats: AccumulatedStats = {};
+  const beforeGame1 = mergeStatMaps(seasonStatsSoFar, leagueStats);
+  const game1 = singleHitGame();
+  leagueStats = accumulateStatsAll(game1, leagueStats);
+  buildGameBoxScore(game1, 'cpu1', '2026-04-10', 2026, beforeGame1);
+
+  const beforeGame2 = mergeStatMaps(seasonStatsSoFar, leagueStats);
+  const game2 = singleHitGame();
+  leagueStats = accumulateStatsAll(game2, leagueStats);
+  buildGameBoxScore(game2, 'cpu2', '2026-04-11', 2026, beforeGame2);
+
+  const beforeGame3 = mergeStatMaps(seasonStatsSoFar, leagueStats);
+  const game3 = singleHitGame();
+  leagueStats = accumulateStatsAll(game3, leagueStats);
+  const box3 = buildGameBoxScore(game3, 'cpu3', '2026-04-12', 2026, beforeGame3);
+
+  assert.equal(
+    (seasonStatsSoFar.cpuBatter as BatterStats).h,
+    9,
+    'current.leagueAccumulated相当のbaseは3回merge後も変異せず9安打のまま',
+  );
+  assert.equal(
+    (beforeGame3.cpuBatter as BatterStats).h,
+    11,
+    'game3直前の通算は9(既存)+1(game1)+1(game2)=11安打。バグがあれば12以上に膨張する',
+  );
+
+  const line3 = box3.batterLines.find((line) => line.playerId === 'cpuBatter');
+  assert.equal(
+    line3?.seasonAvgAfter,
+    12 / 75,
+    '試合結果画面に表示される試合後打率も9+1+1+1=12安打/72+1+1+1=75打数で正しく計算される',
   );
 });
