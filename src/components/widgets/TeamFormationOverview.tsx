@@ -21,7 +21,7 @@ function seasonStatLine(player: Player, statsSource: AccumulatedStats): string {
   if (stats.type === 'bat') {
     return `${stats.g}試合 ${battingAverage(stats)} ${stats.hr}本 ${stats.rbi}打点 ${stats.sb}盗塁`;
   }
-  return `${stats.g}登板 ${stats.w}勝${stats.l}敗 防${earnedRunAverage(stats)} ${stats.k}奪三振`;
+  return `${stats.g}登板 ${stats.w}勝${stats.l}敗 防${earnedRunAverage(stats)} ${inningsPitched(stats.ip3)}回 ${stats.k}奪三振`;
 }
 
 function conditionLabel(player: Player): string {
