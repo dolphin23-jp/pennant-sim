@@ -230,14 +230,15 @@ export function simAB(
   };
   return { result, pc: pitchCounts[result] || 3, dir: directions[result] || null };
 }
+
 export function advBases(
   bases: BaseState,
   result: PlateAppearanceResult,
-  speed: number,
+  batter: Player,
   outs: number,
 ): { bases: BaseState; runs: number } {
   const [runnerOnFirst, runnerOnSecond, runnerOnThird] = bases,
-    isFast = speed > 72;
+    isFast = (batter.p.sp ?? 50) > 72;
   switch (result) {
     case 'HR':
       return {
@@ -246,12 +247,12 @@ export function advBases(
       };
     case '3B':
       return {
-        bases: [false, false, true],
+        bases: [false, false, batter],
         runs: (runnerOnFirst ? 1 : 0) + (runnerOnSecond ? 1 : 0) + (runnerOnThird ? 1 : 0),
       };
     case '2B': {
       let runs = (runnerOnThird ? 1 : 0) + (runnerOnSecond ? 1 : 0);
-      const next: BaseState = [false, true, false];
+      const next: BaseState = [false, batter, false];
       if (runnerOnFirst) {
         if (
           random() <
@@ -266,7 +267,7 @@ export function advBases(
     }
     case '1B': {
       let runs = runnerOnThird ? 1 : 0;
-      const next: BaseState = [true, false, false];
+      const next: BaseState = [batter, false, false];
       if (runnerOnSecond) {
         if (
           random() <
@@ -283,9 +284,9 @@ export function advBases(
     case 'BB':
     case 'HBP': {
       const runs = runnerOnFirst && runnerOnSecond && runnerOnThird ? 1 : 0,
-        second = runnerOnFirst ? true : runnerOnSecond,
-        third = runnerOnFirst && runnerOnSecond ? true : runnerOnThird;
-      return { bases: [true, second, third], runs };
+        second = runnerOnFirst || runnerOnSecond,
+        third = runnerOnFirst && runnerOnSecond ? runnerOnSecond : runnerOnThird;
+      return { bases: [batter, second, third], runs };
     }
     case 'GO': {
       const scores =
@@ -313,6 +314,7 @@ export function advBases(
       return { bases: [...bases], runs: 0 };
   }
 }
+
 export function buildDesc(
   batterName: string,
   result: PlateAppearanceResult,

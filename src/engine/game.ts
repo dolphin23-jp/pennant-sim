@@ -52,7 +52,7 @@ export function simHalf(
   closerPriority: string[] = [],
 ): HalfInningResult {
   const fieldingSide: Side = battingSide === 'home' ? 'away' : 'home';
-  const catcher = gameState.lineups[battingSide].find(
+  const catcher = gameState.lineups[fieldingSide].find(
       (player) => player._assignedPos === '捕手' || player.pos === '捕手',
     ),
     catcherGameCalling = catcher?.p.ld || 50;
@@ -122,56 +122,59 @@ export function simHalf(
     if (bases[0] && !bases[1] && outs < 2) {
       const runner = bases[0],
         runnerPlayer = typeof runner === 'object' ? runner : undefined;
-      let attemptRate = clamp(((runnerPlayer?.p.sp || 50) - 30) / 260, 0.02, 0.22);
-      if (runnerPlayer && hasSpecial(runnerPlayer, 'sb')) attemptRate *= 1.4;
-      if (runnerPlayer && hasGold(runnerPlayer, 'sb_gold')) attemptRate *= 1.6;
-      if (random() < attemptRate) {
-        const successRate = clamp(
-            (0.62 + ((runnerPlayer?.p.sp || 50) - 50) / 280) *
-              (runnerPlayer && hasGold(runnerPlayer, 'sb_gold') ? 1.12 : 1),
-            0.45,
-            0.91,
-          ),
-          snapshot = {
-            home: gameState.score.home + (battingSide === 'home' ? runs : 0),
-            away: gameState.score.away + (battingSide === 'away' ? runs : 0),
-          },
-          runnerName = runnerPlayer?.name as string,
-          runnerId = runnerPlayer?.id as string;
-        if (random() < successRate) {
-          bases = [false, runner, bases[2]];
-          atBats.push({
-            inning: inning + 1,
-            isBot: battingSide === 'home',
-            batter: runnerName,
-            batterId: runnerId,
-            bSide: teamKeyForSide(gameState, battingSide),
-            pitcher: pitcher.name,
-            pitcherId: pitcher.id,
-            pSide: teamKeyForSide(gameState, fieldingSide),
-            result: 'SB',
-            rbi: 0,
-            desc: `${runnerName}、盗塁成功`,
-            snap: snapshot,
-          });
-        } else {
-          bases = [false, bases[1], bases[2]];
-          outs += 1;
-          atBats.push({
-            inning: inning + 1,
-            isBot: battingSide === 'home',
-            batter: runnerName,
-            batterId: runnerId,
-            bSide: teamKeyForSide(gameState, battingSide),
-            pitcher: pitcher.name,
-            pitcherId: pitcher.id,
-            pSide: teamKeyForSide(gameState, fieldingSide),
-            result: 'CS',
-            rbi: 0,
-            desc: `${runnerName}、盗塁失敗`,
-            snap: snapshot,
-          });
-          if (outs >= 3) break;
+      if (runnerPlayer) {
+        let attemptRate = clamp((runnerPlayer.p.sp - 30) / 260, 0.02, 0.22);
+        if (hasSpecial(runnerPlayer, 'sb')) attemptRate *= 1.4;
+        if (hasGold(runnerPlayer, 'sb_gold')) attemptRate *= 1.6;
+        if (random() < attemptRate) {
+          const catcherArm = catcher?.p.arm ?? 50,
+            pitcherControl = pitcher.p.ctrl ?? 50,
+            defensePenalty = (catcherArm - 50) / 420 + (pitcherControl - 50) / 900,
+            successRate = clamp(
+              (0.62 + (runnerPlayer.p.sp - 50) / 280 - defensePenalty) *
+                (hasGold(runnerPlayer, 'sb_gold') ? 1.12 : 1),
+              0.4,
+              0.92,
+            ),
+            snapshot = {
+              home: gameState.score.home + (battingSide === 'home' ? runs : 0),
+              away: gameState.score.away + (battingSide === 'away' ? runs : 0),
+            };
+          if (random() < successRate) {
+            bases = [false, runnerPlayer, bases[2]];
+            atBats.push({
+              inning: inning + 1,
+              isBot: battingSide === 'home',
+              batter: runnerPlayer.name,
+              batterId: runnerPlayer.id,
+              bSide: teamKeyForSide(gameState, battingSide),
+              pitcher: pitcher.name,
+              pitcherId: pitcher.id,
+              pSide: teamKeyForSide(gameState, fieldingSide),
+              result: 'SB',
+              rbi: 0,
+              desc: `${runnerPlayer.name}、盗塁成功`,
+              snap: snapshot,
+            });
+          } else {
+            bases = [false, bases[1], bases[2]];
+            outs += 1;
+            atBats.push({
+              inning: inning + 1,
+              isBot: battingSide === 'home',
+              batter: runnerPlayer.name,
+              batterId: runnerPlayer.id,
+              bSide: teamKeyForSide(gameState, battingSide),
+              pitcher: pitcher.name,
+              pitcherId: pitcher.id,
+              pSide: teamKeyForSide(gameState, fieldingSide),
+              result: 'CS',
+              rbi: 0,
+              desc: `${runnerPlayer.name}、盗塁失敗`,
+              snap: snapshot,
+            });
+            if (outs >= 3) break;
+          }
         }
       }
     }
@@ -208,24 +211,24 @@ export function simHalf(
     let runsBattedIn = 0;
     if (result === 'K') outs += 1;
     else if (result === 'GO') {
-      const advancement = advBases(bases, result, batter.p.sp || 50, outs);
+      const advancement = advBases(bases, result, batter, outs);
       bases = advancement.bases;
       runsBattedIn = advancement.runs;
       outs += 1;
       runs += runsBattedIn;
     } else if (result === 'FO') {
-      const advancement = advBases(bases, result, batter.p.sp || 50, outs);
+      const advancement = advBases(bases, result, batter, outs);
       bases = advancement.bases;
       runsBattedIn = advancement.runs;
       outs += 1;
       runs += runsBattedIn;
     } else if (result === 'DP') {
-      const advancement = advBases(bases, result, batter.p.sp || 50, outs);
+      const advancement = advBases(bases, result, batter, outs);
       bases = advancement.bases;
       outs += 2;
       if (outs > 3) outs = 3;
     } else {
-      const advancement = advBases(bases, result, batter.p.sp || 50, outs);
+      const advancement = advBases(bases, result, batter, outs);
       bases = advancement.bases;
       runsBattedIn = advancement.runs;
       runs += runsBattedIn;
