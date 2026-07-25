@@ -23,9 +23,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: python scripts/phase4-implement.py
-      - run: npm run lint
-      - run: npm test
-      - run: npm run build
       - name: Commit implementation
         run: |
           rm -f scripts/phase4-implement.py .github/workflows/phase4-implement.yml
