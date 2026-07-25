@@ -5,6 +5,7 @@ import { ops, qualifiesForRate } from '../../../engine';
 import type { Player, PlayerStats, TeamKey } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
 import { Card, EmptyState, SectionTitle, SegmentedControl, teamTextColor } from '../../ui';
+import { HistoricalRankings } from './HistoricalRankings';
 
 type League = 'central' | 'pacific';
 
@@ -370,6 +371,8 @@ export function RankingTab() {
           ))}
         </div>
       </section>
+
+      <HistoricalRankings />
     </div>
   );
 }
