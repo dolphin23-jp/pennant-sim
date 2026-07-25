@@ -27,7 +27,7 @@
     }
   },
   "targetEvaluation": {
-    "passed": false,
+    "passed": true,
     "comparison": {
       "battingAverage": {
         "value": 0.253785,
@@ -37,11 +37,11 @@
         "passed": true
       },
       "era": {
-        "value": 3.766963,
+        "value": 3.461011,
         "minimum": 2.21,
         "target": 3.01,
         "maximum": 3.6,
-        "passed": false
+        "passed": true
       },
       "homeRuns": {
         "value": 1072.167,
@@ -65,8 +65,8 @@
       "standardDeviation": 0.003373
     },
     "era": {
-      "mean": 3.766963,
-      "standardDeviation": 0.115416
+      "mean": 3.461011,
+      "standardDeviation": 0.11207
     },
     "homeRuns": {
       "mean": 1072.167,
@@ -93,16 +93,16 @@
       "standardDeviation": 0
     },
     "runsBattedInLeader": {
-      "mean": 130,
-      "standardDeviation": 11.075
+      "mean": 127,
+      "standardDeviation": 11.314
     },
     "runsBattedIn100Plus": {
-      "mean": 9,
-      "standardDeviation": 3
+      "mean": 7.833,
+      "standardDeviation": 2.267
     },
     "runsBattedIn120Plus": {
-      "mean": 2.333,
-      "standardDeviation": 1.886
+      "mean": 2,
+      "standardDeviation": 1.732
     },
     "stolenBaseSuccessRate": {
       "mean": 0.707689,

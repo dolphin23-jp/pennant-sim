@@ -25,6 +25,7 @@ import type {
   HalfInningResult,
   PlateAppearanceResult,
   Player,
+  ScoredRun,
   Side,
   Team,
   TeamKey,
@@ -142,6 +143,13 @@ export function simHalf(
     gameState.pc[fieldingSide] = 0;
   };
   const atBats: AtBatLogEntry[] = [];
+  // Who put each runner on base, and whether an error was responsible. A run is charged
+  // to the pitcher who allowed the runner, not whoever happens to be pitching when it
+  // scores, and is unearned when it would not have scored had the defence been clean.
+  const runnerResponsibility = new Map<string, { pitcherId: string; reachedOnError: boolean }>();
+  // Outs the defence should have recorded but did not, because of an error. Once the
+  // inning would have been over without them, every later run is unearned.
+  let phantomOuts = 0;
   let outs = 0,
     bases: BaseState = [false, false, false],
     runs = 0;
@@ -264,20 +272,20 @@ export function simHalf(
     gameState.pc[fieldingSide] += pitchCount;
     let officialResult = result;
     let runsBattedIn = 0;
-    let scoredIds: string[] = [];
+    let scorers: Player[] = [];
     if (result === 'K') outs += 1;
     else if (result === 'GO' || result === 'SH') {
       const advancement = advBases(bases, result, batter, outs);
       bases = advancement.bases;
       runsBattedIn = advancement.runs;
-      scoredIds = advancement.scorers.map((player) => player.id);
+      scorers = advancement.scorers;
       outs += 1;
       runs += runsBattedIn;
     } else if (result === 'FO') {
       const advancement = advBases(bases, result, batter, outs);
       bases = advancement.bases;
       runsBattedIn = advancement.runs;
-      scoredIds = advancement.scorers.map((player) => player.id);
+      scorers = advancement.scorers;
       // A fly out that brings a runner home from third is officially a sacrifice fly,
       // which is a plate appearance but not an at-bat.
       if (runsBattedIn > 0) {
@@ -294,9 +302,36 @@ export function simHalf(
     } else {
       const advancement = advBases(bases, result, batter, outs);
       bases = advancement.bases;
-      runsBattedIn = advancement.runs;
-      scoredIds = advancement.scorers.map((player) => player.id);
-      runs += runsBattedIn;
+      scorers = advancement.scorers;
+      runs += advancement.runs;
+      // No run batted in when the run only scored because of an error.
+      runsBattedIn = result === 'E' ? 0 : advancement.runs;
+    }
+
+    // An error is a play the defence should have converted, so it also costs an out that
+    // the official reconstruction of the inning would have had.
+    if (result === 'E') phantomOuts += 1;
+
+    const runsScored: ScoredRun[] = scorers.map((runner) => {
+      const responsibility = runnerResponsibility.get(runner.id);
+      // The batter scoring on his own hit is the current pitcher's responsibility.
+      const chargedPitcherId = responsibility?.pitcherId ?? pitcher.id;
+      const reachedOnError = responsibility?.reachedOnError ?? result === 'E';
+      return {
+        runnerId: runner.id,
+        chargedPitcherId,
+        earned: !reachedOnError && outs + phantomOuts < 3,
+      };
+    });
+    const scoredIds = runsScored.map((run) => run.runnerId);
+
+    // Register the batter if he is now standing on a base, so a later run is charged to
+    // the pitcher who let him on.
+    if (bases.some((runner) => typeof runner === 'object' && runner.id === batter.id)) {
+      runnerResponsibility.set(batter.id, {
+        pitcherId: pitcher.id,
+        reachedOnError: result === 'E',
+      });
     }
     const snapshot = {
       home: gameState.score.home + (battingSide === 'home' ? runs : 0),
@@ -317,6 +352,7 @@ export function simHalf(
       rbi: runsBattedIn,
       snap: snapshot,
       scoredIds,
+      runsScored,
       battedBall,
       errorFielderId,
       basesBefore,
