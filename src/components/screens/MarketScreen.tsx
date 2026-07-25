@@ -12,6 +12,8 @@ export function MarketScreen({
   accent,
   onSign,
   onNext,
+  signDisabled = false,
+  signDisabledReason,
 }: {
   title: string;
   subtitle: string;
@@ -19,6 +21,8 @@ export function MarketScreen({
   accent: string;
   onSign(player: Player): void;
   onNext(): void;
+  signDisabled?: boolean;
+  signDisabledReason?: string;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = players.find((player) => player.id === selectedId) ?? null;
@@ -83,7 +87,10 @@ export function MarketScreen({
           </div>
         )}
       </Card>
-      <nav aria-label={`${title}の操作`} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+      <nav
+        aria-label={`${title}の操作`}
+        style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}
+      >
         <Button onClick={onNext} color="var(--color-surface-muted)">
           スキップして次へ
         </Button>
@@ -93,11 +100,17 @@ export function MarketScreen({
             onSign(selected);
             setSelectedId(null);
           }}
-          disabled={!selected}
+          disabled={!selected || signDisabled}
           color={accent}
-          ariaLabel={selected ? `${selected.name}を獲得` : '選手を選択して獲得'}
+          ariaLabel={
+            signDisabled
+              ? signDisabledReason
+              : selected
+                ? `${selected.name}を獲得`
+                : '選手を選択して獲得'
+          }
         >
-          選手を獲得
+          {signDisabled ? (signDisabledReason ?? '獲得上限です') : '選手を獲得'}
         </Button>
       </nav>
     </section>

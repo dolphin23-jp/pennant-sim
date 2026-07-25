@@ -1,19 +1,6 @@
-import { CENTRAL, FIELD_POSITIONS, PACIFIC, TINFO } from '../data';
-import {
-  bestLineup,
-  calcOVR,
-  effectiveOVR,
-  generateBatter,
-  generatePitcher,
-  gaussian,
-  random,
-  randomChoice,
-  randomInt,
-  sampleTradeCash,
-  teamNeedsScore,
-  topStarters,
-} from '../engine';
-import type { DraftOrigin, FieldPosition, Player, Team, TeamKey, Teams } from '../engine';
+import { CENTRAL, PACIFIC, TINFO } from '../data';
+import { bestLineup, calcOVR, effectiveOVR, sampleTradeCash, teamNeedsScore } from '../engine';
+import type { Player, TeamKey, Teams } from '../engine';
 
 export interface TradeOffer {
   id: string;
@@ -22,30 +9,6 @@ export interface TradeOffer {
   receive: Player;
   cash: number;
   summary: string;
-}
-
-export type DraftPick = Player & { teamKey: TeamKey; round: number };
-
-export function teamStrength(team: Team): number {
-  const lineup = bestLineup(team).slice(0, 9);
-  const batting = lineup.length
-    ? lineup.reduce(
-        (total, player) => total + effectiveOVR(player, player._assignedPos ?? player.pos),
-        0,
-      ) / lineup.length
-    : 50;
-  const starters = topStarters(team).slice(0, 5);
-  const starting = starters.length
-    ? starters.reduce((total, player) => total + calcOVR(player), 0) / starters.length
-    : 50;
-  const bullpen = team.pitchers
-    .filter((player) => player.role !== '先発')
-    .sort((first, second) => calcOVR(second) - calcOVR(first))
-    .slice(0, 6);
-  const relief = bullpen.length
-    ? bullpen.reduce((total, player) => total + calcOVR(player), 0) / bullpen.length
-    : 50;
-  return Math.round(batting * 0.45 + starting * 0.3 + relief * 0.25);
 }
 
 export function generateTradeOffers(teams: Teams, playerTeam: TeamKey): TradeOffer[] {
@@ -110,72 +73,5 @@ export function applyTrade(teams: Teams, playerTeam: TeamKey, offer: TradeOffer)
   }
   next[playerTeam] = user;
   next[offer.fromTeam] = opponent;
-  return next;
-}
-
-export function generateDraftProspects(): Player[] {
-  const pool: Player[] = [];
-  const positions: Array<FieldPosition | '先発' | 'リリーフ' | 'クローザー'> = [
-    '先発',
-    '先発',
-    'リリーフ',
-    'クローザー',
-    ...FIELD_POSITIONS,
-    ...FIELD_POSITIONS,
-    '先発',
-  ];
-  for (let index = 0; index < 80; index += 1) {
-    const position = randomChoice(positions),
-      originRoll = random(),
-      draftOrigin: DraftOrigin = originRoll < 0.46 ? '高卒' : originRoll < 0.82 ? '大卒' : '社会人',
-      age =
-        draftOrigin === '高卒'
-          ? randomInt(18, 19)
-          : draftOrigin === '大卒'
-            ? randomInt(21, 22)
-            : randomInt(23, 25),
-      immediateChance = draftOrigin === '高卒' ? 0.07 : draftOrigin === '大卒' ? 0.13 : 0.16,
-      monsterChance = draftOrigin === '高卒' ? 0.012 : draftOrigin === '大卒' ? 0.027 : 0.035;
-    let quality = Math.max(32, Math.min(96, gaussian(58, 14)));
-    if (random() < immediateChance) quality = Math.max(60, Math.min(104, gaussian(78, 8)));
-    if (random() < monsterChance) quality = Math.max(82, Math.min(112, gaussian(94, 6)));
-    const player =
-      position === '先発' || position === 'リリーフ' || position === 'クローザー'
-        ? generatePitcher('draft', age, quality, position)
-        : generateBatter('draft', age, position, quality);
-    player.draftOrigin = draftOrigin;
-    const prospectLabel =
-      quality >= 90 ? '怪物候補' : quality >= 75 ? '即戦力候補' : age <= 19 ? '素材型' : '有望株';
-    player.note = `${draftOrigin}・${prospectLabel}`;
-    pool.push(player);
-  }
-  return pool.sort(
-    (first, second) =>
-      (second.isP ? calcOVR(second) : calcOVR(second, second.pos)) -
-      (first.isP ? calcOVR(first) : calcOVR(first, first.pos)),
-  );
-}
-
-export function draftOrder(teams: Teams): TeamKey[] {
-  return [...CENTRAL, ...PACIFIC].sort(
-    (first, second) => teamStrength(teams[first]) - teamStrength(teams[second]),
-  );
-}
-
-export function cpuDraftPick(team: Team, prospects: Player[]): Player | undefined {
-  return [...prospects].sort(
-    (first, second) => teamNeedsScore(team, second) - teamNeedsScore(team, first),
-  )[0];
-}
-
-export function applyDraftPicks(teams: Teams, picks: DraftPick[]): Teams {
-  const next = { ...teams };
-  for (const pick of picks) {
-    const team = { ...next[pick.teamKey] };
-    const signed = { ...pick, tk: pick.teamKey };
-    if (signed.isP) team.pitchers = [...team.pitchers, signed];
-    else team.fielders = [...team.fielders, signed];
-    next[pick.teamKey] = team;
-  }
   return next;
 }

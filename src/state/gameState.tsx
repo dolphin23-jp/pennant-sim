@@ -270,6 +270,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         current.accumulated,
         nextGame.homeKey === current.playerTeam ? current.pitcherPlan : null,
         nextGame.awayKey === current.playerTeam ? current.pitcherPlan : null,
+        nextGame.date,
       );
       const playedSchedule = current.season.schedule.map((game) =>
         game.id === nextGame.id

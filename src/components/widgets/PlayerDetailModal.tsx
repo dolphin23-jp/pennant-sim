@@ -216,6 +216,31 @@ function BasicTab({ player, overall }: { player: Player; overall: number }) {
               {player.hand.th ?? '-'}投 {player.hand.bat ?? '-'}打
             </dd>
           </div>
+          {player.foreignProfile && (
+            <>
+              <div>
+                <dt>出身</dt>
+                <dd>{player.foreignProfile.origin}</dd>
+              </div>
+              <div>
+                <dt>NPB在籍</dt>
+                <dd>{player.foreignProfile.npbSeasons}季</dd>
+              </div>
+              <div>
+                <dt>残り契約</dt>
+                <dd>{player.foreignProfile.contractYearsRemaining}年</dd>
+              </div>
+              <div>
+                <dt>
+                  <TermTooltip
+                    term="適応"
+                    description="日本野球への適応度です。1.00を基準に、実際の打席・投球能力へ反映されます。毎年の経験と成績で変化します。"
+                  />
+                </dt>
+                <dd>{player.foreignProfile.adaptationFactor.toFixed(2)}</dd>
+              </div>
+            </>
+          )}
           <div>
             <dt>
               <TermTooltip

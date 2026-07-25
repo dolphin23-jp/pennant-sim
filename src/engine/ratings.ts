@@ -1,4 +1,5 @@
 import {
+  FOREIGN_PLAYER_BALANCE,
   DISPLAY_OVR_GOLD_SPECIAL_MULTIPLIER,
   DISPLAY_OVR_NORMAL_SPECIAL_MULTIPLIER,
   DISPLAY_OVR_SPECIAL_ADJUSTMENT_MAX,
@@ -8,6 +9,7 @@ import {
   OVR_W_PIT,
   SPECIAL_INDEX,
 } from '../data';
+import { foreignPerformanceMultiplier, isForeignPlayer } from './foreign';
 import { specialLevel } from './specials';
 import type { AccumulatedStats, FieldPosition, Player, SpecialAbility, Team } from './types';
 
@@ -36,22 +38,24 @@ export const APTITUDE_RANK_THRESHOLDS = [
 
 export function calcOVR(player: Player | undefined, position?: FieldPosition): number {
   if (!player) return 50;
+  const adaptationFactor = foreignPerformanceMultiplier(player);
   if (player.isP) {
     const weights = OVR_W_PIT[player.role ?? 'リリーフ'],
       params = player.p;
     return Math.round(
-      (params.vel ?? 50) * weights.vel +
+      ((params.vel ?? 50) * weights.vel +
         (params.ctrl ?? 50) * weights.ctrl +
         (params.stam ?? 50) * weights.stam +
         (params.nobi ?? 50) * weights.nobi +
-        (params.fld ?? 50) * weights.fld,
+        (params.fld ?? 50) * weights.fld) *
+        adaptationFactor,
     );
   }
   const resolved = position ?? player._assignedPos ?? player.pos ?? '左翼手',
     weights = OVR_W[resolved],
     params = player.p;
   return Math.round(
-    (params.cf ?? 50) * weights.cf +
+    ((params.cf ?? 50) * weights.cf +
       (params.cb ?? 50) * weights.cb +
       (params.pw ?? 50) * weights.pw +
       (params.dc ?? 50) * weights.dc +
@@ -59,7 +63,8 @@ export function calcOVR(player: Player | undefined, position?: FieldPosition): n
       (params.df ?? 50) * weights.df +
       (params.arm ?? 50) * weights.arm +
       (params.ld ?? 0) * weights.ld +
-      (params.stam ?? 50) * weights.stam,
+      (params.stam ?? 50) * weights.stam) *
+      adaptationFactor,
   );
 }
 export function aptitudeFor(player: Player, position: FieldPosition): number {
@@ -143,6 +148,48 @@ export function displayOVR(
   return displayOVRBreakdown(player, position, options).total;
 }
 
+function takeHighestScoring(
+  players: Player[],
+  used: Set<string>,
+  score: (player: Player) => number,
+): Player | undefined {
+  const selected = players
+    .filter((player) => !used.has(player.id))
+    .sort((first, second) => score(second) - score(first))[0];
+  if (selected) used.add(selected.id);
+  return selected;
+}
+
+export function orderBattingLineup(players: Player[]): Player[] {
+  if (players.length < 3) return [...players];
+  const used = new Set<string>(),
+    contact = (player: Player) => ((player.p.cf ?? 50) + (player.p.cb ?? 50)) / 2,
+    discipline = (player: Player) => player.p.dc ?? 50,
+    power = (player: Player) => player.p.pw ?? 50,
+    speed = (player: Player) => player.p.sp ?? 50,
+    onBase = (player: Player) => contact(player) * 0.7 + discipline(player) * 0.3,
+    runCreation = (player: Player) =>
+      contact(player) * 0.45 + discipline(player) * 0.2 + power(player) * 0.35,
+    cleanup = (player: Player) =>
+      power(player) * 0.65 + contact(player) * 0.25 + discipline(player) * 0.1,
+    leadoff = (player: Player) => onBase(player) * 0.7 + speed(player) * 0.3,
+    secondHitter = (player: Player) =>
+      contact(player) * 0.5 + onBase(player) * 0.35 + speed(player) * 0.15;
+  const slots: Array<Player | undefined> = Array.from({ length: players.length });
+  slots[3] = takeHighestScoring(players, used, cleanup);
+  slots[2] = takeHighestScoring(players, used, runCreation);
+  slots[4] = takeHighestScoring(players, used, cleanup);
+  slots[0] = takeHighestScoring(players, used, leadoff);
+  slots[1] = takeHighestScoring(players, used, secondHitter);
+  const remaining = players
+    .filter((player) => !used.has(player.id))
+    .sort((first, second) => runCreation(second) - runCreation(first));
+  let remainingIndex = 0;
+  for (let index = 0; index < slots.length; index += 1)
+    if (!slots[index]) slots[index] = remaining[remainingIndex++];
+  return slots.filter((player): player is Player => Boolean(player));
+}
+
 export function bestLineup(team: Team): Player[] {
   const used = new Set<string>(),
     lineup: Player[] = [];
@@ -172,6 +219,9 @@ export function bestLineup(team: Team): Player[] {
       .filter(
         (f) =>
           !used.has(f.id) &&
+          (!isForeignPlayer(f) ||
+            lineup.filter(isForeignPlayer).length <
+              FOREIGN_PLAYER_BALANCE.simultaneousHitterLimit) &&
           (f.pos === position || f.positions?.some((entry) => entry.pos === position)),
       )
       .sort((a, b) => effectiveOVR(b, position) - effectiveOVR(a, position));
@@ -181,12 +231,18 @@ export function bestLineup(team: Team): Player[] {
       lineup.push({ ...selected, _assignedPos: position });
     }
   }
-  pool
-    .filter((f) => !used.has(f.id))
-    .sort((a, b) => calcOVR(b) - calcOVR(a))
-    .slice(0, 9 - lineup.length)
-    .forEach((f) => lineup.push({ ...f, _assignedPos: f.pos }));
-  return lineup.slice(0, 9);
+  for (const fielder of pool
+    .filter((player) => !used.has(player.id))
+    .sort((first, second) => calcOVR(second) - calcOVR(first))) {
+    if (lineup.length >= 9) break;
+    if (
+      isForeignPlayer(fielder) &&
+      lineup.filter(isForeignPlayer).length >= FOREIGN_PLAYER_BALANCE.simultaneousHitterLimit
+    )
+      continue;
+    lineup.push({ ...fielder, _assignedPos: fielder.pos });
+  }
+  return orderBattingLineup(lineup.slice(0, 9));
 }
 export function topStarters(team: Team): Player[] {
   const slotCount = team.rotSize || 6;

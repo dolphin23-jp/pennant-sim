@@ -1,15 +1,18 @@
 import { useMemo, useState } from 'react';
 
 import { TINFO } from '../../data';
-import { calcOVR, effectiveOVR } from '../../engine';
-import type { Player, TeamKey, Teams } from '../../engine';
 import {
   applyDraftPicks,
+  calcOVR,
   cpuDraftPick,
   draftOrder,
+  effectiveOVR,
   generateDraftProspects,
   type DraftPick,
-} from '../../state/offseason';
+  type Player,
+  type TeamKey,
+  type Teams,
+} from '../../engine';
 import { Button, Card, EmptyState, SectionTitle } from '../ui';
 
 export function DraftScreen({
@@ -35,15 +38,15 @@ export function DraftScreen({
   const makePick = () => {
     if (!selected) return;
     let remaining = prospects.filter((player) => player.id !== selected.id);
-    const nextPicks: DraftPick[] = [
-      ...picks,
-      { ...selected, teamKey: playerTeam, round },
-    ];
+    const nextPicks: DraftPick[] = [...picks, { ...selected, teamKey: playerTeam, round }];
+    let draftTeams = applyDraftPicks(teams, nextPicks);
     for (const teamKey of order) {
       if (teamKey === playerTeam || !remaining.length) continue;
-      const cpuPick = cpuDraftPick(teams[teamKey], remaining);
+      const cpuPick = cpuDraftPick(draftTeams[teamKey], remaining);
       if (!cpuPick) continue;
-      nextPicks.push({ ...cpuPick, teamKey, round });
+      const pick = { ...cpuPick, teamKey, round };
+      nextPicks.push(pick);
+      draftTeams = applyDraftPicks(draftTeams, [pick]);
       remaining = remaining.filter((player) => player.id !== cpuPick.id);
     }
     if (round >= 6) {
@@ -59,13 +62,16 @@ export function DraftScreen({
   const autoFinish = () => {
     let remaining = [...prospects];
     const nextPicks = [...picks];
+    let draftTeams = applyDraftPicks(teams, nextPicks);
     for (let currentRound = round; currentRound <= 6; currentRound += 1) {
       for (const teamKey of order) {
         if (!remaining.length) break;
-        const pick = cpuDraftPick(teams[teamKey], remaining);
-        if (!pick) continue;
-        nextPicks.push({ ...pick, teamKey, round: currentRound });
-        remaining = remaining.filter((player) => player.id !== pick.id);
+        const selected = cpuDraftPick(draftTeams[teamKey], remaining);
+        if (!selected) continue;
+        const pick = { ...selected, teamKey, round: currentRound };
+        nextPicks.push(pick);
+        draftTeams = applyDraftPicks(draftTeams, [pick]);
+        remaining = remaining.filter((player) => player.id !== selected.id);
       }
     }
     complete(nextPicks);
@@ -84,7 +90,9 @@ export function DraftScreen({
         }}
       >
         <div>
-          <h2 id="draft-title" style={{ margin: 0 }}>ドラフト会議</h2>
+          <h2 id="draft-title" style={{ margin: 0 }}>
+            ドラフト会議
+          </h2>
           <div style={{ color: 'var(--color-text-faint)', fontSize: 12, marginTop: 4 }}>
             第{round}巡指名
           </div>

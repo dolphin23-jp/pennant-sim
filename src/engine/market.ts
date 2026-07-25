@@ -1,4 +1,10 @@
-import { CENTRAL, FIELD_POSITIONS, PACIFIC, TINFO } from '../data';
+import { CENTRAL, FIELD_POSITIONS, FOREIGN_PLAYER_BALANCE, PACIFIC, TINFO } from '../data';
+import {
+  canRegisterForeignPlayer,
+  countForeignPlayers,
+  createForeignPlayerProfile,
+  isForeignPlayer,
+} from './foreign';
 import { generateBatter, generatePitcher } from './players';
 import { bestLineup, calcOVR, effectiveOVR } from './ratings';
 import { clamp, gaussian, random, randomChoice, randomInt } from './random';
@@ -7,7 +13,7 @@ export function teamNeedsScore(team: Team, player: Player): number {
   if (player.isP) {
     const starters = team.pitchers.filter((pitcher) => pitcher.role === '先発').length,
       relievers = team.pitchers.filter((pitcher) => pitcher.role !== '先発').length;
-    let need = 0;
+    let need = Math.max(0, 28 - team.pitchers.length) * 12;
     if (player.role === '先発') need += starters < 6 ? 12 : 0;
     else need += relievers < 7 ? 10 : 0;
     return need + calcOVR(player) * 0.6;
@@ -17,8 +23,9 @@ export function teamNeedsScore(team: Team, player: Player): number {
       (fielder) =>
         fielder.positions?.some((entry) => entry.pos === position) || fielder.pos === position,
     ).length,
-    weakSpot = Math.max(0, 3 - count) * 8;
-  return weakSpot + effectiveOVR(player, position) * 0.7;
+    weakSpot = Math.max(0, 3 - count) * 8,
+    rosterNeed = Math.max(0, 35 - team.fielders.length) * 12;
+  return rosterNeed + weakSpot + effectiveOVR(player, position) * 0.7;
 }
 export function marketPlayerCost(player: Player, multiplier = 1): number {
   const overall = Math.round(player.isP ? calcOVR(player) : effectiveOVR(player, player.pos));
@@ -67,27 +74,29 @@ export function genFreeAgentMarket(): Player[] {
       (first.isP ? calcOVR(first) : effectiveOVR(first, first.pos)),
   );
 }
-export function genForeignMarket(): Player[] {
+export function genForeignMarket(arrivalYear = 2026): Player[] {
   const output: Player[] = [],
     batterPositions: FieldPosition[] = ['一塁手', '三塁手', '左翼手', '中堅手', '右翼手'];
-  for (let index = 0; index < 8; index += 1) {
-    if (index < 3) {
+  for (let index = 0; index < FOREIGN_PLAYER_BALANCE.marketPlayers; index += 1) {
+    if (index < FOREIGN_PLAYER_BALANCE.marketPitchers) {
       const age = randomInt(25, 31),
         quality = generateMarketQuality(72, 7, 58, 92),
         role = index === 0 ? '先発' : 'リリーフ',
         player = generatePitcher('foreign', age, quality, role);
+      player.foreignProfile = createForeignPlayerProfile(arrivalYear);
       player.tk = '外';
       player.ask = marketPlayerCost(player, 1.25);
-      player.note = '外国人候補';
+      player.note = `${player.foreignProfile.origin}・外国人候補・${player.foreignProfile.contractYearsRemaining}年契約`;
       output.push(player);
     } else {
       const age = randomInt(24, 31),
         quality = generateMarketQuality(73, 7, 60, 94),
         position = randomChoice(batterPositions),
         player = generateBatter('foreign', age, position, quality);
+      player.foreignProfile = createForeignPlayerProfile(arrivalYear);
       player.tk = '外';
       player.ask = marketPlayerCost(player, 1.2);
-      player.note = '外国人候補';
+      player.note = `${player.foreignProfile.origin}・外国人候補・${player.foreignProfile.contractYearsRemaining}年契約`;
       output.push(player);
     }
   }
@@ -98,6 +107,7 @@ export function genForeignMarket(): Player[] {
   );
 }
 export function signPlayerToTeam(teams: Teams, teamKey: TeamKey, player: Player): Teams {
+  if (isForeignPlayer(player) && !canRegisterForeignPlayer(teams[teamKey])) return teams;
   const team = { ...teams[teamKey] },
     signedPlayer = { ...player, tk: teamKey, signedVia: player.note || '市場' };
   if (signedPlayer.isP) team.pitchers = [...team.pitchers, signedPlayer];
@@ -108,10 +118,11 @@ export function cpuAutoSignMarket(
   teams: Teams,
   market: Player[],
   type: 'fa' | 'foreign' = 'fa',
+  excludedTeam: TeamKey | null = null,
 ): { teams: Teams; remaining: Player[] } {
   let nextTeams = { ...teams },
     remaining = [...market];
-  const clubs = [...CENTRAL, ...PACIFIC],
+  const clubs = [...CENTRAL, ...PACIFIC].filter((teamKey) => teamKey !== excludedTeam),
     signedClubs = new Set<TeamKey>(),
     bidScore = (teamKey: TeamKey, pick: Player): number => {
       const need = teamNeedsScore(nextTeams[teamKey], pick) + (type === 'foreign' ? 3 : 0),
@@ -127,7 +138,12 @@ export function cpuAutoSignMarket(
   for (const pick of candidates) {
     if (!remaining.some((candidate) => candidate.id === pick.id)) continue;
     const bids = clubs
-        .filter((teamKey) => !signedClubs.has(teamKey))
+        .filter(
+          (teamKey) =>
+            !signedClubs.has(teamKey) &&
+            (type !== 'foreign' ||
+              countForeignPlayers(nextTeams[teamKey]) < FOREIGN_PLAYER_BALANCE.registeredLimit),
+        )
         .map((teamKey) => {
           const budget = (TINFO[teamKey].bd || 50) * 100;
           if ((pick.ask || 0) > budget + 1500) return null;
@@ -148,11 +164,12 @@ export function cpuAutoSignMarketRounds(
   market: Player[],
   type: 'fa' | 'foreign' = 'fa',
   rounds = 2,
+  excludedTeam: TeamKey | null = null,
 ): { teams: Teams; remaining: Player[] } {
   let nextTeams = { ...teams },
     remaining = [...market];
   for (let round = 0; round < rounds && remaining.length; round += 1) {
-    const result = cpuAutoSignMarket(nextTeams, remaining, type);
+    const result = cpuAutoSignMarket(nextTeams, remaining, type, excludedTeam);
     nextTeams = result.teams;
     remaining = result.remaining;
   }

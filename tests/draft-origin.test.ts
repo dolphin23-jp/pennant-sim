@@ -3,11 +3,11 @@ import test from 'node:test';
 import {
   calcOVR,
   configureRandom,
+  generateDraftProspects,
   resetRandom,
   type DraftOrigin,
   type Player,
 } from '../src/engine';
-import { generateDraftProspects } from '../src/state/offseason';
 
 function mulberry32(seed: number): () => number {
   let state = seed >>> 0;
@@ -25,7 +25,7 @@ const average = (values: number[]) => values.reduce((sum, value) => sum + value,
 test('draft origins control age bands, labels, and population shares', () => {
   configureRandom(mulberry32(20260726), () => 1_700_000_000_000);
   const prospects = Array.from({ length: 100 }, () => generateDraftProspects()).flat();
-  assert.equal(prospects.length, 8000);
+  assert.equal(prospects.length, 9600);
 
   const groups = Object.fromEntries(
     (['高卒', '大卒', '社会人'] as DraftOrigin[]).map((origin) => [
@@ -57,5 +57,18 @@ test('draft origins control age bands, labels, and population shares', () => {
   assert.ok(groups.高卒.some((player) => player.note?.endsWith('怪物候補')));
   assert.ok(groups.大卒.some((player) => player.note?.endsWith('怪物候補')));
   assert.ok(groups.社会人.some((player) => player.note?.endsWith('怪物候補')));
+  assert.ok(
+    prospects.some(
+      (player) => !player.isP && player.note?.endsWith('怪物候補') && Number(player.p.pw) >= 100,
+    ),
+  );
+  assert.ok(
+    prospects.some(
+      (player) =>
+        player.isP &&
+        player.note?.endsWith('怪物候補') &&
+        Math.max(Number(player.p.vel), Number(player.p.ctrl), Number(player.p.nobi)) >= 92,
+    ),
+  );
   resetRandom();
 });
