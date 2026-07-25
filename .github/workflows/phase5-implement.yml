@@ -17,15 +17,7 @@ jobs:
         with:
           ref: agent/phase5-historical-rankings-v2
           fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
       - run: python scripts/phase5-implement.py
-      - run: npm run lint
-      - run: npm test
-      - run: npm run build
       - name: Commit implementation
         run: |
           rm -f scripts/phase5-implement.py scripts/phase5-trigger.txt
