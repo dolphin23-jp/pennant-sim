@@ -123,7 +123,7 @@ export function simHalf(
       const runner = bases[0],
         runnerPlayer = typeof runner === 'object' ? runner : undefined;
       if (runnerPlayer) {
-        let attemptRate = clamp(((runnerPlayer.p.sp - 30) / 260) * 0.55, 0.01, 0.13);
+        let attemptRate = clamp((((runnerPlayer.p.sp ?? 50) - 30) / 260) * 0.55, 0.01, 0.13);
         if (hasSpecial(runnerPlayer, 'sb')) attemptRate *= 1.4;
         if (hasGold(runnerPlayer, 'sb_gold')) attemptRate *= 1.6;
         if (random() < attemptRate) {
@@ -131,7 +131,7 @@ export function simHalf(
             pitcherControl = pitcher.p.ctrl ?? 50,
             defensePenalty = (catcherArm - 50) / 420 + (pitcherControl - 50) / 900,
             successRate = clamp(
-              (0.62 + (runnerPlayer.p.sp - 50) / 280 - defensePenalty) *
+              (0.62 + ((runnerPlayer.p.sp ?? 50) - 50) / 280 - defensePenalty) *
                 (hasGold(runnerPlayer, 'sb_gold') ? 1.12 : 1),
               0.4,
               0.92,
