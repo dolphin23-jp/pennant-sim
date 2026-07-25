@@ -27,6 +27,7 @@ function mulberry32(seed: number): () => number {
 
 const RUNNING_RESULTS = new Set(['SB', 'CS']);
 const NON_AT_BAT_RESULTS = new Set(['BB', 'HBP', 'SH', 'SF']);
+const REACHED_BASE_RESULTS = new Set(['1B', '2B', '3B', 'BB', 'HBP', 'E']);
 
 /** Simulate a slice of a season through the ordinary game path. */
 function simulateGames(count: number, seed: number): GameState[] {
@@ -289,5 +290,155 @@ test('熟練度は全12球団に同じ条件で適用される', () => {
       `${teamKey}の選手が熟練度の入力となる累積成績に含まれている（特定球団だけ除外されていない）`,
     );
   }
+  resetRandom();
+});
+
+test('失策で出塁した走者の得点は自責点にならない', () => {
+  const games = simulateGames(200, 8080);
+  let errorsSeen = 0;
+  let unearnedSeen = 0;
+  for (const game of games) {
+    for (const entry of game.atBatLog) {
+      if (entry.errorFielderId) errorsSeen += 1;
+      for (const run of entry.runsScored ?? []) {
+        if (!run.earned) unearnedSeen += 1;
+        // Every charged run names a pitcher who actually appeared in the game.
+        const pitched = game.atBatLog.some((other) => other.pitcherId === run.chargedPitcherId);
+        assert.ok(pitched, '失点は実際に登板した投手へ記録される');
+      }
+    }
+    // A run scored by a runner who reached on an error is never earned. How a runner got
+    // on is only meaningful within his own half-inning, and reaching cleanly later in the
+    // same inning clears the flag.
+    const halves = new Map<string, typeof game.atBatLog>();
+    for (const entry of game.atBatLog) {
+      const key = `${entry.inning}:${entry.isBot}`;
+      if (!halves.has(key)) halves.set(key, []);
+      halves.get(key)!.push(entry);
+    }
+    for (const entries of halves.values()) {
+      const reachedOnError = new Map<string, boolean>();
+      for (const entry of entries) {
+        for (const run of entry.runsScored ?? []) {
+          if (reachedOnError.get(run.runnerId)) {
+            assert.equal(run.earned, false, '失策で出塁した走者の生還は非自責');
+          }
+        }
+        if (REACHED_BASE_RESULTS.has(entry.result) || entry.errorFielderId) {
+          reachedOnError.set(entry.batterId, Boolean(entry.errorFielderId));
+        }
+      }
+    }
+  }
+  assert.ok(errorsSeen > 0, '検証に足りる失策が発生していること');
+  assert.ok(unearnedSeen > 0, '検証に足りる非自責点が発生していること');
+  resetRandom();
+});
+
+test('自責点は失点を上回らず、失点の合計は両チームの得点と一致する', () => {
+  const games = simulateGames(150, 2468);
+  for (const game of games) {
+    const stats = accumulateStatsAll(game, {});
+    // Re-tally straight from the log so the accumulator cannot quietly ignore the
+    // earned flag it is handed.
+    const expected = new Map<string, { r: number; er: number }>();
+    for (const entry of game.atBatLog) {
+      for (const run of entry.runsScored ?? []) {
+        const line = expected.get(run.chargedPitcherId) ?? { r: 0, er: 0 };
+        line.r += 1;
+        if (run.earned) line.er += 1;
+        expected.set(run.chargedPitcherId, line);
+      }
+    }
+    let chargedRuns = 0;
+    for (const line of Object.values(stats)) {
+      if (line.type !== 'pit') continue;
+      assert.ok(line.er <= line.r, '自責点が失点を超えない');
+      chargedRuns += line.r;
+    }
+    for (const [pitcherId, line] of expected) {
+      const recorded = stats[pitcherId];
+      assert.equal(recorded?.type, 'pit');
+      if (recorded?.type !== 'pit') continue;
+      assert.equal(recorded.r, line.r, '失点が打席ログの集計と一致する');
+      assert.equal(recorded.er, line.er, '自責点が打席ログの集計と一致する');
+    }
+    assert.equal(
+      chargedRuns,
+      game.score.home + game.score.away,
+      '投手に記録された失点の合計が最終スコアと一致する',
+    );
+  }
+  resetRandom();
+});
+
+test('勝利投手・敗戦投手・セーブは公式の成立条件を満たす', () => {
+  const games = simulateGames(858, 13579);
+  let reliefWins = 0;
+  let saves = 0;
+  for (const game of games) {
+    if (game.score.home === game.score.away) continue;
+    const appearances = game.appearances ?? [];
+    const homeWon = game.score.home > game.score.away;
+    const winningSide = homeWon ? 'home' : 'away';
+
+    assert.ok(game.winnerPitcherId, '決着した試合には必ず勝利投手がいる');
+    assert.ok(game.loserPitcherId, '決着した試合には必ず敗戦投手がいる');
+    assert.notEqual(game.winnerPitcherId, game.loserPitcherId);
+
+    const winner = appearances.find((entry) => entry.pitcherId === game.winnerPitcherId);
+    const loser = appearances.find((entry) => entry.pitcherId === game.loserPitcherId);
+    assert.equal(winner?.side, winningSide, '勝利投手は勝ったチームの投手');
+    assert.notEqual(loser?.side, winningSide, '敗戦投手は負けたチームの投手');
+    if (winner && !winner.isStarter) reliefWins += 1;
+    // A starter only gets the win after five innings.
+    if (winner?.isStarter) assert.ok(winner.outsRecorded >= 15, '先発の勝利投手は5回以上投げている');
+
+    if (game.savePitcherId) {
+      saves += 1;
+      assert.notEqual(game.savePitcherId, game.winnerPitcherId, 'セーブは勝利投手には付かない');
+      const saver = appearances.find((entry) => entry.pitcherId === game.savePitcherId);
+      assert.equal(saver?.side, winningSide, 'セーブは勝ったチームの投手');
+      assert.equal(
+        appearances.filter((entry) => entry.side === winningSide).at(-1)?.pitcherId,
+        game.savePitcherId,
+        'セーブは試合を締めた投手に付く',
+      );
+    }
+    for (const id of game.holdPitcherIds ?? []) {
+      assert.notEqual(id, game.winnerPitcherId, 'ホールドは勝利投手には付かない');
+      assert.notEqual(id, game.savePitcherId, 'ホールドはセーブ投手には付かない');
+    }
+  }
+  assert.ok(reliefWins > 0, '救援勝利が発生していること');
+  assert.ok(saves > 0, 'セーブが発生していること');
+  resetRandom();
+});
+
+test('打球はすべて種別と守備位置を持ち、失策は守備側の選手に記録される', () => {
+  const games = simulateGames(120, 24680);
+  const contactResults = new Set(['1B', '2B', '3B', 'HR', 'GO', 'FO', 'DP', 'E']);
+  let contacted = 0;
+  for (const game of games) {
+    const defenders: Record<string, Set<string>> = {
+      [game.teams.home.key]: new Set(game.lineups.home.map((player) => player.id)),
+      [game.teams.away.key]: new Set(game.lineups.away.map((player) => player.id)),
+    };
+    for (const pitcher of game.teams.home.pitchers) defenders[game.teams.home.key]!.add(pitcher.id);
+    for (const pitcher of game.teams.away.pitchers) defenders[game.teams.away.key]!.add(pitcher.id);
+    for (const entry of game.atBatLog) {
+      if (!contactResults.has(entry.result)) continue;
+      contacted += 1;
+      assert.ok(entry.battedBall, `${entry.result}に打球種別が付いている`);
+      assert.ok(entry.dir, `${entry.result}に打球方向が付いている`);
+      if (entry.errorFielderId) {
+        assert.ok(
+          defenders[entry.pSide]?.has(entry.errorFielderId),
+          '失策は守備側の選手に記録される',
+        );
+      }
+    }
+  }
+  assert.ok(contacted > 0, '検証に足りるインプレー打球が発生していること');
   resetRandom();
 });
