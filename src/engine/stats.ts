@@ -7,6 +7,7 @@ import type {
   PlayerStats,
   TeamKey,
 } from './types';
+
 const createBatterStats = (name: string): BatterStats => ({
   type: 'bat',
   name,
@@ -26,6 +27,7 @@ const createBatterStats = (name: string): BatterStats => ({
   bnt: 0,
   sf: 0,
 });
+
 const createPitcherStats = (name: string): PitcherStats => ({
   type: 'pit',
   name,
@@ -43,10 +45,11 @@ const createPitcherStats = (name: string): PitcherStats => ({
   er: 0,
   pc: 0,
 });
+
 function applyBattingEvent(stats: BatterStats, entry: AtBatLogEntry): void {
   const running = entry.result === 'SB' || entry.result === 'CS';
   if (!running) stats.pa += 1;
-  if (!running && entry.result !== 'BB' && entry.result !== 'HBP') stats.ab += 1;
+  if (!running && !['BB', 'HBP', 'SH', 'SF'].includes(entry.result)) stats.ab += 1;
   if (entry.result === 'BB') stats.bb += 1;
   if (['1B', '2B', '3B', 'HR'].includes(entry.result)) {
     stats.h += 1;
@@ -58,17 +61,21 @@ function applyBattingEvent(stats: BatterStats, entry: AtBatLogEntry): void {
   if (entry.result === 'K') stats.k += 1;
   if (entry.result === 'SB') stats.sb += 1;
   if (entry.result === 'CS') stats.cs += 1;
+  if (entry.result === 'SH') stats.bnt += 1;
+  if (entry.result === 'SF') stats.sf += 1;
   stats.rbi += entry.rbi || 0;
 }
+
 function applyPitchingEvent(stats: PitcherStats, entry: AtBatLogEntry): void {
   stats.pc += entry.pc || 3;
   if (['1B', '2B', '3B', 'HR'].includes(entry.result)) stats.h += 1;
   if (entry.result === 'BB') stats.bb += 1;
-  if (['K', 'GO', 'FO'].includes(entry.result)) stats.ip3 += 1;
+  if (['K', 'GO', 'FO', 'SH', 'SF'].includes(entry.result)) stats.ip3 += 1;
   else if (entry.result === 'DP') stats.ip3 += 2;
   if (entry.result === 'K') stats.k += 1;
   stats.er += Math.round((entry.rbi || 0) * 0.88);
 }
+
 export function accumulateStatsAll(
   gameResult: GameState,
   previous: AccumulatedStats,
@@ -112,6 +119,7 @@ export function accumulateStatsAll(
     ensurePitcher(id, next[id]?.name || '').hld += 1;
   return next;
 }
+
 export function accumulateStats(
   gameResult: GameState,
   playerTeam: TeamKey,
@@ -167,6 +175,7 @@ export function accumulateStats(
     if (next[id]) (next[id] as PitcherStats).hld += 1;
   return next;
 }
+
 export function mergeStatMaps(
   base: AccumulatedStats,
   addition: AccumulatedStats,
