@@ -1,3 +1,4 @@
+export * from './aiStrategy';
 export * from './atBat';
 export * from './careerLedger';
 export * from './draft';

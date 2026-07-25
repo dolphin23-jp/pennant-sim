@@ -217,3 +217,88 @@ export function strategyLabel(strategy: TeamStrategy): string {
   };
   return labels[strategy.philosophy];
 }
+
+
+function approximatePositionScore(player: Player, position: FieldPosition): number {
+  const contact = ((player.p.cf ?? 50) + (player.p.cb ?? 50)) / 2;
+  const offense = contact * 0.42 + (player.p.pw ?? 50) * 0.28 + (player.p.dc ?? 50) * 0.18 + (player.p.sp ?? 50) * 0.12;
+  const defense = (player.p.df ?? 50) * 0.62 + (player.p.arm ?? 50) * 0.28 + (position === '捕手' ? (player.p.ld ?? 0) * 0.1 : 0);
+  const aptitude = player.pos === position
+    ? 100
+    : player.positions?.find((entry) => entry.pos === position)?.apt ?? 35;
+  return (offense * 0.58 + defense * 0.42) * (0.72 + aptitude * 0.0028);
+}
+
+function strategicBattingOrder(players: Player[], strategy: TeamStrategy): Player[] {
+  const contact = (player: Player) => ((player.p.cf ?? 50) + (player.p.cb ?? 50)) / 2;
+  const onBase = (player: Player) => contact(player) * 0.68 + (player.p.dc ?? 50) * 0.32;
+  const power = (player: Player) => player.p.pw ?? 50;
+  const speed = (player: Player) => player.p.sp ?? 50;
+  const runCreation = (player: Player) => onBase(player) * 0.58 + power(player) * 0.42;
+  const used = new Set<string>();
+  const slots: Array<Player | undefined> = Array.from({ length: players.length });
+  const take = (score: (player: Player) => number): Player | undefined => {
+    const selected = players.filter((player) => !used.has(player.id)).sort((a, b) => score(b) - score(a))[0];
+    if (selected) used.add(selected.id);
+    return selected;
+  };
+  if (strategy.lineupPhilosophy === 'powerFirst') {
+    slots[3] = take((player) => power(player) * 0.75 + contact(player) * 0.25);
+    slots[2] = take(runCreation);
+    slots[0] = take((player) => onBase(player) * 0.8 + power(player) * 0.2);
+  } else if (strategy.lineupPhilosophy === 'onBaseFirst') {
+    slots[0] = take(onBase);
+    slots[1] = take(onBase);
+    slots[2] = take(runCreation);
+    slots[3] = take((player) => power(player) * 0.68 + contact(player) * 0.32);
+  } else if (strategy.lineupPhilosophy === 'speedFirst') {
+    slots[0] = take((player) => onBase(player) * 0.55 + speed(player) * 0.45);
+    slots[1] = take((player) => contact(player) * 0.52 + speed(player) * 0.48);
+    slots[2] = take(runCreation);
+    slots[3] = take((player) => power(player) * 0.7 + contact(player) * 0.3);
+  } else {
+    slots[3] = take((player) => power(player) * 0.65 + contact(player) * 0.35);
+    slots[2] = take(runCreation);
+    slots[0] = take((player) => onBase(player) * 0.72 + speed(player) * 0.28);
+    slots[1] = take((player) => contact(player) * 0.6 + onBase(player) * 0.4);
+  }
+  const remaining = players.filter((player) => !used.has(player.id)).sort((a, b) => runCreation(b) - runCreation(a));
+  let remainingIndex = 0;
+  for (let index = 0; index < slots.length; index += 1) if (!slots[index]) slots[index] = remaining[remainingIndex++];
+  return slots.filter((player): player is Player => Boolean(player));
+}
+
+export function strategicBestLineup(team: Team): { lineup: Player[]; audit: Record<FieldPosition, CandidateAudit[]> } {
+  const strategy = teamStrategyFor(team.key);
+  const healthy = team.fielders.filter((player) => (player.injuryDays ?? 0) <= 0);
+  const rested = healthy.filter((player) => (player.fatigue ?? 0) < 90);
+  const pool = rested.length >= 9 ? rested : healthy;
+  const positions: FieldPosition[] = ['捕手', '遊撃手', '中堅手', '二塁手', '三塁手', '左翼手', '右翼手', '一塁手'];
+  const audit = auditTeamLineup({ ...team, fielders: pool }, approximatePositionScore);
+  const used = new Set<string>();
+  const selected: Player[] = [];
+  for (const position of positions) {
+    const choice = audit[position].find((entry) => !used.has(entry.playerId));
+    const player = choice ? pool.find((candidate) => candidate.id === choice.playerId) : undefined;
+    if (!player) continue;
+    used.add(player.id);
+    selected.push({ ...player, _assignedPos: position });
+  }
+  for (const player of pool) {
+    if (selected.length >= 9) break;
+    if (!used.has(player.id)) selected.push({ ...player, _assignedPos: player.pos });
+  }
+  return { lineup: strategicBattingOrder(selected.slice(0, 9), strategy), audit };
+}
+
+export function strategicPitcherOrder(team: Team, usage: 'starter' | 'bullpen' | 'closer'): CandidateAudit[] {
+  const strategy = teamStrategyFor(team.key);
+  const role = usage === 'starter' ? '先発' : usage === 'closer' ? 'クローザー' : 'リリーフ';
+  return team.pitchers
+    .filter((player) => player.role === role && (player.injuryDays ?? 0) <= 0)
+    .map((player) => {
+      const base = (player.p.vel ?? 50) * 0.28 + (player.p.ctrl ?? 50) * 0.3 + (player.p.stam ?? 50) * 0.22 + (player.p.nobi ?? 50) * 0.2;
+      return auditPitcherCandidate(player, strategy, usage, base);
+    })
+    .sort((first, second) => second.score - first.score);
+}
