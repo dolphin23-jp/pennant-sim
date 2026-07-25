@@ -37,14 +37,14 @@ test('Japanese name pools are weighted, broad, and free of known contaminated fr
   const surnames = new Set(JAPANESE_SURNAMES.map((entry) => entry.value));
   const givenNames = new Set(JAPANESE_GIVEN_NAMES.map((entry) => entry.value));
   for (const invalid of ['田中将', '高橋光', 'バウアー']) assert.equal(surnames.has(invalid), false);
-  for (const invalid of ['ノーラン']) assert.equal(givenNames.has(invalid), false);
+  assert.equal(givenNames.has('ノーラン'), false);
 });
 
 test('foreign names are separated into origin-region pools', () => {
-  const coveredOrigins = new Set(
+  const coveredOrigins = new Set<string>(
     Object.values(FOREIGN_NAME_POOLS).flatMap((pool) => [...pool.origins]),
   );
-  for (const origin of [
+  const requiredOrigins = [
     'アメリカ',
     'ドミニカ共和国',
     'ベネズエラ',
@@ -53,9 +53,8 @@ test('foreign names are separated into origin-region pools', () => {
     '韓国',
     '台湾',
     'その他',
-  ]) {
-    assert.ok(coveredOrigins.has(origin));
-  }
+  ];
+  for (const origin of requiredOrigins) assert.ok(coveredOrigins.has(origin));
   assert.ok(new Set(FOREIGN_SN).size >= 80);
   assert.ok(new Set(FOREIGN_GN).size >= 80);
 });
