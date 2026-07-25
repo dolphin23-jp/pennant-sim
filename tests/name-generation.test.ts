@@ -38,8 +38,17 @@ test('foreign names are separated into origin-region pools', () => {
   const coveredOrigins = new Set<string>(
     Object.values(FOREIGN_NAME_POOLS).flatMap((pool) => [...pool.origins]),
   );
-  for (const origin of ['アメリカ', 'ドミニカ共和国', 'ベネズエラ', 'キューバ', 'メキシコ', '韓国', '台湾', 'その他'])
-    assert.ok(coveredOrigins.has(origin));
+  const requiredOrigins = [
+    'アメリカ',
+    'ドミニカ共和国',
+    'ベネズエラ',
+    'キューバ',
+    'メキシコ',
+    '韓国',
+    '台湾',
+    'その他',
+  ];
+  for (const origin of requiredOrigins) assert.ok(coveredOrigins.has(origin));
   assert.ok(new Set(FOREIGN_SN).size >= 70);
   assert.ok(new Set(FOREIGN_GN).size >= 70);
 });
