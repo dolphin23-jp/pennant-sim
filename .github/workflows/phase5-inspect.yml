@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   inspect:
-    if: github.head_ref == 'agent/phase5-historical-rankings'
+    if: github.head_ref == 'agent/phase5-historical-rankings-v2'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
