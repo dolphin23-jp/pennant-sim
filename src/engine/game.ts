@@ -1,4 +1,4 @@
-import { FOREIGN_PLAYER_BALANCE, PITCHER_USAGE_BALANCE } from '../data';
+import { AT_BAT_BALANCE, FOREIGN_PLAYER_BALANCE, PITCHER_USAGE_BALANCE } from '../data';
 import { advBases, buildDesc, simAB } from './atBat';
 import { isForeignPlayer } from './foreign';
 import { applyPostGamePlayerEvents } from './playerEvents';
@@ -15,20 +15,23 @@ import {
 } from './pitcherUsage';
 import { clamp, random } from './random';
 import { bestLineup, masteryFromAccum } from './ratings';
-import { hasGold, hasSpecial } from './specials';
+import { hasGold, hasSpecial, specialLevel } from './specials';
 import type {
   AccumulatedStats,
   AtBatLogEntry,
   BaseState,
   GameState,
   HalfInningResult,
+  PlateAppearanceResult,
   Player,
   Side,
   Team,
   TeamKey,
   Teams,
 } from './types';
+
 const teamKeyForSide = (gameState: GameState, side: Side): TeamKey => gameState.teams[side].key;
+
 function resolveLineup(team: Team, supplied?: Player[] | null): Player[] {
   if (!supplied?.length) return bestLineup(team);
   const roster = new Map(team.fielders.map((player) => [player.id, player])),
@@ -44,6 +47,22 @@ function resolveLineup(team: Team, supplied?: Player[] | null): Player[] {
     ? selected
     : bestLineup(team);
 }
+
+function successfulSacrificeAttempt(batter: Player, bases: BaseState, outs: number): boolean {
+  if (outs !== 0 || bases[2] || (!bases[0] && !bases[1])) return false;
+  const bunt = batter.p.bnt ?? 50,
+    power = batter.p.pw ?? 50,
+    level = specialLevel(batter, 'bnt'),
+    attemptRate = clamp(
+      Math.max(0, bunt - 45) / 500 + level * 0.025 + (power < 45 ? 0.015 : 0),
+      0,
+      0.12,
+    );
+  if (random() >= attemptRate) return false;
+  const successRate = clamp(0.58 + (bunt - 50) / 125 + level * 0.045, 0.35, 0.94);
+  return random() < successRate;
+}
+
 export function simHalf(
   gameState: GameState,
   battingSide: Side,
@@ -186,32 +205,46 @@ export function simHalf(
         20,
         100,
       ),
-      isPinch = Boolean(bases[0] || bases[1] || bases[2]) && outs >= 1,
+      isPinch = Boolean(bases[1] || bases[2]) && outs < 2,
       isLead = outs === 0 && !bases[0] && !bases[1] && !bases[2],
-      pitcherMastery = masteryFromAccum(pitcher, accumulatedStats),
-      batterMastery = masteryFromAccum(batter, accumulatedStats),
+      hasComparableMastery = Boolean(accumulatedStats[pitcher.id] && accumulatedStats[batter.id]),
+      pitcherMastery = hasComparableMastery
+        ? masteryFromAccum(pitcher, accumulatedStats)
+        : AT_BAT_BALANCE.mastery.defaultMastery,
+      batterMastery = hasComparableMastery
+        ? masteryFromAccum(batter, accumulatedStats)
+        : AT_BAT_BALANCE.mastery.defaultMastery,
       matchupKey = `${pitcher.id}:${batter.id}`,
       priorMatchups = gameState.matchupCounts[matchupKey] ?? 0;
-    const {
-      result,
-      pc: pitchCount,
-      dir: direction,
-    } = simAB(
-      pitcher,
-      batter,
-      { pStam: staminaPercentage, isPinch, isLead, outs, bases },
-      catcherGameCalling,
-      pitcherMastery,
-      batterMastery,
-      gameState.park,
-      priorMatchups,
-    );
+    let result: PlateAppearanceResult,
+      pitchCount: number,
+      direction: string | null;
+    if (successfulSacrificeAttempt(batter, bases, outs)) {
+      result = 'SH';
+      pitchCount = Math.floor(random() * 4) + 1;
+      direction = ['投犠', '一犠', '三犠'][Math.floor(random() * 3)] ?? '投犠';
+    } else {
+      const outcome = simAB(
+        pitcher,
+        batter,
+        { pStam: staminaPercentage, isPinch, isLead, outs, bases },
+        catcherGameCalling,
+        pitcherMastery,
+        batterMastery,
+        gameState.park,
+        priorMatchups,
+      );
+      result = outcome.result;
+      pitchCount = outcome.pc;
+      direction = outcome.dir;
+    }
     gameState.matchupCounts[matchupKey] = priorMatchups + 1;
     gameState.pc[fieldingSide] += pitchCount;
-    let runsBattedIn = 0;
+    let officialResult = result,
+      runsBattedIn = 0;
     let scoredIds: string[] = [];
     if (result === 'K') outs += 1;
-    else if (result === 'GO') {
+    else if (result === 'GO' || result === 'SH') {
       const advancement = advBases(bases, result, batter, outs);
       bases = advancement.bases;
       runsBattedIn = advancement.runs;
@@ -223,6 +256,10 @@ export function simHalf(
       bases = advancement.bases;
       runsBattedIn = advancement.runs;
       scoredIds = advancement.scorers.map((player) => player.id);
+      if (runsBattedIn > 0) {
+        officialResult = 'SF';
+        direction = direction?.replace('飛', '犠飛') ?? '犠飛';
+      }
       outs += 1;
       runs += runsBattedIn;
     } else if (result === 'DP') {
@@ -250,13 +287,13 @@ export function simHalf(
       pitcher: pitcher.name,
       pitcherId: pitcher.id,
       pSide: teamKeyForSide(gameState, fieldingSide),
-      result,
+      result: officialResult,
       dir: direction,
       pc: pitchCount,
       rbi: runsBattedIn,
       snap: snapshot,
       scoredIds,
-      desc: buildDesc(batter.name, result, direction, runsBattedIn),
+      desc: buildDesc(batter.name, officialResult, direction, runsBattedIn),
     });
     if (battingSide === 'home' && inning >= 8 && snapshot.home > snapshot.away) {
       outs = 3;
@@ -265,6 +302,7 @@ export function simHalf(
   }
   return { runs, atBats };
 }
+
 export function simulateGame(
   homeKey: TeamKey,
   awayKey: TeamKey,
