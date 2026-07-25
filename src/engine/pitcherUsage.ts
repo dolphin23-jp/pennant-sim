@@ -1,6 +1,7 @@
 import { PITCHER_USAGE_BALANCE } from '../data';
 import { clamp } from './random';
 import { calcOVR } from './ratings';
+import { specialLevel } from './specials';
 import type { AtBatLogEntry, Player, Team } from './types';
 
 const MILLISECONDS_PER_DAY = 86_400_000;
@@ -25,11 +26,11 @@ export function recoverPitcherForGame(player: Player, gameDate: string): Player 
           : 0,
     };
   const elapsedDays = calendarDaysBetween(previousUpdate, gameDate),
-    fatigue = clamp(
-      (player.fatigue ?? 0) - elapsedDays * PITCHER_USAGE_BALANCE.fatigue.recoveryPerCalendarDay,
-      0,
-      100,
-    ),
+    // 鉄人 shrugs off a workload faster than everyone else.
+    recoveryPerDay =
+      PITCHER_USAGE_BALANCE.fatigue.recoveryPerCalendarDay *
+      (1 + specialLevel(player, 'iron') * PITCHER_USAGE_BALANCE.fatigue.ironRecoveryPerLevel),
+    fatigue = clamp((player.fatigue ?? 0) - elapsedDays * recoveryPerDay, 0, 100),
     appearanceGap = player.lastPitchedOn
       ? calendarDaysBetween(player.lastPitchedOn, gameDate)
       : Number.POSITIVE_INFINITY;

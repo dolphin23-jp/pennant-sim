@@ -30,6 +30,7 @@ export interface BatterLine {
   sh: number;
   sf: number;
   gdp: number;
+  e: number;
   seasonAvgAfter: number;
   seasonHrAfter: number;
   seasonRbiAfter: number;
@@ -105,6 +106,8 @@ export interface GameSummary {
   awayScore: number;
   homeHits: number;
   awayHits: number;
+  homeErrors: number;
+  awayErrors: number;
   innings: { home: number | null; away: number | null }[];
   extraInnings: boolean;
   tie: boolean;
@@ -164,6 +167,12 @@ function tallyGameOnlyFields(gameState: GameState): {
   return { batters, pitchers };
 }
 
+function countErrors(gameState: GameState, teamKey: TeamKey): number {
+  return gameState.atBatLog.filter(
+    (entry) => entry.pSide === teamKey && Boolean(entry.errorFielderId),
+  ).length;
+}
+
 function countHits(gameState: GameState, teamKey: TeamKey): number {
   return gameState.atBatLog.filter(
     (entry) => entry.bSide === teamKey && HIT_RESULTS.has(entry.result),
@@ -175,7 +184,6 @@ function buildBatterLines(
   side: Side,
   gameStats: AccumulatedStats,
   seasonAfter: AccumulatedStats,
-  extras: Record<string, GameOnlyBatterExtras>,
 ): BatterLine[] {
   const teamKey = gameState.teams[side].key;
   return gameState.lineups[side]
@@ -185,7 +193,6 @@ function buildBatterLines(
       const batStats = stats as BatterStats;
       const after = seasonAfter[player.id];
       const afterBat = after?.type === 'bat' ? (after as BatterStats) : null;
-      const gameExtras = extras[player.id] ?? { r: 0, hbp: 0, gdp: 0 };
       const line: BatterLine = {
         playerId: player.id,
         name: player.name,
@@ -193,20 +200,21 @@ function buildBatterLines(
         battingOrder: index + 1,
         position: player._assignedPos ?? player.pos ?? null,
         ab: batStats.ab,
-        r: gameExtras.r,
+        r: batStats.r,
         h: batStats.h,
         d: batStats.d,
         t: batStats.t,
         hr: batStats.hr,
         rbi: batStats.rbi,
         bb: batStats.bb,
-        hbp: gameExtras.hbp,
+        hbp: batStats.hbp,
         k: batStats.k,
         sb: batStats.sb,
         cs: batStats.cs,
         sh: batStats.bnt,
         sf: batStats.sf,
-        gdp: gameExtras.gdp,
+        gdp: batStats.gdp,
+        e: batStats.e,
         seasonAvgAfter: afterBat && afterBat.ab > 0 ? afterBat.h / afterBat.ab : 0,
         seasonHrAfter: afterBat?.hr ?? 0,
         seasonRbiAfter: afterBat?.rbi ?? 0,
@@ -236,7 +244,6 @@ function buildPitcherLines(
       const pitStats = stats as PitcherStats;
       const after = seasonAfter[playerId];
       const afterPit = after?.type === 'pit' ? (after as PitcherStats) : null;
-      const gameExtras = extras[playerId] as GameOnlyPitcherExtras;
       const name =
         gameState.teams[side].pitchers.find((pitcher) => pitcher.id === playerId)?.name ??
         pitStats.name;
@@ -261,13 +268,13 @@ function buildPitcherLines(
         decision,
         ip3: pitStats.ip3,
         pitches: pitStats.pc,
-        battersFaced: gameExtras.battersFaced,
+        battersFaced: pitStats.bf,
         h: pitStats.h,
-        hr: gameExtras.hrAllowed,
+        hr: pitStats.hr,
         bb: pitStats.bb,
-        hbp: 0,
+        hbp: pitStats.hbp,
         k: pitStats.k,
-        r: gameExtras.runsAllowed,
+        r: pitStats.r,
         er: pitStats.er,
         seasonWAfter: afterPit?.w ?? 0,
         seasonLAfter: afterPit?.l ?? 0,
@@ -466,11 +473,11 @@ export function buildGameBoxScore(
 ): GameBoxScore {
   const gameStats = accumulateStatsAll(gameState, {});
   const seasonAfter = mergeStatMaps(seasonStatsBefore, gameStats);
-  const { batters: batterExtras, pitchers: pitcherExtras } = tallyGameOnlyFields(gameState);
+  const { pitchers: pitcherExtras } = tallyGameOnlyFields(gameState);
 
   const batterLines = [
-    ...buildBatterLines(gameState, 'away', gameStats, seasonAfter, batterExtras),
-    ...buildBatterLines(gameState, 'home', gameStats, seasonAfter, batterExtras),
+    ...buildBatterLines(gameState, 'away', gameStats, seasonAfter),
+    ...buildBatterLines(gameState, 'home', gameStats, seasonAfter),
   ];
   const pitcherLines = [
     ...buildPitcherLines(gameState, 'away', gameStats, seasonAfter, pitcherExtras),
@@ -508,6 +515,9 @@ export function buildGameBoxScore(
     awayScore,
     homeHits: countHits(gameState, gameState.teams.home.key),
     awayHits: countHits(gameState, gameState.teams.away.key),
+    // An error is charged to the side that was in the field, i.e. the pitching side.
+    homeErrors: countErrors(gameState, gameState.teams.home.key),
+    awayErrors: countErrors(gameState, gameState.teams.away.key),
     innings,
     extraInnings: innings.length > 9,
     tie,
@@ -533,6 +543,8 @@ export function toSummary(box: GameBoxScore): GameSummary {
     awayScore,
     homeHits,
     awayHits,
+    homeErrors,
+    awayErrors,
     innings,
     extraInnings,
     tie,
@@ -551,6 +563,8 @@ export function toSummary(box: GameBoxScore): GameSummary {
     awayScore,
     homeHits,
     awayHits,
+    homeErrors,
+    awayErrors,
     innings,
     extraInnings,
     tie,

@@ -129,6 +129,8 @@ export const FOREIGN_PLAYER_BALANCE = {
 export const PITCHER_USAGE_BALANCE = {
   fatigue: {
     recoveryPerCalendarDay: 16,
+    /** 鉄人: each level speeds up how fast a pitcher sheds fatigue. */
+    ironRecoveryPerLevel: 0.09,
     maximumSelectable: 65,
     emergencyMaximum: 96,
     selectionPenaltyPerPoint: 1.25,
@@ -159,6 +161,28 @@ export const PITCHER_USAGE_BALANCE = {
     ratingEffectSoftness: 0.16,
     maximumRatingEffect: 0.045,
   },
+} as const;
+
+// Defence: who fields a batted ball, how well, and how often they misplay it.
+// Error rates are set so a team commits roughly 80-100 errors over a 143-game season,
+// which is the NPB norm (a fielding percentage a shade under .985).
+export const FIELDING_BALANCE = {
+  defaultDefenseScore: 50,
+  /** Share of up-the-middle ground balls the pitcher fields himself. */
+  pitcherGroundBallShare: 0.22,
+  /** Playing out of position costs range; scales the aptitude shortfall into rating points. */
+  outOfPositionPenaltyScale: 34,
+  strongArmPerLevel: 4,
+  errorBaseRate: {
+    ground: 0.035,
+    line: 0.016,
+    fly: 0.005,
+    popup: 0.008,
+  },
+  pitcherErrorFactor: 0.7,
+  errorDefenseScale: 130,
+  minErrorRate: 0.001,
+  maxErrorRate: 0.12,
 } as const;
 
 // simAB probability model. Context multipliers intentionally stay small so player ratings remain primary.
@@ -198,18 +222,71 @@ export const AT_BAT_BALANCE = {
     minRate: 0.0005,
     maxRate: 0.12,
   },
-  groundBall: {
-    baseRate: 0.462,
-    singleShare: 0.82,
-    // Share of the ground-ball band that becomes a double play *when one is possible*
-    // (runner forced at first, fewer than two outs). Before that gate existed this was
-    // 0.1 and fired in every situation, including with the bases empty; re-tuned to 0.75
-    // so the league still turns a realistic ~1,150 double plays a season.
-    doublePlayShare: 0.75,
+  // Stage 2 — what kind of ball was hit. Shares are the league-average mix before the
+  // pitcher's and batter's tendencies move them; NPB sits near 45% grounders, 20% liners,
+  // 27% fly balls and 8% pop-ups.
+  battedBall: {
+    shares: { ground: 0.45, line: 0.2, fly: 0.27, popup: 0.08 },
+    groundPerPitcherLevel: 0.035,
+    flyPerPitcherMovement: 0.0016,
+    groundPerBatterOppoLevel: 0.02,
+    flyPerBatterPullLevel: 0.025,
+    flyPerPowerPoint: 0.0022,
+    minShare: 0.02,
   },
-  airBall: {
-    tripleShare: 0.02,
-    doubleShare: 0.2,
+  // Stage 3 — pull / centre / opposite field.
+  direction: {
+    shares: { pull: 0.38, center: 0.34, oppo: 0.28 },
+    pullPerPullLevel: 0.05,
+    oppoPerOppoLevel: 0.05,
+    centerPerSprayLevel: 0.03,
+    minShare: 0.05,
+  },
+  // Stage 4 — does the ball fall in. These are hit rates on contact BEFORE the fielder's
+  // ability is applied, so they sit above the finished BABIP.
+  hitOnContact: {
+    base: { ground: 0.242, line: 0.638, fly: 0.203, popup: 0.02 },
+    /** Rating points of fielder defence needed to move the hit rate by one unit. */
+    defenseScale: 240,
+    /** Batter speed matters most on ground balls, least in the air. */
+    speedScale: { ground: 700, line: 4000, fly: 4000, popup: 8000 },
+    /** Balls hit to the gaps and down the lines are harder to field than centre cuts. */
+    directionFactor: { pull: 1.04, center: 0.93, oppo: 1.03 },
+    minRate: 0.01,
+    maxRate: 0.92,
+  },
+  // Stage 4b — a fly ball that carries out. Only outfield fly balls and line drives are
+  // eligible; the batter's power moves this far more than anything else.
+  homeRunOnFly: {
+    flyBase: 0.055,
+    lineDriveFactor: 0.28,
+    powerCurveReference: 60,
+    powerCurveScale: 26,
+    minimumPowerLogMultiplier: -1.6,
+    maximumPowerLogMultiplier: 1.0,
+    velocityScale: 3400,
+    movementScale: 3400,
+    directionFactor: { pull: 1.4, center: 0.85, oppo: 0.62 },
+    fatigueBonus: 0.18,
+    sluggerBaseMultiplier: 1.55,
+    sluggerPowerBonusScale: 100,
+    sluggerMaximumPowerBonus: 0.5,
+    minRate: 0.0005,
+    maxRate: 0.6,
+  },
+  // Stage 5 — how far the batter got on a hit.
+  hitType: {
+    tripleShare: { ground: 0.004, line: 0.022, fly: 0.03, popup: 0 },
+    doubleShare: { ground: 0.03, line: 0.24, fly: 0.34, popup: 0.02 },
+    /** Balls into the gaps stretch into extra bases far more often. */
+    directionExtraBase: { pull: 1.08, center: 1.16, oppo: 1.0 },
+    speedScale: 900,
+    outfieldArmScale: 1100,
+  },
+  groundBall: {
+    // Share of ground balls that become a double play *when one is possible* (runner
+    // forced at first, fewer than two outs).
+    doublePlayShare: 0.32,
   },
   baseRunning: {
     scoreFromFirstOnDouble: { standard: 0.43, fast: 0.58 },
@@ -254,4 +331,18 @@ export const AT_BAT_BALANCE = {
   },
   catcherLead: { baseMultiplier: 0.86, ratingShare: 0.14, fallbackMultiplier: 0.93 },
   mastery: { baseMultiplier: 0.92, ratingShare: 0.08, defaultMastery: 0.75 },
+  // Specials that act on the game outside the plate-appearance rate formulas.
+  specials: {
+    /** 疲れにくい: each level stretches how far a stamina rating carries the pitcher. */
+    toughPerLevel: 0.07,
+    /** 配球の妙: each level adds to the catcher's effective game calling. */
+    gameCallingPerLevel: 4,
+    /** 勝負強さ: contact bonus with a runner in scoring position. */
+    clutchHitPerLevel: 0.022,
+    /** 対エース○: shields the batter from a strong starter's edge. */
+    aceKillerPerLevel: 0.18,
+    /** 初球○/×: swinging early trades walks for balls in play. */
+    firstPitchWalkPerLevel: 0.05,
+    firstPitchContactPerLevel: 0.012,
+  },
 } as const;

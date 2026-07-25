@@ -4,6 +4,11 @@ import { Linescore } from './Linescore';
 
 const HIT_RESULTS = new Set(['1B', '2B', '3B', 'HR']);
 
+function countErrors(game: GameState, side: 'home' | 'away'): number {
+  const teamKey = game.teams[side].key;
+  return game.atBatLog.filter((entry) => entry.pSide === teamKey && entry.errorFielderId).length;
+}
+
 function countHits(game: GameState, side: 'home' | 'away'): number {
   const teamKey = game.teams[side].key;
   return game.atBatLog.filter((entry) => entry.bSide === teamKey && HIT_RESULTS.has(entry.result)).length;
@@ -14,6 +19,8 @@ export function BoxScore({ game }: { game: GameState | null }) {
   const { home, away } = game.teams;
   const awayHits = countHits(game, 'away');
   const homeHits = countHits(game, 'home');
+  const awayErrors = countErrors(game, 'away');
+  const homeErrors = countErrors(game, 'home');
   return (
     <Card ariaLabel={`${away.n}対${home.n}の試合結果`}>
       <SectionTitle>Box Score</SectionTitle>
@@ -25,6 +32,8 @@ export function BoxScore({ game }: { game: GameState | null }) {
         awayScore={game.score.away}
         homeHits={homeHits}
         awayHits={awayHits}
+        homeErrors={homeErrors}
+        awayErrors={awayErrors}
       />
       <SectionTitle>Play Log</SectionTitle>
       <div

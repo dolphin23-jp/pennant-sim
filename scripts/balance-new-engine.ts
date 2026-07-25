@@ -7,6 +7,7 @@ import {
   configureRandom,
   generateSchedule,
   initTeams,
+  qualifiesForRate,
   simulateGame,
   type AccumulatedStats,
   type Player,
@@ -162,7 +163,14 @@ function finalizeSeason(accumulatedStats: AccumulatedStats, games: number) {
     earnedRuns = sumStats(pitching, 'er'),
     pitchingOuts = sumStats(pitching, 'ip3'),
     homeRunLeader = Math.max(0, ...batting.map((line) => line.hr)),
-    runsBattedInLeader = Math.max(0, ...batting.map((line) => line.rbi));
+    runsBattedInLeader = Math.max(0, ...batting.map((line) => line.rbi)),
+    errors = sumStats(batting, 'e'),
+    runsAllowed = sumStats(pitching, 'r'),
+    // Rate titles are only open to players who reached the qualifying thresholds, so the
+    // distribution of .300 hitters and sub-2.00 ERAs must be measured the same way.
+    teamGames = games / 6,
+    qualifiedBatters = batting.filter((line) => qualifiesForRate(line, teamGames)),
+    qualifiedPitchers = pitching.filter((line) => qualifiesForRate(line, teamGames));
   return {
     games,
     battingAverage: safeRatio(hits, atBats),
@@ -179,6 +187,10 @@ function finalizeSeason(accumulatedStats: AccumulatedStats, games: number) {
     stolenBaseSuccessRate: safeRatio(stolenBases, stolenBases + caughtStealing),
     stolenBaseAttemptsPerTeamGame: safeRatio(stolenBases + caughtStealing, games * 2),
     walkRate: safeRatio(walks, plateAppearances),
+    battingAverage300PlusCount: qualifiedBatters.filter((line) => line.h / line.ab >= 0.3).length,
+    era200MinusCount: qualifiedPitchers.filter((line) => (line.er * 27) / line.ip3 < 2).length,
+    errorsPerTeam: errors / 12,
+    unearnedRunShare: safeRatio(runsAllowed - earnedRuns, runsAllowed),
   };
 }
 function summarize(values: number[]) {
@@ -241,6 +253,19 @@ async function main(): Promise<void> {
       homeRuns: roundSummary(summarize(seasonStats.map((stats) => stats.homeRuns)), 3),
       homeRunLeader: roundSummary(summarize(seasonStats.map((stats) => stats.homeRunLeader)), 3),
       homeRuns30Plus: roundSummary(summarize(seasonStats.map((stats) => stats.homeRuns30Plus)), 3),
+      battingAverage300PlusCount: roundSummary(
+        summarize(seasonStats.map((stats) => stats.battingAverage300PlusCount)),
+        3,
+      ),
+      era200MinusCount: roundSummary(
+        summarize(seasonStats.map((stats) => stats.era200MinusCount)),
+        3,
+      ),
+      errorsPerTeam: roundSummary(summarize(seasonStats.map((stats) => stats.errorsPerTeam)), 3),
+      unearnedRunShare: roundSummary(
+        summarize(seasonStats.map((stats) => stats.unearnedRunShare)),
+        6,
+      ),
       homeRuns40Plus: roundSummary(summarize(seasonStats.map((stats) => stats.homeRuns40Plus)), 3),
       homeRuns50Plus: roundSummary(summarize(seasonStats.map((stats) => stats.homeRuns50Plus)), 3),
       homeRuns60Plus: roundSummary(summarize(seasonStats.map((stats) => stats.homeRuns60Plus)), 3),

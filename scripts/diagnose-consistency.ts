@@ -34,10 +34,16 @@ interface Counters {
   scoreMismatchGames: number;
   sacFlyLike: number;
   sacBunts: number;
+  errors: number;
+  battedBall: Record<string, number>;
   ties: number;
   tiesWithDecision: number;
   gamesNoWinner: number;
   reliefWinOpportunities: number;
+  reliefWins: number;
+  saves: number;
+  holds: number;
+  blownSaves: number;
 }
 
 const counters: Counters = {
@@ -54,10 +60,16 @@ const counters: Counters = {
   scoreMismatchGames: 0,
   sacFlyLike: 0,
   sacBunts: 0,
+  errors: 0,
+  battedBall: { ground: 0, line: 0, fly: 0, popup: 0 },
   ties: 0,
   tiesWithDecision: 0,
   gamesNoWinner: 0,
   reliefWinOpportunities: 0,
+  reliefWins: 0,
+  saves: 0,
+  holds: 0,
+  blownSaves: 0,
 };
 
 // Replay each half-inning from the at-bat log to recover base/out state at each event,
@@ -76,6 +88,7 @@ function auditGame(game: GameState): void {
     if (!halves.has(key)) halves.set(key, []);
     halves.get(key)!.push(entry);
     scoredIdCount += (entry.scoredIds ?? []).length;
+    if (entry.battedBall) counters.battedBall[entry.battedBall] += 1;
   }
 
   for (const entries of halves.values()) {
@@ -90,8 +103,11 @@ function auditGame(game: GameState): void {
       switch (entry.result) {
         case 'DP': {
           counters.dpTotal += 1;
-          if (!onFirst) counters.dpNoRunnerOnFirst += 1;
-          if (outs >= 2) counters.dpWithTwoOuts += 1;
+          // Prefer the state the engine recorded; the replay below is only a fallback.
+          const hadRunnerOnFirst = entry.basesBefore ? entry.basesBefore[0] : onFirst;
+          const outsAtPlay = entry.outsBefore ?? outs;
+          if (!hadRunnerOnFirst) counters.dpNoRunnerOnFirst += 1;
+          if (outsAtPlay >= 2) counters.dpWithTwoOuts += 1;
           const realOuts = Math.min(2, 3 - outs); // half ends at 3
           if (realOuts < 2) counters.dpOutOverflow += 1;
           addOut(entry.pitcherId, realOuts);
@@ -132,9 +148,16 @@ function auditGame(game: GameState): void {
           onFirst = false;
           break;
         }
+        case 'E':
         case 'SB': {
-          onSecond = true;
-          onFirst = false;
+          if (entry.result === 'SB') {
+            onSecond = true;
+            onFirst = false;
+          } else {
+            counters.errors += 1;
+            if (onSecond && !onThird) onThird = true;
+            onFirst = true;
+          }
           break;
         }
         case 'HR': {
@@ -181,6 +204,14 @@ function auditGame(game: GameState): void {
   // Runs actually scored should equal the number of scoredIds recorded.
   const totalRuns = game.score.home + game.score.away;
   if (scoredIdCount !== totalRuns) counters.scoreMismatchGames += 1;
+
+  if (game.winnerPitcherId) {
+    const winner = (game.appearances ?? []).find((a) => a.pitcherId === game.winnerPitcherId);
+    if (winner && !winner.isStarter) counters.reliefWins += 1;
+  }
+  if (game.savePitcherId) counters.saves += 1;
+  counters.holds += (game.holdPitcherIds ?? []).length;
+  counters.blownSaves += (game.blownSavePitcherIds ?? []).length;
 
   // Decision-pitcher sanity.
   const tie = game.score.home === game.score.away;
@@ -257,12 +288,26 @@ function main(): void {
   console.log(`犠飛(SF):                 ${counters.sacFlyLike}`);
   console.log(`犠打(SH):                 ${counters.sacBunts}`);
   console.log('');
+  console.log('--- 守備 ---');
+  console.log(
+    `失策(E):                  ${counters.errors} (1球団あたり ${(counters.errors / 12).toFixed(1)})`,
+  );
+  const battedBallTotal = Object.values(counters.battedBall).reduce((a, b) => a + b, 0);
+  for (const [kind, count] of Object.entries(counters.battedBall)) {
+    console.log(`  ${kind.padEnd(8)}: ${String(count).padStart(6)} (${pct(count, battedBallTotal)})`);
+  }
+  console.log('');
   console.log('--- 責任投手 ---');
   console.log(`引き分け:                 ${counters.ties}`);
   console.log(`  うち勝敗/Sが付いた:     ${counters.tiesWithDecision}`);
   console.log(
     `決着したが勝利投手なし:   ${counters.gamesNoWinner} (${pct(counters.gamesNoWinner, counters.games - counters.ties)} of decided games)`,
   );
+  const decided = counters.games - counters.ties;
+  console.log(`救援勝利:                 ${counters.reliefWins} (${pct(counters.reliefWins, decided)} of decided)`);
+  console.log(`セーブ:                   ${counters.saves} (${pct(counters.saves, decided)} of decided)`);
+  console.log(`ホールド:                 ${counters.holds} (1球団あたり ${(counters.holds / 12).toFixed(1)})`);
+  console.log(`ブロウンセーブ:           ${counters.blownSaves} (1球団あたり ${(counters.blownSaves / 12).toFixed(1)})`);
 }
 
 main();

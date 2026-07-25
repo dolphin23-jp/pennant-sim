@@ -1,11 +1,22 @@
-import { AT_BAT_BALANCE, PITCHER_USAGE_BALANCE } from '../data';
+import { AT_BAT_BALANCE, FIELDING_BALANCE, PITCHER_USAGE_BALANCE } from '../data';
+import {
+  errorChance,
+  fielderArmScore,
+  fielderDefenseScore,
+  fieldingSlotFor,
+  isOutfieldSlot,
+  resolveFielder,
+  type BattedBallDirection,
+  type FieldingSlot,
+} from './fielding';
 import { foreignPerformanceMultiplier } from './foreign';
-import { clamp, random, randomChoice, randomInt } from './random';
+import { clamp, random, randomInt } from './random';
 import { hasGold, hasSpecial, specialLevel, specialMultiplier } from './specials';
 import type {
   AtBatOutcome,
   AtBatSituation,
   BaseState,
+  BattedBallType,
   ParkFactors,
   PlateAppearanceResult,
   Player,
@@ -14,6 +25,238 @@ import type {
 // The subset of outcomes the at-bat simulation itself can produce (sacrifices are
 // determined by the game loop, not by the pitcher/batter matchup roll).
 type SimulatedPlateAppearanceResult = Exclude<PlateAppearanceResult, 'SH' | 'SF'>;
+
+const PITCH_COUNT_RANGE: Record<SimulatedPlateAppearanceResult, [number, number]> = {
+  K: [4, 7],
+  BB: [5, 8],
+  HBP: [1, 3],
+  HR: [2, 5],
+  '1B': [2, 5],
+  '2B': [2, 5],
+  '3B': [2, 4],
+  GO: [1, 4],
+  FO: [1, 4],
+  DP: [3, 6],
+  E: [1, 4],
+};
+
+const pitchCountFor = (result: SimulatedPlateAppearanceResult): number => {
+  const [minimum, maximum] = PITCH_COUNT_RANGE[result];
+  return randomInt(minimum, maximum);
+};
+
+const SLOT_LABEL: Record<string, string> = {
+  投手: '投',
+  捕手: '捕',
+  一塁手: '一',
+  二塁手: '二',
+  三塁手: '三',
+  遊撃手: '遊',
+  左翼手: '左',
+  中堅手: '中',
+  右翼手: '右',
+};
+
+/** Build the Japanese play description fragment, e.g. 「遊ゴ」「左飛」「右中」. */
+function describeContact(
+  result: SimulatedPlateAppearanceResult,
+  battedBall: BattedBallType,
+  slot: FieldingSlot,
+  direction: BattedBallDirection,
+): string {
+  const label = SLOT_LABEL[slot] ?? '中';
+  if (result === 'HR') return label;
+  if (result === '3B' || result === '2B') {
+    // Extra-base hits are described by the gap they found.
+    if (direction === 'center') return slot === '左翼手' ? '左中' : '右中';
+    return label;
+  }
+  if (result === '1B') return label;
+  if (battedBall === 'ground') return `${label}ゴ`;
+  if (battedBall === 'line') return `${label}直`;
+  if (battedBall === 'popup') return `${label}飛`;
+  return `${label}飛`;
+}
+
+function finishNonContact(result: 'K' | 'BB' | 'HBP'): AtBatOutcome {
+  return { result, pc: pitchCountFor(result), dir: null };
+}
+
+function finishContact(
+  result: SimulatedPlateAppearanceResult,
+  battedBall: BattedBallType,
+  slot: FieldingSlot,
+  direction: BattedBallDirection,
+  errorFielderId: string | null,
+): AtBatOutcome {
+  return {
+    result,
+    pc: pitchCountFor(result),
+    dir: describeContact(result, battedBall, slot, direction),
+    battedBall,
+    fieldingSlot: slot,
+    errorFielderId,
+  };
+}
+
+/** Draw from a set of weighted shares. */
+function pickWeighted<T extends string>(shares: Record<T, number>): T {
+  const keys = Object.keys(shares) as T[];
+  const total = keys.reduce((sum, key) => sum + Math.max(0, shares[key]), 0);
+  let roll = random() * total;
+  for (const key of keys) {
+    roll -= Math.max(0, shares[key]);
+    if (roll <= 0) return key;
+  }
+  return keys[keys.length - 1] as T;
+}
+
+/** Stage 2 — ground ball, line drive, fly ball or pop-up. */
+export function resolveBattedBallType(
+  pitcher: Player,
+  batter: Player,
+  adjustedPower: number,
+  adjustedMovement: number,
+): BattedBallType {
+  const config = AT_BAT_BALANCE.battedBall;
+  // 重い球 / 低め○ / ゴロ打たせ○ all push the ball into the ground; a pitcher who works
+  // up in the zone gives up more air.
+  const groundPush =
+    (specialLevel(pitcher, 'heavy') +
+      specialLevel(pitcher, 'low') +
+      specialLevel(pitcher, 'gb') * 1.4) *
+    config.groundPerPitcherLevel;
+  const movementLift = (adjustedMovement - 50) * config.flyPerPitcherMovement;
+  const batterGround = specialLevel(batter, 'oppo') * config.groundPerBatterOppoLevel;
+  const batterAir =
+    specialLevel(batter, 'pull') * config.flyPerBatterPullLevel +
+    (adjustedPower - 50) * config.flyPerPowerPoint;
+  const shares = {
+    ground: config.shares.ground + groundPush + batterGround - movementLift - batterAir * 0.6,
+    line: config.shares.line + batterAir * 0.25,
+    fly: config.shares.fly + movementLift + batterAir * 0.75 - groundPush * 0.7,
+    popup: config.shares.popup + movementLift * 0.3 - groundPush * 0.3,
+  };
+  for (const key of Object.keys(shares) as BattedBallType[]) {
+    shares[key] = Math.max(config.minShare, shares[key]);
+  }
+  return pickWeighted(shares);
+}
+
+/** Stage 3 — pull, centre or opposite field. */
+export function resolveDirection(batter: Player): BattedBallDirection {
+  const config = AT_BAT_BALANCE.direction;
+  const shares = {
+    pull: config.shares.pull + specialLevel(batter, 'pull') * config.pullPerPullLevel,
+    center: config.shares.center + specialLevel(batter, 'spray') * config.centerPerSprayLevel,
+    oppo: config.shares.oppo + specialLevel(batter, 'oppo') * config.oppoPerOppoLevel,
+  };
+  for (const key of Object.keys(shares) as BattedBallDirection[]) {
+    shares[key] = Math.max(config.minShare, shares[key]);
+  }
+  return pickWeighted(shares);
+}
+
+/** Stage 4a — the chance an outfield fly or liner carries over the fence. */
+function homeRunChanceOnContact(input: {
+  battedBall: BattedBallType;
+  direction: BattedBallDirection;
+  adjustedPower: number;
+  adjustedVelocity: number;
+  adjustedMovement: number;
+  staminaRatio: number;
+  batter: Player;
+  pitcher: Player;
+  park: ParkFactors;
+  batterContextMultiplier: number;
+}): number {
+  const config = AT_BAT_BALANCE.homeRunOnFly;
+  const powerMultiplier = Math.exp(
+    clamp(
+      (softRatingDelta(input.adjustedPower) - softRatingDelta(config.powerCurveReference)) /
+        config.powerCurveScale,
+      config.minimumPowerLogMultiplier,
+      config.maximumPowerLogMultiplier,
+    ),
+  );
+  let chance = config.flyBase;
+  if (input.battedBall === 'line') chance *= config.lineDriveFactor;
+  chance *= powerMultiplier;
+  chance *= config.directionFactor[input.direction];
+  chance -= softRatingDelta(input.adjustedVelocity) / config.velocityScale;
+  chance -= softRatingDelta(input.adjustedMovement) / config.movementScale;
+  chance *= 1 + (1 - input.staminaRatio) * config.fatigueBonus;
+  chance *= 1 - specialLevel(input.pitcher, 'heavy') * 0.05;
+  if (hasGold(input.pitcher, 'heavy_gold')) chance *= 0.84;
+  if (hasGold(input.batter, 'slugger_gold'))
+    chance *=
+      config.sluggerBaseMultiplier +
+      clamp(
+        (input.adjustedPower - config.powerCurveReference) / config.sluggerPowerBonusScale,
+        0,
+        config.sluggerMaximumPowerBonus,
+      );
+  chance *= input.batterContextMultiplier * input.park.homeRun;
+  return clamp(chance, config.minRate, config.maxRate);
+}
+
+/** Stage 4c — the chance a fielded ball falls in for a hit. */
+function hitChanceOnContact(input: {
+  battedBall: BattedBallType;
+  direction: BattedBallDirection;
+  defenseScore: number;
+  adjustedSpeed: number;
+  adjustedFastballContact: number;
+  batter: Player;
+  park: ParkFactors;
+  batterContextMultiplier: number;
+  isPinch: boolean;
+}): number {
+  const config = AT_BAT_BALANCE.hitOnContact;
+  let chance = config.base[input.battedBall];
+  // Better defence turns more of the same batted balls into outs.
+  chance -= (input.defenseScore - 50) / config.defenseScale;
+  chance += (input.adjustedSpeed - 50) / config.speedScale[input.battedBall];
+  chance += (input.adjustedFastballContact - 50) / AT_BAT_BALANCE.ballsInPlay.contactScale;
+  chance *= config.directionFactor[input.direction];
+  chance *= 1 + specialLevel(input.batter, 'avg') * 0.02;
+  chance *= 1 + specialLevel(input.batter, 'spray') * 0.015;
+  // 勝負強さ only shows up with a runner in scoring position.
+  if (input.isPinch)
+    chance *= 1 + specialLevel(input.batter, 'win') * AT_BAT_BALANCE.specials.clutchHitPerLevel;
+  // 初球○ puts more balls in play; 初球× wastes the count's best pitch.
+  chance *= 1 + specialLevel(input.batter, 'fbo') * AT_BAT_BALANCE.specials.firstPitchContactPerLevel;
+  chance *= 1 - specialLevel(input.batter, 'fbx') * AT_BAT_BALANCE.specials.firstPitchContactPerLevel;
+  if (hasGold(input.batter, 'avg_gold')) chance *= 1.12;
+  if (hasGold(input.batter, 'spray_gold')) chance *= 1.08;
+  chance *= input.batterContextMultiplier * input.park.hit;
+  return clamp(chance, config.minRate, config.maxRate);
+}
+
+/** Stage 5 — single, double or triple. */
+export function resolveHitType(
+  battedBall: BattedBallType,
+  direction: BattedBallDirection,
+  adjustedSpeed: number,
+  fielder: Player | null,
+): '1B' | '2B' | '3B' {
+  const config = AT_BAT_BALANCE.hitType;
+  const gapFactor = config.directionExtraBase[direction];
+  const speedBonus = (adjustedSpeed - 50) / config.speedScale;
+  const armPenalty = (fielderArmScore(fielder) - 50) / config.outfieldArmScale;
+  const tripleChance = Math.max(
+    0,
+    config.tripleShare[battedBall] * gapFactor + speedBonus * 0.5 - armPenalty,
+  );
+  const doubleChance = Math.max(
+    0,
+    config.doubleShare[battedBall] * gapFactor + speedBonus - armPenalty,
+  );
+  const roll = random();
+  if (roll < tripleChance) return '3B';
+  if (roll < tripleChance + doubleChance) return '2B';
+  return '1B';
+}
 
 function softRatingDelta(value: number): number {
   const raw = value - 50,
@@ -46,7 +289,16 @@ export function simAB(
       AT_BAT_BALANCE.familiarity.maxMultiplier,
       1 + Math.max(0, priorMatchups) * AT_BAT_BALANCE.familiarity.perPriorMatchup,
     ),
-    batterContextMultiplier = platoonMultiplier * familiarityMultiplier;
+    // 対エース○ gives the batter back part of what a high-quality pitcher takes away.
+    pitcherQualityEdge = Math.max(
+      0,
+      ((pitcherParams.vel ?? 50) + (pitcherParams.nobi ?? 50) + (pitcherParams.ctrl ?? 50)) / 3 - 50,
+    ),
+    aceKillerMultiplier =
+      1 +
+      (specialLevel(batter, 'ace') * AT_BAT_BALANCE.specials.aceKillerPerLevel * pitcherQualityEdge) /
+        50,
+    batterContextMultiplier = platoonMultiplier * familiarityMultiplier * aceKillerMultiplier;
   const catcherLeadMultiplier = catcherGameCalling
     ? AT_BAT_BALANCE.catcherLead.baseMultiplier +
       (catcherGameCalling / 100) * AT_BAT_BALANCE.catcherLead.ratingShare
@@ -115,6 +367,8 @@ export function simAB(
   walkRate *= catcherLeadMultiplier;
   walkRate *= 1 - specialLevel(pitcher, 'cnr') * 0.03;
   walkRate *= 1 + specialLevel(batter, 'eye') * 0.04;
+  walkRate *= 1 - specialLevel(batter, 'fbo') * AT_BAT_BALANCE.specials.firstPitchWalkPerLevel;
+  walkRate *= 1 + specialLevel(batter, 'fbx') * AT_BAT_BALANCE.specials.firstPitchWalkPerLevel;
   if (hasGold(pitcher, 'cnr_gold')) walkRate *= 0.86;
   if (hasGold(batter, 'eye_gold')) walkRate *= 1.12;
   walkRate = clamp(walkRate, AT_BAT_BALANCE.walk.minRate, AT_BAT_BALANCE.walk.maxRate);
@@ -125,125 +379,78 @@ export function simAB(
     AT_BAT_BALANCE.hitByPitch.maxRate,
   );
   const adjustedPower = (batterParams.pw ?? 50) * batterMasteryMultiplier * batterAdaptation;
-  const referencePowerDelta = softRatingDelta(AT_BAT_BALANCE.homeRun.powerCurveReference);
-  const homeRunPowerMultiplier = Math.exp(
-    clamp(
-      (softRatingDelta(adjustedPower) - referencePowerDelta) /
-        AT_BAT_BALANCE.homeRun.powerCurveScale,
-      AT_BAT_BALANCE.homeRun.minimumPowerLogMultiplier,
-      AT_BAT_BALANCE.homeRun.maximumPowerLogMultiplier,
-    ),
-  );
-  let homeRunRate =
-    AT_BAT_BALANCE.homeRun.baseRate -
-    softRatingDelta(adjustedVelocity) / AT_BAT_BALANCE.homeRun.velocityScale -
-    softRatingDelta(adjustedMovement) / AT_BAT_BALANCE.homeRun.movementScale;
-  homeRunRate *= homeRunPowerMultiplier;
-  homeRunRate *= catcherLeadMultiplier;
-  homeRunRate *= 1 + (1 - staminaRatio) * AT_BAT_BALANCE.homeRun.fatigueBonus;
-  homeRunRate *= 1 - specialLevel(pitcher, 'heavy') * 0.05;
-  homeRunRate *= 1 - specialLevel(pitcher, 'gb') * 0.06;
-  homeRunRate *= 1 + specialLevel(batter, 'pull') * 0.035;
-  if (hasGold(pitcher, 'heavy_gold')) homeRunRate *= 0.84;
-  if (hasGold(batter, 'slugger_gold'))
-    homeRunRate *=
-      AT_BAT_BALANCE.homeRun.sluggerBaseMultiplier +
-      clamp(
-        (adjustedPower - AT_BAT_BALANCE.homeRun.powerCurveReference) /
-          AT_BAT_BALANCE.homeRun.sluggerPowerBonusScale,
-        0,
-        AT_BAT_BALANCE.homeRun.sluggerMaximumPowerBonus,
-      );
-  homeRunRate *=
-    batterContextMultiplier * park.homeRun * AT_BAT_BALANCE.homeRun.environmentMultiplier;
-  homeRunRate = clamp(homeRunRate, AT_BAT_BALANCE.homeRun.minRate, AT_BAT_BALANCE.homeRun.maxRate);
-  let groundBallRate = AT_BAT_BALANCE.groundBall.baseRate;
-  groundBallRate *= 1 + specialLevel(pitcher, 'heavy') * 0.03;
-  groundBallRate *= 1 + specialLevel(pitcher, 'low') * 0.025;
-  groundBallRate *= 1 - specialLevel(batter, 'pull') * 0.018;
-  groundBallRate *= 1 + specialLevel(batter, 'oppo') * 0.015;
-  if (hasGold(pitcher, 'heavy_gold')) groundBallRate *= 1.08;
   const adjustedSpeed = (batterParams.sp ?? 50) * batterMasteryMultiplier * batterAdaptation;
-  let ballsInPlayAverage =
-    AT_BAT_BALANCE.ballsInPlay.baseAverage +
-    (adjustedSpeed - 50) / AT_BAT_BALANCE.ballsInPlay.speedScale +
-    (adjustedFastballContact - 50) / AT_BAT_BALANCE.ballsInPlay.contactScale;
-  ballsInPlayAverage *= 1 + specialLevel(batter, 'avg') * 0.02;
-  ballsInPlayAverage *= 1 + specialLevel(batter, 'spray') * 0.015;
-  if (hasGold(batter, 'avg_gold')) ballsInPlayAverage *= 1.12;
-  if (hasGold(batter, 'spray_gold')) ballsInPlayAverage *= 1.08;
-  if (hasGold(batter, 'sb_gold')) ballsInPlayAverage *= 1.04;
-  ballsInPlayAverage *= batterContextMultiplier * park.hit;
-  ballsInPlayAverage = clamp(
-    ballsInPlayAverage,
-    AT_BAT_BALANCE.ballsInPlay.minAverage,
-    AT_BAT_BALANCE.ballsInPlay.maxAverage,
-  );
-  const resultRoll = random();
-  let cumulativeProbability = 0,
-    result: PlateAppearanceResult;
-  if ((cumulativeProbability += strikeoutRate) > resultRoll) result = 'K';
-  else if ((cumulativeProbability += walkRate) > resultRoll) result = 'BB';
-  else if ((cumulativeProbability += hitByPitchRate) > resultRoll) result = 'HBP';
-  else if ((cumulativeProbability += homeRunRate) > resultRoll) result = 'HR';
-  else {
-    const isGroundBall = random() < groundBallRate,
-      ballInPlayRoll = random();
-    if (isGroundBall) {
-      if (ballInPlayRoll < ballsInPlayAverage * AT_BAT_BALANCE.groundBall.singleShare)
-        result = '1B';
-      else if (
-        ballInPlayRoll <
-          ballsInPlayAverage *
-            (AT_BAT_BALANCE.groundBall.singleShare + AT_BAT_BALANCE.groundBall.doublePlayShare) &&
-        // A double play needs a force at second and room for two outs. Without those it
-        // is an ordinary ground out — reclassified here rather than re-rolled, so the
-        // random stream is unchanged.
-        Boolean(situation.bases[0]) &&
-        situation.outs < 2
-      )
-        result = 'DP';
-      else result = 'GO';
-    } else {
-      if (ballInPlayRoll < ballsInPlayAverage * AT_BAT_BALANCE.airBall.tripleShare) result = '3B';
-      else if (
-        ballInPlayRoll <
-        ballsInPlayAverage *
-          (AT_BAT_BALANCE.airBall.tripleShare + AT_BAT_BALANCE.airBall.doubleShare)
-      )
-        result = '2B';
-      else if (ballInPlayRoll < ballsInPlayAverage) result = '1B';
-      else result = 'FO';
-    }
+
+  // ---- Stage 1: strikeout / walk / hit-by-pitch / ball in play ----
+  const disciplineRoll = random();
+  let cumulativeProbability = strikeoutRate;
+  if (cumulativeProbability > disciplineRoll) return finishNonContact('K');
+  if ((cumulativeProbability += walkRate) > disciplineRoll) return finishNonContact('BB');
+  if ((cumulativeProbability += hitByPitchRate) > disciplineRoll) return finishNonContact('HBP');
+
+  // ---- Stage 2: what kind of ball was hit ----
+  const battedBall = resolveBattedBallType(pitcher, batter, adjustedPower, adjustedMovement);
+
+  // ---- Stage 3: where it went ----
+  const direction = resolveDirection(batter);
+  const slot = fieldingSlotFor(battedBall, direction, batterHand);
+  const fielder = resolveFielder(situation.fieldingLineup ?? [], slot);
+  // The pitcher fields his own position, so his fielding rating is what matters there.
+  const defenseScore =
+    slot === '投手'
+      ? (pitcher.p.fld ?? FIELDING_BALANCE.defaultDefenseScore)
+      : fielderDefenseScore(fielder, slot);
+
+  // ---- Stage 4a: does it leave the park ----
+  if ((battedBall === 'fly' || battedBall === 'line') && isOutfieldSlot(slot)) {
+    const homeRunChance = homeRunChanceOnContact({
+      battedBall,
+      direction,
+      adjustedPower,
+      adjustedVelocity,
+      adjustedMovement,
+      staminaRatio,
+      batter,
+      pitcher,
+      park,
+      batterContextMultiplier,
+    });
+    if (random() < homeRunChance) return finishContact('HR', battedBall, slot, direction, null);
   }
-  // Sacrifices never come out of simAB: 犠打 is decided before the at-bat and 犠飛 is a
-  // rescoring of a fly out, so they are excluded here to keep the random draws per
-  // at-bat unchanged.
-  const pitchCounts: Record<SimulatedPlateAppearanceResult, number> = {
-    K: randomInt(4, 7),
-    BB: randomInt(5, 8),
-    HBP: randomInt(1, 3),
-    HR: randomInt(2, 5),
-    '1B': randomInt(2, 5),
-    '2B': randomInt(2, 5),
-    '3B': randomInt(2, 4),
-    GO: randomInt(1, 4),
-    FO: randomInt(1, 4),
-    DP: randomInt(3, 6),
-  };
-  const directions: Record<SimulatedPlateAppearanceResult, string | null> = {
-    HR: randomChoice(['左', '中', '右']),
-    '3B': randomChoice(['左中', '右中']),
-    '2B': randomChoice(['左', '右中', '左中']),
-    '1B': randomChoice(['左', '中', '右']),
-    GO: randomChoice(['一ゴ', '二ゴ', '三ゴ', '遊ゴ', '投ゴ']),
-    FO: randomChoice(['左飛', '中飛', '右飛', '内飛']),
-    DP: randomChoice(['二ゴ', '遊ゴ', '三ゴ']),
-    K: null,
-    BB: null,
-    HBP: null,
-  };
-  return { result, pc: pitchCounts[result] || 3, dir: directions[result] || null };
+
+  // ---- Stage 4b: misplayed into an error ----
+  if (random() < errorChance(battedBall, defenseScore, slot)) {
+    return finishContact('E', battedBall, slot, direction, fielder?.id ?? null);
+  }
+
+  // ---- Stage 4c: hit or out ----
+  const hitChance = hitChanceOnContact({
+    battedBall,
+    direction,
+    defenseScore,
+    adjustedSpeed,
+    adjustedFastballContact,
+    batter,
+    park,
+    batterContextMultiplier,
+    isPinch: situation.isPinch,
+  });
+  if (random() >= hitChance) {
+    // An out. A ground ball with a force at first and room for two outs can be doubled up.
+    if (
+      battedBall === 'ground' &&
+      Boolean(situation.bases[0]) &&
+      situation.outs < 2 &&
+      random() < AT_BAT_BALANCE.groundBall.doublePlayShare
+    ) {
+      return finishContact('DP', battedBall, slot, direction, null);
+    }
+    return finishContact(battedBall === 'ground' ? 'GO' : 'FO', battedBall, slot, direction, null);
+  }
+
+  // ---- Stage 5: how far the batter got ----
+  const hitType = resolveHitType(battedBall, direction, adjustedSpeed, fielder);
+  return finishContact(hitType, battedBall, slot, direction, null);
 }
 
 const asPlayer = (runner: BaseState[number]): Player | null =>
@@ -298,6 +505,9 @@ export function advBases(
       }
       return { bases: next, runs: scorers.length, scorers };
     }
+    // Reaching on an error advances runners like a single: the batter is safe at first
+    // and everyone moves up, with the runner from third scoring.
+    case 'E':
     case '1B': {
       const scorers = asPlayer(runnerOnThird) ? [asPlayer(runnerOnThird) as Player] : [];
       const next: BaseState = [batter, false, false];

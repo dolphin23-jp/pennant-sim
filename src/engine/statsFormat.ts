@@ -22,6 +22,14 @@ const isPlayerStats = (value: unknown): value is PlayerStats =>
 export const averageText = (hits: number, atBats: number): string =>
   atBats > 0 ? (hits / atBats).toFixed(3).replace(/^0/, '') : '.---';
 
+// Batting average and earned run average were each open-coded in a dozen places, which
+// made them impossible to change in one step. Both now live here.
+export const battingAverage = (stats: BatterStats): number | null =>
+  stats.ab > 0 ? stats.h / stats.ab : null;
+
+export const earnedRunAverage = (stats: PitcherStats): number | null =>
+  stats.ip3 > 0 ? (stats.er * 27) / stats.ip3 : null;
+
 export const inningsText = (outs: number): string => {
   const innings = Math.floor(outs / 3);
   const remainder = outs % 3;
@@ -33,9 +41,11 @@ export const babip = (stats: BatterStats): number | null => {
   return denominator > 0 ? (stats.h - stats.hr) / denominator : null;
 };
 
+// Official formula: (H + BB + HBP) / (AB + BB + HBP + SF). Hit-by-pitch was missing from
+// both sides until season stats started tracking it.
 export const onBasePercentage = (stats: BatterStats): number | null => {
-  const denominator = stats.ab + stats.bb + stats.sf;
-  return denominator > 0 ? (stats.h + stats.bb) / denominator : null;
+  const denominator = stats.ab + stats.bb + stats.hbp + stats.sf;
+  return denominator > 0 ? (stats.h + stats.bb + stats.hbp) / denominator : null;
 };
 
 export const sluggingPercentage = (stats: BatterStats): number | null => {
@@ -60,7 +70,7 @@ export const strikeoutsPerNine = (stats: PitcherStats): number | null =>
 export function statItems(stats: PlayerStats | undefined): StatItem[] {
   if (!stats) return [];
   if (stats.type === 'pit') {
-    const era = stats.ip3 > 0 ? (stats.er * 27) / stats.ip3 : null;
+    const era = earnedRunAverage(stats);
     const calculatedWhip = whip(stats);
     const k9 = strikeoutsPerNine(stats);
     return [
@@ -82,10 +92,13 @@ export function statItems(stats: PlayerStats | undefined): StatItem[] {
         value: k9 === null ? '-.--' : k9.toFixed(2),
         elite: k9 !== null && k9 >= 9,
       },
+      { label: '失点', value: String(stats.r) },
       { label: '被安打', value: String(stats.h) },
+      { label: '被本塁打', value: String(stats.hr) },
       { label: '与四球', value: String(stats.bb) },
       { label: 'セーブ', value: String(stats.sv), elite: stats.sv >= 30 },
       { label: 'ホールド', value: String(stats.hld), elite: stats.hld >= 30 },
+      { label: 'ブロウンセーブ', value: String(stats.bs) },
     ];
   }
   const average = stats.ab > 0 ? stats.h / stats.ab : null;
@@ -103,9 +116,15 @@ export function statItems(stats: PlayerStats | undefined): StatItem[] {
     { label: '安打', value: String(stats.h) },
     { label: '本塁打', value: String(stats.hr), power: stats.hr >= 30 },
     { label: '打点', value: String(stats.rbi), elite: stats.rbi >= 100 },
+    { label: '得点', value: String(stats.r) },
     { label: '四球', value: String(stats.bb) },
+    { label: '死球', value: String(stats.hbp) },
     { label: '三振', value: String(stats.k) },
     { label: '盗塁', value: String(stats.sb), elite: stats.sb >= 20 },
+    { label: '犠打', value: String(stats.bnt) },
+    { label: '犠飛', value: String(stats.sf) },
+    { label: '併殺打', value: String(stats.gdp) },
+    { label: '失策', value: String(stats.e) },
     {
       label: 'OPS',
       description: '出塁率と長打率を足した指標です。',

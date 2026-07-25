@@ -1,4 +1,9 @@
-import { AT_BAT_BALANCE, FOREIGN_PLAYER_BALANCE, PITCHER_USAGE_BALANCE } from '../data';
+import {
+  AT_BAT_BALANCE,
+  FIELDING_BALANCE,
+  FOREIGN_PLAYER_BALANCE,
+  PITCHER_USAGE_BALANCE,
+} from '../data';
 import { advBases, buildDesc, simAB } from './atBat';
 import { isForeignPlayer } from './foreign';
 import { applyPostGamePlayerEvents } from './playerEvents';
@@ -20,10 +25,13 @@ import type {
   AccumulatedStats,
   AtBatLogEntry,
   BaseState,
+  BattedBallType,
   GameState,
   HalfInningResult,
   PlateAppearanceResult,
   Player,
+  ScoredRun,
+  Score,
   Side,
   Team,
   TeamKey,
@@ -72,6 +80,50 @@ function attemptsSacrificeBunt(batter: Player, bases: BaseState, outs: number): 
   return random() < successRate;
 }
 
+/** Start a new outing record for a pitcher taking the mound. */
+function openAppearance(
+  gameState: GameState,
+  side: Side,
+  pitcher: Player,
+  inning: number,
+  enteredOuts: number,
+  enteredRunners: number,
+): void {
+  (gameState.appearances ??= []).push({
+    pitcherId: pitcher.id,
+    side,
+    isStarter: pitcher.id === (side === 'home' ? gameState.starterH.id : gameState.starterA.id),
+    enteredInning: inning,
+    enteredOuts,
+    enteredRunners,
+    scoreOnEntry: { ...gameState.score },
+    scoreOnExit: { ...gameState.score },
+    outsRecorded: 0,
+    runsCharged: 0,
+  });
+}
+
+/** The outing a pitcher is currently in, if he has not yet been replaced. */
+function openAppearanceFor(gameState: GameState, pitcherId: string) {
+  const records = gameState.appearances ?? [];
+  for (let index = records.length - 1; index >= 0; index -= 1) {
+    if (records[index]!.pitcherId === pitcherId) return records[index];
+  }
+  return undefined;
+}
+
+/** Stamp the score a pitcher left with, for the lead-preserved rules. */
+function closeAppearance(gameState: GameState, side: Side): void {
+  const records = gameState.appearances ?? [];
+  for (let index = records.length - 1; index >= 0; index -= 1) {
+    const record = records[index]!;
+    if (record.side === side) {
+      record.scoreOnExit = { ...gameState.score };
+      return;
+    }
+  }
+}
+
 export function simHalf(
   gameState: GameState,
   battingSide: Side,
@@ -83,7 +135,10 @@ export function simHalf(
   const catcher = gameState.lineups[fieldingSide].find(
       (player) => player._assignedPos === '捕手' || player.pos === '捕手',
     ),
-    catcherGameCalling = catcher?.p.ld || 50;
+    catcherGameCalling = catcher
+      ? (catcher.p.ld || 50) +
+        specialLevel(catcher, 'ld_art') * AT_BAT_BALANCE.specials.gameCallingPerLevel
+      : 50;
   const maybeChangePitcher = (): void => {
     const currentPitcher = gameState.curP[fieldingSide],
       pitchCount = gameState.pc[fieldingSide],
@@ -136,11 +191,22 @@ export function simHalf(
       pitcher: nextPitcher.name,
       side: fieldingSide,
     });
+    closeAppearance(gameState, fieldingSide);
+    openAppearance(gameState, fieldingSide, nextPitcher, inning + 1, currentOuts(), basesOccupied());
     gameState.curP[fieldingSide] = nextPitcher;
     gameState.usedR[fieldingSide].add(nextPitcher.id);
     gameState.pc[fieldingSide] = 0;
   };
   const atBats: AtBatLogEntry[] = [];
+  const currentOuts = (): number => outs;
+  const basesOccupied = (): number => bases.filter(Boolean).length;
+  // Who put each runner on base, and whether an error was responsible. A run is charged
+  // to the pitcher who allowed the runner, not whoever happens to be pitching when it
+  // scores, and is unearned when it would not have scored had the defence been clean.
+  const runnerResponsibility = new Map<string, { pitcherId: string; reachedOnError: boolean }>();
+  // Outs the defence should have recorded but did not, because of an error. Once the
+  // inning would have been over without them, every later run is unearned.
+  let phantomOuts = 0;
   let outs = 0,
     bases: BaseState = [false, false, false],
     runs = 0;
@@ -155,7 +221,9 @@ export function simHalf(
         if (hasSpecial(runnerPlayer, 'sb')) attemptRate *= 1.4;
         if (hasGold(runnerPlayer, 'sb_gold')) attemptRate *= 1.6;
         if (random() < attemptRate) {
-          const catcherArm = catcher?.p.arm ?? 50,
+          const catcherArm =
+              (catcher?.p.arm ?? 50) +
+              (catcher ? specialLevel(catcher, 'strong_arm') * FIELDING_BALANCE.strongArmPerLevel : 0),
             pitcherControl = pitcher.p.ctrl ?? 50,
             defensePenalty = (catcherArm - 50) / 420 + (pitcherControl - 50) / 900,
             successRate = clamp(
@@ -187,6 +255,8 @@ export function simHalf(
           } else {
             bases = [false, bases[1], bases[2]];
             outs += 1;
+            const stealAppearance = openAppearanceFor(gameState, pitcher.id);
+            if (stealAppearance) stealAppearance.outsRecorded += 1;
             atBats.push({
               inning: inning + 1,
               isBot: battingSide === 'home',
@@ -210,7 +280,16 @@ export function simHalf(
       batter = lineup[gameState.batIdx[battingSide] % lineup.length] as Player;
     gameState.batIdx[battingSide] += 1;
     const staminaPercentage = clamp(
-        100 - (gameState.pc[fieldingSide] / Math.max(1, pitcher.p.stam * 1.5)) * 100,
+        100 -
+          (gameState.pc[fieldingSide] /
+            Math.max(
+              1,
+              // 疲れにくい stretches how many pitches a given stamina rating is worth.
+              pitcher.p.stam *
+                1.5 *
+                (1 + specialLevel(pitcher, 'tough') * AT_BAT_BALANCE.specials.toughPerLevel),
+            )) *
+            100,
         20,
         100,
       ),
@@ -221,7 +300,15 @@ export function simHalf(
       batterMastery = masteryFromAccum(batter, accumulatedStats),
       matchupKey = `${pitcher.id}:${batter.id}`,
       priorMatchups = gameState.matchupCounts[matchupKey] ?? 0;
+    const basesBefore: [boolean, boolean, boolean] = [
+      Boolean(bases[0]),
+      Boolean(bases[1]),
+      Boolean(bases[2]),
+    ];
+    const outsBefore = outs;
     let result: PlateAppearanceResult, pitchCount: number, direction: string | null;
+    let battedBall: BattedBallType | undefined;
+    let errorFielderId: string | undefined;
     if (attemptsSacrificeBunt(batter, bases, outs)) {
       result = 'SH';
       pitchCount = randomInt(1, 4);
@@ -230,7 +317,15 @@ export function simHalf(
       const outcome = simAB(
         pitcher,
         batter,
-        { pStam: staminaPercentage, isPinch, isLead, outs, bases },
+        {
+          pStam: staminaPercentage,
+          isPinch,
+          isLead,
+          outs,
+          bases,
+          // The defence actually on the field decides whether a batted ball is fielded.
+          fieldingLineup: gameState.lineups[fieldingSide],
+        },
         catcherGameCalling,
         pitcherMastery,
         batterMastery,
@@ -240,25 +335,27 @@ export function simHalf(
       result = outcome.result;
       pitchCount = outcome.pc;
       direction = outcome.dir;
+      battedBall = outcome.battedBall;
+      errorFielderId = outcome.errorFielderId ?? undefined;
     }
     gameState.matchupCounts[matchupKey] = priorMatchups + 1;
     gameState.pc[fieldingSide] += pitchCount;
     let officialResult = result;
     let runsBattedIn = 0;
-    let scoredIds: string[] = [];
+    let scorers: Player[] = [];
     if (result === 'K') outs += 1;
     else if (result === 'GO' || result === 'SH') {
       const advancement = advBases(bases, result, batter, outs);
       bases = advancement.bases;
       runsBattedIn = advancement.runs;
-      scoredIds = advancement.scorers.map((player) => player.id);
+      scorers = advancement.scorers;
       outs += 1;
       runs += runsBattedIn;
     } else if (result === 'FO') {
       const advancement = advBases(bases, result, batter, outs);
       bases = advancement.bases;
       runsBattedIn = advancement.runs;
-      scoredIds = advancement.scorers.map((player) => player.id);
+      scorers = advancement.scorers;
       // A fly out that brings a runner home from third is officially a sacrifice fly,
       // which is a plate appearance but not an at-bat.
       if (runsBattedIn > 0) {
@@ -275,9 +372,51 @@ export function simHalf(
     } else {
       const advancement = advBases(bases, result, batter, outs);
       bases = advancement.bases;
-      runsBattedIn = advancement.runs;
-      scoredIds = advancement.scorers.map((player) => player.id);
-      runs += runsBattedIn;
+      scorers = advancement.scorers;
+      runs += advancement.runs;
+      // No run batted in when the run only scored because of an error.
+      runsBattedIn = result === 'E' ? 0 : advancement.runs;
+    }
+
+    // An error is a play the defence should have converted, so it also costs an out that
+    // the official reconstruction of the inning would have had.
+    if (result === 'E') phantomOuts += 1;
+
+    const playAppearance = openAppearanceFor(gameState, pitcher.id);
+    if (playAppearance) playAppearance.outsRecorded += outs - outsBefore;
+
+    const runsScored: ScoredRun[] = scorers.map((runner) => {
+      const responsibility = runnerResponsibility.get(runner.id);
+      // The batter scoring on his own hit is the current pitcher's responsibility.
+      const chargedPitcherId = responsibility?.pitcherId ?? pitcher.id;
+      const reachedOnError = responsibility?.reachedOnError ?? result === 'E';
+      return {
+        runnerId: runner.id,
+        chargedPitcherId,
+        earned: !reachedOnError && outs + phantomOuts < 3,
+      };
+    });
+    const scoredIds = runsScored.map((run) => run.runnerId);
+    for (const run of runsScored) {
+      const homeScore = gameState.score.home + (battingSide === 'home' ? runs : 0);
+      const awayScore = gameState.score.away + (battingSide === 'away' ? runs : 0);
+      (gameState.scoringSequence ??= []).push({
+        scoringSide: battingSide,
+        chargedPitcherId: run.chargedPitcherId,
+        homeScore,
+        awayScore,
+      });
+      const appearance = openAppearanceFor(gameState, run.chargedPitcherId);
+      if (appearance) appearance.runsCharged += 1;
+    }
+
+    // Register the batter if he is now standing on a base, so a later run is charged to
+    // the pitcher who let him on.
+    if (bases.some((runner) => typeof runner === 'object' && runner.id === batter.id)) {
+      runnerResponsibility.set(batter.id, {
+        pitcherId: pitcher.id,
+        reachedOnError: result === 'E',
+      });
     }
     const snapshot = {
       home: gameState.score.home + (battingSide === 'home' ? runs : 0),
@@ -298,6 +437,11 @@ export function simHalf(
       rbi: runsBattedIn,
       snap: snapshot,
       scoredIds,
+      runsScored,
+      battedBall,
+      errorFielderId,
+      basesBefore,
+      outsBefore,
       desc: buildDesc(batter.name, officialResult, direction, runsBattedIn),
     });
     if (battingSide === 'home' && inning >= 8 && snapshot.home > snapshot.away) {
@@ -307,6 +451,120 @@ export function simHalf(
   }
   return { runs, atBats };
 }
+const leadFor = (side: Side, score: Score): number =>
+  side === 'home' ? score.home - score.away : score.away - score.home;
+
+/**
+ * Assign the winning, losing and saving pitchers by the official rules rather than by
+ * counting batters faced and runs allowed.
+ */
+function assignDecisions(gameState: GameState): void {
+  const appearances = gameState.appearances ?? [];
+  const homeWon = gameState.score.home > gameState.score.away;
+  const winningSide: Side = homeWon ? 'home' : 'away';
+  const losingSide: Side = homeWon ? 'away' : 'home';
+  const winners = appearances.filter((entry) => entry.side === winningSide);
+  const losers = appearances.filter((entry) => entry.side === losingSide);
+
+  // --- Losing pitcher: whoever allowed the go-ahead run the leaders never gave back. ---
+  const scoring = gameState.scoringSequence ?? [];
+  let goAheadPitcherId: string | null = null;
+  for (let index = scoring.length - 1; index >= 0; index -= 1) {
+    const event = scoring[index]!;
+    const leadAfter = homeWon
+      ? event.homeScore - event.awayScore
+      : event.awayScore - event.homeScore;
+    const previous = scoring[index - 1];
+    const leadBefore = previous
+      ? homeWon
+        ? previous.homeScore - previous.awayScore
+        : previous.awayScore - previous.homeScore
+      : 0;
+    // The run that first put the winners ahead for good.
+    if (event.scoringSide === winningSide && leadBefore <= 0 && leadAfter > 0) {
+      goAheadPitcherId = event.chargedPitcherId;
+    }
+  }
+  gameState.loserPitcherId = goAheadPitcherId ?? losers[0]?.pitcherId ?? null;
+
+  // --- Winning pitcher ---
+  const starter = winners.find((entry) => entry.isStarter);
+  const starterQualifies =
+    starter !== undefined &&
+    starter.outsRecorded >= 15 &&
+    leadFor(winningSide, starter.scoreOnExit) > 0;
+  if (starterQualifies) {
+    gameState.winnerPitcherId = starter.pitcherId;
+  } else {
+    // The reliever on the mound when the winners took the lead for good; if that outing
+    // was brief and ineffective, the most effective one after it.
+    const goAheadIndex = scoring.findIndex(
+      (event) =>
+        event.scoringSide === winningSide &&
+        (homeWon
+          ? event.homeScore > event.awayScore
+          : event.awayScore > event.homeScore),
+    );
+    const goAheadScore = goAheadIndex >= 0 ? scoring[goAheadIndex] : undefined;
+    const reliefCandidates = winners.filter((entry) => !entry.isStarter);
+    const holder = goAheadScore
+      ? reliefCandidates.find(
+          (entry) =>
+            leadFor(winningSide, entry.scoreOnEntry) <= 0 &&
+            leadFor(winningSide, entry.scoreOnExit) > 0,
+        )
+      : undefined;
+    const effective = [...reliefCandidates].sort(
+      (first, second) =>
+        second.outsRecorded - second.runsCharged * 3 - (first.outsRecorded - first.runsCharged * 3),
+    )[0];
+    gameState.winnerPitcherId = (holder ?? effective ?? starter)?.pitcherId ?? null;
+  }
+
+  // --- Save, hold and blown save ---
+  const finisher = winners[winners.length - 1];
+  const isSaveSituation = (entry: (typeof winners)[number]): boolean => {
+    const leadOnEntry = leadFor(winningSide, entry.scoreOnEntry);
+    if (leadOnEntry <= 0) return false;
+    // Ahead by no more than three, or the tying run already at bat or on deck.
+    if (leadOnEntry <= 3) return true;
+    return leadOnEntry - entry.enteredRunners <= 2;
+  };
+  gameState.savePitcherId = null;
+  if (
+    finisher &&
+    finisher.pitcherId !== gameState.winnerPitcherId &&
+    (isSaveSituation(finisher) || finisher.outsRecorded >= 9) &&
+    leadFor(winningSide, gameState.score) > 0
+  ) {
+    // A one-batter save needs a save situation; three innings qualifies regardless.
+    if (finisher.outsRecorded >= 3 || isSaveSituation(finisher)) {
+      gameState.savePitcherId = finisher.pitcherId;
+    }
+  }
+  gameState.holdPitcherIds = winners
+    .filter(
+      (entry) =>
+        !entry.isStarter &&
+        entry !== finisher &&
+        entry.pitcherId !== gameState.winnerPitcherId &&
+        isSaveSituation(entry) &&
+        entry.outsRecorded >= 1 &&
+        leadFor(winningSide, entry.scoreOnExit) > 0,
+    )
+    .map((entry) => entry.pitcherId);
+  // A blown save is entering with a lead to protect and letting it go, on either side.
+  gameState.blownSavePitcherIds = appearances
+    .filter(
+      (entry) =>
+        !entry.isStarter &&
+        leadFor(entry.side, entry.scoreOnEntry) > 0 &&
+        leadFor(entry.side, entry.scoreOnEntry) <= 3 &&
+        leadFor(entry.side, entry.scoreOnExit) <= 0,
+    )
+    .map((entry) => entry.pitcherId);
+}
+
 // Post-game bookkeeping shared by decided and drawn games: development events, pitcher
 // workload, and writing the resulting rosters back for the caller.
 function finalizeGame(
@@ -395,8 +653,12 @@ export function simulateGame(
     },
     starterH: homeStarter as Player,
     starterA: awayStarter as Player,
+    appearances: [],
+    scoringSequence: [],
     postGameEvents: { awakenings: [], injuries: [] },
   };
+  openAppearance(gameState, 'home', homeStarter as Player, 1, 0, 0);
+  openAppearance(gameState, 'away', awayStarter as Player, 1, 0, 0);
   for (let inningIndex = 0; inningIndex < 15; inningIndex += 1) {
     const inningScore = { away: 0, home: 0 },
       awayHalf = simHalf(
@@ -433,50 +695,12 @@ export function simulateGame(
     gameState.loserPitcherId = null;
     gameState.savePitcherId = null;
     gameState.holdPitcherIds = [];
+    gameState.blownSavePitcherIds = [];
     return finalizeGame(gameState, teams, homeKey, awayKey, gameDate);
   }
-  const homeWin = gameState.score.home > gameState.score.away,
-    winningSide: Side = homeWin ? 'home' : 'away',
-    losingSide: Side = homeWin ? 'away' : 'home';
-  const winningStarter =
-      gameState.starterH && winningSide === 'home'
-        ? gameState.starterH
-        : gameState.starterA && winningSide === 'away'
-          ? gameState.starterA
-          : null,
-    battersFaced = winningStarter
-      ? gameState.atBatLog.filter(
-          (entry) =>
-            entry.pitcherId === winningStarter.id &&
-            entry.pSide === gameState.teams[winningSide].key,
-        ).length
-      : 0;
-  gameState.winnerPitcherId = battersFaced >= 15 ? winningStarter?.id : null;
-  const lead = Math.abs(gameState.score.home - gameState.score.away),
-    lastWinningPitcher = [...gameState.atBatLog]
-      .reverse()
-      .find((entry) => entry.pSide === gameState.teams[winningSide].key),
-    lastPitcherId = lastWinningPitcher?.pitcherId;
-  gameState.savePitcherId =
-    lead >= 1 && lead <= 3 && lastPitcherId && lastPitcherId !== gameState.winnerPitcherId
-      ? lastPitcherId
-      : null;
-  const winningPitchers = new Set(
-    gameState.atBatLog
-      .filter((entry) => entry.pSide === gameState.teams[winningSide].key)
-      .map((entry) => entry.pitcherId),
-  );
-  gameState.holdPitcherIds = [...winningPitchers].filter(
-    (id) =>
-      id !== gameState.starterH?.id &&
-      id !== gameState.starterA?.id &&
-      id !== gameState.savePitcherId &&
-      id !== gameState.winnerPitcherId,
-  );
-  const losingRuns: Record<string, number> = {};
-  for (const entry of gameState.atBatLog)
-    if (entry.pSide === gameState.teams[losingSide].key && entry.rbi > 0)
-      losingRuns[entry.pitcherId] = (losingRuns[entry.pitcherId] || 0) + entry.rbi;
-  gameState.loserPitcherId = Object.entries(losingRuns).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  // Every pitcher still on the mound gets his exit score stamped.
+  closeAppearance(gameState, 'home');
+  closeAppearance(gameState, 'away');
+  assignDecisions(gameState);
   return finalizeGame(gameState, teams, homeKey, awayKey, gameDate);
 }

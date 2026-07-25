@@ -171,3 +171,82 @@ test('export and import preserve save data including schedule metadata', async (
     resetRandom();
   }
 });
+
+test('新しい成績フィールドを持たない旧セーブが0で補完され、NaNを生まない', () => {
+  configureRandom(mulberry32(9182), () => Date.UTC(2026, 0, 1));
+  try {
+    const teams = initTeams();
+    // A stat line written before 失点/死球/併殺打/失策 existed on BatterStats.
+    const legacyBatter = {
+      type: 'bat', name: '旧打者', g: 100, pa: 400, ab: 360, h: 108, s: 70,
+      d: 25, t: 3, hr: 10, bb: 32, k: 60, rbi: 55, sb: 8, cs: 3, bnt: 4, sf: 4,
+    };
+    const legacyPitcher = {
+      type: 'pit', name: '旧投手', g: 25, gs: 25, w: 12, l: 8, sv: 0, hld: 0,
+      bs: 0, ip3: 480, h: 150, bb: 40, k: 130, er: 55, pc: 2400,
+    };
+    const migrated = migrateSaveData({
+      teams,
+      playerTeam: 'giants',
+      viewTeam: 'giants',
+      season: { year: 2026, schedule: generateSchedule(2026, { rainoutRate: 0, maxRainouts: 0 }) },
+      lineup: [],
+      accumulated: { b1: legacyBatter, p1: legacyPitcher },
+      leagueAccumulated: { b1: legacyBatter },
+      careerAccumulated: { b1: legacyBatter },
+      leagueCareerAccumulated: { b1: legacyBatter },
+      yearlyStats: {
+        '2025': [
+          {
+            playerId: 'b1', playerName: '旧打者', year: 2025, age: 28,
+            teamKey: 'giants', teamName: '読売ジャイアンツ', teamAbbreviation: 'G',
+            isPitcher: false, ovr: 70, params: {}, stats: legacyBatter,
+          },
+        ],
+      },
+    });
+    assert.ok(migrated);
+
+    const batter = migrated.accumulated.b1;
+    assert.equal(batter?.type, 'bat');
+    if (batter?.type !== 'bat') return;
+    assert.equal(batter.h, 108, '既存の値は保持される');
+    assert.equal(batter.r, 0, '得点が0で補完される');
+    assert.equal(batter.hbp, 0, '死球が0で補完される');
+    assert.equal(batter.gdp, 0, '併殺打が0で補完される');
+    assert.equal(batter.e, 0, '失策が0で補完される');
+
+    const pitcher = migrated.accumulated.p1;
+    assert.equal(pitcher?.type, 'pit');
+    if (pitcher?.type !== 'pit') return;
+    assert.equal(pitcher.er, 55, '既存の値は保持される');
+    assert.equal(pitcher.r, 0);
+    assert.equal(pitcher.hbp, 0);
+    assert.equal(pitcher.hr, 0);
+    assert.equal(pitcher.bf, 0);
+
+    // Year-by-year records embed a frozen copy and need the same normalization.
+    const yearly = migrated.yearlyStats['2025']?.[0]?.stats;
+    assert.equal(yearly?.type, 'bat');
+    if (yearly?.type !== 'bat') return;
+    assert.equal(yearly.r, 0, '年度別成績の新フィールドも補完される');
+
+    // Every numeric field must be finite, or arithmetic downstream turns into NaN.
+    for (const map of [
+      migrated.accumulated,
+      migrated.leagueAccumulated,
+      migrated.careerAccumulated,
+      migrated.leagueCareerAccumulated,
+    ]) {
+      for (const line of Object.values(map)) {
+        for (const [key, value] of Object.entries(line)) {
+          if (typeof value === 'number') {
+            assert.ok(Number.isFinite(value), `${line.name}.${key} が有限値である`);
+          }
+        }
+      }
+    }
+  } finally {
+    resetRandom();
+  }
+});

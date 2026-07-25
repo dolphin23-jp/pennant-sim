@@ -7,7 +7,7 @@ import type {
   PlayerStats,
   TeamKey,
 } from './types';
-const createBatterStats = (name: string): BatterStats => ({
+export const createBatterStats = (name: string): BatterStats => ({
   type: 'bat',
   name,
   g: 0,
@@ -25,8 +25,12 @@ const createBatterStats = (name: string): BatterStats => ({
   cs: 0,
   bnt: 0,
   sf: 0,
+  r: 0,
+  hbp: 0,
+  gdp: 0,
+  e: 0,
 });
-const createPitcherStats = (name: string): PitcherStats => ({
+export const createPitcherStats = (name: string): PitcherStats => ({
   type: 'pit',
   name,
   g: 0,
@@ -42,6 +46,10 @@ const createPitcherStats = (name: string): PitcherStats => ({
   k: 0,
   er: 0,
   pc: 0,
+  r: 0,
+  hbp: 0,
+  hr: 0,
+  bf: 0,
 });
 // Walks, hit-by-pitches and sacrifices are plate appearances but not at-bats.
 const NON_AT_BAT_RESULTS = new Set(['BB', 'HBP', 'SH', 'SF']);
@@ -63,6 +71,8 @@ function applyBattingEvent(stats: BatterStats, entry: AtBatLogEntry): void {
   if (entry.result === 'K') stats.k += 1;
   if (entry.result === 'SB') stats.sb += 1;
   if (entry.result === 'CS') stats.cs += 1;
+  if (entry.result === 'HBP') stats.hbp += 1;
+  if (entry.result === 'DP') stats.gdp += 1;
   stats.rbi += entry.rbi || 0;
 }
 // Every out the defence records counts toward innings pitched, including sacrifices and
@@ -74,13 +84,33 @@ function applyPitchingEvent(stats: PitcherStats, entry: AtBatLogEntry): void {
   // Steal attempts are baserunning events logged against the pitcher, not pitches, so
   // they must not inflate the pitch count.
   const running = entry.result === 'SB' || entry.result === 'CS';
-  if (!running) stats.pc += entry.pc || 3;
+  if (!running) {
+    stats.pc += entry.pc || 3;
+    stats.bf += 1;
+  }
   if (['1B', '2B', '3B', 'HR'].includes(entry.result)) stats.h += 1;
+  if (entry.result === 'HR') stats.hr += 1;
   if (entry.result === 'BB') stats.bb += 1;
+  if (entry.result === 'HBP') stats.hbp += 1;
   if (SINGLE_OUT_RESULTS.has(entry.result)) stats.ip3 += 1;
   else if (entry.result === 'DP') stats.ip3 += 2;
   if (entry.result === 'K') stats.k += 1;
-  stats.er += Math.round((entry.rbi || 0) * 0.88);
+  // Runs are charged from `runsScored`, which knows the responsible pitcher and whether an
+  // error made the run unearned. Entries without it predate that accounting, so they fall
+  // back to the historical RBI-proportional approximation.
+  if (!entry.runsScored) stats.er += Math.round((entry.rbi || 0) * 0.88);
+}
+
+/** Charge runs and earned runs to the pitcher responsible for each runner. */
+function applyScoredRuns(
+  entry: AtBatLogEntry,
+  ensurePitcher: (id: string, name: string) => PitcherStats,
+): void {
+  for (const run of entry.runsScored ?? []) {
+    const pitcher = ensurePitcher(run.chargedPitcherId, '');
+    pitcher.r += 1;
+    if (run.earned) pitcher.er += 1;
+  }
 }
 export function accumulateStatsAll(
   gameResult: GameState,
@@ -98,6 +128,9 @@ export function accumulateStatsAll(
   for (const entry of gameResult.atBatLog) {
     applyBattingEvent(ensureBatter(entry.batterId, entry.batter), entry);
     applyPitchingEvent(ensurePitcher(entry.pitcherId, entry.pitcher), entry);
+    applyScoredRuns(entry, ensurePitcher);
+    for (const run of entry.runsScored ?? []) ensureBatter(run.runnerId, '').r += 1;
+    if (entry.errorFielderId) ensureBatter(entry.errorFielderId, '').e += 1;
   }
   const pitchersSeen = new Set<string>();
   for (const entry of gameResult.atBatLog) {
@@ -123,6 +156,8 @@ export function accumulateStatsAll(
     ensurePitcher(gameResult.savePitcherId, next[gameResult.savePitcherId]?.name || '').sv += 1;
   for (const id of gameResult.holdPitcherIds ?? [])
     ensurePitcher(id, next[id]?.name || '').hld += 1;
+  for (const id of gameResult.blownSavePitcherIds ?? [])
+    ensurePitcher(id, next[id]?.name || '').bs += 1;
   return next;
 }
 export function accumulateStats(
@@ -139,11 +174,22 @@ export function accumulateStats(
     if (!next[id]) next[id] = createPitcherStats(name);
     return next[id] as PitcherStats;
   };
+  const teamPlayerIds = new Set<string>();
+  for (const entry of gameResult.atBatLog) {
+    if (entry.bSide === playerTeam) teamPlayerIds.add(entry.batterId);
+    if (entry.pSide === playerTeam) teamPlayerIds.add(entry.pitcherId);
+  }
   for (const entry of gameResult.atBatLog) {
     if (entry.bSide === playerTeam)
       applyBattingEvent(ensureBatter(entry.batterId, entry.batter), entry);
     if (entry.pSide === playerTeam)
       applyPitchingEvent(ensurePitcher(entry.pitcherId, entry.pitcher), entry);
+    if (entry.pSide === playerTeam) applyScoredRuns(entry, ensurePitcher);
+    if (entry.bSide === playerTeam)
+      for (const run of entry.runsScored ?? []) ensureBatter(run.runnerId, '').r += 1;
+    // The fielder charged with an error is on the defensive side of the play.
+    if (entry.pSide === playerTeam && entry.errorFielderId)
+      ensureBatter(entry.errorFielderId, '').e += 1;
   }
   const pitchersSeen = new Set<string>(),
     battersSeen = new Set<string>();
@@ -178,6 +224,8 @@ export function accumulateStats(
     (next[gameResult.savePitcherId] as PitcherStats).sv += 1;
   for (const id of gameResult.holdPitcherIds ?? [])
     if (next[id]) (next[id] as PitcherStats).hld += 1;
+  for (const id of gameResult.blownSavePitcherIds ?? [])
+    if (next[id]) (next[id] as PitcherStats).bs += 1;
   return next;
 }
 export function mergeStatMaps(

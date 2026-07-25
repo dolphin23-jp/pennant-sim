@@ -156,8 +156,10 @@ export type Teams = Record<TeamKey, Team>;
 export type Side = 'home' | 'away';
 // SH (犠打) and SF (犠飛) are official scoring outcomes: they count as plate
 // appearances but not at-bats, so they must be distinguishable from GO/FO.
+// 'E' is reaching base on an error: an at-bat and a time on base, but not a hit, and no
+// out is recorded. SH/SF are plate appearances but not at-bats.
 export type PlateAppearanceResult =
-  'K' | 'BB' | 'HBP' | 'HR' | '3B' | '2B' | '1B' | 'GO' | 'FO' | 'DP' | 'SH' | 'SF';
+  'K' | 'BB' | 'HBP' | 'HR' | '3B' | '2B' | '1B' | 'GO' | 'FO' | 'DP' | 'SH' | 'SF' | 'E';
 export type RunningResult = 'SB' | 'CS';
 export type AtBatResult = PlateAppearanceResult | RunningResult;
 export type BaseRunner = Player | boolean;
@@ -168,15 +170,30 @@ export interface AtBatSituation {
   isLead: boolean;
   outs: number;
   bases: BaseState;
+  /** The defence on the field, so a batted ball can be resolved against a real fielder. */
+  fieldingLineup?: Player[];
 }
 export interface AtBatOutcome {
   result: PlateAppearanceResult;
   pc: number;
   dir: string | null;
+  battedBall?: BattedBallType;
+  fieldingSlot?: string;
+  errorFielderId?: string | null;
 }
 export interface Score {
   home: number;
   away: number;
+}
+/**
+ * A run that crossed the plate on this play. The pitcher charged is the one who put the
+ * runner on base, not necessarily the one pitching now, and `earned` follows the official
+ * rule that a run is unearned when it would not have scored without an error.
+ */
+export interface ScoredRun {
+  runnerId: string;
+  chargedPitcherId: string;
+  earned: boolean;
 }
 export interface AtBatLogEntry {
   inning: number;
@@ -194,7 +211,44 @@ export interface AtBatLogEntry {
   desc: string;
   snap: Score;
   scoredIds?: string[];
+  /** Per-run scoring detail. When present it supersedes `scoredIds` for run accounting. */
+  runsScored?: ScoredRun[];
+  /** Fielder charged with an error on this play, if any. */
+  errorFielderId?: string;
+  /** Defensive position that handled the ball, for box-score attribution. */
+  fielderPosition?: FieldPosition;
+  /** Batted-ball classification for balls put in play. */
+  battedBall?: BattedBallType;
+  /** Occupied bases before the play, so rule checks read real state instead of replaying it. */
+  basesBefore?: [boolean, boolean, boolean];
+  /** Outs before the play. */
+  outsBefore?: number;
 }
+export type BattedBallType = 'ground' | 'line' | 'fly' | 'popup';
+/** State captured when a pitcher takes the mound and when he leaves it. */
+export interface PitcherAppearance {
+  pitcherId: string;
+  side: Side;
+  isStarter: boolean;
+  enteredInning: number;
+  /** Outs already recorded in that half-inning when he entered. */
+  enteredOuts: number;
+  /** Runners on base when he entered, for the tying-run save rule. */
+  enteredRunners: number;
+  scoreOnEntry: Score;
+  scoreOnExit: Score;
+  outsRecorded: number;
+  runsCharged: number;
+}
+
+/** A run crossing the plate, with the score it produced. */
+export interface ScoringEvent {
+  scoringSide: Side;
+  chargedPitcherId: string;
+  homeScore: number;
+  awayScore: number;
+}
+
 export interface InjuryEvent {
   teamKey: TeamKey;
   playerId: string;
@@ -240,6 +294,11 @@ export interface GameState {
   loserPitcherId?: string | null;
   savePitcherId?: string | null;
   holdPitcherIds?: string[];
+  blownSavePitcherIds?: string[];
+  /** One record per pitcher outing, in the order they took the mound. */
+  appearances?: PitcherAppearance[];
+  /** Runs in the order they scored, used to find the go-ahead run. */
+  scoringSequence?: ScoringEvent[];
   postGameEvents: PostGameEvents;
 }
 export interface HalfInningResult {
@@ -295,6 +354,14 @@ export interface BatterStats {
   cs: number;
   bnt: number;
   sf: number;
+  /** 得点。走者として生還した回数。 */
+  r: number;
+  /** 死球。出塁率の公式計算に必要。 */
+  hbp: number;
+  /** 併殺打。 */
+  gdp: number;
+  /** 失策。守備者としての記録。 */
+  e: number;
 }
 export interface PitcherStats {
   type: 'pit';
@@ -312,6 +379,14 @@ export interface PitcherStats {
   k: number;
   er: number;
   pc: number;
+  /** 失点。自責点(er)と区別して集計する。 */
+  r: number;
+  /** 与死球。 */
+  hbp: number;
+  /** 被本塁打。 */
+  hr: number;
+  /** 対戦打者数。 */
+  bf: number;
 }
 export type PlayerStats = BatterStats | PitcherStats;
 export type AccumulatedStats = Record<string, PlayerStats>;
