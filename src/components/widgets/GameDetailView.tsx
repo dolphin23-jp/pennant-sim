@@ -57,6 +57,7 @@ const BATTER_COLUMNS: Array<{ key: keyof BatterLine; label: string }> = [
   { key: 'sh', label: '犠打' },
   { key: 'sf', label: '犠飛' },
   { key: 'gdp', label: '併殺打' },
+  { key: 'e', label: '失策' },
 ];
 
 function BatterTable({ title, lines }: { title: string; lines: BatterLine[] }) {
@@ -116,6 +117,7 @@ const PITCHER_COLUMNS: Array<{ key: keyof PitcherLine; label: string }> = [
   { key: 'k', label: '奪三振' },
   { key: 'r', label: '失点' },
   { key: 'er', label: '自責点' },
+  { key: 'hbp', label: '与死球' },
 ];
 
 function ipText(ip3: number): string {
@@ -224,6 +226,8 @@ export function GameDetailView({ box }: { box: GameSummary | GameBoxScore }) {
             awayScore={box.awayScore}
             homeHits={box.homeHits}
             awayHits={box.awayHits}
+            homeErrors={box.homeErrors}
+            awayErrors={box.awayErrors}
           />
         </div>
         <div style={{ marginTop: 10 }}>

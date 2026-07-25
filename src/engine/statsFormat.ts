@@ -92,10 +92,13 @@ export function statItems(stats: PlayerStats | undefined): StatItem[] {
         value: k9 === null ? '-.--' : k9.toFixed(2),
         elite: k9 !== null && k9 >= 9,
       },
+      { label: '失点', value: String(stats.r) },
       { label: '被安打', value: String(stats.h) },
+      { label: '被本塁打', value: String(stats.hr) },
       { label: '与四球', value: String(stats.bb) },
       { label: 'セーブ', value: String(stats.sv), elite: stats.sv >= 30 },
       { label: 'ホールド', value: String(stats.hld), elite: stats.hld >= 30 },
+      { label: 'ブロウンセーブ', value: String(stats.bs) },
     ];
   }
   const average = stats.ab > 0 ? stats.h / stats.ab : null;
@@ -113,9 +116,15 @@ export function statItems(stats: PlayerStats | undefined): StatItem[] {
     { label: '安打', value: String(stats.h) },
     { label: '本塁打', value: String(stats.hr), power: stats.hr >= 30 },
     { label: '打点', value: String(stats.rbi), elite: stats.rbi >= 100 },
+    { label: '得点', value: String(stats.r) },
     { label: '四球', value: String(stats.bb) },
+    { label: '死球', value: String(stats.hbp) },
     { label: '三振', value: String(stats.k) },
     { label: '盗塁', value: String(stats.sb), elite: stats.sb >= 20 },
+    { label: '犠打', value: String(stats.bnt) },
+    { label: '犠飛', value: String(stats.sf) },
+    { label: '併殺打', value: String(stats.gdp) },
+    { label: '失策', value: String(stats.e) },
     {
       label: 'OPS',
       description: '出塁率と長打率を足した指標です。',

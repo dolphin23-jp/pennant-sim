@@ -6,6 +6,8 @@ export interface LinescoreProps {
   awayScore: number;
   homeHits: number;
   awayHits: number;
+  homeErrors?: number;
+  awayErrors?: number;
 }
 
 export function Linescore({
@@ -16,7 +18,10 @@ export function Linescore({
   awayScore,
   homeHits,
   awayHits,
+  homeErrors,
+  awayErrors,
 }: LinescoreProps) {
+  const showErrors = homeErrors !== undefined && awayErrors !== undefined;
   return (
     <div
       className="linescore"
@@ -41,6 +46,11 @@ export function Linescore({
               <th scope="col" className="linescore__totals-head">
                 H
               </th>
+              {showErrors && (
+                <th scope="col" className="linescore__totals-head">
+                  E
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -53,6 +63,7 @@ export function Linescore({
               ))}
               <td className="linescore__totals">{awayScore}</td>
               <td className="linescore__totals linescore__totals--hits">{awayHits}</td>
+              {showErrors && <td className="linescore__totals">{awayErrors}</td>}
             </tr>
             <tr>
               <th scope="row" style={{ textAlign: 'left' }}>
@@ -63,6 +74,7 @@ export function Linescore({
               ))}
               <td className="linescore__totals">{homeScore}</td>
               <td className="linescore__totals linescore__totals--hits">{homeHits}</td>
+              {showErrors && <td className="linescore__totals">{homeErrors}</td>}
             </tr>
           </tbody>
         </table>
