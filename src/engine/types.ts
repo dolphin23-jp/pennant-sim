@@ -13,7 +13,14 @@ export type TeamKey =
   | 'fighters';
 export type League = 'central' | 'pacific';
 export type FieldPosition =
-  '捕手' | '一塁手' | '二塁手' | '三塁手' | '遊撃手' | '左翼手' | '中堅手' | '右翼手';
+  | '捕手'
+  | '一塁手'
+  | '二塁手'
+  | '三塁手'
+  | '遊撃手'
+  | '左翼手'
+  | '中堅手'
+  | '右翼手';
 export type PitcherRole = '先発' | 'リリーフ' | 'クローザー';
 export type Maturity = '超早熟' | '早熟' | '通常' | '晩成' | '超晩成';
 export type PotentialClass = 'standard' | 'elite';
@@ -35,7 +42,14 @@ export interface ForeignPlayerProfile {
   adaptationFactor: number;
 }
 export type TrainPolicyId =
-  'balanced' | 'power' | 'contact' | 'speed' | 'defense' | 'velocity' | 'control' | 'stamina_t';
+  | 'balanced'
+  | 'power'
+  | 'contact'
+  | 'speed'
+  | 'defense'
+  | 'velocity'
+  | 'control'
+  | 'stamina_t';
 export type PlayerTeamKey = TeamKey | 'foreign' | '外' | 'fa' | 'FA' | 'draft';
 export interface TeamPolicy {
   fa: number;
@@ -155,7 +169,18 @@ export interface Team extends TeamInfo {
 export type Teams = Record<TeamKey, Team>;
 export type Side = 'home' | 'away';
 export type PlateAppearanceResult =
-  'K' | 'BB' | 'HBP' | 'HR' | '3B' | '2B' | '1B' | 'GO' | 'FO' | 'DP';
+  | 'K'
+  | 'BB'
+  | 'HBP'
+  | 'HR'
+  | '3B'
+  | '2B'
+  | '1B'
+  | 'GO'
+  | 'FO'
+  | 'DP'
+  | 'SH'
+  | 'SF';
 export type RunningResult = 'SB' | 'CS';
 export type AtBatResult = PlateAppearanceResult | RunningResult;
 export type BaseRunner = Player | boolean;
@@ -266,7 +291,7 @@ export interface StandingRecord {
   ra: number;
   g: number;
   pct?: number;
-  gb?: string;
+  gb?: number | string;
   rank?: number;
 }
 export interface TeamForm {
