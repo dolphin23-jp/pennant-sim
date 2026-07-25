@@ -245,7 +245,7 @@ export const AT_BAT_BALANCE = {
   // Stage 4 — does the ball fall in. These are hit rates on contact BEFORE the fielder's
   // ability is applied, so they sit above the finished BABIP.
   hitOnContact: {
-    base: { ground: 0.25, line: 0.66, fly: 0.21, popup: 0.02 },
+    base: { ground: 0.242, line: 0.638, fly: 0.203, popup: 0.02 },
     /** Rating points of fielder defence needed to move the hit rate by one unit. */
     defenseScale: 240,
     /** Batter speed matters most on ground balls, least in the air. */
