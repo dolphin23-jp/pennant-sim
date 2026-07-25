@@ -1,0 +1,20 @@
+name: Phase 5 inspect
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/phase5-inspect.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python scripts/phase5-inspect.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase5-inspect
+          path: phase5-inspect.txt
