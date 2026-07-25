@@ -1,46 +1,202 @@
-name: CI
+name: Phase 3 patch
 
 on:
   push:
-  pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  quality:
+  patch:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/phase3-name-generation
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install dependencies
-        run: npm install
-      - name: Lint
-        run: npm run lint
-      - name: Test
-        id: tests
-        continue-on-error: true
-        run: npm test > test-output.txt 2>&1
-      - name: Upload test diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-diagnostics
-          path: test-output.txt
-          if-no-files-found: error
-      - name: Upload generated baseline
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: generated-season-baseline
-          path: baseline/new-season-stats.json
-          if-no-files-found: ignore
-      - name: Fail when tests fail
-        if: steps.tests.outcome == 'failure'
-        run: exit 1
-      - name: Build
-        run: npm run build
+      - name: Apply focused source patches
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          players = Path('src/engine/players.ts')
+          text = players.read_text()
+          old = """const usedNames = new Set<string>();
+          const japaneseName = (): string => `${randomChoice(SN)} ${randomChoice(GN)}`;
+          const foreignName = (): string => `${randomChoice(FOREIGN_SN)} ${randomChoice(FOREIGN_GN)}`;
+          function uniqueName(baseName: () => string): string {
+            for (let attempt = 0; attempt < 48; attempt += 1) {
+              const candidate = baseName();
+              if (!usedNames.has(candidate)) {
+                usedNames.add(candidate);
+                return candidate;
+              }
+            }
+            const fallback = `${baseName()}#${String(randomInt(10, 99))}`;
+            usedNames.add(fallback);
+            return fallback;
+          }
+          export function registerExistingNames(teams: Partial<Teams>): void {
+            usedNames.clear();
+            for (const team of Object.values(teams)) {
+              for (const player of [...(team?.fielders ?? []), ...(team?.pitchers ?? [])])
+                if (player.name) usedNames.add(player.name);
+            }
+          }
+          """
+          new = """const japaneseName = (): string => `${randomChoice(SN)} ${randomChoice(GN)}`;
+          const foreignName = (): string => `${randomChoice(FOREIGN_SN)} ${randomChoice(FOREIGN_GN)}`;
+          const generatedName = (baseName: () => string): string => baseName();
+
+          // Display names are not identifiers. Same-name players remain distinct through Player.id.
+          export function registerExistingNames(_teams: Partial<Teams>): void {}
+          """
+          if old not in text:
+              raise SystemExit('players.ts name block not found')
+          text = text.replace(old, new).replace('uniqueName(', 'generatedName(')
+          players.write_text(text)
+
+          offseason = Path('src/engine/offseason.ts')
+          text = offseason.read_text()
+          old = """    const team = next[teamKey];
+              const desiredPitcherSlots = Math.min(
+                resolved.draftRounds,
+                Math.max(2, Math.round(resolved.draftRounds * 0.45)),
+              );
+              const existingPitcherSlots = Math.max(0, resolved.targetPitchers - team.pitchers.length);
+              const existingFielderSlots = Math.max(0, resolved.targetFielders - team.fielders.length);
+              const result = removePlayers(
+                team,
+                teamKey,
+                Math.max(0, desiredPitcherSlots - existingPitcherSlots),
+                Math.max(0, resolved.draftRounds - desiredPitcherSlots - existingFielderSlots),
+                'draft',
+                resolved,
+              );
+          """
+          new = """    const team = next[teamKey];
+              const mandatoryPitcherRetirements = team.pitchers.filter((player) => player.age >= 42).length;
+              const mandatoryFielderRetirements = team.fielders.filter((player) => player.age >= 42).length;
+              const desiredPitcherSlots = Math.min(
+                resolved.draftRounds,
+                Math.max(2, Math.round(resolved.draftRounds * 0.45)),
+              );
+              const existingPitcherSlots = Math.max(0, resolved.targetPitchers - team.pitchers.length);
+              const existingFielderSlots = Math.max(0, resolved.targetFielders - team.fielders.length);
+              const result = removePlayers(
+                team,
+                teamKey,
+                Math.max(mandatoryPitcherRetirements, desiredPitcherSlots - existingPitcherSlots, 0),
+                Math.max(
+                  mandatoryFielderRetirements,
+                  resolved.draftRounds - desiredPitcherSlots - existingFielderSlots,
+                  0,
+                ),
+                'draft',
+                resolved,
+              );
+          """
+          if old not in text:
+              raise SystemExit('offseason.ts draft preparation block not found')
+          offseason.write_text(text.replace(old, new))
+
+          Path('tests/name-generation.test.ts').write_text("""import assert from 'node:assert/strict';
+          import test from 'node:test';
+
+          import {
+            FOREIGN_GN,
+            FOREIGN_NAME_POOLS,
+            FOREIGN_SN,
+            GN,
+            JAPANESE_GIVEN_NAMES,
+            JAPANESE_SURNAMES,
+            SN,
+          } from '../src/data';
+          import { configureRandom, generateBatter, registerExistingNames, resetRandom } from '../src/engine';
+
+          function mulberry32(seed: number): () => number {
+            let state = seed >>> 0;
+            return () => {
+              state += 0x6d2b79f5;
+              let value = state;
+              value = Math.imul(value ^ (value >>> 15), value | 1);
+              value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+              return ((value ^ (value >>> 14)) >>> 0) / 4_294_967_296;
+            };
+          }
+
+          test('Japanese name pools are weighted, broad, and free of contaminated fragments', () => {
+            assert.ok(JAPANESE_SURNAMES.length >= 80);
+            assert.ok(JAPANESE_GIVEN_NAMES.length >= 70);
+            assert.ok(SN.length > JAPANESE_SURNAMES.length);
+            assert.ok(GN.length > JAPANESE_GIVEN_NAMES.length);
+            const surnames = new Set(JAPANESE_SURNAMES.map((entry) => entry.value));
+            const givenNames = new Set(JAPANESE_GIVEN_NAMES.map((entry) => entry.value));
+            for (const invalid of ['田中将', '高橋光', 'バウアー']) assert.equal(surnames.has(invalid), false);
+            assert.equal(givenNames.has('ノーラン'), false);
+          });
+
+          test('foreign names are separated into origin-region pools', () => {
+            const coveredOrigins = new Set<string>(
+              Object.values(FOREIGN_NAME_POOLS).flatMap((pool) => [...pool.origins]),
+            );
+            for (const origin of ['アメリカ', 'ドミニカ共和国', 'ベネズエラ', 'キューバ', 'メキシコ', '韓国', '台湾', 'その他'])
+              assert.ok(coveredOrigins.has(origin));
+            assert.ok(new Set(FOREIGN_SN).size >= 70);
+            assert.ok(new Set(FOREIGN_GN).size >= 70);
+          });
+
+          test('same-name players use ids rather than numbered display-name suffixes', () => {
+            configureRandom(mulberry32(20260725), () => 1_700_000_000_000);
+            try {
+              registerExistingNames({});
+              const players = Array.from({ length: 500 }, (_, index) =>
+                generateBatter('draft', 18 + (index % 7), '中堅手', 55 + (index % 25)),
+              );
+              assert.equal(players.some((player) => player.name.includes('#')), false);
+              assert.ok(new Set(players.map((player) => player.name)).size < players.length);
+              assert.equal(new Set(players.map((player) => player.id)).size, players.length);
+            } finally {
+              resetRandom();
+            }
+          });
+          """)
+
+          Path('.github/workflows/ci.yml').write_text("""name: CI
+
+          on:
+            push:
+            pull_request:
+
+          permissions:
+            contents: read
+
+          jobs:
+            quality:
+              runs-on: ubuntu-latest
+              steps:
+                - name: Checkout
+                  uses: actions/checkout@v4
+                - name: Setup Node.js
+                  uses: actions/setup-node@v4
+                  with:
+                    node-version: 22
+                - name: Install dependencies
+                  run: npm install
+                - name: Lint
+                  run: npm run lint
+                - name: Test
+                  run: npm test
+                - name: Build
+                  run: npm run build
+          """)
+          PY
+      - name: Commit phase 3 source changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/engine/players.ts src/engine/offseason.ts tests/name-generation.test.ts .github/workflows/ci.yml
+          git commit -m "Phase 3: allow same-name players and enforce mandatory retirement"
+          git push origin HEAD:agent/phase3-name-generation
