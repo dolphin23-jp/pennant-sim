@@ -4,7 +4,6 @@ import test from 'node:test';
 import { createFictionalLeagueHistory } from '../src/engine/leagueHistory';
 import { initTeams } from '../src/engine/players';
 
-
 test('fictional history is deterministic for the same teams and seed', () => {
   const teams = initTeams();
   const first = createFictionalLeagueHistory(teams, {
