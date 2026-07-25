@@ -33,28 +33,12 @@ import type {
   TeamKey,
   Teams,
 } from './types';
-const usedNames = new Set<string>();
 const japaneseName = (): string => `${randomChoice(SN)} ${randomChoice(GN)}`;
 const foreignName = (): string => `${randomChoice(FOREIGN_SN)} ${randomChoice(FOREIGN_GN)}`;
-function uniqueName(baseName: () => string): string {
-  for (let attempt = 0; attempt < 48; attempt += 1) {
-    const candidate = baseName();
-    if (!usedNames.has(candidate)) {
-      usedNames.add(candidate);
-      return candidate;
-    }
-  }
-  const fallback = `${baseName()}#${String(randomInt(10, 99))}`;
-  usedNames.add(fallback);
-  return fallback;
-}
-export function registerExistingNames(teams: Partial<Teams>): void {
-  usedNames.clear();
-  for (const team of Object.values(teams)) {
-    for (const player of [...(team?.fielders ?? []), ...(team?.pitchers ?? [])])
-      if (player.name) usedNames.add(player.name);
-  }
-}
+const generatedName = (baseName: () => string): string => baseName();
+
+// Display names are not identifiers. Same-name players remain distinct through Player.id.
+export function registerExistingNames(_teams: Partial<Teams>): void {}
 function maturityModifier(age: number, maturity: Maturity): number {
   const years = age - MATURITY_PEAK_AGE[maturity];
   if (years < -4) return clamp(0.68 + (years + 4) * 0.056, 0.4, 1);
@@ -274,7 +258,7 @@ export function generatePitcher(
   };
   return syncSpecialsFromLevels({
     id: uid(),
-    name: uniqueName(teamKey === 'foreign' || teamKey === '外' ? foreignName : japaneseName),
+    name: generatedName(teamKey === 'foreign' || teamKey === '外' ? foreignName : japaneseName),
     age,
     tk: teamKey,
     isP: true,
@@ -397,7 +381,7 @@ export function generateBatter(
   };
   return syncSpecialsFromLevels({
     id: uid(),
-    name: uniqueName(teamKey === 'foreign' || teamKey === '外' ? foreignName : japaneseName),
+    name: generatedName(teamKey === 'foreign' || teamKey === '外' ? foreignName : japaneseName),
     age,
     tk: teamKey,
     pos: position,
