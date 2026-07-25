@@ -4,20 +4,18 @@ import type { Player, Team } from './types';
 export interface PitcherPlanInput {
   rotationOrder: string[];
   closerPriority: string[];
+  /** CPU-only middle-relief order. Optional so existing saves and user plans stay compatible. */
+  bullpenPriority?: string[];
 }
 
 function eligibleStarterPool(team: Team): Player[] {
   const healthy = team.pitchers.filter(
     (pitcher) =>
-      pitcher.role === '先発' &&
-      (pitcher.injuryDays ?? 0) <= 0 &&
-      (pitcher.fatigue ?? 0) < 85,
+      pitcher.role === '先発' && (pitcher.injuryDays ?? 0) <= 0 && (pitcher.fatigue ?? 0) < 85,
   );
   return healthy.length
     ? healthy
-    : team.pitchers.filter(
-        (pitcher) => pitcher.role === '先発' && (pitcher.injuryDays ?? 0) <= 0,
-      );
+    : team.pitchers.filter((pitcher) => pitcher.role === '先発' && (pitcher.injuryDays ?? 0) <= 0);
 }
 
 export function resolveStarterRotation(team: Team, rotationOrder: string[] = []): Player[] {

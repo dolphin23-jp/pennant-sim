@@ -17,6 +17,8 @@
     "baseline:new": "tsx scripts/balance-new-engine.ts",
     "baseline:compare": "npm run baseline:new && node scripts/compare-baselines.mjs",
     "diagnose": "tsx scripts/diagnose-consistency.ts",
+    "audit:ai": "tsx scripts/audit-ai-management.ts --strict",
+    "audit:development": "tsx scripts/audit-long-term-development.ts --strict",
     "drift": "tsx scripts/franchise-drift.ts"
   },
   "dependencies": {

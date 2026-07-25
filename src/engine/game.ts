@@ -1,9 +1,15 @@
+import { AT_BAT_BALANCE, FOREIGN_PLAYER_BALANCE, PITCHER_USAGE_BALANCE } from '../data';
 import {
-  AT_BAT_BALANCE,
-  FIELDING_BALANCE,
-  FOREIGN_PLAYER_BALANCE,
-  PITCHER_USAGE_BALANCE,
-} from '../data';
+  sacrificeBuntAttemptRate,
+  sacrificeBuntSuccessRate,
+  stealAttemptRate,
+  stealSuccessRate,
+  strategicBestLineup,
+  strategicPitcherOrder,
+  strategicPitcherPlan,
+  teamStrategyFor,
+  type TeamStrategy,
+} from './aiStrategy';
 import { advBases, buildDesc, simAB } from './atBat';
 import { isForeignPlayer } from './foreign';
 import { applyPostGamePlayerEvents } from './playerEvents';
@@ -20,7 +26,7 @@ import {
 } from './pitcherUsage';
 import { clamp, random, randomChoice, randomInt } from './random';
 import { bestLineup, masteryFromAccum } from './ratings';
-import { hasGold, hasSpecial, specialLevel } from './specials';
+import { specialLevel } from './specials';
 import type {
   AccumulatedStats,
   AtBatLogEntry,
@@ -28,6 +34,7 @@ import type {
   BattedBallType,
   GameState,
   HalfInningResult,
+  ManagementDecision,
   PlateAppearanceResult,
   Player,
   ScoredRun,
@@ -39,7 +46,8 @@ import type {
 } from './types';
 const teamKeyForSide = (gameState: GameState, side: Side): TeamKey => gameState.teams[side].key;
 function resolveLineup(team: Team, supplied?: Player[] | null): Player[] {
-  if (!supplied?.length) return bestLineup(team);
+  if (supplied === null || supplied === undefined) return strategicBestLineup(team).lineup;
+  if (!supplied.length) return bestLineup(team);
   const roster = new Map(team.fielders.map((player) => [player.id, player])),
     resolved: Player[] = [];
   for (const player of supplied) {
@@ -53,31 +61,29 @@ function resolveLineup(team: Team, supplied?: Player[] | null): Player[] {
     ? selected
     : bestLineup(team);
 }
-// A sacrifice bunt is only laid down in the textbook spot: nobody out, a runner to move
-// into scoring position, and third not already occupied. Weak-hitting, bunt-capable
-// batters attempt it most often.
-function attemptsSacrificeBunt(batter: Player, bases: BaseState, outs: number): boolean {
-  if (outs !== 0 || bases[2] || (!bases[0] && !bases[1])) return false;
-  const sacrifice = AT_BAT_BALANCE.sacrificeBunt,
-    buntRating = batter.p.bnt ?? 50,
-    power = batter.p.pw ?? 50,
-    level = specialLevel(batter, 'bnt'),
-    attemptRate = clamp(
-      Math.max(0, buntRating - sacrifice.minimumBuntRating) / sacrifice.attemptRatingScale +
-        level * sacrifice.attemptPerSpecialLevel +
-        (power < sacrifice.weakHitterPowerThreshold ? sacrifice.weakHitterAttemptBonus : 0),
-      0,
-      sacrifice.maximumAttemptRate,
+interface HalfInningManagement {
+  battingStrategy: TeamStrategy;
+  fieldingStrategy: TeamStrategy;
+  closerPriority: string[];
+  bullpenPriority: string[];
+}
+
+function orderByPriority(
+  players: Player[],
+  priority: string[],
+  fallback: Map<string, number>,
+): Player[] {
+  const priorityIndex = new Map(priority.map((playerId, index) => [playerId, index]));
+  return [...players].sort((first, second) => {
+    const firstIndex = priorityIndex.get(first.id);
+    const secondIndex = priorityIndex.get(second.id);
+    if (firstIndex !== undefined || secondIndex !== undefined)
+      return (firstIndex ?? Number.MAX_SAFE_INTEGER) - (secondIndex ?? Number.MAX_SAFE_INTEGER);
+    return (
+      (fallback.get(second.id) ?? bullpenSelectionScore(second)) -
+      (fallback.get(first.id) ?? bullpenSelectionScore(first))
     );
-  if (random() >= attemptRate) return false;
-  const successRate = clamp(
-    sacrifice.baseSuccessRate +
-      (buntRating - 50) / sacrifice.successRatingScale +
-      level * sacrifice.successPerSpecialLevel,
-    sacrifice.minimumSuccessRate,
-    sacrifice.maximumSuccessRate,
-  );
-  return random() < successRate;
+  });
 }
 
 /** Start a new outing record for a pitcher taking the mound. */
@@ -129,9 +135,16 @@ export function simHalf(
   battingSide: Side,
   inning: number,
   accumulatedStats: AccumulatedStats,
-  closerPriority: string[] = [],
+  management?: HalfInningManagement,
 ): HalfInningResult {
   const fieldingSide: Side = battingSide === 'home' ? 'away' : 'home';
+  const battingStrategy =
+      management?.battingStrategy ?? teamStrategyFor(teamKeyForSide(gameState, battingSide)),
+    fieldingStrategy =
+      management?.fieldingStrategy ?? teamStrategyFor(teamKeyForSide(gameState, fieldingSide)),
+    closerPriority = management?.closerPriority ?? [],
+    bullpenPriority = management?.bullpenPriority ?? [],
+    decisionStart = (gameState.managementLog ??= []).length;
   const catcher = gameState.lineups[fieldingSide].find(
       (player) => player._assignedPos === '捕手' || player.pos === '捕手',
     ),
@@ -145,7 +158,7 @@ export function simHalf(
       pitchBalance = PITCHER_USAGE_BALANCE.pitchCount,
       gameStarter = fieldingSide === 'home' ? gameState.starterH : gameState.starterA,
       isStartingPitcher = currentPitcher.id === gameStarter.id;
-    const maximumPitchCount = isStartingPitcher
+    const baseMaximumPitchCount = isStartingPitcher
       ? Math.round(
           pitchBalance.starterBase +
             currentPitcher.p.stam * pitchBalance.starterStaminaShare +
@@ -162,7 +175,13 @@ export function simHalf(
               currentPitcher.p.stam * pitchBalance.relieverStaminaShare +
               (random() * pitchBalance.relieverVariation - pitchBalance.relieverVariation / 2),
           );
-    if (pitchCount < maximumPitchCount) return;
+    const reliefPitchBuffer = isStartingPitcher ? 0 : currentPitcher.role === 'クローザー' ? 3 : 4;
+    const maximumPitchCount = Math.max(
+      5,
+      Math.round(
+        baseMaximumPitchCount + reliefPitchBuffer - (fieldingStrategy.bullpenAggression - 1) * 16,
+      ),
+    );
     const bullpen = gameState.teams[fieldingSide].pitchers.filter(
       (p) =>
         p.role !== '先発' && !gameState.usedR[fieldingSide].has(p.id) && (p.injuryDays ?? 0) <= 0,
@@ -171,20 +190,42 @@ export function simHalf(
     const available =
       rested.length > 0 ? rested : bullpen.filter((pitcher) => isPitcherSelectable(pitcher, true));
     if (!available.length) return;
-    const close = Math.abs(gameState.score.home - gameState.score.away) <= 3,
+    const liveScore = {
+        home: gameState.score.home + (battingSide === 'home' ? runs : 0),
+        away: gameState.score.away + (battingSide === 'away' ? runs : 0),
+      },
+      fieldingLead =
+        fieldingSide === 'home' ? liveScore.home - liveScore.away : liveScore.away - liveScore.home,
+      close = Math.abs(fieldingLead) <= 3,
       closers = available.filter((p) => p.role === 'クローザー'),
       relievers = available.filter((p) => p.role === 'リリーフ');
+    const forceLateCloser =
+      inning >= 8 && close && currentPitcher.role !== 'クローザー' && closers.length > 0;
+    if (pitchCount < maximumPitchCount && !forceLateCloser) return;
+    const strategicScores = new Map(
+      strategicPitcherOrder(
+        gameState.teams[fieldingSide],
+        'bullpen',
+        fieldingStrategy,
+        accumulatedStats,
+      ).map((entry) => [entry.playerId, entry.score]),
+    );
     let nextPitcher: Player;
-    if (inning >= 8 && close && closers.length)
+    let reason: string;
+    if (forceLateCloser) {
       nextPitcher = selectCloserByPriority(closers, closerPriority) as Player;
-    else if (relievers.length)
-      nextPitcher = relievers.sort(
-        (a, b) => bullpenSelectionScore(b) - bullpenSelectionScore(a),
-      )[0] as Player;
-    else
-      nextPitcher = available.sort(
-        (a, b) => bullpenSelectionScore(b) - bullpenSelectionScore(a),
-      )[0] as Player;
+      reason = '終盤3点差以内のためクローザーを投入';
+    } else if (relievers.length) {
+      const ordered = orderByPriority(relievers, bullpenPriority, strategicScores);
+      const lowLeverage = inning < 6 || Math.abs(fieldingLead) >= 4;
+      nextPitcher = ordered[lowLeverage ? Math.min(2, ordered.length - 1) : 0] as Player;
+      reason = lowLeverage
+        ? '低レバレッジのため主力以外の救援を選択'
+        : '接戦のため戦略評価最上位の救援を選択';
+    } else {
+      nextPitcher = orderByPriority(available, bullpenPriority, strategicScores)[0] as Player;
+      reason = '登板可能な救援から戦略評価順に選択';
+    }
     gameState.changes.push({
       inning: inning + 1,
       isBot: battingSide === 'home',
@@ -192,10 +233,30 @@ export function simHalf(
       side: fieldingSide,
     });
     closeAppearance(gameState, fieldingSide);
-    openAppearance(gameState, fieldingSide, nextPitcher, inning + 1, currentOuts(), basesOccupied());
+    openAppearance(
+      gameState,
+      fieldingSide,
+      nextPitcher,
+      inning + 1,
+      currentOuts(),
+      basesOccupied(),
+    );
     gameState.curP[fieldingSide] = nextPitcher;
     gameState.usedR[fieldingSide].add(nextPitcher.id);
     gameState.pc[fieldingSide] = 0;
+    gameState.managementLog?.push({
+      teamKey: teamKeyForSide(gameState, fieldingSide),
+      inning: inning + 1,
+      type: 'pitchingChange',
+      playerId: nextPitcher.id,
+      playerName: nextPitcher.name,
+      attempted: true,
+      scoreDifference: fieldingLead,
+      outs: currentOuts(),
+      bases: [Boolean(bases[0]), Boolean(bases[1]), Boolean(bases[2])],
+      reason,
+      runsAtDecision: runs,
+    });
   };
   const atBats: AtBatLogEntry[] = [];
   const currentOuts = (): number => outs;
@@ -217,26 +278,52 @@ export function simHalf(
       const runner = bases[0],
         runnerPlayer = typeof runner === 'object' ? runner : undefined;
       if (runnerPlayer) {
-        let attemptRate = clamp((((runnerPlayer.p.sp ?? 50) - 30) / 260) * 0.55, 0.01, 0.13);
-        if (hasSpecial(runnerPlayer, 'sb')) attemptRate *= 1.4;
-        if (hasGold(runnerPlayer, 'sb_gold')) attemptRate *= 1.6;
-        if (random() < attemptRate) {
-          const catcherArm =
-              (catcher?.p.arm ?? 50) +
-              (catcher ? specialLevel(catcher, 'strong_arm') * FIELDING_BALANCE.strongArmPerLevel : 0),
-            pitcherControl = pitcher.p.ctrl ?? 50,
-            defensePenalty = (catcherArm - 50) / 420 + (pitcherControl - 50) / 900,
-            successRate = clamp(
-              (0.62 + ((runnerPlayer.p.sp ?? 50) - 50) / 280 - defensePenalty) *
-                (hasGold(runnerPlayer, 'sb_gold') ? 1.12 : 1),
-              0.4,
-              0.92,
-            ),
+        const liveScore = {
+            home: gameState.score.home + (battingSide === 'home' ? runs : 0),
+            away: gameState.score.away + (battingSide === 'away' ? runs : 0),
+          },
+          scoreDifference =
+            battingSide === 'home'
+              ? liveScore.home - liveScore.away
+              : liveScore.away - liveScore.home,
+          attemptRate = stealAttemptRate(runnerPlayer, catcher, pitcher, battingStrategy, {
+            inning: inning + 1,
+            outs,
+            scoreDifference,
+          }),
+          attempted = random() < attemptRate,
+          decision: ManagementDecision = {
+            teamKey: teamKeyForSide(gameState, battingSide),
+            inning: inning + 1,
+            type: 'steal' as const,
+            playerId: runnerPlayer.id,
+            playerName: runnerPlayer.name,
+            attempted,
+            probability: attemptRate,
+            scoreDifference,
+            outs,
+            bases: [Boolean(bases[0]), Boolean(bases[1]), Boolean(bases[2])] as [
+              boolean,
+              boolean,
+              boolean,
+            ],
+            reason:
+              scoreDifference <= -2
+                ? '複数点を追うため企図を抑制'
+                : inning >= 7 && Math.abs(scoreDifference) <= 1
+                  ? '終盤接戦で次の塁を狙う'
+                  : '走力・相手バッテリー・球団方針から判断',
+            runsAtDecision: runs,
+          };
+        gameState.managementLog?.push(decision);
+        if (attempted) {
+          const successRate = stealSuccessRate(runnerPlayer, catcher, pitcher),
             snapshot = {
               home: gameState.score.home + (battingSide === 'home' ? runs : 0),
               away: gameState.score.away + (battingSide === 'away' ? runs : 0),
             };
           if (random() < successRate) {
+            decision.success = true;
             bases = [false, runnerPlayer, bases[2]];
             atBats.push({
               inning: inning + 1,
@@ -253,6 +340,7 @@ export function simHalf(
               snap: snapshot,
             });
           } else {
+            decision.success = false;
             bases = [false, bases[1], bases[2]];
             outs += 1;
             const stealAppearance = openAppearanceFor(gameState, pitcher.id);
@@ -309,7 +397,46 @@ export function simHalf(
     let result: PlateAppearanceResult, pitchCount: number, direction: string | null;
     let battedBall: BattedBallType | undefined;
     let errorFielderId: string | undefined;
-    if (attemptsSacrificeBunt(batter, bases, outs)) {
+    const liveScore = {
+        home: gameState.score.home + (battingSide === 'home' ? runs : 0),
+        away: gameState.score.away + (battingSide === 'away' ? runs : 0),
+      },
+      scoreDifference =
+        battingSide === 'home' ? liveScore.home - liveScore.away : liveScore.away - liveScore.home,
+      buntSituation = outs === 0 && !bases[2] && Boolean(bases[0] || bases[1]),
+      buntRate = buntSituation
+        ? sacrificeBuntAttemptRate(batter, battingStrategy, {
+            inning: inning + 1,
+            outs,
+            bases: basesBefore,
+            scoreDifference,
+          })
+        : 0,
+      buntAttempted = buntSituation && random() < buntRate,
+      buntSucceeded = buntAttempted && random() < sacrificeBuntSuccessRate(batter);
+    if (buntSituation) {
+      gameState.managementLog?.push({
+        teamKey: teamKeyForSide(gameState, battingSide),
+        inning: inning + 1,
+        type: 'bunt',
+        playerId: batter.id,
+        playerName: batter.name,
+        attempted: buntAttempted,
+        success: buntAttempted ? buntSucceeded : undefined,
+        probability: buntRate,
+        scoreDifference,
+        outs,
+        bases: basesBefore,
+        reason:
+          scoreDifference <= -2
+            ? '複数点を追うため強攻を優先'
+            : inning >= 7 && Math.abs(scoreDifference) <= 1
+              ? '終盤接戦で走者進塁を優先'
+              : '打者の犠打能力・長打力・球団方針から判断',
+        runsAtDecision: runs,
+      });
+    }
+    if (buntSucceeded) {
       result = 'SH';
       pitchCount = randomInt(1, 4);
       direction = randomChoice(['投犠', '一犠', '三犠']);
@@ -449,6 +576,8 @@ export function simHalf(
       break;
     }
   }
+  for (const decision of (gameState.managementLog ?? []).slice(decisionStart))
+    decision.runsAfterDecision = Math.max(0, runs - decision.runsAtDecision);
   return { runs, atBats };
 }
 const leadFor = (side: Side, score: Score): number =>
@@ -501,9 +630,7 @@ function assignDecisions(gameState: GameState): void {
     const goAheadIndex = scoring.findIndex(
       (event) =>
         event.scoringSide === winningSide &&
-        (homeWon
-          ? event.homeScore > event.awayScore
-          : event.awayScore > event.homeScore),
+        (homeWon ? event.homeScore > event.awayScore : event.awayScore > event.homeScore),
     );
     const goAheadScore = goAheadIndex >= 0 ? scoring[goAheadIndex] : undefined;
     const reliefCandidates = winners.filter((entry) => !entry.isStarter);
@@ -623,10 +750,16 @@ export function simulateGame(
 ): GameState {
   const homeTeam = prepareTeamPitchersForGame(teams[homeKey], gameDate),
     awayTeam = prepareTeamPitchersForGame(teams[awayKey], gameDate),
+    homeStrategy = teamStrategyFor(homeKey),
+    awayStrategy = teamStrategyFor(awayKey),
+    resolvedHomePitcherPlan =
+      homePitcherPlan ?? strategicPitcherPlan(homeTeam, homeStrategy, accumulatedStats),
+    resolvedAwayPitcherPlan =
+      awayPitcherPlan ?? strategicPitcherPlan(awayTeam, awayStrategy, accumulatedStats),
     resolvedHomeLineup = resolveLineup(homeTeam, homeLineup),
     resolvedAwayLineup = resolveLineup(awayTeam, awayLineup),
-    homeStarters = resolveStarterRotation(homeTeam, homePitcherPlan?.rotationOrder ?? []),
-    awayStarters = resolveStarterRotation(awayTeam, awayPitcherPlan?.rotationOrder ?? []),
+    homeStarters = resolveStarterRotation(homeTeam, resolvedHomePitcherPlan.rotationOrder),
+    awayStarters = resolveStarterRotation(awayTeam, resolvedAwayPitcherPlan.rotationOrder),
     homeStarter =
       homeStarters[homeStarterIndex % Math.max(1, homeStarters.length)] ||
       homeTeam.pitchers.find((player) => (player.injuryDays ?? 0) <= 0) ||
@@ -655,19 +788,19 @@ export function simulateGame(
     starterA: awayStarter as Player,
     appearances: [],
     scoringSequence: [],
+    managementLog: [],
     postGameEvents: { awakenings: [], injuries: [] },
   };
   openAppearance(gameState, 'home', homeStarter as Player, 1, 0, 0);
   openAppearance(gameState, 'away', awayStarter as Player, 1, 0, 0);
   for (let inningIndex = 0; inningIndex < 15; inningIndex += 1) {
     const inningScore = { away: 0, home: 0 },
-      awayHalf = simHalf(
-        gameState,
-        'away',
-        inningIndex,
-        accumulatedStats,
-        homePitcherPlan?.closerPriority ?? [],
-      );
+      awayHalf = simHalf(gameState, 'away', inningIndex, accumulatedStats, {
+        battingStrategy: awayStrategy,
+        fieldingStrategy: homeStrategy,
+        closerPriority: resolvedHomePitcherPlan.closerPriority,
+        bullpenPriority: resolvedHomePitcherPlan.bullpenPriority ?? [],
+      });
     inningScore.away = awayHalf.runs;
     gameState.score.away += awayHalf.runs;
     gameState.atBatLog.push(...awayHalf.atBats);
@@ -675,13 +808,12 @@ export function simulateGame(
       gameState.innings.push({ home: inningScore.home, away: inningScore.away });
       break;
     }
-    const homeHalf = simHalf(
-      gameState,
-      'home',
-      inningIndex,
-      accumulatedStats,
-      awayPitcherPlan?.closerPriority ?? [],
-    );
+    const homeHalf = simHalf(gameState, 'home', inningIndex, accumulatedStats, {
+      battingStrategy: homeStrategy,
+      fieldingStrategy: awayStrategy,
+      closerPriority: resolvedAwayPitcherPlan.closerPriority,
+      bullpenPriority: resolvedAwayPitcherPlan.bullpenPriority ?? [],
+    });
     inningScore.home = homeHalf.runs;
     gameState.score.home += homeHalf.runs;
     gameState.atBatLog.push(...homeHalf.atBats);

@@ -47,8 +47,15 @@ export const PLAYER_DEVELOPMENT_BALANCE = {
       lateDecline: -0.2,
       finalDecline: -0.28,
     },
+    chronologicalDecline: {
+      startAge: 34,
+      linearPerYear: 0.11,
+      quadraticPerYear: 0.02,
+      maximumMultiplier: 2.4,
+    },
     latentDevelopmentShare: 0.52,
     eliteGrowthMultiplier: 1.8,
+    generationalGrowthMultiplier: 2.1,
     currentRatingDeclineScale: 0.12,
   },
   annualRandomVariation: {

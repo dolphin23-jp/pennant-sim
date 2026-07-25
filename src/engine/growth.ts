@@ -24,12 +24,25 @@ export function developmentAgeCoefficient(age: number, maturity: Maturity): numb
 
   const yearsPastPeak = -yearsToPeak;
   if (yearsPastPeak <= balance.yearsPastPeak.plateau) return balance.growthCoefficient.peakWindow;
-  if (yearsPastPeak <= balance.yearsPastPeak.earlyDecline)
-    return balance.declineCoefficient.earlyDecline;
-  if (yearsPastPeak <= balance.yearsPastPeak.decline) return balance.declineCoefficient.decline;
-  if (yearsPastPeak <= balance.yearsPastPeak.lateDecline)
-    return balance.declineCoefficient.lateDecline;
-  return balance.declineCoefficient.finalDecline;
+  const maturityDecline =
+    yearsPastPeak <= balance.yearsPastPeak.earlyDecline
+      ? balance.declineCoefficient.earlyDecline
+      : yearsPastPeak <= balance.yearsPastPeak.decline
+        ? balance.declineCoefficient.decline
+        : yearsPastPeak <= balance.yearsPastPeak.lateDecline
+          ? balance.declineCoefficient.lateDecline
+          : balance.declineCoefficient.finalDecline;
+  return maturityDecline * agingDeclineMultiplier(age);
+}
+
+export function agingDeclineMultiplier(age: number): number {
+  const balance = PLAYER_DEVELOPMENT_BALANCE.careerCurve.chronologicalDecline,
+    years = Math.max(0, age - balance.startAge);
+  return clamp(
+    1 + years * balance.linearPerYear + years ** 2 * balance.quadraticPerYear,
+    1,
+    balance.maximumMultiplier,
+  );
 }
 function growthParameters(player: Player): Array<keyof PlayerParams> {
   return player.isP
@@ -98,7 +111,9 @@ export function growPlayer(player: Player): Player {
             annualVariation *
             (1 + trainingBonus) *
             (player.potentialClass === 'elite'
-              ? PLAYER_DEVELOPMENT_BALANCE.careerCurve.eliteGrowthMultiplier
+              ? player.generationalTalent
+                ? PLAYER_DEVELOPMENT_BALANCE.careerCurve.generationalGrowthMultiplier
+                : PLAYER_DEVELOPMENT_BALANCE.careerCurve.eliteGrowthMultiplier
               : 1)
           : before *
             definition.c *

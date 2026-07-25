@@ -256,7 +256,10 @@ function retentionScore(player: Player): number {
   );
   const potentialBonus =
     player.age <= MATURITY_PEAK_AGE[player.mat]
-      ? potentialGap * 0.15 + (player.potentialClass === 'elite' ? 12 : 0)
+      ? potentialGap * 0.15 +
+        (player.potentialClass === 'elite' ? 12 : 0) +
+        (player.generationalTalent ? 18 : 0) +
+        Math.max(0, MATURITY_PEAK_AGE[player.mat] - player.age) * 0.65
       : 0;
   const foreignContractBonus = isForeignPlayer(player)
     ? 16 + (player.foreignProfile?.contractYearsRemaining ?? 1) * 4
