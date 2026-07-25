@@ -1,4 +1,4 @@
-import { calcOvr } from './ratings';
+import { calcOVR } from './ratings';
 import type {
   AccumulatedStats,
   BatterStats,
@@ -45,7 +45,7 @@ function snapshotPlayer(
     isPitcher: player.isP,
     role: player.role,
     position: player._assignedPos ?? player.pos,
-    ovr: calcOvr(player),
+    ovr: calcOVR(player),
     params: structuredClone(player.p),
     stats: snapshotStats(player, stats),
   };
