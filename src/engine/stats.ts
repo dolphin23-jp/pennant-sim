@@ -177,12 +177,17 @@ export function mergeStatMaps(
       output[id] = { ...stats } as PlayerStats;
       continue;
     }
+    // output[id] still aliases base[id] here (the spread above only copied the top
+    // level), so copy it before mutating or callers that reuse `base` across many
+    // merges (e.g. per-game season snapshots in a skip batch) see their earlier
+    // players' totals silently double-counted.
+    const target = { ...output[id] } as unknown as Record<string, number | string>;
     for (const [key, value] of Object.entries(stats)) {
       if (key !== 'type' && key !== 'name' && typeof value === 'number') {
-        const target = output[id] as unknown as Record<string, number | string>;
         target[key] = (typeof target[key] === 'number' ? target[key] : 0) + value;
       }
     }
+    output[id] = target as unknown as PlayerStats;
   }
   return output;
 }
