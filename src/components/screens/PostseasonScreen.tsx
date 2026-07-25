@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 
 import { CENTRAL, PACIFIC, TINFO } from '../../data';
 import { simulateGame } from '../../engine';
-import type { TeamKey, Teams } from '../../engine';
+import type { AccumulatedStats, TeamKey, Teams } from '../../engine';
 import { useGameState } from '../../state/gameState';
 import { Button, Card, PageShell, SectionTitle, teamTextColor } from '../ui';
 
@@ -37,6 +37,9 @@ function simulateSeries(
   second: TeamKey,
   bestOf: number,
   teams: Teams,
+  // Carrying the regular season's totals keeps in-season mastery continuous into the
+  // playoffs; passing {} would reset every player to opening mastery mid-year.
+  accumulated: AccumulatedStats,
   firstAdvantage = 0,
 ): SeriesResult {
   const target = Math.ceil(bestOf / 2);
@@ -58,7 +61,7 @@ function simulateSeries(
       null,
       home === first ? firstRotation : secondRotation,
       away === first ? firstRotation : secondRotation,
-      {},
+      accumulated,
     );
     firstRotation += 1;
     secondRotation += 1;
@@ -321,11 +324,32 @@ export function PostseasonScreen() {
   if (!teams) return null;
 
   const runPostseason = () => {
-    const centralFirst = simulateSeries(centralRanking[1], centralRanking[2], 3, teams);
-    const pacificFirst = simulateSeries(pacificRanking[1], pacificRanking[2], 3, teams);
-    const centralFinal = simulateSeries(centralRanking[0], centralFirst.winner, 7, teams, 1);
-    const pacificFinal = simulateSeries(pacificRanking[0], pacificFirst.winner, 7, teams, 1);
-    const japanSeries = simulateSeries(centralFinal.winner, pacificFinal.winner, 7, teams);
+    const league = game.leagueAccumulated;
+    const centralFirst = simulateSeries(centralRanking[1], centralRanking[2], 3, teams, league);
+    const pacificFirst = simulateSeries(pacificRanking[1], pacificRanking[2], 3, teams, league);
+    const centralFinal = simulateSeries(
+      centralRanking[0],
+      centralFirst.winner,
+      7,
+      teams,
+      league,
+      1,
+    );
+    const pacificFinal = simulateSeries(
+      pacificRanking[0],
+      pacificFirst.winner,
+      7,
+      teams,
+      league,
+      1,
+    );
+    const japanSeries = simulateSeries(
+      centralFinal.winner,
+      pacificFinal.winner,
+      7,
+      teams,
+      league,
+    );
     setResults({ centralFirst, centralFinal, pacificFirst, pacificFinal, japanSeries });
   };
 

@@ -154,8 +154,10 @@ export interface Team extends TeamInfo {
 }
 export type Teams = Record<TeamKey, Team>;
 export type Side = 'home' | 'away';
+// SH (犠打) and SF (犠飛) are official scoring outcomes: they count as plate
+// appearances but not at-bats, so they must be distinguishable from GO/FO.
 export type PlateAppearanceResult =
-  'K' | 'BB' | 'HBP' | 'HR' | '3B' | '2B' | '1B' | 'GO' | 'FO' | 'DP';
+  'K' | 'BB' | 'HBP' | 'HR' | '3B' | '2B' | '1B' | 'GO' | 'FO' | 'DP' | 'SH' | 'SF';
 export type RunningResult = 'SB' | 'CS';
 export type AtBatResult = PlateAppearanceResult | RunningResult;
 export type BaseRunner = Player | boolean;

@@ -1,4 +1,4 @@
-import { FOREIGN_PLAYER_BALANCE, PITCHER_USAGE_BALANCE } from '../data';
+import { AT_BAT_BALANCE, FOREIGN_PLAYER_BALANCE, PITCHER_USAGE_BALANCE } from '../data';
 import { advBases, buildDesc, simAB } from './atBat';
 import { isForeignPlayer } from './foreign';
 import { applyPostGamePlayerEvents } from './playerEvents';
@@ -13,15 +13,16 @@ import {
   isPitcherSelectable,
   prepareTeamPitchersForGame,
 } from './pitcherUsage';
-import { clamp, random } from './random';
+import { clamp, random, randomChoice, randomInt } from './random';
 import { bestLineup, masteryFromAccum } from './ratings';
-import { hasGold, hasSpecial } from './specials';
+import { hasGold, hasSpecial, specialLevel } from './specials';
 import type {
   AccumulatedStats,
   AtBatLogEntry,
   BaseState,
   GameState,
   HalfInningResult,
+  PlateAppearanceResult,
   Player,
   Side,
   Team,
@@ -44,6 +45,33 @@ function resolveLineup(team: Team, supplied?: Player[] | null): Player[] {
     ? selected
     : bestLineup(team);
 }
+// A sacrifice bunt is only laid down in the textbook spot: nobody out, a runner to move
+// into scoring position, and third not already occupied. Weak-hitting, bunt-capable
+// batters attempt it most often.
+function attemptsSacrificeBunt(batter: Player, bases: BaseState, outs: number): boolean {
+  if (outs !== 0 || bases[2] || (!bases[0] && !bases[1])) return false;
+  const sacrifice = AT_BAT_BALANCE.sacrificeBunt,
+    buntRating = batter.p.bnt ?? 50,
+    power = batter.p.pw ?? 50,
+    level = specialLevel(batter, 'bnt'),
+    attemptRate = clamp(
+      Math.max(0, buntRating - sacrifice.minimumBuntRating) / sacrifice.attemptRatingScale +
+        level * sacrifice.attemptPerSpecialLevel +
+        (power < sacrifice.weakHitterPowerThreshold ? sacrifice.weakHitterAttemptBonus : 0),
+      0,
+      sacrifice.maximumAttemptRate,
+    );
+  if (random() >= attemptRate) return false;
+  const successRate = clamp(
+    sacrifice.baseSuccessRate +
+      (buntRating - 50) / sacrifice.successRatingScale +
+      level * sacrifice.successPerSpecialLevel,
+    sacrifice.minimumSuccessRate,
+    sacrifice.maximumSuccessRate,
+  );
+  return random() < successRate;
+}
+
 export function simHalf(
   gameState: GameState,
   battingSide: Side,
@@ -186,32 +214,40 @@ export function simHalf(
         20,
         100,
       ),
-      isPinch = Boolean(bases[0] || bases[1] || bases[2]) && outs >= 1,
+      // A pinch is a runner in scoring position — second or third — regardless of outs.
+      isPinch = Boolean(bases[1] || bases[2]),
       isLead = outs === 0 && !bases[0] && !bases[1] && !bases[2],
       pitcherMastery = masteryFromAccum(pitcher, accumulatedStats),
       batterMastery = masteryFromAccum(batter, accumulatedStats),
       matchupKey = `${pitcher.id}:${batter.id}`,
       priorMatchups = gameState.matchupCounts[matchupKey] ?? 0;
-    const {
-      result,
-      pc: pitchCount,
-      dir: direction,
-    } = simAB(
-      pitcher,
-      batter,
-      { pStam: staminaPercentage, isPinch, isLead, outs, bases },
-      catcherGameCalling,
-      pitcherMastery,
-      batterMastery,
-      gameState.park,
-      priorMatchups,
-    );
+    let result: PlateAppearanceResult, pitchCount: number, direction: string | null;
+    if (attemptsSacrificeBunt(batter, bases, outs)) {
+      result = 'SH';
+      pitchCount = randomInt(1, 4);
+      direction = randomChoice(['投犠', '一犠', '三犠']);
+    } else {
+      const outcome = simAB(
+        pitcher,
+        batter,
+        { pStam: staminaPercentage, isPinch, isLead, outs, bases },
+        catcherGameCalling,
+        pitcherMastery,
+        batterMastery,
+        gameState.park,
+        priorMatchups,
+      );
+      result = outcome.result;
+      pitchCount = outcome.pc;
+      direction = outcome.dir;
+    }
     gameState.matchupCounts[matchupKey] = priorMatchups + 1;
     gameState.pc[fieldingSide] += pitchCount;
+    let officialResult = result;
     let runsBattedIn = 0;
     let scoredIds: string[] = [];
     if (result === 'K') outs += 1;
-    else if (result === 'GO') {
+    else if (result === 'GO' || result === 'SH') {
       const advancement = advBases(bases, result, batter, outs);
       bases = advancement.bases;
       runsBattedIn = advancement.runs;
@@ -223,6 +259,12 @@ export function simHalf(
       bases = advancement.bases;
       runsBattedIn = advancement.runs;
       scoredIds = advancement.scorers.map((player) => player.id);
+      // A fly out that brings a runner home from third is officially a sacrifice fly,
+      // which is a plate appearance but not an at-bat.
+      if (runsBattedIn > 0) {
+        officialResult = 'SF';
+        direction = direction ? direction.replace('飛', '犠飛') : '犠飛';
+      }
       outs += 1;
       runs += runsBattedIn;
     } else if (result === 'DP') {
@@ -250,13 +292,13 @@ export function simHalf(
       pitcher: pitcher.name,
       pitcherId: pitcher.id,
       pSide: teamKeyForSide(gameState, fieldingSide),
-      result,
+      result: officialResult,
       dir: direction,
       pc: pitchCount,
       rbi: runsBattedIn,
       snap: snapshot,
       scoredIds,
-      desc: buildDesc(batter.name, result, direction, runsBattedIn),
+      desc: buildDesc(batter.name, officialResult, direction, runsBattedIn),
     });
     if (battingSide === 'home' && inning >= 8 && snapshot.home > snapshot.away) {
       outs = 3;
@@ -265,6 +307,49 @@ export function simHalf(
   }
   return { runs, atBats };
 }
+// Post-game bookkeeping shared by decided and drawn games: development events, pitcher
+// workload, and writing the resulting rosters back for the caller.
+function finalizeGame(
+  gameState: GameState,
+  teams: Teams,
+  homeKey: TeamKey,
+  awayKey: TeamKey,
+  gameDate?: string,
+): GameState {
+  const participantIds = (side: Side): Set<string> => {
+      const teamKey = gameState.teams[side].key,
+        ids = new Set<string>();
+      for (const entry of gameState.atBatLog) {
+        if (entry.bSide === teamKey) ids.add(entry.batterId);
+        if (entry.pSide === teamKey) ids.add(entry.pitcherId);
+      }
+      return ids;
+    },
+    homePostGame = applyPostGamePlayerEvents(gameState.teams.home, participantIds('home')),
+    awayPostGame = applyPostGamePlayerEvents(gameState.teams.away, participantIds('away')),
+    homeAfterWorkload = applyPitcherWorkloads(
+      homePostGame.team,
+      gameState.atBatLog,
+      gameDate,
+      gameState.starterH.id,
+    ),
+    awayAfterWorkload = applyPitcherWorkloads(
+      awayPostGame.team,
+      gameState.atBatLog,
+      gameDate,
+      gameState.starterA.id,
+    );
+  gameState.teams = { home: homeAfterWorkload, away: awayAfterWorkload };
+  gameState.postGameEvents = {
+    awakenings: [...homePostGame.events.awakenings, ...awayPostGame.events.awakenings],
+    injuries: [...homePostGame.events.injuries, ...awayPostGame.events.injuries],
+  };
+  // Deliberately persist post-game roster state for every caller, including CPU skips and diagnostics.
+  teams[homeKey] = homeAfterWorkload;
+  teams[awayKey] = awayAfterWorkload;
+  return gameState;
+}
+
 export function simulateGame(
   homeKey: TeamKey,
   awayKey: TeamKey,
@@ -341,6 +426,15 @@ export function simulateGame(
     gameState.innings.push({ home: inningScore.home, away: inningScore.away });
     if (inningIndex >= 8 && gameState.score.home !== gameState.score.away) break;
   }
+  // A drawn game has no winning or losing pitcher and no save, so skip the whole
+  // decision block rather than treating the away side as the nominal winner.
+  if (gameState.score.home === gameState.score.away) {
+    gameState.winnerPitcherId = null;
+    gameState.loserPitcherId = null;
+    gameState.savePitcherId = null;
+    gameState.holdPitcherIds = [];
+    return finalizeGame(gameState, teams, homeKey, awayKey, gameDate);
+  }
   const homeWin = gameState.score.home > gameState.score.away,
     winningSide: Side = homeWin ? 'home' : 'away',
     losingSide: Side = homeWin ? 'away' : 'home';
@@ -384,36 +478,5 @@ export function simulateGame(
     if (entry.pSide === gameState.teams[losingSide].key && entry.rbi > 0)
       losingRuns[entry.pitcherId] = (losingRuns[entry.pitcherId] || 0) + entry.rbi;
   gameState.loserPitcherId = Object.entries(losingRuns).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
-  const participantIds = (side: Side): Set<string> => {
-      const teamKey = gameState.teams[side].key,
-        ids = new Set<string>();
-      for (const entry of gameState.atBatLog) {
-        if (entry.bSide === teamKey) ids.add(entry.batterId);
-        if (entry.pSide === teamKey) ids.add(entry.pitcherId);
-      }
-      return ids;
-    },
-    homePostGame = applyPostGamePlayerEvents(homeTeam, participantIds('home')),
-    awayPostGame = applyPostGamePlayerEvents(awayTeam, participantIds('away')),
-    homeAfterWorkload = applyPitcherWorkloads(
-      homePostGame.team,
-      gameState.atBatLog,
-      gameDate,
-      gameState.starterH.id,
-    ),
-    awayAfterWorkload = applyPitcherWorkloads(
-      awayPostGame.team,
-      gameState.atBatLog,
-      gameDate,
-      gameState.starterA.id,
-    );
-  gameState.teams = { home: homeAfterWorkload, away: awayAfterWorkload };
-  gameState.postGameEvents = {
-    awakenings: [...homePostGame.events.awakenings, ...awayPostGame.events.awakenings],
-    injuries: [...homePostGame.events.injuries, ...awayPostGame.events.injuries],
-  };
-  // Deliberately persist post-game roster state for every caller, including CPU skips and diagnostics.
-  teams[homeKey] = homeAfterWorkload;
-  teams[awayKey] = awayAfterWorkload;
-  return gameState;
+  return finalizeGame(gameState, teams, homeKey, awayKey, gameDate);
 }

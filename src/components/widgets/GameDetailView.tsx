@@ -54,6 +54,8 @@ const BATTER_COLUMNS: Array<{ key: keyof BatterLine; label: string }> = [
   { key: 'k', label: '三振' },
   { key: 'sb', label: '盗塁' },
   { key: 'cs', label: '盗塁死' },
+  { key: 'sh', label: '犠打' },
+  { key: 'sf', label: '犠飛' },
   { key: 'gdp', label: '併殺打' },
 ];
 

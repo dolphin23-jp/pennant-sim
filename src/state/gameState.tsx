@@ -299,7 +299,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
         nextGame.awayKey === current.playerTeam ? current.lineup : null,
         current.rotN[nextGame.homeKey] || 0,
         current.rotN[nextGame.awayKey] || 0,
-        current.accumulated,
+        // League-wide totals, so in-season mastery ramps identically for all 12 clubs.
+        // Passing the player-team-only map left every CPU player stuck at the opening
+        // mastery value for the whole season.
+        current.leagueAccumulated,
         nextGame.homeKey === current.playerTeam ? current.pitcherPlan : null,
         nextGame.awayKey === current.playerTeam ? current.pitcherPlan : null,
         nextGame.date,
@@ -336,7 +339,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         current.teams,
         rotations,
         current.playerTeam,
-        accumulated,
+        leagueAccumulated,
         leagueAccumulated,
       );
       const finalLeagueStats = mergeStats(leagueAccumulated, prepared.leagueDistStats);
@@ -386,7 +389,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         current.rotN,
         current.playerTeam,
         mode,
-        current.accumulated,
+        current.leagueAccumulated,
         current.pitcherPlan,
         current.leagueAccumulated,
       );

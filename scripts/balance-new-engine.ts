@@ -209,7 +209,10 @@ async function simulateSeason(seasonIndex: number, baseSeed: number) {
       null,
       rotations[game.homeKey],
       rotations[game.awayKey],
-      {},
+      // Feed the running league totals so in-season mastery ramps here exactly as it
+      // does in a played season; passing {} froze every player at opening mastery and
+      // made the baseline measure a different engine than the game actually runs.
+      accumulatedStats,
       null,
       null,
       game.date,
