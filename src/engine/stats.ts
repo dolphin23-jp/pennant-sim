@@ -43,10 +43,15 @@ const createPitcherStats = (name: string): PitcherStats => ({
   er: 0,
   pc: 0,
 });
+// Walks, hit-by-pitches and sacrifices are plate appearances but not at-bats.
+const NON_AT_BAT_RESULTS = new Set(['BB', 'HBP', 'SH', 'SF']);
+
 function applyBattingEvent(stats: BatterStats, entry: AtBatLogEntry): void {
   const running = entry.result === 'SB' || entry.result === 'CS';
   if (!running) stats.pa += 1;
-  if (!running && entry.result !== 'BB' && entry.result !== 'HBP') stats.ab += 1;
+  if (!running && !NON_AT_BAT_RESULTS.has(entry.result)) stats.ab += 1;
+  if (entry.result === 'SH') stats.bnt += 1;
+  if (entry.result === 'SF') stats.sf += 1;
   if (entry.result === 'BB') stats.bb += 1;
   if (['1B', '2B', '3B', 'HR'].includes(entry.result)) {
     stats.h += 1;
@@ -60,11 +65,19 @@ function applyBattingEvent(stats: BatterStats, entry: AtBatLogEntry): void {
   if (entry.result === 'CS') stats.cs += 1;
   stats.rbi += entry.rbi || 0;
 }
+// Every out the defence records counts toward innings pitched, including sacrifices and
+// runners thrown out stealing. A double play is gated to fewer than two outs upstream,
+// so its two outs can never overrun the inning.
+const SINGLE_OUT_RESULTS = new Set(['K', 'GO', 'FO', 'SH', 'SF', 'CS']);
+
 function applyPitchingEvent(stats: PitcherStats, entry: AtBatLogEntry): void {
-  stats.pc += entry.pc || 3;
+  // Steal attempts are baserunning events logged against the pitcher, not pitches, so
+  // they must not inflate the pitch count.
+  const running = entry.result === 'SB' || entry.result === 'CS';
+  if (!running) stats.pc += entry.pc || 3;
   if (['1B', '2B', '3B', 'HR'].includes(entry.result)) stats.h += 1;
   if (entry.result === 'BB') stats.bb += 1;
-  if (['K', 'GO', 'FO'].includes(entry.result)) stats.ip3 += 1;
+  if (SINGLE_OUT_RESULTS.has(entry.result)) stats.ip3 += 1;
   else if (entry.result === 'DP') stats.ip3 += 2;
   if (entry.result === 'K') stats.k += 1;
   stats.er += Math.round((entry.rbi || 0) * 0.88);

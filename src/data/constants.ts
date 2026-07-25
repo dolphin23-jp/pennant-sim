@@ -201,7 +201,11 @@ export const AT_BAT_BALANCE = {
   groundBall: {
     baseRate: 0.462,
     singleShare: 0.82,
-    doublePlayShare: 0.1,
+    // Share of the ground-ball band that becomes a double play *when one is possible*
+    // (runner forced at first, fewer than two outs). Before that gate existed this was
+    // 0.1 and fired in every situation, including with the bases empty; re-tuned to 0.75
+    // so the league still turns a realistic ~1,150 double plays a season.
+    doublePlayShare: 0.75,
   },
   airBall: {
     tripleShare: 0.02,
@@ -212,6 +216,26 @@ export const AT_BAT_BALANCE = {
     scoreFromSecondOnSingle: { standard: 0.45, fast: 0.58 },
     scoreFromThirdOnGroundOut: 0.55,
     scoreFromThirdOnFlyOut: 0.38,
+    // A runner counts as "fast" from their own speed rating, not the batter's.
+    fastRunnerSpeed: 72,
+    // 走塁センス lifts a runner over the fast threshold without needing raw speed.
+    baseRunningInstinctSpeedBonus: 6,
+  },
+  // Sacrifice bunts: only attempted in a textbook situation (no outs, a runner to move
+  // over, nobody already on third). Rates are deliberately low so bunting stays a
+  // situational tool rather than a league-wide offence driver.
+  sacrificeBunt: {
+    minimumBuntRating: 45,
+    attemptRatingScale: 500,
+    attemptPerSpecialLevel: 0.025,
+    weakHitterAttemptBonus: 0.015,
+    weakHitterPowerThreshold: 45,
+    maximumAttemptRate: 0.12,
+    baseSuccessRate: 0.58,
+    successRatingScale: 125,
+    successPerSpecialLevel: 0.045,
+    minimumSuccessRate: 0.35,
+    maximumSuccessRate: 0.94,
   },
   ballsInPlay: {
     baseAverage: 0.298,

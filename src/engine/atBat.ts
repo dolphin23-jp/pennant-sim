@@ -1,7 +1,7 @@
 import { AT_BAT_BALANCE, PITCHER_USAGE_BALANCE } from '../data';
 import { foreignPerformanceMultiplier } from './foreign';
 import { clamp, random, randomChoice, randomInt } from './random';
-import { hasGold, specialLevel, specialMultiplier } from './specials';
+import { hasGold, hasSpecial, specialLevel, specialMultiplier } from './specials';
 import type {
   AtBatOutcome,
   AtBatSituation,
@@ -10,6 +10,10 @@ import type {
   PlateAppearanceResult,
   Player,
 } from './types';
+
+// The subset of outcomes the at-bat simulation itself can produce (sacrifices are
+// determined by the game loop, not by the pitcher/batter matchup roll).
+type SimulatedPlateAppearanceResult = Exclude<PlateAppearanceResult, 'SH' | 'SF'>;
 
 function softRatingDelta(value: number): number {
   const raw = value - 50,
@@ -82,15 +86,18 @@ export function simAB(
   if (hasGold(pitcher, 'kk_gold')) strikeoutRate *= 1.22;
   if (hasGold(pitcher, 'kire_gold')) strikeoutRate *= 1.1;
   if (situation.isPinch) {
-    strikeoutRate *= 1 - specialLevel(pitcher, 'po') * 0.02;
-    strikeoutRate *= 1 + specialLevel(pitcher, 'px') * 0.03;
+    // Pitcher specials: ピンチ◎ makes the pitcher better in a jam (more strikeouts),
+    // ピンチ× worse. Batter specials run the opposite way: チャンス◎ means the batter
+    // is harder to strike out.
+    strikeoutRate *= 1 + specialLevel(pitcher, 'po') * 0.02;
+    strikeoutRate *= 1 - specialLevel(pitcher, 'px') * 0.03;
     strikeoutRate *= 1 - specialLevel(batter, 'co') * 0.02;
     strikeoutRate *= 1 + specialLevel(batter, 'cx') * 0.03;
-    if (hasGold(pitcher, 'po_gold')) strikeoutRate *= 0.88;
+    if (hasGold(pitcher, 'po_gold')) strikeoutRate *= 1.12;
   }
   if (situation.isLead) {
-    strikeoutRate *= 1 - specialLevel(pitcher, 'ldo') * 0.02;
-    strikeoutRate *= 1 + specialLevel(pitcher, 'ldx') * 0.03;
+    strikeoutRate *= 1 + specialLevel(pitcher, 'ldo') * 0.02;
+    strikeoutRate *= 1 - specialLevel(pitcher, 'ldx') * 0.03;
   }
   strikeoutRate /= batterContextMultiplier;
   strikeoutRate = clamp(
@@ -187,8 +194,13 @@ export function simAB(
         result = '1B';
       else if (
         ballInPlayRoll <
-        ballsInPlayAverage *
-          (AT_BAT_BALANCE.groundBall.singleShare + AT_BAT_BALANCE.groundBall.doublePlayShare)
+          ballsInPlayAverage *
+            (AT_BAT_BALANCE.groundBall.singleShare + AT_BAT_BALANCE.groundBall.doublePlayShare) &&
+        // A double play needs a force at second and room for two outs. Without those it
+        // is an ordinary ground out — reclassified here rather than re-rolled, so the
+        // random stream is unchanged.
+        Boolean(situation.bases[0]) &&
+        situation.outs < 2
       )
         result = 'DP';
       else result = 'GO';
@@ -204,7 +216,10 @@ export function simAB(
       else result = 'FO';
     }
   }
-  const pitchCounts: Record<PlateAppearanceResult, number> = {
+  // Sacrifices never come out of simAB: 犠打 is decided before the at-bat and 犠飛 is a
+  // rescoring of a fly out, so they are excluded here to keep the random draws per
+  // at-bat unchanged.
+  const pitchCounts: Record<SimulatedPlateAppearanceResult, number> = {
     K: randomInt(4, 7),
     BB: randomInt(5, 8),
     HBP: randomInt(1, 3),
@@ -216,7 +231,7 @@ export function simAB(
     FO: randomInt(1, 4),
     DP: randomInt(3, 6),
   };
-  const directions: Record<PlateAppearanceResult, string | null> = {
+  const directions: Record<SimulatedPlateAppearanceResult, string | null> = {
     HR: randomChoice(['左', '中', '右']),
     '3B': randomChoice(['左中', '右中']),
     '2B': randomChoice(['左', '右中', '左中']),
@@ -234,14 +249,24 @@ export function simAB(
 const asPlayer = (runner: BaseState[number]): Player | null =>
   typeof runner === 'object' ? runner : null;
 
+// Whether a runner takes the extra base is a property of that runner, not of whoever
+// happens to be batting. 走塁センス stands in for instincts the raw speed rating misses.
+const isFastRunner = (runner: BaseState[number]): boolean => {
+  const player = asPlayer(runner);
+  if (!player) return false;
+  const instinctBonus = hasSpecial(player, 'run')
+    ? AT_BAT_BALANCE.baseRunning.baseRunningInstinctSpeedBonus
+    : 0;
+  return (player.p.sp ?? 50) + instinctBonus > AT_BAT_BALANCE.baseRunning.fastRunnerSpeed;
+};
+
 export function advBases(
   bases: BaseState,
   result: PlateAppearanceResult,
   batter: Player,
   outs: number,
 ): { bases: BaseState; runs: number; scorers: Player[] } {
-  const [runnerOnFirst, runnerOnSecond, runnerOnThird] = bases,
-    isFast = (batter.p.sp ?? 50) > 72;
+  const [runnerOnFirst, runnerOnSecond, runnerOnThird] = bases;
   switch (result) {
     case 'HR': {
       const scorers = [batter, runnerOnFirst, runnerOnSecond, runnerOnThird]
@@ -263,7 +288,7 @@ export function advBases(
       if (runnerOnFirst) {
         if (
           random() <
-          (isFast
+          (isFastRunner(runnerOnFirst)
             ? AT_BAT_BALANCE.baseRunning.scoreFromFirstOnDouble.fast
             : AT_BAT_BALANCE.baseRunning.scoreFromFirstOnDouble.standard)
         ) {
@@ -279,7 +304,7 @@ export function advBases(
       if (runnerOnSecond) {
         if (
           random() <
-          (isFast
+          (isFastRunner(runnerOnSecond)
             ? AT_BAT_BALANCE.baseRunning.scoreFromSecondOnSingle.fast
             : AT_BAT_BALANCE.baseRunning.scoreFromSecondOnSingle.standard)
         ) {
@@ -326,6 +351,22 @@ export function advBases(
         scorers: scorer ? [scorer] : [],
       };
     }
+    case 'SF': {
+      // Scored as a sacrifice fly only because a run came home; the runner tags from third.
+      const scorer = outs < 2 ? asPlayer(runnerOnThird) : null;
+      return {
+        bases: [runnerOnFirst, runnerOnSecond, scorer ? false : runnerOnThird],
+        runs: scorer ? 1 : 0,
+        scorers: scorer ? [scorer] : [],
+      };
+    }
+    case 'SH':
+      // The batter is retired at first; each existing runner moves up one base.
+      return {
+        bases: [false, runnerOnFirst, runnerOnSecond || runnerOnThird],
+        runs: 0,
+        scorers: [],
+      };
     case 'DP':
       return { bases: [false, runnerOnSecond, runnerOnThird], runs: 0, scorers: [] };
     default:
@@ -346,6 +387,8 @@ export function buildDesc(
   if (result === '3B') return `${batterName}、${direction}三塁打${rbi > 0 ? `で${rbi}点` : ''}`;
   if (result === '2B') return `${batterName}、${direction}二塁打${rbi > 0 ? `で${rbi}点` : ''}`;
   if (result === '1B') return `${batterName}、${direction}安打${rbi > 0 ? `で${rbi}点` : ''}`;
+  if (result === 'SH') return `${batterName}、${direction}`;
+  if (result === 'SF') return `${batterName}、${direction}で${rbi}点`;
   if (result === 'GO' || result === 'FO')
     return `${batterName}、${direction}${rbi > 0 ? `で${rbi}点` : ''}`;
   if (result === 'DP') return `${batterName}、${direction}併殺打`;

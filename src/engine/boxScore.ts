@@ -27,6 +27,8 @@ export interface BatterLine {
   k: number;
   sb: number;
   cs: number;
+  sh: number;
+  sf: number;
   gdp: number;
   seasonAvgAfter: number;
   seasonHrAfter: number;
@@ -202,6 +204,8 @@ function buildBatterLines(
         k: batStats.k,
         sb: batStats.sb,
         cs: batStats.cs,
+        sh: batStats.bnt,
+        sf: batStats.sf,
         gdp: gameExtras.gdp,
         seasonAvgAfter: afterBat && afterBat.ab > 0 ? afterBat.h / afterBat.ab : 0,
         seasonHrAfter: afterBat?.hr ?? 0,
