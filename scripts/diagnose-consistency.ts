@@ -40,6 +40,10 @@ interface Counters {
   tiesWithDecision: number;
   gamesNoWinner: number;
   reliefWinOpportunities: number;
+  reliefWins: number;
+  saves: number;
+  holds: number;
+  blownSaves: number;
 }
 
 const counters: Counters = {
@@ -62,6 +66,10 @@ const counters: Counters = {
   tiesWithDecision: 0,
   gamesNoWinner: 0,
   reliefWinOpportunities: 0,
+  reliefWins: 0,
+  saves: 0,
+  holds: 0,
+  blownSaves: 0,
 };
 
 // Replay each half-inning from the at-bat log to recover base/out state at each event,
@@ -197,6 +205,14 @@ function auditGame(game: GameState): void {
   const totalRuns = game.score.home + game.score.away;
   if (scoredIdCount !== totalRuns) counters.scoreMismatchGames += 1;
 
+  if (game.winnerPitcherId) {
+    const winner = (game.appearances ?? []).find((a) => a.pitcherId === game.winnerPitcherId);
+    if (winner && !winner.isStarter) counters.reliefWins += 1;
+  }
+  if (game.savePitcherId) counters.saves += 1;
+  counters.holds += (game.holdPitcherIds ?? []).length;
+  counters.blownSaves += (game.blownSavePitcherIds ?? []).length;
+
   // Decision-pitcher sanity.
   const tie = game.score.home === game.score.away;
   if (tie) {
@@ -287,6 +303,11 @@ function main(): void {
   console.log(
     `決着したが勝利投手なし:   ${counters.gamesNoWinner} (${pct(counters.gamesNoWinner, counters.games - counters.ties)} of decided games)`,
   );
+  const decided = counters.games - counters.ties;
+  console.log(`救援勝利:                 ${counters.reliefWins} (${pct(counters.reliefWins, decided)} of decided)`);
+  console.log(`セーブ:                   ${counters.saves} (${pct(counters.saves, decided)} of decided)`);
+  console.log(`ホールド:                 ${counters.holds} (1球団あたり ${(counters.holds / 12).toFixed(1)})`);
+  console.log(`ブロウンセーブ:           ${counters.blownSaves} (1球団あたり ${(counters.blownSaves / 12).toFixed(1)})`);
 }
 
 main();

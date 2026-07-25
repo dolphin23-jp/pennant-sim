@@ -225,6 +225,30 @@ export interface AtBatLogEntry {
   outsBefore?: number;
 }
 export type BattedBallType = 'ground' | 'line' | 'fly' | 'popup';
+/** State captured when a pitcher takes the mound and when he leaves it. */
+export interface PitcherAppearance {
+  pitcherId: string;
+  side: Side;
+  isStarter: boolean;
+  enteredInning: number;
+  /** Outs already recorded in that half-inning when he entered. */
+  enteredOuts: number;
+  /** Runners on base when he entered, for the tying-run save rule. */
+  enteredRunners: number;
+  scoreOnEntry: Score;
+  scoreOnExit: Score;
+  outsRecorded: number;
+  runsCharged: number;
+}
+
+/** A run crossing the plate, with the score it produced. */
+export interface ScoringEvent {
+  scoringSide: Side;
+  chargedPitcherId: string;
+  homeScore: number;
+  awayScore: number;
+}
+
 export interface InjuryEvent {
   teamKey: TeamKey;
   playerId: string;
@@ -270,6 +294,11 @@ export interface GameState {
   loserPitcherId?: string | null;
   savePitcherId?: string | null;
   holdPitcherIds?: string[];
+  blownSavePitcherIds?: string[];
+  /** One record per pitcher outing, in the order they took the mound. */
+  appearances?: PitcherAppearance[];
+  /** Runs in the order they scored, used to find the go-ahead run. */
+  scoringSequence?: ScoringEvent[];
   postGameEvents: PostGameEvents;
 }
 export interface HalfInningResult {

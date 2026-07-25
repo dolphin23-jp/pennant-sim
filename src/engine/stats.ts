@@ -156,6 +156,8 @@ export function accumulateStatsAll(
     ensurePitcher(gameResult.savePitcherId, next[gameResult.savePitcherId]?.name || '').sv += 1;
   for (const id of gameResult.holdPitcherIds ?? [])
     ensurePitcher(id, next[id]?.name || '').hld += 1;
+  for (const id of gameResult.blownSavePitcherIds ?? [])
+    ensurePitcher(id, next[id]?.name || '').bs += 1;
   return next;
 }
 export function accumulateStats(
@@ -222,6 +224,8 @@ export function accumulateStats(
     (next[gameResult.savePitcherId] as PitcherStats).sv += 1;
   for (const id of gameResult.holdPitcherIds ?? [])
     if (next[id]) (next[id] as PitcherStats).hld += 1;
+  for (const id of gameResult.blownSavePitcherIds ?? [])
+    if (next[id]) (next[id] as PitcherStats).bs += 1;
   return next;
 }
 export function mergeStatMaps(
