@@ -13,6 +13,7 @@ import {
   accumulateStatsAll,
   bestLineup,
   calcStandings,
+  createFictionalLeagueHistory,
   createPlayerSeasonRecords,
   generateSchedule,
   initTeams,
@@ -219,28 +220,40 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const chooseTeam = useCallback((teamKey: TeamKey) => {
     setState((current) => {
-      const teams = current.teams ?? initTeams();
+      const initialTeams = current.teams ?? initTeams();
+      const history = createFictionalLeagueHistory(initialTeams, {
+        endYear: 2025,
+        seasons: 20,
+        seed: 2026,
+        legendsPerTeam: 2,
+      });
+      registerExistingNames(history.teams);
       const schedule = generateSchedule(2026);
       const rotations = createEmptyRotations();
-      const prepared = simCpuUntilNext(schedule, teams, rotations, teamKey, {});
+      const prepared = simCpuUntilNext(schedule, history.teams, rotations, teamKey, {});
+      const leagueCareerAccumulated = mergeStats(history.careerStats, prepared.leagueDistStats);
       return {
         ...initialState,
         loading: false,
         screen: 'season',
-        teams,
+        teams: history.teams,
         playerTeam: teamKey,
         viewTeam: teamKey,
-        lineup: bestLineup(teams[teamKey]),
+        lineup: bestLineup(history.teams[teamKey]),
         season: { year: 2026, schedule: prepared.sched },
         rotN: prepared.rotN,
         standings: calcStandings(prepared.sched),
         leagueAccumulated: prepared.leagueDistStats,
-        leagueCareerAccumulated: prepared.leagueDistStats,
+        careerAccumulated: history.careerStats,
+        leagueCareerAccumulated,
+        yearlyStats: history.yearlyStats,
+        retiredPlayers: history.retiredPlayers,
+        championHistory: history.championHistory,
         notices: [
           {
             id: `system:2026:start:${teamKey}`,
             kind: 'system',
-            title: `${teams[teamKey].ab}で新規開始`,
+            title: `${history.teams[teamKey].ab}で新規開始`,
             body: '新しいペナントレースが開幕しました。',
             tone: 'good',
             date: '2026年開幕',
