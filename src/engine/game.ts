@@ -209,17 +209,20 @@ export function simHalf(
     gameState.matchupCounts[matchupKey] = priorMatchups + 1;
     gameState.pc[fieldingSide] += pitchCount;
     let runsBattedIn = 0;
+    let scoredIds: string[] = [];
     if (result === 'K') outs += 1;
     else if (result === 'GO') {
       const advancement = advBases(bases, result, batter, outs);
       bases = advancement.bases;
       runsBattedIn = advancement.runs;
+      scoredIds = advancement.scorers.map((player) => player.id);
       outs += 1;
       runs += runsBattedIn;
     } else if (result === 'FO') {
       const advancement = advBases(bases, result, batter, outs);
       bases = advancement.bases;
       runsBattedIn = advancement.runs;
+      scoredIds = advancement.scorers.map((player) => player.id);
       outs += 1;
       runs += runsBattedIn;
     } else if (result === 'DP') {
@@ -231,6 +234,7 @@ export function simHalf(
       const advancement = advBases(bases, result, batter, outs);
       bases = advancement.bases;
       runsBattedIn = advancement.runs;
+      scoredIds = advancement.scorers.map((player) => player.id);
       runs += runsBattedIn;
     }
     const snapshot = {
@@ -251,6 +255,7 @@ export function simHalf(
       pc: pitchCount,
       rbi: runsBattedIn,
       snap: snapshot,
+      scoredIds,
       desc: buildDesc(batter.name, result, direction, runsBattedIn),
     });
     if (battingSide === 'home' && inning >= 8 && snapshot.home > snapshot.away) {

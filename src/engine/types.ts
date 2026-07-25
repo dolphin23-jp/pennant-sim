@@ -191,6 +191,7 @@ export interface AtBatLogEntry {
   rbi: number;
   desc: string;
   snap: Score;
+  scoredIds?: string[];
 }
 export interface InjuryEvent {
   teamKey: TeamKey;

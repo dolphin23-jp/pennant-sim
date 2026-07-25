@@ -12,6 +12,7 @@ import {
   accumulateStats,
   accumulateStatsAll,
   bestLineup,
+  buildGameBoxScore,
   calcStandings,
   createFictionalLeagueHistory,
   createPlayerSeasonRecords,
@@ -21,10 +22,13 @@ import {
   simCpuUntilNext,
   simulateGame,
   skipGamesWithPitcherPlan,
+  toSummary,
 } from '../engine';
 import type {
   AccumulatedStats,
+  GameBoxScore,
   GameState,
+  GameSummary,
   Player,
   PlayerStats,
   StandingRecord,
@@ -33,6 +37,7 @@ import type {
   YearlyPlayerRecords,
 } from '../engine';
 import {
+  createGameResultNotice,
   createInSeasonDevelopmentNotices,
   createSkippedInSeasonDevelopmentNotices,
   mergeNotices,
@@ -77,6 +82,9 @@ interface RuntimeState {
   championHistory: ChampionRecord[];
   lastGame: GameState | null;
   selectedPlayer: Player | null;
+  gameSummaries: Record<string, GameSummary>;
+  gameBoxScores: Record<string, GameBoxScore>;
+  selectedGameId: string | null;
 }
 
 interface GameContextValue extends RuntimeState {
@@ -91,6 +99,7 @@ interface GameContextValue extends RuntimeState {
   setLineup(lineup: Player[]): void;
   setPitcherPlan(plan: PitcherPlan): void;
   selectPlayer(player: Player | null): void;
+  selectGame(gameId: string | null): void;
   dismissNotice(noticeId: string): void;
   clearNotices(): void;
   replaceTeams(teams: Teams): void;
@@ -118,6 +127,9 @@ const initialState: RuntimeState = {
   championHistory: [],
   lastGame: null,
   selectedPlayer: null,
+  gameSummaries: {},
+  gameBoxScores: {},
+  selectedGameId: null,
 };
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -159,6 +171,8 @@ function snapshotFromState(state: RuntimeState): GameSaveData | null {
     retiredPlayers: state.retiredPlayers,
     notices: state.notices,
     championHistory: state.championHistory,
+    gameSummaries: state.gameSummaries,
+    gameBoxScores: state.gameBoxScores,
     uiVersion: 1,
   };
 }
@@ -207,6 +221,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         screen: seasonOver ? 'postseason' : saved.playerTeam ? 'season' : 'teamSelect',
         lastGame: null,
         selectedPlayer: null,
+        selectedGameId: null,
       });
     });
     return () => {
@@ -249,6 +264,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         yearlyStats: history.yearlyStats,
         retiredPlayers: history.retiredPlayers,
         championHistory: history.championHistory,
+        gameSummaries: prepared.gameSummaries,
+        gameBoxScores: prepared.gameBoxScores,
         notices: [
           {
             id: `system:2026:start:${teamKey}`,
@@ -306,12 +323,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
         current.leagueCareerAccumulated,
         leagueGameStats,
       );
+      const playerGameBox = buildGameBoxScore(
+        result,
+        nextGame.id,
+        nextGame.date,
+        current.season.year,
+        current.leagueAccumulated,
+      );
+      const gameNotice = createGameResultNotice(playerGameBox, current.playerTeam);
       const prepared = simCpuUntilNext(
         playedSchedule,
         current.teams,
         rotations,
         current.playerTeam,
         accumulated,
+        leagueAccumulated,
       );
       const finalLeagueStats = mergeStats(leagueAccumulated, prepared.leagueDistStats);
       const finalCareerLeagueStats = mergeStats(
@@ -334,7 +360,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
         leagueAccumulated: finalLeagueStats,
         careerAccumulated,
         leagueCareerAccumulated: finalCareerLeagueStats,
-        notices: mergeNotices(current.notices, developmentNotices),
+        gameSummaries: {
+          ...current.gameSummaries,
+          [nextGame.id]: toSummary(playerGameBox),
+          ...prepared.gameSummaries,
+        },
+        gameBoxScores: {
+          ...current.gameBoxScores,
+          [nextGame.id]: playerGameBox,
+          ...prepared.gameBoxScores,
+        },
+        notices: mergeNotices(current.notices, gameNotice ? [gameNotice, ...developmentNotices] : developmentNotices),
         lastGame: result,
       };
     });
@@ -352,6 +388,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         mode,
         current.accumulated,
         current.pitcherPlan,
+        current.leagueAccumulated,
       );
       const accumulated = mergeStats(current.accumulated, result.distStats);
       const leagueAccumulated = mergeStats(current.leagueAccumulated, result.leagueDistStats);
@@ -365,6 +402,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
         current.playerTeam,
         noticeDate,
       );
+      const gameNotices = Object.values(result.gameBoxScores)
+        .map((box) => createGameResultNotice(box, current.playerTeam as TeamKey))
+        .filter((notice): notice is Notice => notice !== null);
       return {
         ...current,
         screen: seasonOver ? 'postseason' : 'season',
@@ -378,7 +418,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
           current.leagueCareerAccumulated,
           result.leagueDistStats,
         ),
-        notices: mergeNotices(current.notices, developmentNotices),
+        gameSummaries: { ...current.gameSummaries, ...result.gameSummaries },
+        gameBoxScores: { ...current.gameBoxScores, ...result.gameBoxScores },
+        notices: mergeNotices(current.notices, [...gameNotices, ...developmentNotices]),
       };
     });
   }, []);
@@ -403,6 +445,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         createEmptyRotations(),
         current.playerTeam,
         {},
+        {},
       );
       return {
         ...current,
@@ -418,6 +461,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           ...current.yearlyStats,
           [String(completedYear)]: seasonRecords,
         },
+        gameSummaries: { ...current.gameSummaries, ...prepared.gameSummaries },
+        gameBoxScores: { ...current.gameBoxScores, ...prepared.gameBoxScores },
         notices: mergeNotices(current.notices, developmentNotices),
         lastGame: null,
       };
@@ -440,6 +485,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setPitcherPlan: (pitcherPlan) => setState((current) => ({ ...current, pitcherPlan })),
       selectPlayer: (selectedPlayer) =>
         setState((current) => ({ ...current, selectedPlayer })),
+      selectGame: (selectedGameId) =>
+        setState((current) => ({ ...current, selectedGameId })),
       dismissNotice: (noticeId) =>
         setState((current) => ({
           ...current,
