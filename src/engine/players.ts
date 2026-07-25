@@ -36,7 +36,7 @@ import type {
 const usedNames = new Set<string>();
 const japaneseName = (): string => `${randomChoice(SN)} ${randomChoice(GN)}`;
 const foreignName = (): string => `${randomChoice(FOREIGN_SN)} ${randomChoice(FOREIGN_GN)}`;
-function uniqueName(baseName: () => string): string {
+function generatedName(baseName: () => string): string {
   for (let attempt = 0; attempt < 48; attempt += 1) {
     const candidate = baseName();
     if (!usedNames.has(candidate)) {
@@ -44,10 +44,12 @@ function uniqueName(baseName: () => string): string {
       return candidate;
     }
   }
-  const fallback = `${baseName()}#${String(randomInt(10, 99))}`;
-  usedNames.add(fallback);
-  return fallback;
+  // Same-name players are valid and remain distinct through Player.id.
+  const duplicate = baseName();
+  usedNames.add(duplicate);
+  return duplicate;
 }
+
 export function registerExistingNames(teams: Partial<Teams>): void {
   usedNames.clear();
   for (const team of Object.values(teams)) {
@@ -274,7 +276,7 @@ export function generatePitcher(
   };
   return syncSpecialsFromLevels({
     id: uid(),
-    name: uniqueName(teamKey === 'foreign' || teamKey === '外' ? foreignName : japaneseName),
+    name: generatedName(teamKey === 'foreign' || teamKey === '外' ? foreignName : japaneseName),
     age,
     tk: teamKey,
     isP: true,
@@ -397,7 +399,7 @@ export function generateBatter(
   };
   return syncSpecialsFromLevels({
     id: uid(),
-    name: uniqueName(teamKey === 'foreign' || teamKey === '外' ? foreignName : japaneseName),
+    name: generatedName(teamKey === 'foreign' || teamKey === '外' ? foreignName : japaneseName),
     age,
     tk: teamKey,
     pos: position,

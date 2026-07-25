@@ -348,6 +348,8 @@ export function prepareCpuRostersForDraft(
   for (const teamKey of teamKeys()) {
     if (teamKey === resolved.excludedTeam) continue;
     const team = next[teamKey];
+    const mandatoryPitcherRetirements = team.pitchers.filter((player) => player.age >= 42).length;
+    const mandatoryFielderRetirements = team.fielders.filter((player) => player.age >= 42).length;
     const desiredPitcherSlots = Math.min(
       resolved.draftRounds,
       Math.max(2, Math.round(resolved.draftRounds * 0.45)),
@@ -357,8 +359,12 @@ export function prepareCpuRostersForDraft(
     const result = removePlayers(
       team,
       teamKey,
-      Math.max(0, desiredPitcherSlots - existingPitcherSlots),
-      Math.max(0, resolved.draftRounds - desiredPitcherSlots - existingFielderSlots),
+      Math.max(mandatoryPitcherRetirements, desiredPitcherSlots - existingPitcherSlots, 0),
+      Math.max(
+        mandatoryFielderRetirements,
+        resolved.draftRounds - desiredPitcherSlots - existingFielderSlots,
+        0,
+      ),
       'draft',
       resolved,
     );
