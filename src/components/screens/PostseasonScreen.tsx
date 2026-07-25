@@ -1,8 +1,15 @@
 import { useMemo, useState } from 'react';
 
 import { CENTRAL, PACIFIC, TINFO } from '../../data';
-import { simulateGame } from '../../engine';
-import type { AccumulatedStats, TeamKey, Teams } from '../../engine';
+import { selectSeasonTitles, simulateGame } from '../../engine';
+import type {
+  AccumulatedStats,
+  AwardLeague,
+  Player,
+  SeasonTitleRecord,
+  TeamKey,
+  Teams,
+} from '../../engine';
 import { useGameState } from '../../state/gameState';
 import { Button, Card, PageShell, SectionTitle, teamTextColor } from '../ui';
 
@@ -30,6 +37,86 @@ interface PostseasonResults {
   pacificFirst: SeriesResult;
   pacificFinal: SeriesResult;
   japanSeries: SeriesResult;
+}
+
+const AWARD_LEAGUE_LABEL: Record<AwardLeague, string> = {
+  central: 'セ・リーグ',
+  pacific: 'パ・リーグ',
+};
+
+function SeasonTitlesPanel({
+  titles,
+  players,
+  onSelect,
+}: {
+  titles: SeasonTitleRecord[];
+  players: Map<string, Player>;
+  onSelect(player: Player): void;
+}) {
+  return (
+    <section aria-label="レギュラーシーズン個人タイトル">
+      <SectionTitle>Season Titles</SectionTitle>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))',
+          gap: 12,
+        }}
+      >
+        {(['central', 'pacific'] as const).map((league) => (
+          <Card key={league} ariaLabel={`${AWARD_LEAGUE_LABEL[league]}個人タイトル`}>
+            <SectionTitle>{AWARD_LEAGUE_LABEL[league]}</SectionTitle>
+            <div style={{ display: 'grid', gap: 6 }}>
+              {titles
+                .filter((record) => record.league === league)
+                .map((record) => {
+                  const player = players.get(record.playerId);
+                  return (
+                    <div
+                      key={`${record.titleId}:${record.playerId}`}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(92px,auto) minmax(0,1fr) auto',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '7px 8px',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 7,
+                        background: 'var(--color-surface-raised)',
+                        fontSize: 12,
+                      }}
+                    >
+                      <strong style={{ color: 'var(--color-leader)' }}>{record.titleLabel}</strong>
+                      {player ? (
+                        <button
+                          type="button"
+                          className="roster-player-button"
+                          aria-label={`${record.titleLabel} ${record.playerName}の詳細を表示`}
+                          onClick={() => onSelect(player)}
+                        >
+                          {record.playerName}
+                        </button>
+                      ) : (
+                        <span>{record.playerName}</span>
+                      )}
+                      <span
+                        style={{
+                          color: teamTextColor(TINFO[record.teamKey].c),
+                          fontWeight: 900,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {TINFO[record.teamKey].ab} {record.displayValue}
+                      </span>
+                    </div>
+                  );
+                })}
+            </div>
+          </Card>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function simulateSeries(
@@ -173,7 +260,9 @@ function SeriesCard({
     <Card ariaLabel={title}>
       <SectionTitle>{title}</SectionTitle>
       {note && (
-        <div style={{ color: 'var(--color-text-faint)', fontSize: 11, marginBottom: 8 }}>{note}</div>
+        <div style={{ color: 'var(--color-text-faint)', fontSize: 11, marginBottom: 8 }}>
+          {note}
+        </div>
       )}
       {!series ? (
         <div style={{ display: 'grid', gap: 6 }}>
@@ -183,7 +272,11 @@ function SeriesCard({
       ) : (
         <>
           <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
-            <TeamPill teamKey={series.first} won={series.winner === series.first} wins={series.firstWins} />
+            <TeamPill
+              teamKey={series.first}
+              won={series.winner === series.first}
+              wins={series.firstWins}
+            />
             <TeamPill
               teamKey={series.second}
               won={series.winner === series.second}
@@ -313,15 +406,30 @@ export function PostseasonScreen() {
   const game = useGameState();
   const [results, setResults] = useState<PostseasonResults | null>(null);
   const centralRanking = useMemo(
-    () => [...CENTRAL].sort((a, b) => (game.standings[a].rank ?? 99) - (game.standings[b].rank ?? 99)),
+    () =>
+      [...CENTRAL].sort((a, b) => (game.standings[a].rank ?? 99) - (game.standings[b].rank ?? 99)),
     [game.standings],
   );
   const pacificRanking = useMemo(
-    () => [...PACIFIC].sort((a, b) => (game.standings[a].rank ?? 99) - (game.standings[b].rank ?? 99)),
+    () =>
+      [...PACIFIC].sort((a, b) => (game.standings[a].rank ?? 99) - (game.standings[b].rank ?? 99)),
     [game.standings],
   );
   const teams = game.teams;
   if (!teams) return null;
+  const titles = selectSeasonTitles(
+    game.season.year,
+    teams,
+    game.leagueAccumulated,
+    Object.fromEntries(
+      Object.entries(game.standings).map(([teamKey, standing]) => [teamKey, standing.g]),
+    ),
+  );
+  const players = new Map<string, Player>(
+    Object.values(teams)
+      .flatMap((team) => [...team.fielders, ...team.pitchers])
+      .map((player) => [player.id, player] as const),
+  );
 
   const runPostseason = () => {
     const league = game.leagueAccumulated;
@@ -343,13 +451,7 @@ export function PostseasonScreen() {
       league,
       1,
     );
-    const japanSeries = simulateSeries(
-      centralFinal.winner,
-      pacificFinal.winner,
-      7,
-      teams,
-      league,
-    );
+    const japanSeries = simulateSeries(centralFinal.winner, pacificFinal.winner, 7, teams, league);
     setResults({ centralFirst, centralFinal, pacificFirst, pacificFinal, japanSeries });
   };
 
@@ -379,6 +481,7 @@ export function PostseasonScreen() {
       </header>
 
       <div style={{ display: 'grid', gap: 14 }}>
+        <SeasonTitlesPanel titles={titles} players={players} onSelect={game.selectPlayer} />
         <LeagueBracketRow
           leagueLabel="セ・リーグ"
           first={centralRanking[0]}

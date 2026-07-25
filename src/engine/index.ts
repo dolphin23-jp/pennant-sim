@@ -1,4 +1,5 @@
 export * from './aiStrategy';
+export * from './awards';
 export * from './atBat';
 export * from './boxScore';
 export * from './careerLedger';

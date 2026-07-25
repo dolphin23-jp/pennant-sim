@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+
+import { ALL_SPECIALS, SPECIAL_DESCRIPTIONS } from '../src/data';
 import {
   configureRandom,
   generateBatter,
@@ -7,6 +9,15 @@ import {
   resetRandom,
   type Player,
 } from '../src/engine';
+
+test('every special ability shown to players has a concise explanation', () => {
+  for (const special of ALL_SPECIALS) {
+    assert.ok(
+      SPECIAL_DESCRIPTIONS[special.id]?.length >= 12,
+      `${special.n} (${special.id}) needs a player-facing explanation`,
+    );
+  }
+});
 
 function mulberry32(seed: number): () => number {
   let state = seed >>> 0;

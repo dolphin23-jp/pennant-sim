@@ -96,6 +96,16 @@ function GameRouter() {
   const selectedGameBox = game.selectedGameId
     ? (game.gameBoxScores[game.selectedGameId] ?? game.gameSummaries[game.selectedGameId] ?? null)
     : null;
+  const selectBoxScorePlayer = (playerId: string) => {
+    const activePlayer = game.teams
+      ? Object.values(game.teams)
+          .flatMap((team) => [...team.fielders, ...team.pitchers])
+          .find((player) => player.id === playerId)
+      : null;
+    const player =
+      activePlayer ?? game.retiredPlayers.find((candidate) => candidate.id === playerId) ?? null;
+    if (player) game.selectPlayer(player);
+  };
 
   return (
     <>
@@ -104,15 +114,18 @@ function GameRouter() {
       <PlayerDetailModal
         player={game.selectedPlayer}
         accumulated={isPlayerTeam ? game.accumulated : game.leagueAccumulated}
-        careerAccumulated={
-          isPlayerTeam ? game.careerAccumulated : game.leagueCareerAccumulated
-        }
+        careerAccumulated={isPlayerTeam ? game.careerAccumulated : game.leagueCareerAccumulated}
         yearlyStats={game.yearlyStats}
+        awardHistory={game.awardHistory}
         roster={modalRoster}
         onSelect={game.selectPlayer}
         onClose={() => game.selectPlayer(null)}
       />
-      <GameDetailModal box={selectedGameBox} onClose={() => game.selectGame(null)} />
+      <GameDetailModal
+        box={selectedGameBox}
+        onSelectPlayer={selectBoxScorePlayer}
+        onClose={() => game.selectGame(null)}
+      />
     </>
   );
 }

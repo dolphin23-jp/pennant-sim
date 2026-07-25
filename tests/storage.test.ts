@@ -7,6 +7,7 @@ import {
   ACTIVE_SAVE_SLOT_KEY,
   LEGACY_SAVE_KEY,
   SAVE_KEY,
+  createResilientStorageBackend,
   exportSaveData,
   importSaveData,
   listSaveSlots,
@@ -93,6 +94,7 @@ test('legacy single save is copied to slot 1 without deleting the old key', asyn
     assert.equal(loaded.uiVersion, 2);
     assert.deepEqual(loaded.gameSummaries, {});
     assert.deepEqual(loaded.gameBoxScores, {});
+    assert.deepEqual(loaded.awardHistory, []);
   } finally {
     resetRandom();
   }
@@ -141,6 +143,31 @@ test('save slots are independent and active-slot save/load uses the selected key
   }
 });
 
+test('large-save quota failures fall through to the next durable backend', async () => {
+  const fallbackValues = new Map<string, string>();
+  const quotaLimited: StorageBackend = {
+    async get() {
+      return null;
+    },
+    async set() {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError');
+    },
+  };
+  const fallback: StorageBackend = {
+    async get(key) {
+      return fallbackValues.get(key) ?? null;
+    },
+    async set(key, value) {
+      fallbackValues.set(key, value);
+    },
+  };
+  const backend = createResilientStorageBackend([quotaLimited, fallback]);
+
+  await backend.set('large-save', 'x'.repeat(6_000_000));
+
+  assert.equal((await backend.get('large-save'))?.length, 6_000_000);
+});
+
 test('export and import preserve save data including schedule metadata', async () => {
   configureRandom(mulberry32(13), () => Date.UTC(2026, 0, 1));
   try {
@@ -178,12 +205,40 @@ test('新しい成績フィールドを持たない旧セーブが0で補完さ�
     const teams = initTeams();
     // A stat line written before 失点/死球/併殺打/失策 existed on BatterStats.
     const legacyBatter = {
-      type: 'bat', name: '旧打者', g: 100, pa: 400, ab: 360, h: 108, s: 70,
-      d: 25, t: 3, hr: 10, bb: 32, k: 60, rbi: 55, sb: 8, cs: 3, bnt: 4, sf: 4,
+      type: 'bat',
+      name: '旧打者',
+      g: 100,
+      pa: 400,
+      ab: 360,
+      h: 108,
+      s: 70,
+      d: 25,
+      t: 3,
+      hr: 10,
+      bb: 32,
+      k: 60,
+      rbi: 55,
+      sb: 8,
+      cs: 3,
+      bnt: 4,
+      sf: 4,
     };
     const legacyPitcher = {
-      type: 'pit', name: '旧投手', g: 25, gs: 25, w: 12, l: 8, sv: 0, hld: 0,
-      bs: 0, ip3: 480, h: 150, bb: 40, k: 130, er: 55, pc: 2400,
+      type: 'pit',
+      name: '旧投手',
+      g: 25,
+      gs: 25,
+      w: 12,
+      l: 8,
+      sv: 0,
+      hld: 0,
+      bs: 0,
+      ip3: 480,
+      h: 150,
+      bb: 40,
+      k: 130,
+      er: 55,
+      pc: 2400,
     };
     const migrated = migrateSaveData({
       teams,
@@ -198,9 +253,17 @@ test('新しい成績フィールドを持たない旧セーブが0で補完さ�
       yearlyStats: {
         '2025': [
           {
-            playerId: 'b1', playerName: '旧打者', year: 2025, age: 28,
-            teamKey: 'giants', teamName: '読売ジャイアンツ', teamAbbreviation: 'G',
-            isPitcher: false, ovr: 70, params: {}, stats: legacyBatter,
+            playerId: 'b1',
+            playerName: '旧打者',
+            year: 2025,
+            age: 28,
+            teamKey: 'giants',
+            teamName: '読売ジャイアンツ',
+            teamAbbreviation: 'G',
+            isPitcher: false,
+            ovr: 70,
+            params: {},
+            stats: legacyBatter,
           },
         ],
       },

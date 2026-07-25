@@ -4,7 +4,13 @@ import type { BatterLine, GameBoxScore, GameSummary, PitcherLine } from '../../e
 import { Card, EmptyState, SectionTitle, teamTextColor } from '../ui';
 import { Linescore } from './Linescore';
 
-function StatusBadge({ tone, children }: { tone: 'accent' | 'warning' | 'muted'; children: ReactNode }) {
+function StatusBadge({
+  tone,
+  children,
+}: {
+  tone: 'accent' | 'warning' | 'muted';
+  children: ReactNode;
+}) {
   const color =
     tone === 'accent'
       ? 'var(--color-accent)'
@@ -33,7 +39,15 @@ export function DecisionsRow({ decisions }: { decisions: GameSummary['decisions'
   );
   if (!parts.length) return null;
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, fontSize: 12, color: 'var(--color-text-muted)' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 10,
+        fontSize: 12,
+        color: 'var(--color-text-muted)',
+      }}
+    >
       {parts.map((text) => (
         <span key={text}>{text}</span>
       ))}
@@ -60,7 +74,17 @@ const BATTER_COLUMNS: Array<{ key: keyof BatterLine; label: string }> = [
   { key: 'e', label: '失策' },
 ];
 
-function BatterTable({ title, lines }: { title: string; lines: BatterLine[] }) {
+type SelectBoxScorePlayer = (playerId: string, teamKey: BatterLine['teamKey']) => void;
+
+function BatterTable({
+  title,
+  lines,
+  onSelectPlayer,
+}: {
+  title: string;
+  lines: BatterLine[];
+  onSelectPlayer?: SelectBoxScorePlayer;
+}) {
   return (
     <Card ariaLabel={`${title}の打者成績`}>
       <SectionTitle>{title}</SectionTitle>
@@ -72,7 +96,9 @@ function BatterTable({ title, lines }: { title: string; lines: BatterLine[] }) {
             <thead>
               <tr>
                 <th scope="col">打順</th>
-                <th scope="col" style={{ textAlign: 'left' }}>選手</th>
+                <th scope="col" style={{ textAlign: 'left' }}>
+                  選手
+                </th>
                 <th scope="col">守備</th>
                 {BATTER_COLUMNS.map((column) => (
                   <th scope="col" key={column.key}>
@@ -87,7 +113,18 @@ function BatterTable({ title, lines }: { title: string; lines: BatterLine[] }) {
                 <tr key={line.playerId}>
                   <td style={{ textAlign: 'center' }}>{line.battingOrder}</td>
                   <th scope="row" style={{ textAlign: 'left', fontWeight: 800 }}>
-                    {line.name}
+                    {onSelectPlayer ? (
+                      <button
+                        type="button"
+                        className="roster-player-button"
+                        aria-label={`${line.name}の選手詳細を表示`}
+                        onClick={() => onSelectPlayer(line.playerId, line.teamKey)}
+                      >
+                        {line.name}
+                      </button>
+                    ) : (
+                      line.name
+                    )}
                   </th>
                   <td style={{ textAlign: 'center' }}>{line.position ?? '-'}</td>
                   {BATTER_COLUMNS.map((column) => (
@@ -96,7 +133,8 @@ function BatterTable({ title, lines }: { title: string; lines: BatterLine[] }) {
                     </td>
                   ))}
                   <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                    {line.seasonAvgAfter.toFixed(3).replace(/^0/, '')}（{line.seasonHrAfter}本{line.seasonRbiAfter}点）
+                    {line.seasonAvgAfter.toFixed(3).replace(/^0/, '')}（{line.seasonHrAfter}本
+                    {line.seasonRbiAfter}点）
                   </td>
                 </tr>
               ))}
@@ -125,7 +163,15 @@ function ipText(ip3: number): string {
   return `${Math.floor(ip3 / 3)}${outs > 0 ? ` ${outs}/3` : ''}`;
 }
 
-function PitcherTable({ title, lines }: { title: string; lines: PitcherLine[] }) {
+function PitcherTable({
+  title,
+  lines,
+  onSelectPlayer,
+}: {
+  title: string;
+  lines: PitcherLine[];
+  onSelectPlayer?: SelectBoxScorePlayer;
+}) {
   return (
     <Card ariaLabel={`${title}の投手成績`}>
       <SectionTitle>{title}</SectionTitle>
@@ -136,7 +182,9 @@ function PitcherTable({ title, lines }: { title: string; lines: PitcherLine[] })
           <table className="data-table" aria-label={`${title}投手成績`}>
             <thead>
               <tr>
-                <th scope="col" style={{ textAlign: 'left' }}>選手</th>
+                <th scope="col" style={{ textAlign: 'left' }}>
+                  選手
+                </th>
                 <th scope="col">結果</th>
                 <th scope="col">投球回</th>
                 {PITCHER_COLUMNS.map((column) => (
@@ -151,9 +199,22 @@ function PitcherTable({ title, lines }: { title: string; lines: PitcherLine[] })
               {lines.map((line) => (
                 <tr key={line.playerId}>
                   <th scope="row" style={{ textAlign: 'left', fontWeight: 800 }}>
-                    {line.name}
+                    {onSelectPlayer ? (
+                      <button
+                        type="button"
+                        className="roster-player-button"
+                        aria-label={`${line.name}の選手詳細を表示`}
+                        onClick={() => onSelectPlayer(line.playerId, line.teamKey)}
+                      >
+                        {line.name}
+                      </button>
+                    ) : (
+                      line.name
+                    )}
                     {line.role === 'start' && (
-                      <span style={{ marginLeft: 6, color: 'var(--color-text-faint)', fontSize: 10 }}>
+                      <span
+                        style={{ marginLeft: 6, color: 'var(--color-text-faint)', fontSize: 10 }}
+                      >
                         先発
                       </span>
                     )}
@@ -186,7 +247,13 @@ function PitcherTable({ title, lines }: { title: string; lines: PitcherLine[] })
   );
 }
 
-export function GameDetailView({ box }: { box: GameSummary | GameBoxScore }) {
+export function GameDetailView({
+  box,
+  onSelectPlayer,
+}: {
+  box: GameSummary | GameBoxScore;
+  onSelectPlayer?: SelectBoxScorePlayer;
+}) {
   const home = TINFO[box.homeKey];
   const away = TINFO[box.awayKey];
   const fullBox = box.hasBoxScore ? (box as GameBoxScore) : null;
@@ -194,18 +261,38 @@ export function GameDetailView({ box }: { box: GameSummary | GameBoxScore }) {
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <Card ariaLabel={`${away.n}対${home.n}`}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
           <div>
             <div style={{ color: 'var(--color-text-faint)', fontSize: 11 }}>{box.date}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 18, fontWeight: 900 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 18,
+                fontWeight: 900,
+              }}
+            >
               <span style={{ color: teamTextColor(away.c) }}>{away.n}</span>
-              <span style={{ color: 'var(--color-text-faint)', fontSize: 13 }}>{box.awayScore} - {box.homeScore}</span>
+              <span style={{ color: 'var(--color-text-faint)', fontSize: 13 }}>
+                {box.awayScore} - {box.homeScore}
+              </span>
               <span style={{ color: teamTextColor(home.c) }}>{home.n}</span>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {box.tie && <StatusBadge tone="muted">引分</StatusBadge>}
-            {box.extraInnings && <StatusBadge tone="accent">延長{box.innings.length}回</StatusBadge>}
+            {box.extraInnings && (
+              <StatusBadge tone="accent">延長{box.innings.length}回</StatusBadge>
+            )}
             {box.walkoff && <StatusBadge tone="warning">サヨナラ</StatusBadge>}
             {box.shutoutTeam && (
               <StatusBadge tone="accent">{TINFO[box.shutoutTeam].ab}完封</StatusBadge>
@@ -213,7 +300,9 @@ export function GameDetailView({ box }: { box: GameSummary | GameBoxScore }) {
           </div>
         </div>
         {box.headline && (
-          <div style={{ marginTop: 8, color: 'var(--color-leader)', fontSize: 13, fontWeight: 700 }}>
+          <div
+            style={{ marginTop: 8, color: 'var(--color-leader)', fontSize: 13, fontWeight: 700 }}
+          >
             {box.headline}
           </div>
         )}
@@ -243,13 +332,41 @@ export function GameDetailView({ box }: { box: GameSummary | GameBoxScore }) {
         </Card>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,420px),1fr))', gap: 12 }}>
-            <BatterTable title={`${away.n} 打者成績`} lines={fullBox.batterLines.filter((line) => line.teamKey === box.awayKey)} />
-            <BatterTable title={`${home.n} 打者成績`} lines={fullBox.batterLines.filter((line) => line.teamKey === box.homeKey)} />
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,420px),1fr))',
+              gap: 12,
+            }}
+          >
+            <BatterTable
+              title={`${away.n} 打者成績`}
+              lines={fullBox.batterLines.filter((line) => line.teamKey === box.awayKey)}
+              onSelectPlayer={onSelectPlayer}
+            />
+            <BatterTable
+              title={`${home.n} 打者成績`}
+              lines={fullBox.batterLines.filter((line) => line.teamKey === box.homeKey)}
+              onSelectPlayer={onSelectPlayer}
+            />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,420px),1fr))', gap: 12 }}>
-            <PitcherTable title={`${away.n} 投手成績`} lines={fullBox.pitcherLines.filter((line) => line.teamKey === box.awayKey)} />
-            <PitcherTable title={`${home.n} 投手成績`} lines={fullBox.pitcherLines.filter((line) => line.teamKey === box.homeKey)} />
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,420px),1fr))',
+              gap: 12,
+            }}
+          >
+            <PitcherTable
+              title={`${away.n} 投手成績`}
+              lines={fullBox.pitcherLines.filter((line) => line.teamKey === box.awayKey)}
+              onSelectPlayer={onSelectPlayer}
+            />
+            <PitcherTable
+              title={`${home.n} 投手成績`}
+              lines={fullBox.pitcherLines.filter((line) => line.teamKey === box.homeKey)}
+              onSelectPlayer={onSelectPlayer}
+            />
           </div>
           {fullBox.notableEvents.length > 0 && (
             <Card ariaLabel="注目記録">

@@ -258,10 +258,12 @@ export const AT_BAT_BALANCE = {
   // Stage 4b — a fly ball that carries out. Only outfield fly balls and line drives are
   // eligible; the batter's power moves this far more than anything else.
   homeRunOnFly: {
-    flyBase: 0.055,
+    flyBase: 0.0535,
     lineDriveFactor: 0.28,
     powerCurveReference: 60,
-    powerCurveScale: 26,
+    // A slightly steeper curve moves home runs from ordinary hitters toward genuine
+    // sluggers without imposing a cap on record seasons or raising the league total.
+    powerCurveScale: 24,
     minimumPowerLogMultiplier: -1.6,
     maximumPowerLogMultiplier: 1.0,
     velocityScale: 3400,

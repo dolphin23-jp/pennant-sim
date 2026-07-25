@@ -8,7 +8,7 @@ import {
   type TouchEvent,
 } from 'react';
 
-import { TINFO } from '../../data';
+import { MATURITY_PEAK_AGE, SPECIAL_DESCRIPTIONS, SPECIAL_INDEX, TINFO } from '../../data';
 import {
   aptitudeRank,
   calcOVR,
@@ -18,7 +18,13 @@ import {
   statItems,
   yearlyRows,
 } from '../../engine';
-import type { AccumulatedStats, Player, PlayerStats, TeamKey } from '../../engine';
+import type {
+  AccumulatedStats,
+  Player,
+  PlayerStats,
+  SeasonTitleRecord,
+  TeamKey,
+} from '../../engine';
 import { Button, Card, EmptyState, LampFigure, SectionTitle, TermTooltip } from '../ui';
 import { AbilityRadarChart, type AbilityRadarItem } from './AbilityRadarChart';
 import { AptitudeFieldMap } from './AptitudeFieldMap';
@@ -211,6 +217,17 @@ function BasicTab({ player, overall }: { player: Player; overall: number }) {
             <dd>{player.isP ? player.role : player.pos}</dd>
           </div>
           <div>
+            <dt>
+              <TermTooltip
+                term="成長タイプ"
+                description="能力が伸びやすい時期と、衰え始める時期の目安です。ピーク後の低下は年数とともに強くなります。"
+              />
+            </dt>
+            <dd>
+              {player.mat}（目安{MATURITY_PEAK_AGE[player.mat]}歳）
+            </dd>
+          </div>
+          <div>
             <dt>投打</dt>
             <dd>
               {player.hand.th ?? '-'}投 {player.hand.bat ?? '-'}打
@@ -313,20 +330,24 @@ function SpecialTab({ player }: { player: Player }) {
       <SectionTitle>Special Abilities</SectionTitle>
       <div className="special-list">
         {specials.map((special) => {
+          const definition = SPECIAL_INDEX[special.id] ?? special;
           const level = specialLevel(player, special.id);
-          const tier = special.rarity === 'gold' ? 'gold' : level >= 3 ? 'silver' : 'bronze';
+          const tier = definition.rarity === 'gold' ? 'gold' : level >= 3 ? 'silver' : 'bronze';
           const icon = tier === 'gold' ? '★' : tier === 'silver' ? '◆' : '●';
           const tierLabel = tier === 'gold' ? '金' : tier === 'silver' ? '銀' : '銅';
           return (
-            <span
-              className={`special-badge special-badge--${tier}`}
+            <div
+              className="special-ability-detail"
               key={special.id}
-              aria-label={`${tierLabel}特殊能力 ${special.n}${special.rarity === 'gold' ? '' : ` レベル${level}`}`}
+              aria-label={`${tierLabel}特殊能力 ${definition.n}${definition.rarity === 'gold' ? '' : ` レベル${level}`}。${SPECIAL_DESCRIPTIONS[special.id] ?? '試合中の能力判定へ補正を加えます。'}`}
             >
-              <span aria-hidden="true">{icon}</span>
-              <span>{special.n}</span>
-              {special.rarity !== 'gold' && <span>Lv{level}</span>}
-            </span>
+              <span className={`special-badge special-badge--${tier}`}>
+                <span aria-hidden="true">{icon}</span>
+                <span>{definition.n}</span>
+                {definition.rarity !== 'gold' && <span>Lv{level}</span>}
+              </span>
+              <p>{SPECIAL_DESCRIPTIONS[special.id] ?? '試合中の能力判定へ補正を加えます。'}</p>
+            </div>
           );
         })}
       </div>
@@ -339,6 +360,7 @@ export function PlayerDetailModal({
   accumulated,
   careerAccumulated,
   yearlyStats,
+  awardHistory,
   roster,
   onSelect,
   onClose,
@@ -347,6 +369,7 @@ export function PlayerDetailModal({
   accumulated: AccumulatedStats;
   careerAccumulated: AccumulatedStats;
   yearlyStats: Record<string, unknown[]>;
+  awardHistory: SeasonTitleRecord[];
   roster: Player[];
   onSelect(player: Player): void;
   onClose(): void;
@@ -382,6 +405,9 @@ export function PlayerDetailModal({
   const current = accumulated[player.id];
   const career = careerAccumulated[player.id];
   const history = yearlyRows(yearlyStats, player.id);
+  const titles = awardHistory
+    .filter((record) => record.playerId === player.id)
+    .sort((first, second) => second.year - first.year);
   const currentIndex = roster.findIndex((candidate) => candidate.id === player.id);
   const canNavigate = roster.length > 1 && currentIndex >= 0;
 
@@ -524,6 +550,23 @@ export function PlayerDetailModal({
             )}
             {activeTab === 'career' && (
               <div className="detail-grid">
+                <Card className="detail-card detail-card--wide" ariaLabel="獲得タイトル">
+                  <SectionTitle>Titles</SectionTitle>
+                  {titles.length ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                      {titles.map((record) => (
+                        <span
+                          className="special-badge special-badge--gold"
+                          key={`${record.year}:${record.league}:${record.titleId}`}
+                        >
+                          {record.year} {record.titleLabel}（{record.displayValue}）
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <EmptyState>獲得タイトルはまだありません。</EmptyState>
+                  )}
+                </Card>
                 <Card className="detail-card detail-card--wide" ariaLabel="通算成績">
                   <SectionTitle>Career</SectionTitle>
                   <StatGrid stats={career} />

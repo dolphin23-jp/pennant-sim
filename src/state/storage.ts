@@ -13,6 +13,7 @@ import type {
   Player,
   PlayerStats,
   ScheduleGame,
+  SeasonTitleRecord,
   StandingRecord,
   TeamKey,
   Teams,
@@ -77,6 +78,7 @@ export interface GameSaveData {
   retiredPlayers: Player[];
   notices: Notice[];
   championHistory: ChampionRecord[];
+  awardHistory: SeasonTitleRecord[];
   gameSummaries?: Record<string, GameSummary>;
   gameBoxScores?: Record<string, GameBoxScore>;
   ts?: number;
@@ -103,6 +105,9 @@ interface WindowWithStorage extends Window {
   };
 }
 
+const INDEXED_DB_NAME = 'pennant-sim';
+const INDEXED_DB_STORE = 'save-data';
+
 const teamKeys: TeamKey[] = [
   'giants',
   'tigers',
@@ -121,26 +126,122 @@ const teamKeys: TeamKey[] = [
 export const createEmptyRotations = (): Record<TeamKey, number> =>
   Object.fromEntries(teamKeys.map((teamKey) => [teamKey, 0])) as Record<TeamKey, number>;
 
-const browserStorage: StorageBackend = {
+const hostStorage: StorageBackend = {
   async get(key) {
-    if (typeof window === 'undefined') return null;
+    if (typeof window === 'undefined') throw new Error('Host storage is unavailable');
     const enhancedWindow = window as WindowWithStorage;
-    if (enhancedWindow.storage?.get) {
-      const result = await enhancedWindow.storage.get(key);
-      return result?.value ?? null;
-    }
+    if (!enhancedWindow.storage?.get) throw new Error('Host storage is unavailable');
+    const result = await enhancedWindow.storage.get(key);
+    return result?.value ?? null;
+  },
+  async set(key, value) {
+    if (typeof window === 'undefined') throw new Error('Host storage is unavailable');
+    const enhancedWindow = window as WindowWithStorage;
+    if (!enhancedWindow.storage?.set) throw new Error('Host storage is unavailable');
+    await enhancedWindow.storage.set(key, value);
+  },
+};
+
+const localStorageBackend: StorageBackend = {
+  async get(key) {
+    if (typeof window === 'undefined') throw new Error('Local storage is unavailable');
     return window.localStorage?.getItem(key) ?? null;
   },
   async set(key, value) {
-    if (typeof window === 'undefined') throw new Error('No storage backend available');
-    const enhancedWindow = window as WindowWithStorage;
-    if (enhancedWindow.storage?.set) {
-      await enhancedWindow.storage.set(key, value);
-      return;
-    }
+    if (typeof window === 'undefined') throw new Error('Local storage is unavailable');
     window.localStorage.setItem(key, value);
   },
 };
+
+function openSaveDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      reject(new Error('IndexedDB is unavailable'));
+      return;
+    }
+    const request = indexedDB.open(INDEXED_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const database = request.result;
+      if (!database.objectStoreNames.contains(INDEXED_DB_STORE))
+        database.createObjectStore(INDEXED_DB_STORE);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error('IndexedDB could not be opened'));
+  });
+}
+
+const indexedDbStorage: StorageBackend = {
+  async get(key) {
+    const database = await openSaveDatabase();
+    try {
+      return await new Promise<string | null>((resolve, reject) => {
+        const transaction = database.transaction(INDEXED_DB_STORE, 'readonly');
+        const request = transaction.objectStore(INDEXED_DB_STORE).get(key);
+        request.onsuccess = () =>
+          resolve(typeof request.result === 'string' ? request.result : null);
+        request.onerror = () =>
+          reject(request.error ?? new Error('IndexedDB read could not be completed'));
+      });
+    } finally {
+      database.close();
+    }
+  },
+  async set(key, value) {
+    const database = await openSaveDatabase();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const transaction = database.transaction(INDEXED_DB_STORE, 'readwrite');
+        transaction.objectStore(INDEXED_DB_STORE).put(value, key);
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () =>
+          reject(transaction.error ?? new Error('IndexedDB write could not be completed'));
+        transaction.onabort = () =>
+          reject(transaction.error ?? new Error('IndexedDB write was aborted'));
+      });
+    } finally {
+      database.close();
+    }
+  },
+};
+
+/**
+ * Try durable browser stores in order. IndexedDB is the primary store for large
+ * multi-season saves. The host API and localStorage remain readable fallbacks for
+ * existing saves and restricted browser environments.
+ */
+export function createResilientStorageBackend(backends: StorageBackend[]): StorageBackend {
+  return {
+    async get(key) {
+      for (const backend of backends) {
+        try {
+          const value = await backend.get(key);
+          if (value !== null) return value;
+        } catch {
+          // A blocked/unavailable backend must not hide a valid save in the next store.
+        }
+      }
+      return null;
+    },
+    async set(key, value) {
+      let lastError: unknown = new Error('No storage backend available');
+      for (const backend of backends) {
+        try {
+          await backend.set(key, value);
+          return;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      throw lastError;
+    },
+  };
+}
+
+const browserStorage = createResilientStorageBackend([
+  indexedDbStorage,
+  hostStorage,
+  localStorageBackend,
+]);
 
 const isSaveSlot = (value: number): value is SaveSlot => SAVE_SLOTS.includes(value as SaveSlot);
 
@@ -186,9 +287,7 @@ const migrateSchedule = (schedule: ScheduleGame[] | undefined): ScheduleGame[] =
         originalDate: game.originalDate ?? game.date,
         postponedFrom: game.postponedFrom ?? null,
         doubleHeaderGame:
-          game.doubleHeaderGame === 1 || game.doubleHeaderGame === 2
-            ? game.doubleHeaderGame
-            : null,
+          game.doubleHeaderGame === 1 || game.doubleHeaderGame === 2 ? game.doubleHeaderGame : null,
       }))
     : [];
 
@@ -249,9 +348,12 @@ function migrateYearlyStats(value: unknown): YearlyPlayerRecords {
         typeof record.teamAbbreviation !== 'string' ||
         typeof record.isPitcher !== 'boolean' ||
         typeof record.ovr !== 'number' ||
-        !record.params || typeof record.params !== 'object' ||
-        !record.stats || typeof record.stats !== 'object'
-      ) return [];
+        !record.params ||
+        typeof record.params !== 'object' ||
+        !record.stats ||
+        typeof record.stats !== 'object'
+      )
+        return [];
       // Historical seasons embed a frozen copy of the stat line, so they need the same
       // field normalization as the live maps.
       const stats = migrateStatLine(record.stats);
@@ -268,31 +370,58 @@ function migrateNotices(value: unknown): Notice[] {
     if (!candidate || typeof candidate !== 'object') return [];
     const raw = candidate as Partial<Notice>;
     if (typeof raw.title !== 'string' || typeof raw.body !== 'string') return [];
-    const tone = raw.tone === 'good' || raw.tone === 'warn' || raw.tone === 'info'
-      ? raw.tone
-      : undefined;
+    const tone =
+      raw.tone === 'good' || raw.tone === 'warn' || raw.tone === 'info' ? raw.tone : undefined;
     const kind =
-      raw.kind === 'system' || raw.kind === 'awakening' || raw.kind === 'growth' || raw.kind === 'game'
+      raw.kind === 'system' ||
+      raw.kind === 'awakening' ||
+      raw.kind === 'growth' ||
+      raw.kind === 'game'
         ? raw.kind
         : 'system';
-    const teamKey = typeof raw.teamKey === 'string' && teamKeys.includes(raw.teamKey as TeamKey)
-      ? (raw.teamKey as TeamKey)
-      : undefined;
+    const teamKey =
+      typeof raw.teamKey === 'string' && teamKeys.includes(raw.teamKey as TeamKey)
+        ? (raw.teamKey as TeamKey)
+        : undefined;
     const date = typeof raw.date === 'string' ? raw.date : undefined;
-    return [{
-      id:
-        typeof raw.id === 'string' && raw.id.length > 0
-          ? raw.id
-          : `legacy:${index}:${date ?? 'unknown'}:${raw.title}`,
-      title: raw.title,
-      body: raw.body,
-      tone,
-      date,
-      kind,
-      playerId: typeof raw.playerId === 'string' ? raw.playerId : undefined,
-      teamKey,
-      gameId: typeof raw.gameId === 'string' ? raw.gameId : undefined,
-    }];
+    return [
+      {
+        id:
+          typeof raw.id === 'string' && raw.id.length > 0
+            ? raw.id
+            : `legacy:${index}:${date ?? 'unknown'}:${raw.title}`,
+        title: raw.title,
+        body: raw.body,
+        tone,
+        date,
+        kind,
+        playerId: typeof raw.playerId === 'string' ? raw.playerId : undefined,
+        teamKey,
+        gameId: typeof raw.gameId === 'string' ? raw.gameId : undefined,
+      },
+    ];
+  });
+}
+
+function migrateAwardHistory(value: unknown): SeasonTitleRecord[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((candidate) => {
+    if (!candidate || typeof candidate !== 'object') return [];
+    const raw = candidate as Partial<SeasonTitleRecord>;
+    if (
+      typeof raw.year !== 'number' ||
+      (raw.league !== 'central' && raw.league !== 'pacific') ||
+      typeof raw.titleId !== 'string' ||
+      typeof raw.titleLabel !== 'string' ||
+      typeof raw.playerId !== 'string' ||
+      typeof raw.playerName !== 'string' ||
+      typeof raw.teamKey !== 'string' ||
+      !teamKeys.includes(raw.teamKey as TeamKey) ||
+      typeof raw.value !== 'number' ||
+      typeof raw.displayValue !== 'string'
+    )
+      return [];
+    return [raw as SeasonTitleRecord];
   });
 }
 
@@ -363,6 +492,7 @@ export function migrateSaveData(raw: unknown): GameSaveData | null {
     retiredPlayers: Array.isArray(legacy.retiredPlayers) ? legacy.retiredPlayers : [],
     notices: migrateNotices(legacy.notices),
     championHistory: Array.isArray(legacy.championHistory) ? legacy.championHistory : [],
+    awardHistory: migrateAwardHistory(legacy.awardHistory),
     gameSummaries: migrateGameSummaries(legacy.gameSummaries),
     gameBoxScores: migrateGameBoxScores(legacy.gameBoxScores),
     ts: legacy.ts,
@@ -455,8 +585,7 @@ export async function listSaveSlots(
   return Promise.all(
     SAVE_SLOTS.map(async (slot) => {
       const raw = await backend.get(SAVE_KEY(slot));
-      if (!raw)
-        return { slot, exists: false, playerTeam: null, year: null, updatedAt: null };
+      if (!raw) return { slot, exists: false, playerTeam: null, year: null, updatedAt: null };
       const data = importSaveData(raw);
       return data
         ? {

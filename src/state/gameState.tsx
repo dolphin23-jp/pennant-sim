@@ -19,6 +19,7 @@ import {
   generateSchedule,
   initTeams,
   registerExistingNames,
+  selectSeasonTitles,
   simCpuUntilNext,
   simulateGame,
   skipGamesWithPitcherPlan,
@@ -31,6 +32,7 @@ import type {
   GameSummary,
   Player,
   PlayerStats,
+  SeasonTitleRecord,
   StandingRecord,
   TeamKey,
   Teams,
@@ -54,12 +56,7 @@ import {
   type SeasonState,
 } from './storage';
 
-export type GameScreen =
-  | 'welcome'
-  | 'teamSelect'
-  | 'season'
-  | 'postseason'
-  | 'offseason';
+export type GameScreen = 'welcome' | 'teamSelect' | 'season' | 'postseason' | 'offseason';
 
 interface RuntimeState {
   loading: boolean;
@@ -80,6 +77,7 @@ interface RuntimeState {
   retiredPlayers: Player[];
   notices: Notice[];
   championHistory: ChampionRecord[];
+  awardHistory: SeasonTitleRecord[];
   lastGame: GameState | null;
   selectedPlayer: Player | null;
   gameSummaries: Record<string, GameSummary>;
@@ -125,6 +123,7 @@ const initialState: RuntimeState = {
   retiredPlayers: [],
   notices: [],
   championHistory: [],
+  awardHistory: [],
   lastGame: null,
   selectedPlayer: null,
   gameSummaries: {},
@@ -171,6 +170,7 @@ function snapshotFromState(state: RuntimeState): GameSaveData | null {
     retiredPlayers: state.retiredPlayers,
     notices: state.notices,
     championHistory: state.championHistory,
+    awardHistory: state.awardHistory,
     gameSummaries: state.gameSummaries,
     gameBoxScores: state.gameBoxScores,
     uiVersion: 1,
@@ -183,15 +183,17 @@ function lastNewPlayerGameDate(
   playerTeam: TeamKey,
 ): string | null {
   const beforeById = new Map(before.map((game) => [game.id, game]));
-  return after
-    .filter(
-      (game) =>
-        game.played &&
-        !beforeById.get(game.id)?.played &&
-        (game.homeKey === playerTeam || game.awayKey === playerTeam),
-    )
-    .map((game) => game.date)
-    .sort((first, second) => second.localeCompare(first))[0] ?? null;
+  return (
+    after
+      .filter(
+        (game) =>
+          game.played &&
+          !beforeById.get(game.id)?.played &&
+          (game.homeKey === playerTeam || game.awayKey === playerTeam),
+      )
+      .map((game) => game.date)
+      .sort((first, second) => second.localeCompare(first))[0] ?? null
+  );
 }
 
 export function GameProvider({ children }: { children: ReactNode }) {
@@ -211,8 +213,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           ? saved.lineup
           : bestLineup(saved.teams[saved.playerTeam]);
       const seasonOver =
-        saved.season.schedule.length > 0 &&
-        saved.season.schedule.every((game) => game.played);
+        saved.season.schedule.length > 0 && saved.season.schedule.every((game) => game.played);
       setState({
         ...initialState,
         ...saved,
@@ -322,10 +323,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const accumulated = mergeStats(current.accumulated, playerGameStats);
       const leagueAccumulated = mergeStats(current.leagueAccumulated, leagueGameStats);
       const careerAccumulated = mergeStats(current.careerAccumulated, playerGameStats);
-      const leagueCareerAccumulated = mergeStats(
-        current.leagueCareerAccumulated,
-        leagueGameStats,
-      );
+      const leagueCareerAccumulated = mergeStats(current.leagueCareerAccumulated, leagueGameStats);
       const playerGameBox = buildGameBoxScore(
         result,
         nextGame.id,
@@ -343,10 +341,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         leagueAccumulated,
       );
       const finalLeagueStats = mergeStats(leagueAccumulated, prepared.leagueDistStats);
-      const finalCareerLeagueStats = mergeStats(
-        leagueCareerAccumulated,
-        prepared.leagueDistStats,
-      );
+      const finalCareerLeagueStats = mergeStats(leagueCareerAccumulated, prepared.leagueDistStats);
       const developmentNotices = createInSeasonDevelopmentNotices(
         result.postGameEvents,
         current.playerTeam,
@@ -373,7 +368,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
           [nextGame.id]: playerGameBox,
           ...prepared.gameBoxScores,
         },
-        notices: mergeNotices(current.notices, gameNotice ? [gameNotice, ...developmentNotices] : developmentNotices),
+        notices: mergeNotices(
+          current.notices,
+          gameNotice ? [gameNotice, ...developmentNotices] : developmentNotices,
+        ),
         lastGame: result,
       };
     });
@@ -440,6 +438,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const seasonRecords = current.teams
         ? createPlayerSeasonRecords(completedYear, current.teams, current.leagueAccumulated)
         : [];
+      const seasonTitles = current.teams
+        ? selectSeasonTitles(
+            completedYear,
+            current.teams,
+            current.leagueAccumulated,
+            Object.fromEntries(
+              Object.entries(current.standings).map(([teamKey, standing]) => [teamKey, standing.g]),
+            ),
+          )
+        : [];
       const year = completedYear + 1;
       const schedule = generateSchedule(year);
       const prepared = simCpuUntilNext(
@@ -464,6 +472,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
           ...current.yearlyStats,
           [String(completedYear)]: seasonRecords,
         },
+        awardHistory: [
+          ...current.awardHistory.filter((record) => record.year !== completedYear),
+          ...seasonTitles,
+        ],
         gameSummaries: { ...current.gameSummaries, ...prepared.gameSummaries },
         gameBoxScores: { ...current.gameBoxScores, ...prepared.gameBoxScores },
         notices: mergeNotices(current.notices, developmentNotices),
@@ -486,10 +498,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setViewTeam: (viewTeam) => setState((current) => ({ ...current, viewTeam })),
       setLineup: (lineup) => setState((current) => ({ ...current, lineup })),
       setPitcherPlan: (pitcherPlan) => setState((current) => ({ ...current, pitcherPlan })),
-      selectPlayer: (selectedPlayer) =>
-        setState((current) => ({ ...current, selectedPlayer })),
-      selectGame: (selectedGameId) =>
-        setState((current) => ({ ...current, selectedGameId })),
+      selectPlayer: (selectedPlayer) => setState((current) => ({ ...current, selectedPlayer })),
+      selectGame: (selectedGameId) => setState((current) => ({ ...current, selectedGameId })),
       dismissNotice: (noticeId) =>
         setState((current) => ({
           ...current,
@@ -499,15 +509,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       replaceTeams: (teams) => setState((current) => ({ ...current, teams })),
       completeOffseason,
     }),
-    [
-      state,
-      startNewGame,
-      chooseTeam,
-      simulateNextGame,
-      skip,
-      saveCurrent,
-      completeOffseason,
-    ],
+    [state, startNewGame, chooseTeam, simulateNextGame, skip, saveCurrent, completeOffseason],
   );
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

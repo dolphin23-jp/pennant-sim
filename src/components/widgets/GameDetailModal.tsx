@@ -1,14 +1,16 @@
 import { useEffect, useRef } from 'react';
 
-import type { GameBoxScore, GameSummary } from '../../engine';
+import type { GameBoxScore, GameSummary, TeamKey } from '../../engine';
 import { Button } from '../ui';
 import { GameDetailView } from './GameDetailView';
 
 export function GameDetailModal({
   box,
+  onSelectPlayer,
   onClose,
 }: {
   box: GameSummary | GameBoxScore | null;
+  onSelectPlayer?(playerId: string, teamKey: TeamKey): void;
   onClose(): void;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -62,7 +64,7 @@ export function GameDetailModal({
           </Button>
         </header>
         <div className="player-modal__body">
-          <GameDetailView box={box} />
+          <GameDetailView box={box} onSelectPlayer={onSelectPlayer} />
         </div>
       </div>
     </div>
