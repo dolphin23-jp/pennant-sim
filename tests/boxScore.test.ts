@@ -67,6 +67,15 @@ function entry(partial: Partial<AtBatLogEntry> & Pick<AtBatLogEntry, 'inning' | 
     snap: { home: 0, away: 0 },
     scoredIds: [],
     ...partial,
+    // Runs are charged from `runsScored`; fixtures only declare who crossed the plate, so
+    // derive the charge against the pitcher in the entry unless a case overrides it.
+    runsScored:
+      partial.runsScored ??
+      (partial.scoredIds ?? []).map((runnerId) => ({
+        runnerId,
+        chargedPitcherId: partial.pitcherId ?? '',
+        earned: true,
+      })),
   };
 }
 
