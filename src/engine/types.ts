@@ -312,6 +312,22 @@ export interface PitcherStats {
 }
 export type PlayerStats = BatterStats | PitcherStats;
 export type AccumulatedStats = Record<string, PlayerStats>;
+export interface PlayerSeasonRecord {
+  playerId: string;
+  playerName: string;
+  year: number;
+  age: number;
+  teamKey: TeamKey;
+  teamName: string;
+  teamAbbreviation: string;
+  isPitcher: boolean;
+  role?: PitcherRole;
+  position?: FieldPosition;
+  ovr: number;
+  params: PlayerParams;
+  stats: PlayerStats;
+}
+export type YearlyPlayerRecords = Record<string, PlayerSeasonRecord[]>;
 export interface AwakeningEvent {
   param: keyof PlayerParams;
   boost: number;
