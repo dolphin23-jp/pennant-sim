@@ -231,27 +231,34 @@ export function simAB(
   return { result, pc: pitchCounts[result] || 3, dir: directions[result] || null };
 }
 
+const asPlayer = (runner: BaseState[number]): Player | null =>
+  typeof runner === 'object' ? runner : null;
+
 export function advBases(
   bases: BaseState,
   result: PlateAppearanceResult,
   batter: Player,
   outs: number,
-): { bases: BaseState; runs: number } {
+): { bases: BaseState; runs: number; scorers: Player[] } {
   const [runnerOnFirst, runnerOnSecond, runnerOnThird] = bases,
     isFast = (batter.p.sp ?? 50) > 72;
   switch (result) {
-    case 'HR':
-      return {
-        bases: [false, false, false],
-        runs: 1 + (runnerOnFirst ? 1 : 0) + (runnerOnSecond ? 1 : 0) + (runnerOnThird ? 1 : 0),
-      };
-    case '3B':
-      return {
-        bases: [false, false, batter],
-        runs: (runnerOnFirst ? 1 : 0) + (runnerOnSecond ? 1 : 0) + (runnerOnThird ? 1 : 0),
-      };
+    case 'HR': {
+      const scorers = [batter, runnerOnFirst, runnerOnSecond, runnerOnThird]
+        .map(asPlayer)
+        .filter((player): player is Player => player !== null);
+      return { bases: [false, false, false], runs: scorers.length, scorers };
+    }
+    case '3B': {
+      const scorers = [runnerOnFirst, runnerOnSecond, runnerOnThird]
+        .map(asPlayer)
+        .filter((player): player is Player => player !== null);
+      return { bases: [false, false, batter], runs: scorers.length, scorers };
+    }
     case '2B': {
-      let runs = (runnerOnThird ? 1 : 0) + (runnerOnSecond ? 1 : 0);
+      const scorers = [runnerOnThird, runnerOnSecond]
+        .map(asPlayer)
+        .filter((player): player is Player => player !== null);
       const next: BaseState = [false, batter, false];
       if (runnerOnFirst) {
         if (
@@ -259,14 +266,15 @@ export function advBases(
           (isFast
             ? AT_BAT_BALANCE.baseRunning.scoreFromFirstOnDouble.fast
             : AT_BAT_BALANCE.baseRunning.scoreFromFirstOnDouble.standard)
-        )
-          runs += 1;
-        else next[2] = runnerOnFirst;
+        ) {
+          const player = asPlayer(runnerOnFirst);
+          if (player) scorers.push(player);
+        } else next[2] = runnerOnFirst;
       }
-      return { bases: next, runs };
+      return { bases: next, runs: scorers.length, scorers };
     }
     case '1B': {
-      let runs = runnerOnThird ? 1 : 0;
+      const scorers = asPlayer(runnerOnThird) ? [asPlayer(runnerOnThird) as Player] : [];
       const next: BaseState = [batter, false, false];
       if (runnerOnSecond) {
         if (
@@ -274,28 +282,36 @@ export function advBases(
           (isFast
             ? AT_BAT_BALANCE.baseRunning.scoreFromSecondOnSingle.fast
             : AT_BAT_BALANCE.baseRunning.scoreFromSecondOnSingle.standard)
-        )
-          runs += 1;
-        else next[2] = runnerOnSecond;
+        ) {
+          const player = asPlayer(runnerOnSecond);
+          if (player) scorers.push(player);
+        } else next[2] = runnerOnSecond;
       }
       if (runnerOnFirst) next[1] = runnerOnFirst;
-      return { bases: next, runs };
+      return { bases: next, runs: scorers.length, scorers };
     }
     case 'BB':
     case 'HBP': {
-      const runs = runnerOnFirst && runnerOnSecond && runnerOnThird ? 1 : 0,
+      const loaded = runnerOnFirst && runnerOnSecond && runnerOnThird,
+        forcedScorer = loaded ? asPlayer(runnerOnThird) : null,
         second = runnerOnFirst || runnerOnSecond,
         third = runnerOnFirst && runnerOnSecond ? runnerOnSecond : runnerOnThird;
-      return { bases: [batter, second, third], runs };
+      return {
+        bases: [batter, second, third],
+        runs: forcedScorer ? 1 : 0,
+        scorers: forcedScorer ? [forcedScorer] : [],
+      };
     }
     case 'GO': {
       const scores =
         Boolean(runnerOnThird) &&
         outs < 2 &&
         random() < AT_BAT_BALANCE.baseRunning.scoreFromThirdOnGroundOut;
+      const scorer = scores ? asPlayer(runnerOnThird) : null;
       return {
         bases: [runnerOnFirst, runnerOnSecond, scores ? false : runnerOnThird],
-        runs: scores ? 1 : 0,
+        runs: scorer ? 1 : 0,
+        scorers: scorer ? [scorer] : [],
       };
     }
     case 'FO': {
@@ -303,15 +319,17 @@ export function advBases(
         Boolean(runnerOnThird) &&
         outs < 2 &&
         random() < AT_BAT_BALANCE.baseRunning.scoreFromThirdOnFlyOut;
+      const scorer = scores ? asPlayer(runnerOnThird) : null;
       return {
         bases: [runnerOnFirst, runnerOnSecond, scores ? false : runnerOnThird],
-        runs: scores ? 1 : 0,
+        runs: scorer ? 1 : 0,
+        scorers: scorer ? [scorer] : [],
       };
     }
     case 'DP':
-      return { bases: [false, runnerOnSecond, runnerOnThird], runs: 0 };
+      return { bases: [false, runnerOnSecond, runnerOnThird], runs: 0, scorers: [] };
     default:
-      return { bases: [...bases], runs: 0 };
+      return { bases: [...bases], runs: 0, scorers: [] };
   }
 }
 

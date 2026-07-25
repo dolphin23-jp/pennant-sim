@@ -91,6 +91,8 @@ test('legacy single save is copied to slot 1 without deleting the old key', asyn
     assert.deepEqual(loaded.teams.giants.park, TINFO.giants.park);
     assert.equal(loaded.viewTeam, 'giants');
     assert.equal(loaded.uiVersion, 2);
+    assert.deepEqual(loaded.gameSummaries, {});
+    assert.deepEqual(loaded.gameBoxScores, {});
   } finally {
     resetRandom();
   }

@@ -4,6 +4,7 @@ import { useGameState } from '../../state/gameState';
 import { Button, PageShell, teamTextColor } from '../ui';
 import { SaveSlotControls } from '../widgets/SaveSlotControls';
 import { DashboardTab } from './season/DashboardTab';
+import { GameResultsTab } from './season/GameResultsTab';
 import { LineupTab } from './season/LineupTab';
 import { RankingTab } from './season/RankingTab';
 import { RosterTab } from './season/RosterTab';
@@ -19,6 +20,7 @@ type SeasonTab =
   | 'stats'
   | 'ranking'
   | 'standings'
+  | 'gameResults'
   | 'teamReport'
   | 'roster';
 
@@ -29,6 +31,7 @@ const tabs: Array<{ id: SeasonTab; label: string }> = [
   { id: 'stats', label: '成績' },
   { id: 'ranking', label: 'ランキング' },
   { id: 'standings', label: '順位表' },
+  { id: 'gameResults', label: '試合結果' },
   { id: 'teamReport', label: '球団情報' },
   { id: 'roster', label: '選手一覧' },
 ];
@@ -184,6 +187,7 @@ export function SeasonScreen() {
             }}
           />
         )}
+        {activeTab === 'gameResults' && <GameResultsTab />}
         {activeTab === 'teamReport' && <TeamReportTab />}
         {activeTab === 'roster' && <RosterTab />}
       </section>

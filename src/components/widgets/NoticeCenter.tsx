@@ -26,6 +26,7 @@ function toneColor(notice: Notice): string {
 function kindLabel(notice: Notice): string {
   if (notice.kind === 'awakening') return '覚醒';
   if (notice.kind === 'growth') return '成長';
+  if (notice.kind === 'game') return '試合結果';
   return 'チーム情報';
 }
 
@@ -33,12 +34,14 @@ export function NoticeCenter({
   notices,
   teams,
   onSelectPlayer,
+  onSelectGame,
   onDismiss,
   onClear,
 }: {
   notices: Notice[];
   teams: Teams;
   onSelectPlayer(player: Player): void;
+  onSelectGame?(gameId: string): void;
   onDismiss(noticeId: string): void;
   onClear(): void;
 }) {
@@ -147,23 +150,36 @@ export function NoticeCenter({
                     {notice.body}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  aria-label={`${notice.title}の通知を削除`}
-                  onClick={() => onDismiss(notice.id)}
-                  style={{
-                    alignSelf: 'start',
-                    minWidth: 32,
-                    minHeight: 32,
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 8,
-                    color: 'var(--color-text-faint)',
-                    background: 'var(--color-surface)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  ×
-                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                  {notice.gameId && onSelectGame && (
+                    <button
+                      type="button"
+                      className="roster-player-button"
+                      aria-label={`${notice.title}の試合詳細を表示`}
+                      onClick={() => onSelectGame(notice.gameId!)}
+                      style={{ fontSize: 11, whiteSpace: 'nowrap' }}
+                    >
+                      試合を見る
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    aria-label={`${notice.title}の通知を削除`}
+                    onClick={() => onDismiss(notice.id)}
+                    style={{
+                      alignSelf: 'flex-end',
+                      minWidth: 32,
+                      minHeight: 32,
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 8,
+                      color: 'var(--color-text-faint)',
+                      background: 'var(--color-surface)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
               </article>
             );
           })}

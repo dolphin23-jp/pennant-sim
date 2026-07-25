@@ -3,6 +3,7 @@ import { PostseasonScreen } from './components/screens/PostseasonScreen';
 import { SeasonScreen } from './components/screens/SeasonScreen';
 import { TeamSelectScreen } from './components/screens/TeamSelectScreen';
 import { Button, Card, PageShell, ThemeToggle } from './components/ui';
+import { GameDetailModal } from './components/widgets/GameDetailModal';
 import { PlayerDetailModal } from './components/widgets/PlayerDetailModal';
 import { SaveSlotControls } from './components/widgets/SaveSlotControls';
 import { GameProvider, useGameState } from './state/gameState';
@@ -92,6 +93,9 @@ function GameRouter() {
       : null;
   const modalRoster = selectedTeam ? [...selectedTeam.fielders, ...selectedTeam.pitchers] : [];
   const isPlayerTeam = selectedTeam?.key === game.playerTeam;
+  const selectedGameBox = game.selectedGameId
+    ? (game.gameBoxScores[game.selectedGameId] ?? game.gameSummaries[game.selectedGameId] ?? null)
+    : null;
 
   return (
     <>
@@ -108,6 +112,7 @@ function GameRouter() {
         onSelect={game.selectPlayer}
         onClose={() => game.selectPlayer(null)}
       />
+      <GameDetailModal box={selectedGameBox} onClose={() => game.selectGame(null)} />
     </>
   );
 }

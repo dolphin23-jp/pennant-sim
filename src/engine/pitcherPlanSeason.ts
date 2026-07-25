@@ -1,7 +1,9 @@
+import { buildGameBoxScore, isNotableGame, toSummary } from './boxScore';
+import type { GameBoxScore, GameSummary } from './boxScore';
 import { simulateGame } from './game';
 import type { PitcherPlanInput } from './pitcherPlan';
 import { skipGames } from './season';
-import { accumulateStats, accumulateStatsAll } from './stats';
+import { accumulateStats, accumulateStatsAll, mergeStatMaps } from './stats';
 import type { AccumulatedStats, ScheduleGame, TeamKey, Teams } from './types';
 
 export function skipGamesWithPitcherPlan(
@@ -12,11 +14,14 @@ export function skipGamesWithPitcherPlan(
   mode: 'next' | 'week' | 'month' | 'season',
   accumulatedStats: AccumulatedStats = {},
   pitcherPlan: PitcherPlanInput = { rotationOrder: [], closerPriority: [] },
+  seasonStatsSoFar: AccumulatedStats = {},
 ): {
   sched: ScheduleGame[];
   rotN: Record<TeamKey, number>;
   distStats: AccumulatedStats;
   leagueDistStats: AccumulatedStats;
+  gameSummaries: Record<string, GameSummary>;
+  gameBoxScores: Record<string, GameBoxScore>;
 } {
   if (!pitcherPlan.rotationOrder.length && !pitcherPlan.closerPriority.length) {
     return skipGames(
@@ -26,6 +31,7 @@ export function skipGamesWithPitcherPlan(
       playerTeam,
       mode,
       accumulatedStats,
+      seasonStatsSoFar,
     );
   }
 
@@ -33,6 +39,8 @@ export function skipGamesWithPitcherPlan(
     nextRotations = { ...rotationNumbers };
   let distributedStats: AccumulatedStats = {},
     leagueStats: AccumulatedStats = {};
+  const gameSummaries: Record<string, GameSummary> = {};
+  const gameBoxScores: Record<string, GameBoxScore> = {};
   const remaining = nextSchedule.filter(
       (game) => !game.played && (game.homeKey === playerTeam || game.awayKey === playerTeam),
     ),
@@ -51,6 +59,7 @@ export function skipGamesWithPitcherPlan(
     const playerGame = game.homeKey === playerTeam || game.awayKey === playerTeam,
       homePlan = game.homeKey === playerTeam ? pitcherPlan : null,
       awayPlan = game.awayKey === playerTeam ? pitcherPlan : null,
+      seasonStatsBeforeThisGame = mergeStatMaps(seasonStatsSoFar, leagueStats),
       result = simulateGame(
         game.homeKey,
         game.awayKey,
@@ -66,6 +75,15 @@ export function skipGamesWithPitcherPlan(
       );
     nextSchedule[index] = { ...game, played: true, hs: result.score.home, as: result.score.away };
     leagueStats = accumulateStatsAll(result, leagueStats);
+    const box = buildGameBoxScore(
+      result,
+      game.id,
+      game.date,
+      Number(game.date.slice(0, 4)),
+      seasonStatsBeforeThisGame,
+    );
+    gameSummaries[game.id] = toSummary(box);
+    if (playerGame || isNotableGame(box)) gameBoxScores[game.id] = box;
     if (playerGame) {
       distributedStats = accumulateStats(result, playerTeam, distributedStats);
       skipped += 1;
@@ -78,5 +96,7 @@ export function skipGamesWithPitcherPlan(
     rotN: nextRotations,
     distStats: distributedStats,
     leagueDistStats: leagueStats,
+    gameSummaries,
+    gameBoxScores,
   };
 }

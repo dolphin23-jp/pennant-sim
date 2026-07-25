@@ -1,5 +1,7 @@
+import { TINFO } from '../data';
 import { calcOVR } from '../engine';
 import type {
+  GameBoxScore,
   InSeasonAwakeningEvent,
   Player,
   PlayerParams,
@@ -193,4 +195,24 @@ export function createOffseasonDevelopmentNotices(
     }));
 
   return [...awakeningNotices, ...growthNotices];
+}
+
+export function createGameResultNotice(box: GameBoxScore, playerTeam: TeamKey): Notice | null {
+  if (box.homeKey !== playerTeam && box.awayKey !== playerTeam) return null;
+  const isHome = box.homeKey === playerTeam;
+  const opponentKey = isHome ? box.awayKey : box.homeKey;
+  const teamScore = isHome ? box.homeScore : box.awayScore;
+  const opponentScore = isHome ? box.awayScore : box.homeScore;
+  const outcome = box.tie ? '引分' : teamScore > opponentScore ? '勝利' : '敗戦';
+  const tone = box.tie ? 'info' : teamScore > opponentScore ? 'good' : 'warn';
+  return {
+    id: noticeId(['game', box.gameId]),
+    kind: 'game',
+    title: `${TINFO[opponentKey].ab}戦 ${outcome}（${teamScore}-${opponentScore}）`,
+    body: box.headline || box.decisions.winnerText || '試合が終了しました。',
+    tone,
+    date: box.date,
+    teamKey: playerTeam,
+    gameId: box.gameId,
+  };
 }

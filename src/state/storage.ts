@@ -2,6 +2,8 @@ import { TINFO } from '../data';
 import { calcStandings, ensureSpecialLevels, syncSpecialsFromLevels } from '../engine';
 import type {
   AccumulatedStats,
+  GameBoxScore,
+  GameSummary,
   Player,
   ScheduleGame,
   StandingRecord,
@@ -27,9 +29,10 @@ export interface Notice {
   body: string;
   tone?: 'good' | 'warn' | 'info';
   date?: string;
-  kind?: 'system' | 'awakening' | 'growth';
+  kind?: 'system' | 'awakening' | 'growth' | 'game';
   playerId?: string;
   teamKey?: TeamKey;
+  gameId?: string;
 }
 
 export interface ChampionRecord {
@@ -67,6 +70,8 @@ export interface GameSaveData {
   retiredPlayers: Player[];
   notices: Notice[];
   championHistory: ChampionRecord[];
+  gameSummaries?: Record<string, GameSummary>;
+  gameBoxScores?: Record<string, GameBoxScore>;
   ts?: number;
   uiVersion?: number;
 }
@@ -226,9 +231,10 @@ function migrateNotices(value: unknown): Notice[] {
     const tone = raw.tone === 'good' || raw.tone === 'warn' || raw.tone === 'info'
       ? raw.tone
       : undefined;
-    const kind = raw.kind === 'system' || raw.kind === 'awakening' || raw.kind === 'growth'
-      ? raw.kind
-      : 'system';
+    const kind =
+      raw.kind === 'system' || raw.kind === 'awakening' || raw.kind === 'growth' || raw.kind === 'game'
+        ? raw.kind
+        : 'system';
     const teamKey = typeof raw.teamKey === 'string' && teamKeys.includes(raw.teamKey as TeamKey)
       ? (raw.teamKey as TeamKey)
       : undefined;
@@ -245,8 +251,46 @@ function migrateNotices(value: unknown): Notice[] {
       kind,
       playerId: typeof raw.playerId === 'string' ? raw.playerId : undefined,
       teamKey,
+      gameId: typeof raw.gameId === 'string' ? raw.gameId : undefined,
     }];
   });
+}
+
+function isValidGameSummaryShape(value: unknown): value is GameSummary {
+  if (!value || typeof value !== 'object') return false;
+  const raw = value as Partial<GameSummary>;
+  return (
+    typeof raw.gameId === 'string' &&
+    typeof raw.date === 'string' &&
+    typeof raw.homeKey === 'string' &&
+    teamKeys.includes(raw.homeKey as TeamKey) &&
+    typeof raw.awayKey === 'string' &&
+    teamKeys.includes(raw.awayKey as TeamKey) &&
+    typeof raw.homeScore === 'number' &&
+    typeof raw.awayScore === 'number' &&
+    Array.isArray(raw.innings)
+  );
+}
+
+function migrateGameSummaries(value: unknown): Record<string, GameSummary> {
+  if (!value || typeof value !== 'object') return {};
+  const output: Record<string, GameSummary> = {};
+  for (const [gameId, candidate] of Object.entries(value as Record<string, unknown>)) {
+    if (isValidGameSummaryShape(candidate)) output[gameId] = candidate;
+  }
+  return output;
+}
+
+function migrateGameBoxScores(value: unknown): Record<string, GameBoxScore> {
+  if (!value || typeof value !== 'object') return {};
+  const output: Record<string, GameBoxScore> = {};
+  for (const [gameId, candidate] of Object.entries(value as Record<string, unknown>)) {
+    if (!isValidGameSummaryShape(candidate)) continue;
+    const raw = candidate as Partial<GameBoxScore>;
+    if (!Array.isArray(raw.batterLines) || !Array.isArray(raw.pitcherLines)) continue;
+    output[gameId] = candidate as GameBoxScore;
+  }
+  return output;
 }
 
 export function migrateSaveData(raw: unknown): GameSaveData | null {
@@ -279,6 +323,8 @@ export function migrateSaveData(raw: unknown): GameSaveData | null {
     retiredPlayers: Array.isArray(legacy.retiredPlayers) ? legacy.retiredPlayers : [],
     notices: migrateNotices(legacy.notices),
     championHistory: Array.isArray(legacy.championHistory) ? legacy.championHistory : [],
+    gameSummaries: migrateGameSummaries(legacy.gameSummaries),
+    gameBoxScores: migrateGameBoxScores(legacy.gameBoxScores),
     ts: legacy.ts,
     uiVersion: 2,
   };

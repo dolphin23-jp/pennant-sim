@@ -230,6 +230,7 @@ export function DashboardTab() {
         notices={game.notices}
         teams={game.teams}
         onSelectPlayer={game.selectPlayer}
+        onSelectGame={game.selectGame}
         onDismiss={game.dismissNotice}
         onClear={game.clearNotices}
       />
