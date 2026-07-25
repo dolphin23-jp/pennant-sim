@@ -1,7 +1,5 @@
 import { ops } from './statsFormat';
 import type {
-  BatterStats,
-  PitcherStats,
   PlayerSeasonRecord,
   PlayerStats,
   TeamKey,
