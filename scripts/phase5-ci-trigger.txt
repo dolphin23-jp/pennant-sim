@@ -1,1 +1,1 @@
-validate phase 5
+diagnose phase 5 lint
