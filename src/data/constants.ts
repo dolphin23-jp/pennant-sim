@@ -129,6 +129,8 @@ export const FOREIGN_PLAYER_BALANCE = {
 export const PITCHER_USAGE_BALANCE = {
   fatigue: {
     recoveryPerCalendarDay: 16,
+    /** 鉄人: each level speeds up how fast a pitcher sheds fatigue. */
+    ironRecoveryPerLevel: 0.09,
     maximumSelectable: 65,
     emergencyMaximum: 96,
     selectionPenaltyPerPoint: 1.25,
@@ -329,4 +331,18 @@ export const AT_BAT_BALANCE = {
   },
   catcherLead: { baseMultiplier: 0.86, ratingShare: 0.14, fallbackMultiplier: 0.93 },
   mastery: { baseMultiplier: 0.92, ratingShare: 0.08, defaultMastery: 0.75 },
+  // Specials that act on the game outside the plate-appearance rate formulas.
+  specials: {
+    /** 疲れにくい: each level stretches how far a stamina rating carries the pitcher. */
+    toughPerLevel: 0.07,
+    /** 配球の妙: each level adds to the catcher's effective game calling. */
+    gameCallingPerLevel: 4,
+    /** 勝負強さ: contact bonus with a runner in scoring position. */
+    clutchHitPerLevel: 0.022,
+    /** 対エース○: shields the batter from a strong starter's edge. */
+    aceKillerPerLevel: 0.18,
+    /** 初球○/×: swinging early trades walks for balls in play. */
+    firstPitchWalkPerLevel: 0.05,
+    firstPitchContactPerLevel: 0.012,
+  },
 } as const;

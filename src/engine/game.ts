@@ -1,4 +1,9 @@
-import { AT_BAT_BALANCE, FOREIGN_PLAYER_BALANCE, PITCHER_USAGE_BALANCE } from '../data';
+import {
+  AT_BAT_BALANCE,
+  FIELDING_BALANCE,
+  FOREIGN_PLAYER_BALANCE,
+  PITCHER_USAGE_BALANCE,
+} from '../data';
 import { advBases, buildDesc, simAB } from './atBat';
 import { isForeignPlayer } from './foreign';
 import { applyPostGamePlayerEvents } from './playerEvents';
@@ -130,7 +135,10 @@ export function simHalf(
   const catcher = gameState.lineups[fieldingSide].find(
       (player) => player._assignedPos === '捕手' || player.pos === '捕手',
     ),
-    catcherGameCalling = catcher?.p.ld || 50;
+    catcherGameCalling = catcher
+      ? (catcher.p.ld || 50) +
+        specialLevel(catcher, 'ld_art') * AT_BAT_BALANCE.specials.gameCallingPerLevel
+      : 50;
   const maybeChangePitcher = (): void => {
     const currentPitcher = gameState.curP[fieldingSide],
       pitchCount = gameState.pc[fieldingSide],
@@ -213,7 +221,9 @@ export function simHalf(
         if (hasSpecial(runnerPlayer, 'sb')) attemptRate *= 1.4;
         if (hasGold(runnerPlayer, 'sb_gold')) attemptRate *= 1.6;
         if (random() < attemptRate) {
-          const catcherArm = catcher?.p.arm ?? 50,
+          const catcherArm =
+              (catcher?.p.arm ?? 50) +
+              (catcher ? specialLevel(catcher, 'strong_arm') * FIELDING_BALANCE.strongArmPerLevel : 0),
             pitcherControl = pitcher.p.ctrl ?? 50,
             defensePenalty = (catcherArm - 50) / 420 + (pitcherControl - 50) / 900,
             successRate = clamp(
@@ -270,7 +280,16 @@ export function simHalf(
       batter = lineup[gameState.batIdx[battingSide] % lineup.length] as Player;
     gameState.batIdx[battingSide] += 1;
     const staminaPercentage = clamp(
-        100 - (gameState.pc[fieldingSide] / Math.max(1, pitcher.p.stam * 1.5)) * 100,
+        100 -
+          (gameState.pc[fieldingSide] /
+            Math.max(
+              1,
+              // 疲れにくい stretches how many pitches a given stamina rating is worth.
+              pitcher.p.stam *
+                1.5 *
+                (1 + specialLevel(pitcher, 'tough') * AT_BAT_BALANCE.specials.toughPerLevel),
+            )) *
+            100,
         20,
         100,
       ),

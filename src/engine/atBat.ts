@@ -210,6 +210,7 @@ function hitChanceOnContact(input: {
   batter: Player;
   park: ParkFactors;
   batterContextMultiplier: number;
+  isPinch: boolean;
 }): number {
   const config = AT_BAT_BALANCE.hitOnContact;
   let chance = config.base[input.battedBall];
@@ -220,6 +221,12 @@ function hitChanceOnContact(input: {
   chance *= config.directionFactor[input.direction];
   chance *= 1 + specialLevel(input.batter, 'avg') * 0.02;
   chance *= 1 + specialLevel(input.batter, 'spray') * 0.015;
+  // 勝負強さ only shows up with a runner in scoring position.
+  if (input.isPinch)
+    chance *= 1 + specialLevel(input.batter, 'win') * AT_BAT_BALANCE.specials.clutchHitPerLevel;
+  // 初球○ puts more balls in play; 初球× wastes the count's best pitch.
+  chance *= 1 + specialLevel(input.batter, 'fbo') * AT_BAT_BALANCE.specials.firstPitchContactPerLevel;
+  chance *= 1 - specialLevel(input.batter, 'fbx') * AT_BAT_BALANCE.specials.firstPitchContactPerLevel;
   if (hasGold(input.batter, 'avg_gold')) chance *= 1.12;
   if (hasGold(input.batter, 'spray_gold')) chance *= 1.08;
   chance *= input.batterContextMultiplier * input.park.hit;
@@ -282,7 +289,16 @@ export function simAB(
       AT_BAT_BALANCE.familiarity.maxMultiplier,
       1 + Math.max(0, priorMatchups) * AT_BAT_BALANCE.familiarity.perPriorMatchup,
     ),
-    batterContextMultiplier = platoonMultiplier * familiarityMultiplier;
+    // 対エース○ gives the batter back part of what a high-quality pitcher takes away.
+    pitcherQualityEdge = Math.max(
+      0,
+      ((pitcherParams.vel ?? 50) + (pitcherParams.nobi ?? 50) + (pitcherParams.ctrl ?? 50)) / 3 - 50,
+    ),
+    aceKillerMultiplier =
+      1 +
+      (specialLevel(batter, 'ace') * AT_BAT_BALANCE.specials.aceKillerPerLevel * pitcherQualityEdge) /
+        50,
+    batterContextMultiplier = platoonMultiplier * familiarityMultiplier * aceKillerMultiplier;
   const catcherLeadMultiplier = catcherGameCalling
     ? AT_BAT_BALANCE.catcherLead.baseMultiplier +
       (catcherGameCalling / 100) * AT_BAT_BALANCE.catcherLead.ratingShare
@@ -351,6 +367,8 @@ export function simAB(
   walkRate *= catcherLeadMultiplier;
   walkRate *= 1 - specialLevel(pitcher, 'cnr') * 0.03;
   walkRate *= 1 + specialLevel(batter, 'eye') * 0.04;
+  walkRate *= 1 - specialLevel(batter, 'fbo') * AT_BAT_BALANCE.specials.firstPitchWalkPerLevel;
+  walkRate *= 1 + specialLevel(batter, 'fbx') * AT_BAT_BALANCE.specials.firstPitchWalkPerLevel;
   if (hasGold(pitcher, 'cnr_gold')) walkRate *= 0.86;
   if (hasGold(batter, 'eye_gold')) walkRate *= 1.12;
   walkRate = clamp(walkRate, AT_BAT_BALANCE.walk.minRate, AT_BAT_BALANCE.walk.maxRate);
@@ -415,6 +433,7 @@ export function simAB(
     batter,
     park,
     batterContextMultiplier,
+    isPinch: situation.isPinch,
   });
   if (random() >= hitChance) {
     // An out. A ground ball with a force at first and room for two outs can be doubled up.
