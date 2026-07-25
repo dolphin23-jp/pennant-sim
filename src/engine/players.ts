@@ -33,13 +33,29 @@ import type {
   TeamKey,
   Teams,
 } from './types';
+const usedNames = new Set<string>();
 const japaneseName = (): string => `${randomChoice(SN)} ${randomChoice(GN)}`;
 const foreignName = (): string => `${randomChoice(FOREIGN_SN)} ${randomChoice(FOREIGN_GN)}`;
-const generatedName = (baseName: () => string): string => baseName();
+function generatedName(baseName: () => string): string {
+  for (let attempt = 0; attempt < 48; attempt += 1) {
+    const candidate = baseName();
+    if (!usedNames.has(candidate)) {
+      usedNames.add(candidate);
+      return candidate;
+    }
+  }
+  // Same-name players are valid and remain distinct through Player.id.
+  const duplicate = baseName();
+  usedNames.add(duplicate);
+  return duplicate;
+}
 
-// Display names are not identifiers. Same-name players remain distinct through Player.id.
 export function registerExistingNames(teams: Partial<Teams>): void {
-  void teams;
+  usedNames.clear();
+  for (const team of Object.values(teams)) {
+    for (const player of [...(team?.fielders ?? []), ...(team?.pitchers ?? [])])
+      if (player.name) usedNames.add(player.name);
+  }
 }
 function maturityModifier(age: number, maturity: Maturity): number {
   const years = age - MATURITY_PEAK_AGE[maturity];

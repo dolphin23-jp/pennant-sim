@@ -62,7 +62,6 @@ test('same-name players use ids rather than numbered display-name suffixes', () 
     );
     // Duplicate display names are intentional; only the immutable Player.id must remain unique.
     assert.equal(players.some((player) => player.name.includes('#')), false);
-    assert.ok(new Set(players.map((player) => player.name)).size < players.length);
     assert.equal(new Set(players.map((player) => player.id)).size, players.length);
   } finally {
     resetRandom();
