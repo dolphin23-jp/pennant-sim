@@ -178,6 +178,16 @@ export interface Score {
   home: number;
   away: number;
 }
+/**
+ * A run that crossed the plate on this play. The pitcher charged is the one who put the
+ * runner on base, not necessarily the one pitching now, and `earned` follows the official
+ * rule that a run is unearned when it would not have scored without an error.
+ */
+export interface ScoredRun {
+  runnerId: string;
+  chargedPitcherId: string;
+  earned: boolean;
+}
 export interface AtBatLogEntry {
   inning: number;
   isBot: boolean;
@@ -194,7 +204,16 @@ export interface AtBatLogEntry {
   desc: string;
   snap: Score;
   scoredIds?: string[];
+  /** Per-run scoring detail. When present it supersedes `scoredIds` for run accounting. */
+  runsScored?: ScoredRun[];
+  /** Fielder charged with an error on this play, if any. */
+  errorFielderId?: string;
+  /** Defensive position that handled the ball, for box-score attribution. */
+  fielderPosition?: FieldPosition;
+  /** Batted-ball classification for balls put in play. */
+  battedBall?: BattedBallType;
 }
+export type BattedBallType = 'ground' | 'line' | 'fly' | 'popup';
 export interface InjuryEvent {
   teamKey: TeamKey;
   playerId: string;
@@ -295,6 +314,14 @@ export interface BatterStats {
   cs: number;
   bnt: number;
   sf: number;
+  /** 得点。走者として生還した回数。 */
+  r: number;
+  /** 死球。出塁率の公式計算に必要。 */
+  hbp: number;
+  /** 併殺打。 */
+  gdp: number;
+  /** 失策。守備者としての記録。 */
+  e: number;
 }
 export interface PitcherStats {
   type: 'pit';
@@ -312,6 +339,14 @@ export interface PitcherStats {
   k: number;
   er: number;
   pc: number;
+  /** 失点。自責点(er)と区別して集計する。 */
+  r: number;
+  /** 与死球。 */
+  hbp: number;
+  /** 被本塁打。 */
+  hr: number;
+  /** 対戦打者数。 */
+  bf: number;
 }
 export type PlayerStats = BatterStats | PitcherStats;
 export type AccumulatedStats = Record<string, PlayerStats>;

@@ -1,4 +1,5 @@
 import { calcOVR } from './ratings';
+import { createBatterStats, createPitcherStats } from './stats';
 import type {
   AccumulatedStats,
   BatterStats,
@@ -73,19 +74,9 @@ function copyTeams(teams: Teams): Teams {
   return structuredClone(teams);
 }
 
-function emptyBatter(name: string): BatterStats {
-  return {
-    type: 'bat', name, g: 0, pa: 0, ab: 0, h: 0, s: 0, d: 0, t: 0, hr: 0,
-    bb: 0, k: 0, rbi: 0, sb: 0, cs: 0, bnt: 0, sf: 0,
-  };
-}
-
-function emptyPitcher(name: string): PitcherStats {
-  return {
-    type: 'pit', name, g: 0, gs: 0, w: 0, l: 0, sv: 0, hld: 0, bs: 0,
-    ip3: 0, h: 0, bb: 0, k: 0, er: 0, pc: 0,
-  };
-}
+// Reuse the canonical factories so a new stat field never needs a second zero literal.
+const emptyBatter = (name: string): BatterStats => createBatterStats(name);
+const emptyPitcher = (name: string): PitcherStats => createPitcherStats(name);
 
 function agePerformance(age: number, isPitcher: boolean): number {
   const peak = isPitcher ? 28 : 27;

@@ -1,10 +1,17 @@
 import { TINFO } from '../data';
-import { calcStandings, ensureSpecialLevels, syncSpecialsFromLevels } from '../engine';
+import {
+  calcStandings,
+  createBatterStats,
+  createPitcherStats,
+  ensureSpecialLevels,
+  syncSpecialsFromLevels,
+} from '../engine';
 import type {
   AccumulatedStats,
   GameBoxScore,
   GameSummary,
   Player,
+  PlayerStats,
   ScheduleGame,
   StandingRecord,
   TeamKey,
@@ -194,6 +201,35 @@ const migratePitcherPlan = (plan: PitcherPlan | undefined): PitcherPlan => ({
     : [],
 });
 
+/**
+ * Normalize one stat line so fields added after the save was written come back as 0
+ * instead of undefined. Without this every downstream `a + b` turns into NaN, and the
+ * damage spreads silently through career totals and rankings.
+ */
+function migrateStatLine(value: unknown): PlayerStats | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const line = value as Record<string, unknown>;
+  const name = typeof line.name === 'string' ? line.name : '';
+  if (line.type !== 'bat' && line.type !== 'pit') return null;
+  const base = line.type === 'pit' ? createPitcherStats(name) : createBatterStats(name);
+  const merged = { ...base } as unknown as Record<string, unknown>;
+  for (const [key, entry] of Object.entries(line)) {
+    if (key === 'type' || key === 'name') continue;
+    if (typeof entry === 'number' && Number.isFinite(entry)) merged[key] = entry;
+  }
+  return merged as unknown as PlayerStats;
+}
+
+function migrateAccumulatedStats(value: unknown): AccumulatedStats {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const output: AccumulatedStats = {};
+  for (const [playerId, line] of Object.entries(value)) {
+    const migrated = migrateStatLine(line);
+    if (migrated) output[playerId] = migrated;
+  }
+  return output;
+}
+
 function migrateYearlyStats(value: unknown): YearlyPlayerRecords {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const output: YearlyPlayerRecords = {};
@@ -216,7 +252,11 @@ function migrateYearlyStats(value: unknown): YearlyPlayerRecords {
         !record.params || typeof record.params !== 'object' ||
         !record.stats || typeof record.stats !== 'object'
       ) return [];
-      return [record as unknown as YearlyPlayerRecords[string][number]];
+      // Historical seasons embed a frozen copy of the stat line, so they need the same
+      // field normalization as the live maps.
+      const stats = migrateStatLine(record.stats);
+      if (!stats) return [];
+      return [{ ...record, stats } as unknown as YearlyPlayerRecords[string][number]];
     });
   }
   return output;
@@ -315,10 +355,10 @@ export function migrateSaveData(raw: unknown): GameSaveData | null {
     lineup: Array.isArray(legacy.lineup) ? legacy.lineup : [],
     pitcherPlan: migratePitcherPlan(legacy.pitcherPlan ?? createEmptyPitcherPlan()),
     standings: legacy.standings ?? calcStandings(season.schedule),
-    accumulated: legacy.accumulated ?? {},
-    leagueAccumulated: legacy.leagueAccumulated ?? {},
-    careerAccumulated: legacy.careerAccumulated ?? {},
-    leagueCareerAccumulated: legacy.leagueCareerAccumulated ?? {},
+    accumulated: migrateAccumulatedStats(legacy.accumulated),
+    leagueAccumulated: migrateAccumulatedStats(legacy.leagueAccumulated),
+    careerAccumulated: migrateAccumulatedStats(legacy.careerAccumulated),
+    leagueCareerAccumulated: migrateAccumulatedStats(legacy.leagueCareerAccumulated),
     yearlyStats: migrateYearlyStats(legacy.yearlyStats),
     retiredPlayers: Array.isArray(legacy.retiredPlayers) ? legacy.retiredPlayers : [],
     notices: migrateNotices(legacy.notices),

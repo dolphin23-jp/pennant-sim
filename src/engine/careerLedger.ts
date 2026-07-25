@@ -1,8 +1,7 @@
 import { calcOVR } from './ratings';
+import { createBatterStats, createPitcherStats } from './stats';
 import type {
   AccumulatedStats,
-  BatterStats,
-  PitcherStats,
   Player,
   PlayerSeasonRecord,
   PlayerStats,
@@ -11,20 +10,11 @@ import type {
   Teams,
 } from './types';
 
-const emptyBatterStats = (player: Player): BatterStats => ({
-  type: 'bat', name: player.name, g: 0, pa: 0, ab: 0, h: 0, s: 0, d: 0, t: 0,
-  hr: 0, bb: 0, k: 0, rbi: 0, sb: 0, cs: 0, bnt: 0, sf: 0,
-});
-
-const emptyPitcherStats = (player: Player): PitcherStats => ({
-  type: 'pit', name: player.name, g: 0, gs: 0, w: 0, l: 0, sv: 0, hld: 0,
-  bs: 0, ip3: 0, h: 0, bb: 0, k: 0, er: 0, pc: 0,
-});
-
 function snapshotStats(player: Player, stats: AccumulatedStats): PlayerStats {
   const recorded = stats[player.id];
   if (recorded) return { ...recorded } as PlayerStats;
-  return player.isP ? emptyPitcherStats(player) : emptyBatterStats(player);
+  // Reuse the canonical factories so a new stat field never needs a second zero literal.
+  return player.isP ? createPitcherStats(player.name) : createBatterStats(player.name);
 }
 
 function snapshotPlayer(

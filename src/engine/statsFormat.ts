@@ -22,6 +22,14 @@ const isPlayerStats = (value: unknown): value is PlayerStats =>
 export const averageText = (hits: number, atBats: number): string =>
   atBats > 0 ? (hits / atBats).toFixed(3).replace(/^0/, '') : '.---';
 
+// Batting average and earned run average were each open-coded in a dozen places, which
+// made them impossible to change in one step. Both now live here.
+export const battingAverage = (stats: BatterStats): number | null =>
+  stats.ab > 0 ? stats.h / stats.ab : null;
+
+export const earnedRunAverage = (stats: PitcherStats): number | null =>
+  stats.ip3 > 0 ? (stats.er * 27) / stats.ip3 : null;
+
 export const inningsText = (outs: number): string => {
   const innings = Math.floor(outs / 3);
   const remainder = outs % 3;
@@ -33,9 +41,11 @@ export const babip = (stats: BatterStats): number | null => {
   return denominator > 0 ? (stats.h - stats.hr) / denominator : null;
 };
 
+// Official formula: (H + BB + HBP) / (AB + BB + HBP + SF). Hit-by-pitch was missing from
+// both sides until season stats started tracking it.
 export const onBasePercentage = (stats: BatterStats): number | null => {
-  const denominator = stats.ab + stats.bb + stats.sf;
-  return denominator > 0 ? (stats.h + stats.bb) / denominator : null;
+  const denominator = stats.ab + stats.bb + stats.hbp + stats.sf;
+  return denominator > 0 ? (stats.h + stats.bb + stats.hbp) / denominator : null;
 };
 
 export const sluggingPercentage = (stats: BatterStats): number | null => {
@@ -60,7 +70,7 @@ export const strikeoutsPerNine = (stats: PitcherStats): number | null =>
 export function statItems(stats: PlayerStats | undefined): StatItem[] {
   if (!stats) return [];
   if (stats.type === 'pit') {
-    const era = stats.ip3 > 0 ? (stats.er * 27) / stats.ip3 : null;
+    const era = earnedRunAverage(stats);
     const calculatedWhip = whip(stats);
     const k9 = strikeoutsPerNine(stats);
     return [
