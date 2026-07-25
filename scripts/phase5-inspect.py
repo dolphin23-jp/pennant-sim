@@ -1,15 +1,24 @@
 from pathlib import Path
 
-lines=[]
+lines=['COMPONENT FILES']
+for path in sorted(Path('src/components').rglob('*')):
+    if path.is_file(): lines.append(str(path))
+keys=['ranking','rank','leader','stats','record','yearlyStats','careerAccumulated','歴代','ランキング']
 for path in Path('src').rglob('*'):
     if not path.is_file() or path.suffix not in {'.ts','.tsx','.css'}:
         continue
     text=path.read_text(errors='ignore')
-    if any(k in text for k in ['RankingTab','rank-leader','ランキング','yearlyStats']):
-        lines.append(f'===== {path} =====\n')
-        for i,line in enumerate(text.splitlines(),1):
-            if any(k in line for k in ['RankingTab','rank-leader','ランキング','yearlyStats']):
-                start=max(1,i-20); end=min(len(text.splitlines()),i+80)
-                block='\n'.join(f'{n}: {text.splitlines()[n-1]}' for n in range(start,end+1))
-                lines.append(block+'\n')
+    lowered=text.lower()
+    if any(k.lower() in lowered for k in keys):
+        lines.append(f'\n===== {path} =====')
+        split=text.splitlines()
+        hits=[]
+        for i,line in enumerate(split,1):
+            if any(k.lower() in line.lower() for k in keys): hits.append(i)
+        covered=set()
+        for i in hits:
+            start=max(1,i-12); end=min(len(split),i+45)
+            if any(n in covered for n in range(start,end+1)): continue
+            covered.update(range(start,end+1))
+            lines.extend(f'{n}: {split[n-1]}' for n in range(start,end+1))
 Path('phase5-inspect.txt').write_text('\n'.join(lines))
