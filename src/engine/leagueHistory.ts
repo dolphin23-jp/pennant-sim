@@ -174,7 +174,7 @@ function adjustedParams(params: PlayerParams, age: number, currentAge: number): 
   const output = structuredClone(params);
   for (const [key, value] of Object.entries(output)) {
     if (key !== 'pitches' && typeof value === 'number')
-      (output as Record<string, unknown>)[key] = Math.round(value * factor);
+      (output as unknown as Record<string, unknown>)[key] = Math.round(value * factor);
   }
   return output;
 }
