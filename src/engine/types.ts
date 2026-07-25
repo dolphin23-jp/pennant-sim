@@ -156,8 +156,10 @@ export type Teams = Record<TeamKey, Team>;
 export type Side = 'home' | 'away';
 // SH (犠打) and SF (犠飛) are official scoring outcomes: they count as plate
 // appearances but not at-bats, so they must be distinguishable from GO/FO.
+// 'E' is reaching base on an error: an at-bat and a time on base, but not a hit, and no
+// out is recorded. SH/SF are plate appearances but not at-bats.
 export type PlateAppearanceResult =
-  'K' | 'BB' | 'HBP' | 'HR' | '3B' | '2B' | '1B' | 'GO' | 'FO' | 'DP' | 'SH' | 'SF';
+  'K' | 'BB' | 'HBP' | 'HR' | '3B' | '2B' | '1B' | 'GO' | 'FO' | 'DP' | 'SH' | 'SF' | 'E';
 export type RunningResult = 'SB' | 'CS';
 export type AtBatResult = PlateAppearanceResult | RunningResult;
 export type BaseRunner = Player | boolean;
@@ -168,11 +170,16 @@ export interface AtBatSituation {
   isLead: boolean;
   outs: number;
   bases: BaseState;
+  /** The defence on the field, so a batted ball can be resolved against a real fielder. */
+  fieldingLineup?: Player[];
 }
 export interface AtBatOutcome {
   result: PlateAppearanceResult;
   pc: number;
   dir: string | null;
+  battedBall?: BattedBallType;
+  fieldingSlot?: string;
+  errorFielderId?: string | null;
 }
 export interface Score {
   home: number;
@@ -212,6 +219,10 @@ export interface AtBatLogEntry {
   fielderPosition?: FieldPosition;
   /** Batted-ball classification for balls put in play. */
   battedBall?: BattedBallType;
+  /** Occupied bases before the play, so rule checks read real state instead of replaying it. */
+  basesBefore?: [boolean, boolean, boolean];
+  /** Outs before the play. */
+  outsBefore?: number;
 }
 export type BattedBallType = 'ground' | 'line' | 'fly' | 'popup';
 export interface InjuryEvent {

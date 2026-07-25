@@ -129,6 +129,9 @@ test('a rainout can be rescheduled as a doubleheader without changing game total
 });
 
 test('platoon, park and prior-matchup context can benefit the batter', () => {
+  // The layered model spreads one plate appearance over several draws, so a fixed random
+  // value can no longer isolate a single outcome boundary. Compare rates over many trials
+  // instead: the same batter, in a friendlier context, must homer more often.
   const pitcher = makePlayer('pitcher', true),
     batter = makePlayer('batter', false),
     situation = {
@@ -136,42 +139,44 @@ test('platoon, park and prior-matchup context can benefit the batter', () => {
       isPinch: false,
       isLead: false,
       outs: 0,
-      bases: [false, false, false],
-    } as const;
-  try {
-    let favorableHomeRunBoundaryFound = false;
-    for (let step = 1; step < 10_000; step += 1) {
-      const roll = step / 10_000;
-      configureRandom(() => roll, () => Date.UTC(2026, 0, 1));
-      const pitcherFriendly = simAB(
+      bases: [false, false, false] as const,
+    };
+  const countHomeRuns = (
+    battingPlayer: Player,
+    park: { homeRun: number; hit: number },
+    priorMatchups: number,
+    seed: number,
+  ): number => {
+    configureRandom(mulberry32(seed), () => Date.UTC(2026, 0, 1));
+    let homeRuns = 0;
+    for (let trial = 0; trial < 6000; trial += 1) {
+      const outcome = simAB(
         pitcher,
-        batter,
-        situation,
+        battingPlayer,
+        { ...situation, bases: [false, false, false] },
         100,
         1,
         1,
-        { homeRun: 0.7, hit: 0.9 },
-        0,
+        park,
+        priorMatchups,
       );
-      configureRandom(() => roll, () => Date.UTC(2026, 0, 1));
-      const batterFriendly = simAB(
-        pitcher,
-        { ...batter, hand: { bat: '左' } },
-        situation,
-        100,
-        1,
-        1,
-        { homeRun: 1.5, hit: 1.1 },
-        4,
-      );
-      if (pitcherFriendly.result !== 'HR' && batterFriendly.result === 'HR') {
-        favorableHomeRunBoundaryFound = true;
-        break;
-      }
+      if (outcome.result === 'HR') homeRuns += 1;
     }
+    return homeRuns;
+  };
+
+  try {
+    const pitcherFriendly = countHomeRuns(batter, { homeRun: 0.7, hit: 0.9 }, 0, 4242);
+    const batterFriendly = countHomeRuns(
+      { ...batter, hand: { bat: '左' } },
+      { homeRun: 1.5, hit: 1.1 },
+      4,
+      4242,
+    );
+    assert.ok(pitcherFriendly > 0, '検証に足りる本塁打が発生していること');
     assert.ok(
-      favorableHomeRunBoundaryFound,
-      'batter-friendly platoon, park and familiarity should increase the home-run boundary',
+      batterFriendly > pitcherFriendly,
+      `batter-friendly platoon, park and familiarity should increase home runs (${batterFriendly} vs ${pitcherFriendly})`,
     );
   } finally {
     resetRandom();

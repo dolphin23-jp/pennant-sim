@@ -34,6 +34,8 @@ interface Counters {
   scoreMismatchGames: number;
   sacFlyLike: number;
   sacBunts: number;
+  errors: number;
+  battedBall: Record<string, number>;
   ties: number;
   tiesWithDecision: number;
   gamesNoWinner: number;
@@ -54,6 +56,8 @@ const counters: Counters = {
   scoreMismatchGames: 0,
   sacFlyLike: 0,
   sacBunts: 0,
+  errors: 0,
+  battedBall: { ground: 0, line: 0, fly: 0, popup: 0 },
   ties: 0,
   tiesWithDecision: 0,
   gamesNoWinner: 0,
@@ -76,6 +80,7 @@ function auditGame(game: GameState): void {
     if (!halves.has(key)) halves.set(key, []);
     halves.get(key)!.push(entry);
     scoredIdCount += (entry.scoredIds ?? []).length;
+    if (entry.battedBall) counters.battedBall[entry.battedBall] += 1;
   }
 
   for (const entries of halves.values()) {
@@ -90,8 +95,11 @@ function auditGame(game: GameState): void {
       switch (entry.result) {
         case 'DP': {
           counters.dpTotal += 1;
-          if (!onFirst) counters.dpNoRunnerOnFirst += 1;
-          if (outs >= 2) counters.dpWithTwoOuts += 1;
+          // Prefer the state the engine recorded; the replay below is only a fallback.
+          const hadRunnerOnFirst = entry.basesBefore ? entry.basesBefore[0] : onFirst;
+          const outsAtPlay = entry.outsBefore ?? outs;
+          if (!hadRunnerOnFirst) counters.dpNoRunnerOnFirst += 1;
+          if (outsAtPlay >= 2) counters.dpWithTwoOuts += 1;
           const realOuts = Math.min(2, 3 - outs); // half ends at 3
           if (realOuts < 2) counters.dpOutOverflow += 1;
           addOut(entry.pitcherId, realOuts);
@@ -132,9 +140,16 @@ function auditGame(game: GameState): void {
           onFirst = false;
           break;
         }
+        case 'E':
         case 'SB': {
-          onSecond = true;
-          onFirst = false;
+          if (entry.result === 'SB') {
+            onSecond = true;
+            onFirst = false;
+          } else {
+            counters.errors += 1;
+            if (onSecond && !onThird) onThird = true;
+            onFirst = true;
+          }
           break;
         }
         case 'HR': {
@@ -256,6 +271,15 @@ function main(): void {
   console.log('--- 犠打・犠飛 ---');
   console.log(`犠飛(SF):                 ${counters.sacFlyLike}`);
   console.log(`犠打(SH):                 ${counters.sacBunts}`);
+  console.log('');
+  console.log('--- 守備 ---');
+  console.log(
+    `失策(E):                  ${counters.errors} (1球団あたり ${(counters.errors / 12).toFixed(1)})`,
+  );
+  const battedBallTotal = Object.values(counters.battedBall).reduce((a, b) => a + b, 0);
+  for (const [kind, count] of Object.entries(counters.battedBall)) {
+    console.log(`  ${kind.padEnd(8)}: ${String(count).padStart(6)} (${pct(count, battedBallTotal)})`);
+  }
   console.log('');
   console.log('--- 責任投手 ---');
   console.log(`引き分け:                 ${counters.ties}`);

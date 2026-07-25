@@ -20,6 +20,7 @@ import type {
   AccumulatedStats,
   AtBatLogEntry,
   BaseState,
+  BattedBallType,
   GameState,
   HalfInningResult,
   PlateAppearanceResult,
@@ -221,7 +222,15 @@ export function simHalf(
       batterMastery = masteryFromAccum(batter, accumulatedStats),
       matchupKey = `${pitcher.id}:${batter.id}`,
       priorMatchups = gameState.matchupCounts[matchupKey] ?? 0;
+    const basesBefore: [boolean, boolean, boolean] = [
+      Boolean(bases[0]),
+      Boolean(bases[1]),
+      Boolean(bases[2]),
+    ];
+    const outsBefore = outs;
     let result: PlateAppearanceResult, pitchCount: number, direction: string | null;
+    let battedBall: BattedBallType | undefined;
+    let errorFielderId: string | undefined;
     if (attemptsSacrificeBunt(batter, bases, outs)) {
       result = 'SH';
       pitchCount = randomInt(1, 4);
@@ -230,7 +239,15 @@ export function simHalf(
       const outcome = simAB(
         pitcher,
         batter,
-        { pStam: staminaPercentage, isPinch, isLead, outs, bases },
+        {
+          pStam: staminaPercentage,
+          isPinch,
+          isLead,
+          outs,
+          bases,
+          // The defence actually on the field decides whether a batted ball is fielded.
+          fieldingLineup: gameState.lineups[fieldingSide],
+        },
         catcherGameCalling,
         pitcherMastery,
         batterMastery,
@@ -240,6 +257,8 @@ export function simHalf(
       result = outcome.result;
       pitchCount = outcome.pc;
       direction = outcome.dir;
+      battedBall = outcome.battedBall;
+      errorFielderId = outcome.errorFielderId ?? undefined;
     }
     gameState.matchupCounts[matchupKey] = priorMatchups + 1;
     gameState.pc[fieldingSide] += pitchCount;
@@ -298,6 +317,10 @@ export function simHalf(
       rbi: runsBattedIn,
       snap: snapshot,
       scoredIds,
+      battedBall,
+      errorFielderId,
+      basesBefore,
+      outsBefore,
       desc: buildDesc(batter.name, officialResult, direction, runsBattedIn),
     });
     if (battingSide === 'home' && inning >= 8 && snapshot.home > snapshot.away) {
