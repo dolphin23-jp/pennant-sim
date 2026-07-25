@@ -122,6 +122,7 @@ export function TeamReportTab() {
         rotation={rotation}
         bullpenClosers={bullpenClosers}
         bullpenRelievers={bullpenRelievers}
+        statsSource={statsSource}
         onSelectPlayer={game.selectPlayer}
       />
     </div>
