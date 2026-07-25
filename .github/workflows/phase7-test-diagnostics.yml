@@ -24,6 +24,7 @@ jobs:
         run: |
           python scripts/phase7-implement.py
           python scripts/phase7-fix-lint.py
+          python scripts/phase7-fix-test.py
           set +e
           npm test > phase7-test.log 2>&1
           echo "$?" > phase7-test-exit.txt
