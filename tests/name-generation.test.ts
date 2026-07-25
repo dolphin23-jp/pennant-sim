@@ -60,6 +60,7 @@ test('same-name players use ids rather than numbered display-name suffixes', () 
     const players = Array.from({ length: 500 }, (_, index) =>
       generateBatter('draft', 18 + (index % 7), '中堅手', 55 + (index % 25)),
     );
+    // Duplicate display names are intentional; only the immutable Player.id must remain unique.
     assert.equal(players.some((player) => player.name.includes('#')), false);
     assert.ok(new Set(players.map((player) => player.name)).size < players.length);
     assert.equal(new Set(players.map((player) => player.id)).size, players.length);
