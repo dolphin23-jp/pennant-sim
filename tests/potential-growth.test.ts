@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  agingDeclineMultiplier,
   calcOVR,
   configureRandom,
   developmentAgeCoefficient,
@@ -181,4 +182,14 @@ test('players decline after their peak even when current ratings equal potential
   } finally {
     resetRandom();
   }
+});
+
+test('chronological aging accelerates decline after age 35', () => {
+  assert.equal(agingDeclineMultiplier(34), 1);
+  assert.ok(agingDeclineMultiplier(35) < agingDeclineMultiplier(38));
+  assert.ok(agingDeclineMultiplier(38) < agingDeclineMultiplier(40));
+  assert.ok(
+    Math.abs(developmentAgeCoefficient(40, '通常')) >
+      Math.abs(developmentAgeCoefficient(35, '通常')),
+  );
 });

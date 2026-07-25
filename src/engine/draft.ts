@@ -15,12 +15,41 @@ function prospectFutureBonus(player: Player): number {
       return typeof value === 'number' && typeof current === 'number' ? value - current : 0;
     }),
   );
-  return maximumPotentialGap * 0.12 + (player.potentialClass === 'elite' ? 6 : 0);
+  return (
+    maximumPotentialGap * 0.12 +
+    (player.potentialClass === 'elite' ? 6 : 0) +
+    (player.generationalTalent ? 12 : 0) +
+    (player.age <= 19 ? 1 : 0)
+  );
 }
 
 function applyGenerationalTalent(player: Player, quality: number): void {
-  if (quality < 90) return;
+  if (quality < 88) return;
   player.potentialClass = 'elite';
+  player.generationalTalent = true;
+  const developmentParameters = player.isP
+    ? (['vel', 'ctrl', 'stam', 'nobi', 'fld'] as const)
+    : ([
+        'cf',
+        'cb',
+        'pw',
+        'dc',
+        'sp',
+        ...(player.pos === '捕手' ? (['ld'] as const) : []),
+      ] as const);
+  const broadPotential = { ...player.pot };
+  for (const parameter of developmentParameters) {
+    const current = Number(player.p[parameter] ?? 0);
+    broadPotential[parameter] = Math.min(
+      140,
+      Math.max(
+        Number(broadPotential[parameter] ?? current),
+        current + randomInt(38, 62),
+        Math.round(quality * (1.03 + random() * 0.24)),
+      ),
+    );
+  }
+  player.pot = broadPotential;
   if (player.isP) {
     const signature = randomChoice(['vel', 'ctrl', 'nobi'] as const);
     const current = Number(player.p[signature] ?? 0);
@@ -33,14 +62,36 @@ function applyGenerationalTalent(player: Player, quality: number): void {
     return;
   }
 
-  const power = Math.max(Number(player.p.pw ?? 0), randomInt(100, 120));
-  const secondary = randomChoice(['cf', 'cb', 'sp'] as const);
-  const secondaryValue = Math.max(Number(player.p[secondary] ?? 0), randomInt(72, 96));
-  player.p = { ...player.p, pw: power, [secondary]: secondaryValue };
+  const signature = randomChoice(['cf', 'cf', 'cb', 'cb', 'pw', 'sp', 'df'] as const);
+  const signatureValue = Math.max(
+    Number(player.p[signature] ?? 0),
+    signature === 'pw' ? randomInt(96, 114) : randomInt(92, 114),
+  );
+  const secondary = randomChoice(
+    (['cf', 'cb', 'pw', 'sp', 'df'] as const).filter((parameter) => parameter !== signature),
+  );
+  const secondaryValue = Math.max(Number(player.p[secondary] ?? 0), randomInt(74, 98));
+  player.p = { ...player.p, [signature]: signatureValue, [secondary]: secondaryValue };
   player.pot = {
     ...player.pot,
-    pw: Math.max(Number(player.pot.pw ?? 0), power + randomInt(10, 20)),
+    [signature]: Math.max(Number(player.pot[signature] ?? 0), signatureValue + randomInt(10, 20)),
     [secondary]: Math.max(Number(player.pot[secondary] ?? 0), secondaryValue + randomInt(8, 16)),
+  };
+}
+
+function calibrateDraftBatter(player: Player): void {
+  if (player.isP) return;
+  const contactBonus = 3;
+  const fieldingAdjustment = -3;
+  const cf = Math.min(120, Number(player.p.cf ?? 0) + contactBonus);
+  const cb = Math.min(120, Number(player.p.cb ?? 0) + contactBonus);
+  const df = Math.max(1, Number(player.p.df ?? 0) + fieldingAdjustment);
+  player.p = { ...player.p, cf, cb, df };
+  player.pot = {
+    ...player.pot,
+    cf: Math.max(cf, Math.min(140, Number(player.pot.cf ?? cf) + contactBonus)),
+    cb: Math.max(cb, Math.min(140, Number(player.pot.cb ?? cb) + contactBonus)),
+    df: Math.max(df, Number(player.pot.df ?? df) + fieldingAdjustment),
   };
 }
 
@@ -90,14 +141,15 @@ export function generateDraftProspects(): Player[] {
             ? randomInt(21, 22)
             : randomInt(23, 25),
       immediateChance = draftOrigin === '高卒' ? 0.07 : draftOrigin === '大卒' ? 0.13 : 0.16,
-      monsterChance = draftOrigin === '高卒' ? 0.012 : draftOrigin === '大卒' ? 0.027 : 0.035;
+      monsterChance = draftOrigin === '高卒' ? 0.012 : draftOrigin === '大卒' ? 0.023 : 0.03;
     let quality = Math.max(32, Math.min(96, gaussian(58, 14)));
     if (random() < immediateChance) quality = Math.max(60, Math.min(104, gaussian(78, 8)));
-    if (random() < monsterChance) quality = Math.max(82, Math.min(112, gaussian(94, 6)));
+    if (random() < monsterChance) quality = Math.max(88, Math.min(124, gaussian(102, 8)));
     const player =
       position === '先発' || position === 'リリーフ' || position === 'クローザー'
         ? generatePitcher('draft', age, quality, position)
         : generateBatter('draft', age, position, quality);
+    calibrateDraftBatter(player);
     applyGenerationalTalent(player, quality);
     player.draftOrigin = draftOrigin;
     const prospectLabel =

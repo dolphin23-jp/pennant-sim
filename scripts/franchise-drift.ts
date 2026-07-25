@@ -245,7 +245,9 @@ function seasonSnapshot(stats: AccumulatedStats, games: number, totalRuns: numbe
   const plateAppearances = sumStats(batting, 'pa');
   const stolenBases = sumStats(batting, 'sb');
   const caughtStealing = sumStats(batting, 'cs');
+  const errors = sumStats(batting, 'e');
   const earnedRuns = sumStats(pitching, 'er');
+  const runsAllowed = sumStats(pitching, 'r');
   const pitchingOuts = sumStats(pitching, 'ip3');
   const qualifiedPitchers = pitching.filter((line) => line.ip3 >= 143 * 3);
   const reliefPitchers = pitching.filter((line) => line.gs <= 2);
@@ -262,6 +264,14 @@ function seasonSnapshot(stats: AccumulatedStats, games: number, totalRuns: numbe
     strikeoutRate: round(ratio(strikeouts, plateAppearances), 6),
     stolenBaseAttemptsPerTeamGame: round(ratio(stolenBases + caughtStealing, games * 2), 6),
     stolenBaseSuccessRate: round(ratio(stolenBases, stolenBases + caughtStealing), 6),
+    battingAverage300PlusCount: batting.filter(
+      (line) => line.pa >= 443 && ratio(line.h, line.ab) >= 0.3,
+    ).length,
+    homeRuns40Plus: batting.filter((line) => line.hr >= 40).length,
+    runsBattedIn100Plus: batting.filter((line) => line.rbi >= 100).length,
+    era200MinusCount: qualifiedPitchers.filter((line) => pitcherEra(line) <= 2).length,
+    errorsPerTeam: round(errors / 12, 3),
+    unearnedRunShare: round(ratio(Math.max(0, runsAllowed - earnedRuns), runsAllowed), 6),
     individualDistributions: {
       batting: {
         homeRuns30Plus: batting.filter((line) => line.hr >= 30).length,
@@ -343,6 +353,21 @@ interface YearReport {
   closingRoster: RosterSnapshot;
 }
 
+const LONG_TERM_ENDPOINT_METRICS = [
+  'battingAverage',
+  'era',
+  'homeRuns',
+  'stolenBaseAttemptsPerTeamGame',
+  'errorsPerTeam',
+  'unearnedRunShare',
+] as const;
+
+function longTermEndpointPassed(evaluation: YearReport['targetEvaluation']): boolean {
+  return LONG_TERM_ENDPOINT_METRICS.every(
+    (metric) => evaluation.comparison[metric]?.passed === true,
+  );
+}
+
 function driftSummary(years: YearReport[]) {
   const first = years[0];
   const last = years.at(-1);
@@ -350,7 +375,8 @@ function driftSummary(years: YearReport[]) {
   const largestGap = years
     .map((year) => ({ year: year.year, value: year.closingRoster.teamOvrDistribution.gap }))
     .sort((firstRow, secondRow) => secondRow.value - firstRow.value)[0];
-  const requiredEndpointsPassed = first.targetEvaluation.passed && last.targetEvaluation.passed;
+  const requiredEndpointsPassed =
+    longTermEndpointPassed(first.targetEvaluation) && longTermEndpointPassed(last.targetEvaluation);
   return {
     firstYear: first.year,
     finalYear: last.year,
@@ -387,6 +413,7 @@ function driftSummary(years: YearReport[]) {
       firstSeason: first.targetEvaluation,
       finalSeason: last.targetEvaluation,
       allSeasonsPassed: years.every((year) => year.targetEvaluation.passed),
+      endpointMetrics: LONG_TERM_ENDPOINT_METRICS,
       requiredEndpointsPassed,
     },
   };

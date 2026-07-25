@@ -125,6 +125,8 @@ export interface Player {
   p: PlayerParams;
   pot: PotentialParams;
   potentialClass?: PotentialClass;
+  /** Rare draft class with a broader ceiling than ordinary elite potential. */
+  generationalTalent?: boolean;
   specials?: SpecialAbility[];
   specialLevels?: Record<string, number>;
   trainPolicy: TrainPolicyId;
@@ -224,6 +226,28 @@ export interface AtBatLogEntry {
   /** Outs before the play. */
   outsBefore?: number;
 }
+export type ManagementDecisionType = 'bunt' | 'steal' | 'pitchingChange';
+/**
+ * One auditable AI decision. Tactic opportunities are recorded even when the manager
+ * holds, so an audit can distinguish "no suitable situations" from "never tries".
+ */
+export interface ManagementDecision {
+  teamKey: TeamKey;
+  inning: number;
+  type: ManagementDecisionType;
+  playerId: string;
+  playerName: string;
+  attempted: boolean;
+  success?: boolean;
+  probability?: number;
+  scoreDifference: number;
+  outs: number;
+  bases: [boolean, boolean, boolean];
+  reason: string;
+  runsAtDecision: number;
+  /** Runs scored later in the same half-inning; observational, not a causal estimate. */
+  runsAfterDecision?: number;
+}
 export type BattedBallType = 'ground' | 'line' | 'fly' | 'popup';
 /** State captured when a pitcher takes the mound and when he leaves it. */
 export interface PitcherAppearance {
@@ -299,6 +323,8 @@ export interface GameState {
   appearances?: PitcherAppearance[];
   /** Runs in the order they scored, used to find the go-ahead run. */
   scoringSequence?: ScoringEvent[];
+  /** CPU decisions captured for season-level strategy and frequency audits. */
+  managementLog?: ManagementDecision[];
   postGameEvents: PostGameEvents;
 }
 export interface HalfInningResult {
