@@ -13,6 +13,7 @@ import {
   accumulateStatsAll,
   bestLineup,
   calcStandings,
+  createPlayerSeasonRecords,
   generateSchedule,
   initTeams,
   registerExistingNames,
@@ -28,6 +29,7 @@ import type {
   StandingRecord,
   TeamKey,
   Teams,
+  YearlyPlayerRecords,
 } from '../engine';
 import {
   createInSeasonDevelopmentNotices,
@@ -68,7 +70,7 @@ interface RuntimeState {
   leagueAccumulated: AccumulatedStats;
   careerAccumulated: AccumulatedStats;
   leagueCareerAccumulated: AccumulatedStats;
-  yearlyStats: Record<string, unknown[]>;
+  yearlyStats: YearlyPlayerRecords;
   retiredPlayers: Player[];
   notices: Notice[];
   championHistory: ChampionRecord[];
@@ -376,7 +378,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const completeOffseason = useCallback((teams: Teams, developmentNotices: Notice[] = []) => {
     setState((current) => {
       if (!current.playerTeam) return current;
-      const year = current.season.year + 1;
+      const completedYear = current.season.year;
+      const seasonRecords = current.teams
+        ? createPlayerSeasonRecords(completedYear, current.teams, current.leagueAccumulated)
+        : [];
+      const year = completedYear + 1;
       const schedule = generateSchedule(year);
       const prepared = simCpuUntilNext(
         schedule,
@@ -395,6 +401,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
         standings: calcStandings(prepared.sched),
         accumulated: {},
         leagueAccumulated: prepared.leagueDistStats,
+        yearlyStats: {
+          ...current.yearlyStats,
+          [String(completedYear)]: seasonRecords,
+        },
         notices: mergeNotices(current.notices, developmentNotices),
         lastGame: null,
       };

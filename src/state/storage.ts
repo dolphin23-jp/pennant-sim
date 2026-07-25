@@ -7,6 +7,7 @@ import type {
   StandingRecord,
   TeamKey,
   Teams,
+  YearlyPlayerRecords,
 } from '../engine';
 
 export const LEGACY_SAVE_KEY = 'npb_sim_v3_restored';
@@ -62,7 +63,7 @@ export interface GameSaveData {
   leagueAccumulated: AccumulatedStats;
   careerAccumulated: AccumulatedStats;
   leagueCareerAccumulated: AccumulatedStats;
-  yearlyStats: Record<string, unknown[]>;
+  yearlyStats: YearlyPlayerRecords;
   retiredPlayers: Player[];
   notices: Notice[];
   championHistory: ChampionRecord[];
@@ -188,6 +189,34 @@ const migratePitcherPlan = (plan: PitcherPlan | undefined): PitcherPlan => ({
     : [],
 });
 
+function migrateYearlyStats(value: unknown): YearlyPlayerRecords {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const output: YearlyPlayerRecords = {};
+  for (const [year, entries] of Object.entries(value)) {
+    if (!Array.isArray(entries)) continue;
+    output[year] = entries.flatMap((entry) => {
+      if (!entry || typeof entry !== 'object') return [];
+      const record = entry as Record<string, unknown>;
+      if (
+        typeof record.playerId !== 'string' ||
+        typeof record.playerName !== 'string' ||
+        typeof record.year !== 'number' ||
+        typeof record.age !== 'number' ||
+        typeof record.teamKey !== 'string' ||
+        !teamKeys.includes(record.teamKey as TeamKey) ||
+        typeof record.teamName !== 'string' ||
+        typeof record.teamAbbreviation !== 'string' ||
+        typeof record.isPitcher !== 'boolean' ||
+        typeof record.ovr !== 'number' ||
+        !record.params || typeof record.params !== 'object' ||
+        !record.stats || typeof record.stats !== 'object'
+      ) return [];
+      return [record as unknown as YearlyPlayerRecords[string][number]];
+    });
+  }
+  return output;
+}
+
 function migrateNotices(value: unknown): Notice[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap<Notice>((candidate, index) => {
@@ -246,7 +275,7 @@ export function migrateSaveData(raw: unknown): GameSaveData | null {
     leagueAccumulated: legacy.leagueAccumulated ?? {},
     careerAccumulated: legacy.careerAccumulated ?? {},
     leagueCareerAccumulated: legacy.leagueCareerAccumulated ?? {},
-    yearlyStats: legacy.yearlyStats ?? {},
+    yearlyStats: migrateYearlyStats(legacy.yearlyStats),
     retiredPlayers: Array.isArray(legacy.retiredPlayers) ? legacy.retiredPlayers : [],
     notices: migrateNotices(legacy.notices),
     championHistory: Array.isArray(legacy.championHistory) ? legacy.championHistory : [],
