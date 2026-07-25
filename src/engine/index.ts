@@ -4,6 +4,7 @@ export * from './draft';
 export * from './foreign';
 export * from './game';
 export * from './growth';
+export * from './historicalRankings';
 export * from './market';
 export * from './offseason';
 export * from './pitcherPlan';
