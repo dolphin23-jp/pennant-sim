@@ -1,37 +1,27 @@
-name: Record calibrated balance baseline
+name: CI
 
 on:
   push:
-    branches:
-      - agent/phase3-name-generation
+  pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  baseline:
+  quality:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout branch
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: agent/phase3-name-generation
-          fetch-depth: 0
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: Install dependencies
         run: npm install
-      - name: Generate calibrated baseline
-        run: |
-          npm run baseline:new
-          cp baseline/new-season-stats.json baseline/season-stats.json
-      - name: Commit calibrated baseline
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add baseline/season-stats.json
-          git diff --cached --quiet && exit 0
-          git commit -m "test: record calibrated stolen-base baseline"
-          git push origin HEAD:agent/phase3-name-generation
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build
