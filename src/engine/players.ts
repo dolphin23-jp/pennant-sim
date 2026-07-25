@@ -38,7 +38,9 @@ const foreignName = (): string => `${randomChoice(FOREIGN_SN)} ${randomChoice(FO
 const generatedName = (baseName: () => string): string => baseName();
 
 // Display names are not identifiers. Same-name players remain distinct through Player.id.
-export function registerExistingNames(_teams: Partial<Teams>): void {}
+export function registerExistingNames(teams: Partial<Teams>): void {
+  void teams;
+}
 function maturityModifier(age: number, maturity: Maturity): number {
   const years = age - MATURITY_PEAK_AGE[maturity];
   if (years < -4) return clamp(0.68 + (years + 4) * 0.056, 0.4, 1);
