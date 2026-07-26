@@ -60,6 +60,7 @@ export type GameScreen = 'welcome' | 'teamSelect' | 'season' | 'postseason' | 'o
 
 interface RuntimeState {
   loading: boolean;
+  loadError: string | null;
   screen: GameScreen;
   teams: Teams | null;
   playerTeam: TeamKey | null;
@@ -106,6 +107,7 @@ interface GameContextValue extends RuntimeState {
 
 const initialState: RuntimeState = {
   loading: true,
+  loadError: null,
   screen: 'welcome',
   teams: null,
   playerTeam: null,
@@ -201,30 +203,41 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    void loadGame().then((saved) => {
-      if (!active) return;
-      if (!saved) {
-        setState((current) => ({ ...current, loading: false }));
-        return;
-      }
-      registerExistingNames(saved.teams);
-      const lineup =
-        saved.lineup.length || !saved.playerTeam
-          ? saved.lineup
-          : bestLineup(saved.teams[saved.playerTeam]);
-      const seasonOver =
-        saved.season.schedule.length > 0 && saved.season.schedule.every((game) => game.played);
-      setState({
-        ...initialState,
-        ...saved,
-        lineup,
-        loading: false,
-        screen: seasonOver ? 'postseason' : saved.playerTeam ? 'season' : 'teamSelect',
-        lastGame: null,
-        selectedPlayer: null,
-        selectedGameId: null,
+    void loadGame()
+      .then((saved) => {
+        if (!active) return;
+        if (!saved) {
+          setState((current) => ({ ...current, loading: false }));
+          return;
+        }
+        registerExistingNames(saved.teams);
+        const lineup =
+          saved.lineup.length || !saved.playerTeam
+            ? saved.lineup
+            : bestLineup(saved.teams[saved.playerTeam]);
+        const seasonOver =
+          saved.season.schedule.length > 0 && saved.season.schedule.every((game) => game.played);
+        setState({
+          ...initialState,
+          ...saved,
+          lineup,
+          loading: false,
+          screen: seasonOver ? 'postseason' : saved.playerTeam ? 'season' : 'teamSelect',
+          lastGame: null,
+          selectedPlayer: null,
+          selectedGameId: null,
+        });
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        console.error('Failed to load save data', error);
+        setState((current) => ({
+          ...current,
+          loading: false,
+          loadError:
+            'セーブデータの読み込み中にエラーが発生しました。データは保持されていますが、いったん新規ゲームとして開始できます。',
+        }));
       });
-    });
     return () => {
       active = false;
     };

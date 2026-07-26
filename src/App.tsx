@@ -39,6 +39,18 @@ function WelcomeScreen() {
           >
             3つの独立したセーブ枠を利用できます。旧キーのセーブは削除せず、初回読込時にスロット1へ自動コピーします。
           </p>
+          {game.loadError && (
+            <p
+              role="alert"
+              style={{
+                color: 'var(--color-danger)',
+                lineHeight: 1.8,
+                margin: '0 0 20px',
+              }}
+            >
+              {game.loadError}
+            </p>
+          )}
           <div style={{ marginBottom: 18 }}>
             <SaveSlotControls />
           </div>

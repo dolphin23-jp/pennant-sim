@@ -364,8 +364,13 @@ export function simHalf(
         }
       }
     }
-    const lineup = gameState.lineups[battingSide],
-      batter = lineup[gameState.batIdx[battingSide] % lineup.length] as Player;
+    const lineup = gameState.lineups[battingSide];
+    if (lineup.length === 0) {
+      throw new Error(
+        `Cannot simulate an at-bat: ${teamKeyForSide(gameState, battingSide)} has no eligible fielders in its lineup.`,
+      );
+    }
+    const batter = lineup[gameState.batIdx[battingSide] % lineup.length] as Player;
     gameState.batIdx[battingSide] += 1;
     const staminaPercentage = clamp(
         100 -
