@@ -1,4 +1,4 @@
-import { TINFO } from '../data';
+import { CENTRAL, PACIFIC, TINFO } from '../data';
 import {
   calcStandings,
   createBatterStats,
@@ -108,20 +108,9 @@ interface WindowWithStorage extends Window {
 const INDEXED_DB_NAME = 'pennant-sim';
 const INDEXED_DB_STORE = 'save-data';
 
-const teamKeys: TeamKey[] = [
-  'giants',
-  'tigers',
-  'baystars',
-  'dragons',
-  'carp',
-  'swallows',
-  'hawks',
-  'eagles',
-  'marines',
-  'lions',
-  'buffaloes',
-  'fighters',
-];
+// The canonical list of team keys lives once in data/teams.ts (CENTRAL/PACIFIC);
+// deriving it here avoids a second hand-maintained copy that could drift out of sync.
+const teamKeys: TeamKey[] = [...CENTRAL, ...PACIFIC];
 
 export const createEmptyRotations = (): Record<TeamKey, number> =>
   Object.fromEntries(teamKeys.map((teamKey) => [teamKey, 0])) as Record<TeamKey, number>;
@@ -462,6 +451,94 @@ function migrateGameBoxScores(value: unknown): Record<string, GameBoxScore> {
   return output;
 }
 
+function isValidTeamKey(value: unknown): value is TeamKey {
+  return typeof value === 'string' && teamKeys.includes(value as TeamKey);
+}
+
+/**
+ * Loosely validate the structurally load-bearing fields only (id/name/age/isP/p/pot).
+ * Not a full Player shape check — the goal is to reject obviously malformed entries
+ * (wrong type, missing core fields) rather than to re-validate every optional field.
+ */
+function isValidPlayerShape(value: unknown): value is Player {
+  if (!value || typeof value !== 'object') return false;
+  const raw = value as Partial<Player>;
+  return (
+    typeof raw.id === 'string' &&
+    typeof raw.name === 'string' &&
+    typeof raw.age === 'number' &&
+    typeof raw.isP === 'boolean' &&
+    !!raw.p &&
+    typeof raw.p === 'object' &&
+    !!raw.pot &&
+    typeof raw.pot === 'object'
+  );
+}
+
+function migratePlayerArray(value: unknown): Player[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isValidPlayerShape);
+}
+
+function migrateChampionHistory(value: unknown): ChampionRecord[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((candidate) => {
+    if (!candidate || typeof candidate !== 'object') return [];
+    const raw = candidate as Partial<ChampionRecord>;
+    if (typeof raw.year !== 'number' || !isValidTeamKey(raw.champion)) return [];
+    const runnerUp = isValidTeamKey(raw.runnerUp) ? raw.runnerUp : null;
+    return [
+      {
+        year: raw.year,
+        champion: raw.champion,
+        runnerUp,
+        keyBatters: Array.isArray(raw.keyBatters)
+          ? raw.keyBatters.filter((entry): entry is string => typeof entry === 'string')
+          : undefined,
+        keyPitchers: Array.isArray(raw.keyPitchers)
+          ? raw.keyPitchers.filter((entry): entry is string => typeof entry === 'string')
+          : undefined,
+      },
+    ];
+  });
+}
+
+function isValidStandingRecord(value: unknown): value is StandingRecord {
+  if (!value || typeof value !== 'object') return false;
+  const raw = value as Partial<StandingRecord>;
+  return (
+    typeof raw.w === 'number' &&
+    typeof raw.l === 'number' &&
+    typeof raw.d === 'number' &&
+    typeof raw.rs === 'number' &&
+    typeof raw.ra === 'number' &&
+    typeof raw.g === 'number'
+  );
+}
+
+function migrateStandings(
+  value: unknown,
+  fallback: () => Record<TeamKey, StandingRecord>,
+): Record<TeamKey, StandingRecord> {
+  if (!value || typeof value !== 'object') return fallback();
+  const raw = value as Record<string, unknown>;
+  if (!teamKeys.every((teamKey) => isValidStandingRecord(raw[teamKey]))) return fallback();
+  return raw as Record<TeamKey, StandingRecord>;
+}
+
+function migrateRotations(value: unknown): Record<TeamKey, number> {
+  const rotations = createEmptyRotations();
+  if (!value || typeof value !== 'object') return rotations;
+  const raw = value as Record<string, unknown>;
+  for (const teamKey of teamKeys) {
+    const candidate = raw[teamKey];
+    if (typeof candidate === 'number' && Number.isInteger(candidate) && candidate >= 0) {
+      rotations[teamKey] = candidate;
+    }
+  }
+  return rotations;
+}
+
 export function migrateSaveData(raw: unknown): GameSaveData | null {
   if (!raw || typeof raw !== 'object') return null;
   const legacy = raw as Partial<GameSaveData>;
@@ -472,26 +549,26 @@ export function migrateSaveData(raw: unknown): GameSaveData | null {
     year: Number(legacy.season?.year ?? 2026),
     schedule: migrateSchedule(legacy.season?.schedule),
   };
-  const playerTeam = legacy.playerTeam ?? null;
-  const rotations = { ...createEmptyRotations(), ...(legacy.rotN ?? {}) };
+  const playerTeam = isValidTeamKey(legacy.playerTeam) ? legacy.playerTeam : null;
+  const viewTeam = isValidTeamKey(legacy.viewTeam) ? legacy.viewTeam : playerTeam;
 
   return {
     teams,
     playerTeam,
-    viewTeam: legacy.viewTeam ?? playerTeam,
+    viewTeam,
     season,
-    rotN: rotations,
-    lineup: Array.isArray(legacy.lineup) ? legacy.lineup : [],
+    rotN: migrateRotations(legacy.rotN),
+    lineup: migratePlayerArray(legacy.lineup),
     pitcherPlan: migratePitcherPlan(legacy.pitcherPlan ?? createEmptyPitcherPlan()),
-    standings: legacy.standings ?? calcStandings(season.schedule),
+    standings: migrateStandings(legacy.standings, () => calcStandings(season.schedule)),
     accumulated: migrateAccumulatedStats(legacy.accumulated),
     leagueAccumulated: migrateAccumulatedStats(legacy.leagueAccumulated),
     careerAccumulated: migrateAccumulatedStats(legacy.careerAccumulated),
     leagueCareerAccumulated: migrateAccumulatedStats(legacy.leagueCareerAccumulated),
     yearlyStats: migrateYearlyStats(legacy.yearlyStats),
-    retiredPlayers: Array.isArray(legacy.retiredPlayers) ? legacy.retiredPlayers : [],
+    retiredPlayers: migratePlayerArray(legacy.retiredPlayers),
     notices: migrateNotices(legacy.notices),
-    championHistory: Array.isArray(legacy.championHistory) ? legacy.championHistory : [],
+    championHistory: migrateChampionHistory(legacy.championHistory),
     awardHistory: migrateAwardHistory(legacy.awardHistory),
     gameSummaries: migrateGameSummaries(legacy.gameSummaries),
     gameBoxScores: migrateGameBoxScores(legacy.gameBoxScores),
@@ -549,17 +626,30 @@ export async function saveGameToSlot(
   }
 }
 
+/**
+ * Loads a slot's save data. Deliberately does NOT swallow every failure into `null`:
+ * a slot with no data at all is a legitimate `null` (new player), but a slot that
+ * holds a string that fails to parse/migrate is a corrupted save, and silently
+ * treating it the same as "no save" risks the caller starting a new game and
+ * overwriting the only copy of the corrupted-but-possibly-recoverable data. Backend
+ * read failures (e.g. every storage backend unavailable) are allowed to propagate for
+ * the same reason — callers should be able to tell "we couldn't read storage" apart
+ * from "there's nothing here yet".
+ */
 export async function loadGameFromSlot(
   slot: SaveSlot,
   backend: StorageBackend = browserStorage,
 ): Promise<GameSaveData | null> {
-  try {
-    await migrateLegacySaveToSlotOne(backend);
-    const raw = await backend.get(SAVE_KEY(slot));
-    return raw ? importSaveData(raw) : null;
-  } catch {
-    return null;
+  await migrateLegacySaveToSlotOne(backend);
+  const raw = await backend.get(SAVE_KEY(slot));
+  if (!raw) return null;
+  const data = importSaveData(raw);
+  if (!data) {
+    throw new Error(
+      `Save data in slot ${slot} could not be read. It may be corrupted or from an incompatible version.`,
+    );
   }
+  return data;
 }
 
 export async function saveGame(

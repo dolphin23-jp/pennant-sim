@@ -2,6 +2,7 @@ import { OffseasonScreen } from './components/screens/OffseasonScreen';
 import { PostseasonScreen } from './components/screens/PostseasonScreen';
 import { SeasonScreen } from './components/screens/SeasonScreen';
 import { TeamSelectScreen } from './components/screens/TeamSelectScreen';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Button, Card, PageShell, ThemeToggle } from './components/ui';
 import { GameDetailModal } from './components/widgets/GameDetailModal';
 import { PlayerDetailModal } from './components/widgets/PlayerDetailModal';
@@ -144,9 +145,11 @@ function GameRouter() {
 
 function App() {
   return (
-    <GameProvider>
-      <GameRouter />
-    </GameProvider>
+    <ErrorBoundary>
+      <GameProvider>
+        <GameRouter />
+      </GameProvider>
+    </ErrorBoundary>
   );
 }
 
