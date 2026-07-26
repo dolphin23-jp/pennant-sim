@@ -1,31 +1,14 @@
 import { PLAYER_DEVELOPMENT_BALANCE } from '../data';
-import { applyInSeasonAwakening } from './growth';
+import { applyInSeasonAwakening, growthParameters as developmentParameters } from './growth';
 import { clamp, random, randomChoice, randomInt } from './random';
 import type {
   GrowthChange,
   InjuryEvent,
   Player,
-  PlayerParams,
   PostGameEvents,
   Team,
   TeamKey,
 } from './types';
-
-function developmentParameters(player: Player): Array<keyof PlayerParams> {
-  return player.isP
-    ? ['vel', 'ctrl', 'stam', 'nobi', 'fld']
-    : [
-        'cf',
-        'cb',
-        'pw',
-        'dc',
-        'sp',
-        'df',
-        'arm',
-        'stam',
-        ...(player.pos === '捕手' ? (['ld'] as Array<keyof PlayerParams>) : []),
-      ];
-}
 
 function recoverPlayer(player: Player): Player {
   const remaining = player.injuryDays ?? 0;

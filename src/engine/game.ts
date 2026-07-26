@@ -609,9 +609,11 @@ function assignDecisions(gameState: GameState): void {
         ? previous.homeScore - previous.awayScore
         : previous.awayScore - previous.homeScore
       : 0;
-    // The run that first put the winners ahead for good.
+    // The run that put the winners ahead for good: scanning from the most recent event
+    // backward, the first crossing from <=0 to >0 for the winning side is that run.
     if (event.scoringSide === winningSide && leadBefore <= 0 && leadAfter > 0) {
       goAheadPitcherId = event.chargedPitcherId;
+      break;
     }
   }
   gameState.loserPitcherId = goAheadPitcherId ?? losers[0]?.pitcherId ?? null;
