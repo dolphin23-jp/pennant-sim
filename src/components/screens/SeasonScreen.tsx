@@ -60,7 +60,9 @@ export function SeasonScreen() {
     const editorLabel = activeTab === 'rotation' ? '投手編成' : 'オーダー';
     if (
       editorDirty &&
-      !window.confirm(`${editorLabel}に未保存の変更があります。変更を破棄して別のタブへ移動しますか？`)
+      !window.confirm(
+        `${editorLabel}に未保存の変更があります。変更を破棄して別のタブへ移動しますか？`,
+      )
     ) {
       return false;
     }
@@ -77,7 +79,9 @@ export function SeasonScreen() {
     const nextIndex = (index + direction + tabs.length) % tabs.length;
     const nextTab = tabs[nextIndex];
     if (!nextTab || !requestTabChange(nextTab.id)) return;
-    window.requestAnimationFrame(() => document.getElementById(`season-tab-${nextTab.id}`)?.focus());
+    window.requestAnimationFrame(() =>
+      document.getElementById(`season-tab-${nextTab.id}`)?.focus(),
+    );
   };
 
   return (
@@ -94,7 +98,9 @@ export function SeasonScreen() {
         }}
       >
         <div>
-          <div style={{ color: teamTextColor(playerTeam.c), fontSize: 12, fontWeight: 900 }}>{playerTeam.ab}</div>
+          <div style={{ color: teamTextColor(playerTeam.c), fontSize: 12, fontWeight: 900 }}>
+            {playerTeam.ab}
+          </div>
           <h1 id="season-screen-title" style={{ margin: '3px 0' }}>
             {game.season.year}年シーズン
           </h1>
@@ -114,9 +120,6 @@ export function SeasonScreen() {
           >
             保存
           </Button>
-          <a className="legacy-link" href="/legacy/index.html" aria-label="従来版を開く">
-            legacy版
-          </a>
         </div>
       </header>
 
@@ -152,9 +155,7 @@ export function SeasonScreen() {
                 minHeight: 42,
                 padding: '9px 13px',
                 border: '1px solid var(--color-border)',
-                borderBottom: selected
-                  ? '3px solid var(--color-accent)'
-                  : '3px solid transparent',
+                borderBottom: selected ? '3px solid var(--color-accent)' : '3px solid transparent',
                 borderRadius: '8px 8px 0 0',
                 color: selected ? 'var(--color-accent)' : 'var(--color-text-muted)',
                 background: selected ? 'var(--color-accent-soft)' : 'var(--color-surface)',

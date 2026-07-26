@@ -60,7 +60,9 @@ export function BattingOrderList({
                   padding: '8px 9px',
                   border: `1px solid ${dropTarget ? 'var(--color-accent)' : 'var(--color-border)'}`,
                   borderRadius: 10,
-                  background: dropTarget ? 'var(--color-accent-soft)' : 'var(--color-surface-raised)',
+                  background: dropTarget
+                    ? 'var(--color-accent-soft)'
+                    : 'var(--color-surface-raised)',
                   boxShadow: dropTarget ? '0 0 0 2px var(--color-accent)' : undefined,
                   opacity: dragging ? 0.56 : 1,
                   transform: dropTarget ? 'translateY(2px)' : undefined,
@@ -86,8 +88,17 @@ export function BattingOrderList({
                 <button
                   type="button"
                   {...drag.handleProps(player.id)}
-                  aria-label={`${player.name}をドラッグして打順を変更`}
-                  title="ドラッグして打順変更"
+                  onKeyDown={(event) => {
+                    if (event.key === 'ArrowUp' && index > 0) {
+                      event.preventDefault();
+                      onMove(index, -1);
+                    } else if (event.key === 'ArrowDown' && index < players.length - 1) {
+                      event.preventDefault();
+                      onMove(index, 1);
+                    }
+                  }}
+                  aria-label={`${player.name}をドラッグまたは上下矢印キーで打順を変更`}
+                  title="ドラッグまたは上下矢印キーで打順変更"
                   style={{
                     display: 'grid',
                     width: 36,
@@ -116,7 +127,8 @@ export function BattingOrderList({
                     {player.name}
                   </button>
                   <div style={{ marginTop: 3, color: 'var(--color-text-muted)', fontSize: 11 }}>
-                    {slot === 'extra' ? '追加打者' : slot ?? '未配置'} / {player.hand.bat ?? '-'}打
+                    {slot === 'extra' ? '追加打者' : (slot ?? '未配置')} / {player.hand.bat ?? '-'}
+                    打
                   </div>
                   <div style={{ marginTop: 3 }}>
                     <PlayerStatusBadges player={player} compact />

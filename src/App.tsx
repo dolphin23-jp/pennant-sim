@@ -2,6 +2,7 @@ import { OffseasonScreen } from './components/screens/OffseasonScreen';
 import { PostseasonScreen } from './components/screens/PostseasonScreen';
 import { SeasonScreen } from './components/screens/SeasonScreen';
 import { TeamSelectScreen } from './components/screens/TeamSelectScreen';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Button, Card, PageShell, ThemeToggle } from './components/ui';
 import { GameDetailModal } from './components/widgets/GameDetailModal';
 import { PlayerDetailModal } from './components/widgets/PlayerDetailModal';
@@ -39,6 +40,18 @@ function WelcomeScreen() {
           >
             3つの独立したセーブ枠を利用できます。旧キーのセーブは削除せず、初回読込時にスロット1へ自動コピーします。
           </p>
+          {game.loadError && (
+            <p
+              role="alert"
+              style={{
+                color: 'var(--color-danger)',
+                lineHeight: 1.8,
+                margin: '0 0 20px',
+              }}
+            >
+              {game.loadError}
+            </p>
+          )}
           <div style={{ marginBottom: 18 }}>
             <SaveSlotControls />
           </div>
@@ -46,9 +59,6 @@ function WelcomeScreen() {
             <Button onClick={game.startNewGame} ariaLabel="選択中のセーブ枠で新規ゲームを開始">
               選択中の枠で新規ゲーム
             </Button>
-            <a className="legacy-link" href="/legacy/index.html" aria-label="従来版を開く">
-              legacy版を開く
-            </a>
           </div>
         </Card>
       </div>
@@ -132,9 +142,11 @@ function GameRouter() {
 
 function App() {
   return (
-    <GameProvider>
-      <GameRouter />
-    </GameProvider>
+    <ErrorBoundary>
+      <GameProvider>
+        <GameRouter />
+      </GameProvider>
+    </ErrorBoundary>
   );
 }
 

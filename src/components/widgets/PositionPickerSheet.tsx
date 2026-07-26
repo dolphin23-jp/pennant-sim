@@ -8,6 +8,7 @@ import { aptitudeToneColor } from './aptitudeDisplay';
 import type { LineupAssignments, LineupSlot } from './FieldDiagram';
 import { LINEUP_SLOT_ORDER } from './FieldDiagram';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
+import { useFocusTrap } from './useFocusTrap';
 
 function bestPositionValue(player: Player): { position: FieldPosition; value: number } {
   return FIELD_POSITIONS.map((position) => ({
@@ -75,6 +76,8 @@ export function PositionPickerSheet({
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [onClose]);
+
+  useFocusTrap(dialogRef, true);
 
   const slotLabel = slot === 'extra' ? '追加打者' : slot;
 
@@ -174,7 +177,9 @@ export function PositionPickerSheet({
                       </span>
                     </span>
                     <span style={{ textAlign: 'center' }}>
-                      <span style={{ display: 'block', color: 'var(--color-text-faint)', fontSize: 10 }}>
+                      <span
+                        style={{ display: 'block', color: 'var(--color-text-faint)', fontSize: 10 }}
+                      >
                         基本 → 特殊込み
                       </span>
                       <span style={{ color: 'var(--color-text-faint)' }}>{breakdown.base}</span>
@@ -184,7 +189,9 @@ export function PositionPickerSheet({
                       </strong>
                     </span>
                     <span style={{ textAlign: 'center' }}>
-                      <span style={{ display: 'block', color: 'var(--color-text-faint)', fontSize: 10 }}>
+                      <span
+                        style={{ display: 'block', color: 'var(--color-text-faint)', fontSize: 10 }}
+                      >
                         適性
                       </span>
                       <strong style={{ color: aptitudeColor ?? undefined }}>
@@ -192,7 +199,9 @@ export function PositionPickerSheet({
                       </strong>
                     </span>
                     <span style={{ textAlign: 'center' }}>
-                      <span style={{ display: 'block', color: 'var(--color-text-faint)', fontSize: 10 }}>
+                      <span
+                        style={{ display: 'block', color: 'var(--color-text-faint)', fontSize: 10 }}
+                      >
                         最良位置比
                       </span>
                       <strong

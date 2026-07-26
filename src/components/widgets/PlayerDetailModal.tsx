@@ -26,10 +26,12 @@ import type {
   TeamKey,
 } from '../../engine';
 import { Button, Card, EmptyState, LampFigure, SectionTitle, TermTooltip } from '../ui';
+import { TitleIcon } from '../icons';
 import { AbilityRadarChart, type AbilityRadarItem } from './AbilityRadarChart';
 import { AptitudeFieldMap } from './AptitudeFieldMap';
 import { DisplayOVRValue } from './DisplayOVRValue';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
+import { useFocusTrap } from './useFocusTrap';
 
 const TEAM_KEY_SET = new Set<string>(Object.keys(TINFO));
 
@@ -398,6 +400,8 @@ export function PlayerDetailModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose, player]);
 
+  useFocusTrap(dialogRef, Boolean(player));
+
   if (!player) return null;
   const baseOverall = player.isP ? calcOVR(player) : effectiveOVR(player, player.pos);
   const headline = displayOVRBreakdown(player, player.isP ? undefined : player.pos);
@@ -559,6 +563,7 @@ export function PlayerDetailModal({
                           className="special-badge special-badge--gold"
                           key={`${record.year}:${record.league}:${record.titleId}`}
                         >
+                          <TitleIcon titleId={record.titleId} size={13} />
                           {record.year} {record.titleLabel}（{record.displayValue}）
                         </span>
                       ))}

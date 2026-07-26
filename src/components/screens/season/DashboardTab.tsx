@@ -3,12 +3,14 @@ import { useMemo } from 'react';
 import { TINFO } from '../../../data';
 import { bestLineup, deriveTeamForm } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
+import { useBusyAction } from '../../useBusyAction';
 import { Button, Card, LampFigure, SectionTitle, StatChip, teamTextColor } from '../../ui';
 import { BoxScore } from '../../widgets/BoxScore';
 import { NoticeCenter } from '../../widgets/NoticeCenter';
 
 export function DashboardTab() {
   const game = useGameState();
+  const { busy, run } = useBusyAction();
   const nextGame = useMemo(
     () =>
       game.season.schedule.find(
@@ -117,33 +119,46 @@ export function DashboardTab() {
               {!nextGame.postponedFrom && <div style={{ marginBottom: 12 }} />}
               <nav aria-label="試合進行" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <Button
-                  onClick={game.simulateNextGame}
+                  onClick={() => run(game.simulateNextGame)}
+                  disabled={busy}
                   color={playerTeam.c}
                   ariaLabel="次の試合を実行"
                 >
                   次戦を実行
                 </Button>
                 <Button
-                  onClick={() => game.skip('week')}
+                  onClick={() => run(() => game.skip('week'))}
+                  disabled={busy}
                   color="var(--color-surface-muted)"
                   ariaLabel="1週間分の試合をスキップ"
                 >
                   1週スキップ
                 </Button>
                 <Button
-                  onClick={() => game.skip('month')}
+                  onClick={() => run(() => game.skip('month'))}
+                  disabled={busy}
                   color="var(--color-surface-muted)"
                   ariaLabel="1か月分の試合をスキップ"
                 >
                   1ヶ月スキップ
                 </Button>
                 <Button
-                  onClick={() => game.skip('season')}
+                  onClick={() => run(() => game.skip('season'))}
+                  disabled={busy}
                   color="var(--color-growth)"
                   ariaLabel="レギュラーシーズンの残り全試合を実行"
                 >
                   残り全試合
                 </Button>
+                {busy && (
+                  <span
+                    role="status"
+                    aria-live="polite"
+                    style={{ alignSelf: 'center', color: 'var(--color-text-muted)', fontSize: 12 }}
+                  >
+                    処理中…
+                  </span>
+                )}
               </nav>
             </>
           ) : (

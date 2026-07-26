@@ -44,7 +44,7 @@ export function agingDeclineMultiplier(age: number): number {
     balance.maximumMultiplier,
   );
 }
-function growthParameters(player: Player): Array<keyof PlayerParams> {
+export function growthParameters(player: Player): Array<keyof PlayerParams> {
   return player.isP
     ? ['vel', 'ctrl', 'stam', 'nobi', 'fld']
     : [
@@ -166,18 +166,7 @@ export function growPlayer(player: Player): Player {
   return updatedPlayer;
 }
 function awakeningPotentialGap(player: Player): number {
-  const parameterNames = player.isP
-    ? (['vel', 'ctrl', 'stam', 'nobi', 'fld'] as Array<keyof PlayerParams>)
-    : ([
-        'cf',
-        'cb',
-        'pw',
-        'dc',
-        'sp',
-        'df',
-        'arm',
-        ...(player.pos === '捕手' ? ['ld'] : []),
-      ] as Array<keyof PlayerParams>);
+  const parameterNames = growthParameters(player);
   return Math.max(
     0,
     ...parameterNames.map(

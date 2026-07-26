@@ -11,6 +11,8 @@ import type {
   Teams,
 } from '../../engine';
 import { useGameState } from '../../state/gameState';
+import { useBusyAction } from '../useBusyAction';
+import { TitleIcon } from '../icons';
 import { Button, Card, PageShell, SectionTitle, teamTextColor } from '../ui';
 
 interface SeriesGame {
@@ -86,7 +88,17 @@ function SeasonTitlesPanel({
                         fontSize: 12,
                       }}
                     >
-                      <strong style={{ color: 'var(--color-leader)' }}>{record.titleLabel}</strong>
+                      <strong
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          color: 'var(--color-leader)',
+                        }}
+                      >
+                        <TitleIcon titleId={record.titleId} size={14} />
+                        {record.titleLabel}
+                      </strong>
                       {player ? (
                         <button
                           type="button"
@@ -405,6 +417,7 @@ function ChampionPennant({ teamKey }: { teamKey: TeamKey }) {
 export function PostseasonScreen() {
   const game = useGameState();
   const [results, setResults] = useState<PostseasonResults | null>(null);
+  const { busy, run } = useBusyAction();
   const centralRanking = useMemo(
     () =>
       [...CENTRAL].sort((a, b) => (game.standings[a].rank ?? 99) - (game.standings[b].rank ?? 99)),
@@ -474,7 +487,20 @@ export function PostseasonScreen() {
           </div>
         </div>
         {!results ? (
-          <Button onClick={runPostseason}>全シリーズを実行</Button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Button onClick={() => run(runPostseason)} disabled={busy}>
+              全シリーズを実行
+            </Button>
+            {busy && (
+              <span
+                role="status"
+                aria-live="polite"
+                style={{ color: 'var(--color-text-muted)', fontSize: 12 }}
+              >
+                処理中…
+              </span>
+            )}
+          </div>
         ) : (
           <Button onClick={() => game.setScreen('offseason')}>オフシーズンへ</Button>
         )}

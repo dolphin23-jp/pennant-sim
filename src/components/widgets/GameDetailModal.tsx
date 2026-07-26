@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import type { GameBoxScore, GameSummary, TeamKey } from '../../engine';
 import { Button } from '../ui';
 import { GameDetailView } from './GameDetailView';
+import { useFocusTrap } from './useFocusTrap';
 
 export function GameDetailModal({
   box,
@@ -33,6 +34,8 @@ export function GameDetailModal({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [box, onClose]);
+
+  useFocusTrap(dialogRef, Boolean(box));
 
   if (!box) return null;
 

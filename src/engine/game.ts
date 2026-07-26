@@ -364,8 +364,13 @@ export function simHalf(
         }
       }
     }
-    const lineup = gameState.lineups[battingSide],
-      batter = lineup[gameState.batIdx[battingSide] % lineup.length] as Player;
+    const lineup = gameState.lineups[battingSide];
+    if (lineup.length === 0) {
+      throw new Error(
+        `Cannot simulate an at-bat: ${teamKeyForSide(gameState, battingSide)} has no eligible fielders in its lineup.`,
+      );
+    }
+    const batter = lineup[gameState.batIdx[battingSide] % lineup.length] as Player;
     gameState.batIdx[battingSide] += 1;
     const staminaPercentage = clamp(
         100 -
@@ -609,9 +614,11 @@ function assignDecisions(gameState: GameState): void {
         ? previous.homeScore - previous.awayScore
         : previous.awayScore - previous.homeScore
       : 0;
-    // The run that first put the winners ahead for good.
+    // The run that put the winners ahead for good: scanning from the most recent event
+    // backward, the first crossing from <=0 to >0 for the winning side is that run.
     if (event.scoringSide === winningSide && leadBefore <= 0 && leadAfter > 0) {
       goAheadPitcherId = event.chargedPitcherId;
+      break;
     }
   }
   gameState.loserPitcherId = goAheadPitcherId ?? losers[0]?.pitcherId ?? null;

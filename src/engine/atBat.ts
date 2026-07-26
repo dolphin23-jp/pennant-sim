@@ -206,7 +206,7 @@ function hitChanceOnContact(input: {
   direction: BattedBallDirection;
   defenseScore: number;
   adjustedSpeed: number;
-  adjustedFastballContact: number;
+  adjustedContact: number;
   batter: Player;
   park: ParkFactors;
   batterContextMultiplier: number;
@@ -217,7 +217,7 @@ function hitChanceOnContact(input: {
   // Better defence turns more of the same batted balls into outs.
   chance -= (input.defenseScore - 50) / config.defenseScale;
   chance += (input.adjustedSpeed - 50) / config.speedScale[input.battedBall];
-  chance += (input.adjustedFastballContact - 50) / AT_BAT_BALANCE.ballsInPlay.contactScale;
+  chance += (input.adjustedContact - 50) / AT_BAT_BALANCE.ballsInPlay.contactScale;
   chance *= config.directionFactor[input.direction];
   chance *= 1 + specialLevel(input.batter, 'avg') * 0.02;
   chance *= 1 + specialLevel(input.batter, 'spray') * 0.015;
@@ -429,7 +429,7 @@ export function simAB(
     direction,
     defenseScore,
     adjustedSpeed,
-    adjustedFastballContact,
+    adjustedContact,
     batter,
     park,
     batterContextMultiplier,

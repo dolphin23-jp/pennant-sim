@@ -13,7 +13,8 @@ export function specialLevel(player: Player, id: string): number {
   return Math.max(0, Number(stored ?? legacy) || 0);
 }
 export const hasSpecial = (player: Player, id: string): boolean => specialLevel(player, id) > 0;
-export const hasGold = hasSpecial;
+export const hasGold = (player: Player, id: string): boolean =>
+  SPECIAL_INDEX[id]?.rarity === 'gold' && hasSpecial(player, id);
 export const specialMultiplier = (player: Player, id: string, perLevel = 0.05): number =>
   1 + specialLevel(player, id) * perLevel;
 export function syncSpecialsFromLevels(player: Player): Player {

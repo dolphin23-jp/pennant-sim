@@ -51,6 +51,18 @@ export function applyTrade(teams: Teams, playerTeam: TeamKey, offer: TradeOffer)
   const remove = (players: Player[], playerId: string) =>
     players.filter((player) => player.id !== playerId);
 
+  // Guard against the same offer being applied twice (e.g. a duplicate click):
+  // if either player is no longer on the roster the offer expects, the trade
+  // was already applied, so return the input unchanged instead of duplicating
+  // players across rosters.
+  const userHasReceive = [...user.fielders, ...user.pitchers].some(
+    (player) => player.id === offer.receive.id,
+  );
+  const opponentHasGive = [...opponent.fielders, ...opponent.pitchers].some(
+    (player) => player.id === offer.give.id,
+  );
+  if (!userHasReceive || !opponentHasGive) return teams;
+
   if (offer.receive.isP) {
     user.pitchers = remove(user.pitchers, offer.receive.id);
     opponent.pitchers = [

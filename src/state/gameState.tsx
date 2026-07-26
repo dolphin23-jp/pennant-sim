@@ -60,6 +60,7 @@ export type GameScreen = 'welcome' | 'teamSelect' | 'season' | 'postseason' | 'o
 
 interface RuntimeState {
   loading: boolean;
+  loadError: string | null;
   screen: GameScreen;
   teams: Teams | null;
   playerTeam: TeamKey | null;
@@ -106,6 +107,7 @@ interface GameContextValue extends RuntimeState {
 
 const initialState: RuntimeState = {
   loading: true,
+  loadError: null,
   screen: 'welcome',
   teams: null,
   playerTeam: null,
@@ -177,6 +179,22 @@ function snapshotFromState(state: RuntimeState): GameSaveData | null {
   };
 }
 
+/**
+ * Best-effort autosave: fire-and-forget, silently ignore failures. This runs
+ * inside a setState updater (see simulateNextGame/skip/completeOffseason below),
+ * which is already not a pure function in this codebase — it calls into the
+ * simulation engine directly — so one more fire-and-forget side effect doesn't
+ * introduce a new class of impurity. A failed autosave leaves the explicit
+ * save button as the fallback; it must never surface as an error to the player.
+ */
+function autosave(next: RuntimeState): void {
+  const snapshot = snapshotFromState(next);
+  if (!snapshot) return;
+  void saveGame(snapshot).catch((error: unknown) => {
+    console.error('Autosave failed', error);
+  });
+}
+
 function lastNewPlayerGameDate(
   before: SeasonState['schedule'],
   after: SeasonState['schedule'],
@@ -201,30 +219,41 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    void loadGame().then((saved) => {
-      if (!active) return;
-      if (!saved) {
-        setState((current) => ({ ...current, loading: false }));
-        return;
-      }
-      registerExistingNames(saved.teams);
-      const lineup =
-        saved.lineup.length || !saved.playerTeam
-          ? saved.lineup
-          : bestLineup(saved.teams[saved.playerTeam]);
-      const seasonOver =
-        saved.season.schedule.length > 0 && saved.season.schedule.every((game) => game.played);
-      setState({
-        ...initialState,
-        ...saved,
-        lineup,
-        loading: false,
-        screen: seasonOver ? 'postseason' : saved.playerTeam ? 'season' : 'teamSelect',
-        lastGame: null,
-        selectedPlayer: null,
-        selectedGameId: null,
+    void loadGame()
+      .then((saved) => {
+        if (!active) return;
+        if (!saved) {
+          setState((current) => ({ ...current, loading: false }));
+          return;
+        }
+        registerExistingNames(saved.teams);
+        const lineup =
+          saved.lineup.length || !saved.playerTeam
+            ? saved.lineup
+            : bestLineup(saved.teams[saved.playerTeam]);
+        const seasonOver =
+          saved.season.schedule.length > 0 && saved.season.schedule.every((game) => game.played);
+        setState({
+          ...initialState,
+          ...saved,
+          lineup,
+          loading: false,
+          screen: seasonOver ? 'postseason' : saved.playerTeam ? 'season' : 'teamSelect',
+          lastGame: null,
+          selectedPlayer: null,
+          selectedGameId: null,
+        });
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        console.error('Failed to load save data', error);
+        setState((current) => ({
+          ...current,
+          loading: false,
+          loadError:
+            'セーブデータの読み込み中にエラーが発生しました。データは保持されていますが、いったん新規ゲームとして開始できます。',
+        }));
       });
-    });
     return () => {
       active = false;
     };
@@ -237,10 +266,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const chooseTeam = useCallback((teamKey: TeamKey) => {
     setState((current) => {
       const initialTeams = current.teams ?? initTeams();
+      // A fixed literal seed here would give every new game the same 20-year fictional
+      // history (same legends, same past champions); draw a fresh one per new game instead.
       const history = createFictionalLeagueHistory(initialTeams, {
         endYear: 2025,
         seasons: 20,
-        seed: 2026,
+        seed: Math.floor(Date.now() % 2 ** 31),
         legendsPerTeam: 2,
       });
       registerExistingNames(history.teams);
@@ -348,7 +379,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         nextGame.date,
       );
       const seasonOver = prepared.sched.every((game) => game.played);
-      return {
+      const next: RuntimeState = {
         ...current,
         screen: seasonOver ? 'postseason' : 'season',
         season: { ...current.season, schedule: prepared.sched },
@@ -374,6 +405,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         ),
         lastGame: result,
       };
+      autosave(next);
+      return next;
     });
   }, []);
 
@@ -406,7 +439,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const gameNotices = Object.values(result.gameBoxScores)
         .map((box) => createGameResultNotice(box, current.playerTeam as TeamKey))
         .filter((notice): notice is Notice => notice !== null);
-      return {
+      const next: RuntimeState = {
         ...current,
         screen: seasonOver ? 'postseason' : 'season',
         season: { ...current.season, schedule: result.sched },
@@ -423,6 +456,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         gameBoxScores: { ...current.gameBoxScores, ...result.gameBoxScores },
         notices: mergeNotices(current.notices, [...gameNotices, ...developmentNotices]),
       };
+      autosave(next);
+      return next;
     });
   }, []);
 
@@ -458,7 +493,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         {},
         {},
       );
-      return {
+      const next: RuntimeState = {
         ...current,
         teams,
         screen: 'season',
@@ -481,6 +516,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         notices: mergeNotices(current.notices, developmentNotices),
         lastGame: null,
       };
+      autosave(next);
+      return next;
     });
   }, []);
 

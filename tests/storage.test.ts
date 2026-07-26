@@ -313,3 +313,56 @@ test('新しい成績フィールドを持たない旧セーブが0で補完さ�
     resetRandom();
   }
 });
+
+test('loadGameFromSlot throws on corrupted data instead of silently returning null', async () => {
+  const { values, backend } = createBackend();
+  // A slot that holds unparsable garbage, distinct from a slot with nothing in it at all.
+  values.set(SAVE_KEY(1), 'this is not valid save JSON {{{');
+
+  await assert.rejects(() => loadGameFromSlot(1, backend));
+  // An empty slot is still a legitimate, non-throwing null (a new player).
+  assert.equal(await loadGameFromSlot(2, backend), null);
+});
+
+test('migrateSaveData rejects malformed team keys, standings, rotations, and history entries', () => {
+  configureRandom(mulberry32(20260726), () => Date.UTC(2026, 0, 1));
+  try {
+    const teams = initTeams();
+    const migrated = migrateSaveData({
+      teams,
+      playerTeam: 'not_a_real_team',
+      viewTeam: 'also_bogus',
+      season: { year: 2026, schedule: [] },
+      lineup: [],
+      // A corrupted/hand-edited standings blob missing required numeric fields.
+      standings: 'corrupt',
+      // Negative/non-integer counters should not survive into rotN.
+      rotN: { giants: -5, tigers: 'x', dragons: 3.5, carp: 2 },
+      // Only well-formed entries should survive; the rest are dropped, not crashed on.
+      retiredPlayers: [
+        { id: 'r1', name: '引退太郎', age: 40, isP: false, p: {}, pot: {} },
+        {},
+        null,
+      ],
+      championHistory: [
+        { year: 2020, champion: 'giants', runnerUp: 'tigers' },
+        { year: 2019, champion: 'not_a_team' },
+        'garbage',
+      ],
+    });
+    assert.ok(migrated);
+    assert.equal(migrated.playerTeam, null, '不正なチームキーはnullへ落ちる');
+    assert.equal(migrated.viewTeam, null, '不正なチームキーはnullへ落ちる');
+    assert.equal(Object.keys(migrated.standings).length, 12, '全12球団分の順位表を生成し直す');
+    assert.ok(Object.values(migrated.standings).every((record) => typeof record.w === 'number'));
+    assert.equal(migrated.rotN.giants, 0, '負の値は既定値へ落ちる');
+    assert.equal(migrated.rotN.tigers, 0, '非数値は既定値へ落ちる');
+    assert.equal(migrated.rotN.dragons, 0, '非整数は既定値へ落ちる');
+    assert.equal(migrated.rotN.carp, 2, '正しい値は保持される');
+    assert.equal(migrated.retiredPlayers.length, 1, '形の壊れたPlayerは除外される');
+    assert.equal(migrated.championHistory.length, 1, '不正なチームキーの記録は除外される');
+    assert.equal(migrated.championHistory[0]?.champion, 'giants');
+  } finally {
+    resetRandom();
+  }
+});
