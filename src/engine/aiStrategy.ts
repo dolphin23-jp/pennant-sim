@@ -1,6 +1,7 @@
 import { AT_BAT_BALANCE, FIELDING_BALANCE, FOREIGN_PLAYER_BALANCE } from '../data';
 import { isForeignPlayer } from './foreign';
 import { clamp } from './random';
+import { selectRosterPool } from './ratings';
 import { hasGold, hasSpecial, specialLevel } from './specials';
 import type {
   AccumulatedStats,
@@ -484,15 +485,7 @@ export function strategicBestLineup(
   team: Team,
   strategy: TeamStrategy = teamStrategyFor(team.key),
 ): { lineup: Player[]; audit: Record<FieldPosition, CandidateAudit[]> } {
-  const active = team.fielders.filter((player) => player.activeRoster !== false);
-  const pools = [
-    active.filter((player) => (player.injuryDays ?? 0) <= 0 && (player.fatigue ?? 0) < 85),
-    active.filter((player) => (player.injuryDays ?? 0) <= 0),
-    team.fielders.filter((player) => (player.injuryDays ?? 0) <= 0 && (player.fatigue ?? 0) < 85),
-    team.fielders.filter((player) => (player.injuryDays ?? 0) <= 0),
-  ];
-  const pool =
-    pools.find((candidate) => candidate.length >= 9) ?? (pools[pools.length - 1] as Player[]);
+  const pool = selectRosterPool(team.fielders, 9);
   const positions: FieldPosition[] = [
     '捕手',
     '遊撃手',

@@ -59,9 +59,6 @@ function WelcomeScreen() {
             <Button onClick={game.startNewGame} ariaLabel="選択中のセーブ枠で新規ゲームを開始">
               選択中の枠で新規ゲーム
             </Button>
-            <a className="legacy-link" href="/legacy/index.html" aria-label="従来版を開く">
-              legacy版を開く
-            </a>
           </div>
         </Card>
       </div>

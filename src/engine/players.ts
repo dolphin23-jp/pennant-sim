@@ -50,6 +50,16 @@ function generatedName(baseName: () => string): string {
   return duplicate;
 }
 
+/**
+ * Reset the process-wide name-uniqueness tracker to exactly the names in `teams`
+ * (empty clears it). Callers that build a self-contained player universe from
+ * scratch under a fixed seed (initTeams, a new game's fictional history) must call
+ * this first so name-collision retries — and therefore how many random draws name
+ * generation consumes — don't depend on unrelated generation that happened earlier
+ * in the same process. Callers that add players to an already-loaded roster (the
+ * draft, market signings) should NOT reset it, since `usedNames` is exactly how new
+ * players avoid colliding with everyone already on a roster.
+ */
 export function registerExistingNames(teams: Partial<Teams>): void {
   usedNames.clear();
   for (const team of Object.values(teams)) {

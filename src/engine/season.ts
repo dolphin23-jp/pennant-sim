@@ -2,6 +2,7 @@ import { CENTRAL, PACIFIC, TINFO } from '../data';
 import { buildGameBoxScore, isNotableGame, toSummary } from './boxScore';
 import type { GameBoxScore, GameSummary } from './boxScore';
 import { simulateGame } from './game';
+import type { PitcherPlanInput } from './pitcherPlan';
 import { random, uid } from './random';
 import { accumulateStats, accumulateStatsAll, mergeStatMaps } from './stats';
 import type {
@@ -80,7 +81,12 @@ export function postponeScheduleGame(
   }
 
   let rescheduledDate = doubleHeaderPartner?.date;
-  if (!rescheduledDate && preferredDate && preferredDate > postponedFrom && dateIsAvailable(preferredDate)) {
+  if (
+    !rescheduledDate &&
+    preferredDate &&
+    preferredDate > postponedFrom &&
+    dateIsAvailable(preferredDate)
+  ) {
     rescheduledDate = preferredDate;
   }
   if (!rescheduledDate) {
@@ -298,10 +304,10 @@ function countResults(games: ScheduleGame[], teamKey: TeamKey): FormRecord {
 }
 
 export function deriveTeamForm(schedule: ScheduleGame[], teamKey: TeamKey): TeamForm {
-  const games = sortSchedule(
-    schedule.filter((game) => game.played && involvesTeam(game, teamKey)),
-  );
-  const latestResult = games.length ? teamResult(games[games.length - 1] as ScheduleGame, teamKey) : null;
+  const games = sortSchedule(schedule.filter((game) => game.played && involvesTeam(game, teamKey)));
+  const latestResult = games.length
+    ? teamResult(games[games.length - 1] as ScheduleGame, teamKey)
+    : null;
   let streakCount = 0;
   if (latestResult) {
     for (let index = games.length - 1; index >= 0; index -= 1) {
@@ -322,8 +328,14 @@ export function deriveTeamForm(schedule: ScheduleGame[], teamKey: TeamKey): Team
   return {
     streak,
     last10: countResults(games.slice(-10), teamKey),
-    home: countResults(games.filter((game) => game.homeKey === teamKey), teamKey),
-    away: countResults(games.filter((game) => game.awayKey === teamKey), teamKey),
+    home: countResults(
+      games.filter((game) => game.homeKey === teamKey),
+      teamKey,
+    ),
+    away: countResults(
+      games.filter((game) => game.awayKey === teamKey),
+      teamKey,
+    ),
   };
 }
 
@@ -399,6 +411,7 @@ export function skipGames(
   mode: 'next' | 'week' | 'month' | 'season',
   accumulatedStats: AccumulatedStats = {},
   seasonStatsSoFar: AccumulatedStats = {},
+  pitcherPlan: PitcherPlanInput | null = null,
 ): {
   sched: ScheduleGame[];
   rotN: Record<TeamKey, number>;
@@ -429,6 +442,8 @@ export function skipGames(
     const game = nextSchedule[index] as ScheduleGame;
     if (game.played) continue;
     const playerGame = game.homeKey === playerTeam || game.awayKey === playerTeam,
+      homePlan = pitcherPlan && game.homeKey === playerTeam ? pitcherPlan : null,
+      awayPlan = pitcherPlan && game.awayKey === playerTeam ? pitcherPlan : null,
       seasonStatsBeforeThisGame = mergeStatMaps(seasonStatsSoFar, leagueStats),
       result = simulateGame(
         game.homeKey,
@@ -439,8 +454,8 @@ export function skipGames(
         nextRotations[game.homeKey] || 0,
         nextRotations[game.awayKey] || 0,
         accumulatedStats,
-        null,
-        null,
+        homePlan,
+        awayPlan,
         game.date,
       );
     nextSchedule[index] = { ...game, played: true, hs: result.score.home, as: result.score.away };

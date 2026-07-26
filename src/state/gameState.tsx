@@ -250,10 +250,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const chooseTeam = useCallback((teamKey: TeamKey) => {
     setState((current) => {
       const initialTeams = current.teams ?? initTeams();
+      // A fixed literal seed here would give every new game the same 20-year fictional
+      // history (same legends, same past champions); draw a fresh one per new game instead.
       const history = createFictionalLeagueHistory(initialTeams, {
         endYear: 2025,
         seasons: 20,
-        seed: 2026,
+        seed: Math.floor(Date.now() % 2 ** 31),
         legendsPerTeam: 2,
       });
       registerExistingNames(history.teams);
