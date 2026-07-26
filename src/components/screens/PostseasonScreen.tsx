@@ -11,6 +11,7 @@ import type {
   Teams,
 } from '../../engine';
 import { useGameState } from '../../state/gameState';
+import { useBusyAction } from '../useBusyAction';
 import { Button, Card, PageShell, SectionTitle, teamTextColor } from '../ui';
 
 interface SeriesGame {
@@ -405,6 +406,7 @@ function ChampionPennant({ teamKey }: { teamKey: TeamKey }) {
 export function PostseasonScreen() {
   const game = useGameState();
   const [results, setResults] = useState<PostseasonResults | null>(null);
+  const { busy, run } = useBusyAction();
   const centralRanking = useMemo(
     () =>
       [...CENTRAL].sort((a, b) => (game.standings[a].rank ?? 99) - (game.standings[b].rank ?? 99)),
@@ -474,7 +476,20 @@ export function PostseasonScreen() {
           </div>
         </div>
         {!results ? (
-          <Button onClick={runPostseason}>全シリーズを実行</Button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Button onClick={() => run(runPostseason)} disabled={busy}>
+              全シリーズを実行
+            </Button>
+            {busy && (
+              <span
+                role="status"
+                aria-live="polite"
+                style={{ color: 'var(--color-text-muted)', fontSize: 12 }}
+              >
+                処理中…
+              </span>
+            )}
+          </div>
         ) : (
           <Button onClick={() => game.setScreen('offseason')}>オフシーズンへ</Button>
         )}

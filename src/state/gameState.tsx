@@ -179,6 +179,22 @@ function snapshotFromState(state: RuntimeState): GameSaveData | null {
   };
 }
 
+/**
+ * Best-effort autosave: fire-and-forget, silently ignore failures. This runs
+ * inside a setState updater (see simulateNextGame/skip/completeOffseason below),
+ * which is already not a pure function in this codebase — it calls into the
+ * simulation engine directly — so one more fire-and-forget side effect doesn't
+ * introduce a new class of impurity. A failed autosave leaves the explicit
+ * save button as the fallback; it must never surface as an error to the player.
+ */
+function autosave(next: RuntimeState): void {
+  const snapshot = snapshotFromState(next);
+  if (!snapshot) return;
+  void saveGame(snapshot).catch((error: unknown) => {
+    console.error('Autosave failed', error);
+  });
+}
+
 function lastNewPlayerGameDate(
   before: SeasonState['schedule'],
   after: SeasonState['schedule'],
@@ -363,7 +379,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         nextGame.date,
       );
       const seasonOver = prepared.sched.every((game) => game.played);
-      return {
+      const next: RuntimeState = {
         ...current,
         screen: seasonOver ? 'postseason' : 'season',
         season: { ...current.season, schedule: prepared.sched },
@@ -389,6 +405,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         ),
         lastGame: result,
       };
+      autosave(next);
+      return next;
     });
   }, []);
 
@@ -421,7 +439,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const gameNotices = Object.values(result.gameBoxScores)
         .map((box) => createGameResultNotice(box, current.playerTeam as TeamKey))
         .filter((notice): notice is Notice => notice !== null);
-      return {
+      const next: RuntimeState = {
         ...current,
         screen: seasonOver ? 'postseason' : 'season',
         season: { ...current.season, schedule: result.sched },
@@ -438,6 +456,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         gameBoxScores: { ...current.gameBoxScores, ...result.gameBoxScores },
         notices: mergeNotices(current.notices, [...gameNotices, ...developmentNotices]),
       };
+      autosave(next);
+      return next;
     });
   }, []);
 
@@ -473,7 +493,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         {},
         {},
       );
-      return {
+      const next: RuntimeState = {
         ...current,
         teams,
         screen: 'season',
@@ -496,6 +516,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         notices: mergeNotices(current.notices, developmentNotices),
         lastGame: null,
       };
+      autosave(next);
+      return next;
     });
   }, []);
 

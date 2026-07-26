@@ -44,9 +44,7 @@ export function RotationOrderList({
       >
         <SectionTitle>Starting Rotation</SectionTitle>
         <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
-          <strong
-            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}
-          >
+          <strong style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}>
             {pitchers.length}
           </strong>
           {' / '}
@@ -74,7 +72,9 @@ export function RotationOrderList({
                   padding: '8px 9px',
                   border: `1px solid ${dropTarget ? 'var(--color-accent)' : 'var(--color-border)'}`,
                   borderRadius: 10,
-                  background: dropTarget ? 'var(--color-accent-soft)' : 'var(--color-surface-raised)',
+                  background: dropTarget
+                    ? 'var(--color-accent-soft)'
+                    : 'var(--color-surface-raised)',
                   boxShadow: dropTarget ? '0 0 0 2px var(--color-accent)' : undefined,
                   opacity: dragging ? 0.56 : 1,
                   transform: dropTarget ? 'translateY(2px)' : undefined,
@@ -100,8 +100,17 @@ export function RotationOrderList({
                 <button
                   type="button"
                   {...drag.handleProps(pitcher.id)}
-                  aria-label={`${pitcher.name}をドラッグしてローテーション順を変更`}
-                  title="ドラッグして登板順変更"
+                  onKeyDown={(event) => {
+                    if (event.key === 'ArrowUp' && index > 0) {
+                      event.preventDefault();
+                      onMove(index, -1);
+                    } else if (event.key === 'ArrowDown' && index < pitchers.length - 1) {
+                      event.preventDefault();
+                      onMove(index, 1);
+                    }
+                  }}
+                  aria-label={`${pitcher.name}をドラッグまたは上下矢印キーでローテーション順を変更`}
+                  title="ドラッグまたは上下矢印キーで登板順変更"
                   style={{
                     display: 'grid',
                     width: 36,

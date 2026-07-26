@@ -4,6 +4,7 @@ import { calcOVR } from '../../engine';
 import type { Player } from '../../engine';
 import { Button, EmptyState } from '../ui';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
+import { useFocusTrap } from './useFocusTrap';
 
 export function RotationSwapSheet({
   candidate,
@@ -32,6 +33,8 @@ export function RotationSwapSheet({
     };
   }, [onClose]);
 
+  useFocusTrap(dialogRef, true);
+
   return (
     <div
       className="player-modal-backdrop"
@@ -58,7 +61,11 @@ export function RotationSwapSheet({
               入れ替えるローテーションの枠を選んでください。外れた投手は候補に戻ります。
             </div>
           </div>
-          <Button onClick={onClose} color="var(--color-surface-muted)" ariaLabel="昇格先の選択を閉じる">
+          <Button
+            onClick={onClose}
+            color="var(--color-surface-muted)"
+            ariaLabel="昇格先の選択を閉じる"
+          >
             閉じる
           </Button>
         </header>

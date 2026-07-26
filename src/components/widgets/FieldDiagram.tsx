@@ -1,6 +1,12 @@
 import { useCallback } from 'react';
 
-import { aptitudeFor, aptitudeRank, calcOVR, displayOVRBreakdown, effectiveOVR } from '../../engine';
+import {
+  aptitudeFor,
+  aptitudeRank,
+  calcOVR,
+  displayOVRBreakdown,
+  effectiveOVR,
+} from '../../engine';
 import type { FieldPosition, Player } from '../../engine';
 import { Card, LampFigure, SectionTitle, TermTooltip } from '../ui';
 import { aptitudeToneColor } from './aptitudeDisplay';
@@ -77,7 +83,7 @@ function SlotButton({
     ? 'var(--color-accent)'
     : armedTarget
       ? 'var(--color-accent)'
-      : aptitudeColor ?? (selected ? 'var(--color-accent)' : 'var(--color-border-strong)');
+      : (aptitudeColor ?? (selected ? 'var(--color-accent)' : 'var(--color-border-strong)'));
   const background = armedTarget
     ? 'color-mix(in srgb, var(--color-accent) 14%, var(--color-surface-raised))'
     : aptitudeColor
@@ -156,7 +162,9 @@ function SlotButton({
         >
           {player?.name ?? '選手を選択'}
         </strong>
-        <span style={{ display: 'block', marginTop: 3, color: 'var(--color-text-muted)', fontSize: 10 }}>
+        <span
+          style={{ display: 'block', marginTop: 3, color: 'var(--color-text-muted)', fontSize: 10 }}
+        >
           {breakdown === null ? (
             '総合値 -'
           ) : (
@@ -173,7 +181,9 @@ function SlotButton({
           ) : (
             <>
               {' / 適性 '}
-              <strong style={{ color: aptitudeColor ?? undefined }}>{rank} {aptitude}%</strong>
+              <strong style={{ color: aptitudeColor ?? undefined }}>
+                {rank} {aptitude}%
+              </strong>
             </>
           )}
         </span>
@@ -181,8 +191,9 @@ function SlotButton({
       <button
         type="button"
         {...dragHandleProps}
-        aria-label={`${label}${player ? `の${player.name}` : ''}を別の守備枠へドラッグ`}
-        title="ドラッグして入れ替え"
+        onClick={() => onSelect(slot)}
+        aria-label={`${label}${player ? `の${player.name}` : ''}を別の守備枠へドラッグ、またはEnterで選択して入れ替え`}
+        title="ドラッグ、またはEnterで選択して入れ替え"
         style={{
           position: 'absolute',
           top: 5,
@@ -312,7 +323,13 @@ export function FieldDiagram({
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
         >
           <defs>
-            <pattern id="fd-mow" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(28)">
+            <pattern
+              id="fd-mow"
+              width="9"
+              height="9"
+              patternUnits="userSpaceOnUse"
+              patternTransform="rotate(28)"
+            >
               <rect width="9" height="9" fill="transparent" />
               <rect width="4.5" height="9" fill="var(--field-mow-line)" />
             </pattern>
@@ -324,7 +341,14 @@ export function FieldDiagram({
             stroke="var(--field-dirt-line)"
             strokeWidth="0.4"
           />
-          <circle cx="50" cy="71" r="4" fill="var(--field-dirt)" stroke="var(--field-dirt-line)" strokeWidth="0.3" />
+          <circle
+            cx="50"
+            cy="71"
+            r="4"
+            fill="var(--field-dirt)"
+            stroke="var(--field-dirt-line)"
+            strokeWidth="0.3"
+          />
           <line x1="50" y1="88" x2="3" y2="4" stroke="var(--field-chalk)" strokeWidth="0.5" />
           <line x1="50" y1="88" x2="97" y2="4" stroke="var(--field-chalk)" strokeWidth="0.5" />
           <polygon

@@ -30,6 +30,7 @@ import { AbilityRadarChart, type AbilityRadarItem } from './AbilityRadarChart';
 import { AptitudeFieldMap } from './AptitudeFieldMap';
 import { DisplayOVRValue } from './DisplayOVRValue';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
+import { useFocusTrap } from './useFocusTrap';
 
 const TEAM_KEY_SET = new Set<string>(Object.keys(TINFO));
 
@@ -397,6 +398,8 @@ export function PlayerDetailModal({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose, player]);
+
+  useFocusTrap(dialogRef, Boolean(player));
 
   if (!player) return null;
   const baseOverall = player.isP ? calcOVR(player) : effectiveOVR(player, player.pos);

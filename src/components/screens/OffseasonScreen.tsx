@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { FOREIGN_PLAYER_BALANCE, TINFO } from '../../data';
 import {
@@ -52,7 +52,8 @@ function OffseasonStepper({ phase }: { phase: OffseasonPhase }) {
       }}
     >
       {OFFSEASON_STEPS.map((step, index) => {
-        const state = index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'upcoming';
+        const state =
+          index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'upcoming';
         return (
           <li key={step.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span
@@ -90,7 +91,8 @@ function OffseasonStepper({ phase }: { phase: OffseasonPhase }) {
                     width: 6,
                     height: 6,
                     borderRadius: 2,
-                    background: state === 'current' ? 'var(--color-leader)' : 'var(--color-border-strong)',
+                    background:
+                      state === 'current' ? 'var(--color-leader)' : 'var(--color-border-strong)',
                     boxShadow:
                       state === 'current'
                         ? '0 0 5px 1px color-mix(in srgb, var(--color-leader) 55%, transparent)'
@@ -101,7 +103,10 @@ function OffseasonStepper({ phase }: { phase: OffseasonPhase }) {
               {step.label}
             </span>
             {index < OFFSEASON_STEPS.length - 1 && (
-              <span aria-hidden="true" style={{ color: 'var(--color-border-strong)', fontSize: 11 }}>
+              <span
+                aria-hidden="true"
+                style={{ color: 'var(--color-border-strong)', fontSize: 11 }}
+              >
                 →
               </span>
             )}
@@ -183,6 +188,19 @@ function OffseasonContent({
   const [tradeOffers, setTradeOffers] = useState(() =>
     generateTradeOffers(growthResult.teams, playerTeam),
   );
+
+  // Offseason progress (growth, retirements, FA/foreign signings, trades, the
+  // draft) only becomes part of the save when completeOffseason runs at the very
+  // end — closing or reloading mid-offseason discards all of it, so warn for as
+  // long as this screen is mounted.
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
   const teamInfo = TINFO[playerTeam];
   const grownPlayerById = useMemo(

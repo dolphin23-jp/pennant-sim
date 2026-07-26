@@ -4,6 +4,7 @@ import { calcOVR } from '../../engine';
 import type { Player } from '../../engine';
 import { Button, EmptyState } from '../ui';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
+import { useFocusTrap } from './useFocusTrap';
 
 export function BullpenPickerSheet({
   targetIndex,
@@ -31,6 +32,8 @@ export function BullpenPickerSheet({
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [onClose]);
+
+  useFocusTrap(dialogRef, true);
 
   return (
     <div
