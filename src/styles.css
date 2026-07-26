@@ -139,6 +139,23 @@ input:focus-visible,
   background: var(--color-bg);
 }
 
+/* Night-game stadium art behind the top of every screen, fading into the flat
+   --color-bg within 620px so it never fights with card content further down.
+   Dark-theme only — the art is an explicitly "night game" scene and has no
+   day-game counterpart, so light theme keeps the plain flat background. */
+:root:not([data-theme='light']) .page-shell {
+  background-image:
+    linear-gradient(180deg, rgb(7 12 9 / 0%) 0%, var(--color-bg) 100%),
+    url('./assets/stadium-night.webp');
+  background-repeat: no-repeat, no-repeat;
+  background-position:
+    top center,
+    top center;
+  background-size:
+    100% 620px,
+    100% 620px;
+}
+
 .page-shell__inner {
   max-width: 1180px;
   margin: 0 auto;
