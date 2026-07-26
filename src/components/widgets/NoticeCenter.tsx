@@ -1,6 +1,14 @@
 import type { Player, Teams } from '../../engine';
+import { IconBaseball, IconBolt, IconMegaphone, IconSparkle } from '../icons';
 import type { Notice } from '../../state/storage';
 import { Button, Card, EmptyState, SectionTitle } from '../ui';
+
+const KIND_ICONS: Record<NonNullable<Notice['kind']>, typeof IconSparkle> = {
+  system: IconMegaphone,
+  awakening: IconBolt,
+  growth: IconSparkle,
+  game: IconBaseball,
+};
 
 function noticePlayer(notice: Notice, teams: Teams): Player | null {
   if (!notice.playerId) return null;
@@ -86,6 +94,7 @@ export function NoticeCenter({
           {notices.slice(0, 20).map((notice) => {
             const player = noticePlayer(notice, teams);
             const color = toneColor(notice);
+            const KindIcon = KIND_ICONS[notice.kind ?? 'system'];
             return (
               <article
                 key={notice.id}
@@ -111,6 +120,9 @@ export function NoticeCenter({
                   >
                     <span
                       style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 3,
                         padding: '2px 6px',
                         borderRadius: 999,
                         color,
@@ -119,6 +131,7 @@ export function NoticeCenter({
                         fontWeight: 900,
                       }}
                     >
+                      <KindIcon size={10} />
                       {kindLabel(notice)}
                     </span>
                     {player ? (
@@ -150,7 +163,14 @@ export function NoticeCenter({
                     {notice.body}
                   </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-end',
+                    gap: 6,
+                  }}
+                >
                   {notice.gameId && onSelectGame && (
                     <button
                       type="button"

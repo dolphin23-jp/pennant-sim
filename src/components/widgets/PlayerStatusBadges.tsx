@@ -1,6 +1,14 @@
 import type { Player } from '../../engine';
+import { IconMedicalCross, IconSparkle, IconTrendDown, IconTrendUp } from '../icons';
 
 type StatusTone = 'good' | 'slump' | 'injury' | 'growth';
+
+const TONE_ICONS: Record<StatusTone, typeof IconTrendUp> = {
+  good: IconTrendUp,
+  slump: IconTrendDown,
+  injury: IconMedicalCross,
+  growth: IconSparkle,
+};
 interface PlayerStatus {
   tone: StatusTone;
   label: string;
@@ -68,15 +76,19 @@ export function PlayerStatusBadges({
       className={`status-badges${compact ? ' status-badges--compact' : ''}`}
       aria-label={statuses.map((status) => `${status.label}: ${status.detail}`).join('、')}
     >
-      {statuses.map((status) => (
-        <span
-          className={`status-badge status-badge--${status.tone}`}
-          key={status.tone}
-          title={status.detail}
-        >
-          {status.label}
-        </span>
-      ))}
+      {statuses.map((status) => {
+        const Icon = TONE_ICONS[status.tone];
+        return (
+          <span
+            className={`status-badge status-badge--${status.tone}`}
+            key={status.tone}
+            title={status.detail}
+          >
+            <Icon size={11} />
+            {status.label}
+          </span>
+        );
+      })}
     </span>
   );
 }

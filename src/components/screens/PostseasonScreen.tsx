@@ -12,6 +12,7 @@ import type {
 } from '../../engine';
 import { useGameState } from '../../state/gameState';
 import { useBusyAction } from '../useBusyAction';
+import { TitleIcon } from '../icons';
 import { Button, Card, PageShell, SectionTitle, teamTextColor } from '../ui';
 
 interface SeriesGame {
@@ -87,7 +88,17 @@ function SeasonTitlesPanel({
                         fontSize: 12,
                       }}
                     >
-                      <strong style={{ color: 'var(--color-leader)' }}>{record.titleLabel}</strong>
+                      <strong
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          color: 'var(--color-leader)',
+                        }}
+                      >
+                        <TitleIcon titleId={record.titleId} size={14} />
+                        {record.titleLabel}
+                      </strong>
                       {player ? (
                         <button
                           type="button"

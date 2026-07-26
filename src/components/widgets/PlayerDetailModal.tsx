@@ -26,6 +26,7 @@ import type {
   TeamKey,
 } from '../../engine';
 import { Button, Card, EmptyState, LampFigure, SectionTitle, TermTooltip } from '../ui';
+import { TitleIcon } from '../icons';
 import { AbilityRadarChart, type AbilityRadarItem } from './AbilityRadarChart';
 import { AptitudeFieldMap } from './AptitudeFieldMap';
 import { DisplayOVRValue } from './DisplayOVRValue';
@@ -562,6 +563,7 @@ export function PlayerDetailModal({
                           className="special-badge special-badge--gold"
                           key={`${record.year}:${record.league}:${record.titleId}`}
                         >
+                          <TitleIcon titleId={record.titleId} size={13} />
                           {record.year} {record.titleLabel}（{record.displayValue}）
                         </span>
                       ))}
