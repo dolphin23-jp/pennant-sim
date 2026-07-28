@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { FIELD_POSITIONS } from '../../data';
 import { aptitudeFor, aptitudeRank, displayOVRBreakdown, effectiveOVR } from '../../engine';
 import type { FieldPosition, Player } from '../../engine';
 import { Button, EmptyState } from '../ui';
+import { AgePositionFilterBar } from './AgePositionFilterBar';
 import { aptitudeToneColor } from './aptitudeDisplay';
 import type { LineupAssignments, LineupSlot } from './FieldDiagram';
 import { LINEUP_SLOT_ORDER } from './FieldDiagram';
+import { matchesAge, type AgeFilter } from './playerFilters';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
 import { useFocusTrap } from './useFocusTrap';
 
@@ -42,9 +44,16 @@ export function PositionPickerSheet({
   onClose(): void;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const [ageFilter, setAgeFilter] = useState<AgeFilter>('all');
+  // The player currently holding this slot always stays visible even if they fall
+  // outside the filter, so switching it on never makes the current assignment vanish
+  // without explanation.
   const candidates = useMemo(
     () =>
       players
+        .filter(
+          (player) => matchesAge(player, ageFilter) || assignedSlot(assignments, player.id) === slot,
+        )
         .map((player) => {
           const best = bestPositionValue(player);
           const breakdown = currentBreakdown(player, slot);
@@ -60,7 +69,7 @@ export function PositionPickerSheet({
           const valueDifference = second.breakdown.total - first.breakdown.total;
           return valueDifference || first.player.name.localeCompare(second.player.name, 'ja');
         }),
-    [assignments, players, slot],
+    [assignments, players, slot, ageFilter],
   );
 
   useEffect(() => {
@@ -114,6 +123,15 @@ export function PositionPickerSheet({
           </Button>
         </header>
         <div className="player-modal__body">
+          {players.length > 0 && (
+            <AgePositionFilterBar
+              ageFilter={ageFilter}
+              onAgeFilterChange={setAgeFilter}
+              matchCount={candidates.length}
+              totalCount={players.length}
+              ariaLabelPrefix="選手候補"
+            />
+          )}
           {!candidates.length ? (
             <EmptyState>選択できる野手がいません。</EmptyState>
           ) : (

@@ -1,6 +1,10 @@
+import { useMemo, useState } from 'react';
+
 import { calcOVR } from '../../engine';
 import type { Player } from '../../engine';
 import { Card, EmptyState, SectionTitle } from '../ui';
+import { AgePositionFilterBar } from './AgePositionFilterBar';
+import { matchesAge, type AgeFilter } from './playerFilters';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
 
 export function RotationCandidatesList({
@@ -12,14 +16,31 @@ export function RotationCandidatesList({
   onPromote(pitcher: Player): void;
   onSelectPlayer(player: Player): void;
 }) {
+  const [ageFilter, setAgeFilter] = useState<AgeFilter>('all');
+  const filteredPitchers = useMemo(
+    () => pitchers.filter((pitcher) => matchesAge(pitcher, ageFilter)),
+    [pitchers, ageFilter],
+  );
+
   return (
     <Card ariaLabel="ローテーション候補の先発投手">
       <SectionTitle>Rotation Candidates</SectionTitle>
       <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginBottom: 10 }}>
         ローテーション外の先発投手です。「昇格」でローテーションの枠と入れ替えます。
       </div>
+      {pitchers.length > 0 && (
+        <AgePositionFilterBar
+          ageFilter={ageFilter}
+          onAgeFilterChange={setAgeFilter}
+          matchCount={filteredPitchers.length}
+          totalCount={pitchers.length}
+          ariaLabelPrefix="ローテーション候補"
+        />
+      )}
       {!pitchers.length ? (
         <EmptyState>ローテーション外の先発投手はいません。</EmptyState>
+      ) : !filteredPitchers.length ? (
+        <EmptyState>条件に一致するローテーション外の先発投手がいません。</EmptyState>
       ) : (
         <div
           style={{
@@ -28,7 +49,7 @@ export function RotationCandidatesList({
             gap: 7,
           }}
         >
-          {pitchers.map((pitcher) => {
+          {filteredPitchers.map((pitcher) => {
             const injured = (pitcher.injuryDays ?? 0) > 0;
             return (
               <div
