@@ -1,8 +1,13 @@
+import { PLAYER_DEVELOPMENT_BALANCE } from '../../data';
 import './phaseB.css';
 
 export interface AbilityRadarItem {
   label: string;
   value: number | undefined;
+  /** Overrides the plain rounded number in the chart's textual aria-summary only - the
+   * radar geometry itself always plots the raw `value` against MAX_VALUE, so every axis
+   * stays on the same scale regardless of how a given stat is displayed elsewhere. */
+  displayText?: string;
 }
 
 export interface AbilityRadarSeries {
@@ -15,7 +20,7 @@ const SIZE = 260;
 const CENTER = SIZE / 2;
 const RADIUS = 84;
 const LABEL_RADIUS = 111;
-const MAX_VALUE = 120;
+const MAX_VALUE = PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.maximumRating;
 const GRID_LEVELS = [0.25, 0.5, 0.75, 1];
 
 function pointAt(index: number, count: number, radius: number): { x: number; y: number } {
@@ -58,7 +63,7 @@ export function AbilityRadarChart({
   const summary = resolvedSeries
     .map((entry) => {
       const values = entry.items
-        .map((item) => `${item.label}${Math.round(item.value ?? 0)}`)
+        .map((item) => `${item.label}${item.displayText ?? Math.round(item.value ?? 0)}`)
         .join('、');
       return entry.label ? `${entry.label}: ${values}` : values;
     })

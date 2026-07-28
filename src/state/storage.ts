@@ -3,6 +3,7 @@ import {
   calcStandings,
   createBatterStats,
   createPitcherStats,
+  ensureCatcherAttributes,
   ensureSpecialLevels,
   syncSpecialsFromLevels,
 } from '../engine';
@@ -278,7 +279,9 @@ export function migrateTeamsSpecialSchema(teams: Teams | null | undefined): Team
         syncSpecialsFromLevels({ ...player, specialLevels: ensureSpecialLevels(player) }),
       ),
       fielders: (team.fielders ?? []).map((player) =>
-        syncSpecialsFromLevels({ ...player, specialLevels: ensureSpecialLevels(player) }),
+        ensureCatcherAttributes(
+          syncSpecialsFromLevels({ ...player, specialLevels: ensureSpecialLevels(player) }),
+        ),
       ),
     };
   }

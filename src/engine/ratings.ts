@@ -7,15 +7,47 @@ import {
   NEGATIVE_SPECIAL_IDS,
   OVR_W,
   OVR_W_PIT,
+  PLAYER_DEVELOPMENT_BALANCE,
   SPECIAL_INDEX,
 } from '../data';
 import { foreignPerformanceMultiplier, isForeignPlayer } from './foreign';
+import { clamp } from './random';
 import { specialLevel } from './specials';
 import type { AccumulatedStats, FieldPosition, Player, SpecialAbility, Team } from './types';
 
 export interface DisplayOVROptions {
   includeSpecials?: boolean;
   clampAdjustment?: boolean;
+}
+
+/** Whether a batter can currently take the field at `position` - either it's their
+ * primary position, or they've picked up aptitude there (born with it, or partway/fully
+ * through position-conversion training). Shared by lineup/OVR eligibility checks and by
+ * anything that needs to know "does this player have any claim to this position at all". */
+export function hasPositionAptitude(player: Player, position: FieldPosition): boolean {
+  return player.pos === position || (player.positions?.some((entry) => entry.pos === position) ?? false);
+}
+
+// Pitch velocity is stored as a raw ability rating (the same 1-ceiling scale every other
+// parameter uses), not km/h. These two are the only place that scale is anchored to real
+// speeds, so the anchors can move (e.g. if the ceiling above changes) without touching the
+// rating itself or anything that reads it internally - only the display layer converts.
+const VEL_RATING_FLOOR = 25;
+const VEL_KMH_AT_FLOOR = 125;
+const VEL_KMH_AT_CEILING = 170;
+function velocityKmhSlope(): number {
+  const ceiling = PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.maximumRating;
+  return (VEL_KMH_AT_CEILING - VEL_KMH_AT_FLOOR) / (ceiling - VEL_RATING_FLOOR);
+}
+export function velocityToKmh(vel: number | undefined): number {
+  const raw = VEL_KMH_AT_FLOOR + velocityKmhSlope() * ((vel ?? VEL_RATING_FLOOR) - VEL_RATING_FLOOR);
+  return Math.round(clamp(raw, 100, 180));
+}
+export function velocityKmhText(vel: number | undefined): string {
+  return `${velocityToKmh(vel)}km/h`;
+}
+export function kmhToVelocity(kmh: number): number {
+  return Math.round(VEL_RATING_FLOOR + (kmh - VEL_KMH_AT_FLOOR) / velocityKmhSlope());
 }
 
 export interface DisplayOVRBreakdown {

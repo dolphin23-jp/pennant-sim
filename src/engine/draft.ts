@@ -1,4 +1,4 @@
-import { CENTRAL, FIELD_POSITIONS, PACIFIC } from '../data';
+import { CENTRAL, FIELD_POSITIONS, PACIFIC, PLAYER_DEVELOPMENT_BALANCE } from '../data';
 import { generateBatter, generatePitcher } from './players';
 import { gaussian, random, randomChoice, randomInt } from './random';
 import { bestLineup, calcOVR, effectiveOVR, topStarters } from './ratings';
@@ -39,7 +39,7 @@ function applyGenerationalTalent(player: Player, quality: number): Player {
   for (const parameter of developmentParameters) {
     const current = Number(player.p[parameter] ?? 0);
     broadPotential[parameter] = Math.min(
-      140,
+      PLAYER_DEVELOPMENT_BALANCE.potentialCeiling.elite,
       Math.max(
         Number(broadPotential[parameter] ?? current),
         current + randomInt(38, 62),

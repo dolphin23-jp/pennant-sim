@@ -62,7 +62,15 @@ export const PLAYER_DEVELOPMENT_BALANCE = {
     maxAbsoluteChange: 0.25,
     fallbackStep: 1,
     minimumRating: 1,
-    maximumRating: 120,
+    maximumRating: 130,
+  },
+  // Ceilings generatePotential() clamps a rolled potential to. Raised alongside
+  // maximumRating above so a player can still be developed all the way up to their
+  // potential once the in-career growth ceiling moves; the per-stat generation
+  // formulas themselves are untouched.
+  potentialCeiling: {
+    standard: 135,
+    elite: 150,
   },
   awakening: {
     inSeasonBaseRate: 0.0001,

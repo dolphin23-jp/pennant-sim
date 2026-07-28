@@ -5,7 +5,9 @@ import {
   advancePositionConversion,
   cancelPositionConversion,
   configureRandom,
+  ensureCatcherAttributes,
   generateBatter,
+  hasPositionAptitude,
   resetRandom,
   startPositionConversion,
   type Player,
@@ -85,6 +87,72 @@ test('advancing without an active conversion target is a no-op', () => {
   const unchanged = advancePositionConversion(player);
   assert.deepEqual(unchanged.positions, player.positions);
   assert.equal(unchanged.conversionTarget, undefined);
+});
+
+test('converting a non-catcher to catcher backfills リード and a shot at catcher specials', () => {
+  configureRandom(mulberry32(11), () => Date.UTC(2026, 0, 1));
+  try {
+    const player = generateBatter('giants', 24, '中堅手', 90);
+    assert.equal(player.p.ld, 0, '前提: 捕手以外は生成時リードが0');
+    assert.equal(player.pot.ld, undefined, '前提: 捕手以外は生成時に潜在リードが存在しない');
+
+    const converted = startPositionConversion(player, '捕手');
+    assert.ok(converted.p.ld && converted.p.ld > 0, 'コンバートと同時にリードが設定されるはず');
+    assert.ok(converted.pot.ld && converted.pot.ld >= converted.p.ld, '潜在リードも設定されるはず');
+    assert.ok(hasPositionAptitude(converted, '捕手'));
+  } finally {
+    resetRandom();
+  }
+});
+
+test('converting to a non-catcher position never touches リード', () => {
+  configureRandom(mulberry32(12), () => Date.UTC(2026, 0, 1));
+  try {
+    const player = generateBatter('giants', 24, '中堅手', 60);
+    const converted = startPositionConversion(player, '三塁手');
+    assert.equal(converted.p.ld, 0);
+    assert.equal(converted.pot.ld, undefined);
+  } finally {
+    resetRandom();
+  }
+});
+
+test('ensureCatcherAttributes is a no-op once リード is already set (does not clobber existing values)', () => {
+  configureRandom(mulberry32(13), () => Date.UTC(2026, 0, 1));
+  try {
+    const bornCatcher = generateBatter('giants', 26, '捕手', 90);
+    const originalLd = bornCatcher.p.ld;
+    const originalPotLd = bornCatcher.pot.ld;
+    const result = ensureCatcherAttributes(bornCatcher);
+    assert.equal(result.p.ld, originalLd, '生成済みの捕手のリードを上書きしてはいけない');
+    assert.equal(result.pot.ld, originalPotLd);
+    assert.equal(result, bornCatcher, '変更不要な場合は同一オブジェクトを返す');
+  } finally {
+    resetRandom();
+  }
+});
+
+test('a fielder with no catcher aptitude at all is untouched by ensureCatcherAttributes', () => {
+  const player = generateBatter('giants', 24, '中堅手', 60);
+  const result = ensureCatcherAttributes(player);
+  assert.equal(result, player);
+  assert.equal(result.p.ld, 0);
+});
+
+test('hasPositionAptitude recognizes both primary position and trained-in aptitude', () => {
+  configureRandom(mulberry32(17), () => Date.UTC(2026, 0, 1));
+  try {
+    const catcher = generateBatter('giants', 26, '捕手', 60);
+    assert.equal(hasPositionAptitude(catcher, '捕手'), true);
+    // 遊撃手 is never a generated secondary aptitude for a 捕手 (see generateSecondaryPositions'
+    // rules table), unlike 一塁手 which has a 30% chance and would make this assertion flaky.
+    assert.equal(hasPositionAptitude(catcher, '遊撃手'), false);
+
+    const converting = startPositionConversion(generateBatter('giants', 24, '中堅手', 60), '捕手');
+    assert.equal(hasPositionAptitude(converting, '捕手'), true);
+  } finally {
+    resetRandom();
+  }
 });
 
 test('cancelling a conversion clears the target but keeps the aptitude already earned', () => {

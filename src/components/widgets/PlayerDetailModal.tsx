@@ -8,7 +8,14 @@ import {
   type TouchEvent,
 } from 'react';
 
-import { FIELD_POSITIONS, MATURITY_PEAK_AGE, SPECIAL_DESCRIPTIONS, SPECIAL_INDEX, TINFO } from '../../data';
+import {
+  FIELD_POSITIONS,
+  MATURITY_PEAK_AGE,
+  PLAYER_DEVELOPMENT_BALANCE,
+  SPECIAL_DESCRIPTIONS,
+  SPECIAL_INDEX,
+  TINFO,
+} from '../../data';
 import {
   aptitudeRank,
   calcOVR,
@@ -18,6 +25,7 @@ import {
   specialLevel,
   startPositionConversion,
   statItems,
+  velocityKmhText,
   yearlyRows,
 } from '../../engine';
 import type {
@@ -83,22 +91,33 @@ function StatGrid({ stats }: { stats: PlayerStats | undefined }) {
   );
 }
 
-function AbilityBar({ label, value }: { label: string; value: number | undefined }) {
+const ABILITY_DISPLAY_MAX = PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.maximumRating;
+
+function AbilityBar({
+  label,
+  value,
+  displayText,
+}: {
+  label: string;
+  value: number | undefined;
+  displayText?: string;
+}) {
   const rounded = Math.round(value ?? 0);
-  const percentage = Math.max(0, Math.min(100, (rounded / 120) * 100));
+  const percentage = Math.max(0, Math.min(100, (rounded / ABILITY_DISPLAY_MAX) * 100));
   const strong = rounded >= 50;
+  const text = displayText ?? String(rounded);
   return (
     <div className={`ability-row${strong ? ' ability-row--strong' : ''}`}>
       <div className="ability-row__label">
         <span>{label}</span>
-        <strong>{rounded}</strong>
+        <strong>{text}</strong>
       </div>
       <div
         className="ability-meter"
         role="meter"
-        aria-label={`${label} ${rounded}`}
+        aria-label={`${label} ${text}`}
         aria-valuemin={0}
-        aria-valuemax={120}
+        aria-valuemax={ABILITY_DISPLAY_MAX}
         aria-valuenow={rounded}
       >
         <div className="ability-meter__fill" style={{ width: `${percentage}%` }} />
@@ -267,7 +286,7 @@ function BasicTab({
 }) {
   const abilities: AbilityRadarItem[] = player.isP
     ? [
-        { label: '球速', value: player.p.vel },
+        { label: '球速', value: player.p.vel, displayText: velocityKmhText(player.p.vel) },
         { label: '制球', value: player.p.ctrl },
         { label: 'スタミナ', value: player.p.stam },
         { label: 'ノビ', value: player.p.nobi },
@@ -366,7 +385,12 @@ function BasicTab({
           <AbilityRadarChart items={radarAbilities} />
           <div className="ability-list">
             {abilities.map((ability) => (
-              <AbilityBar key={ability.label} label={ability.label} value={ability.value} />
+              <AbilityBar
+                key={ability.label}
+                label={ability.label}
+                value={ability.value}
+                displayText={ability.displayText}
+              />
             ))}
           </div>
         </div>
