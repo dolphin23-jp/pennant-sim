@@ -419,6 +419,59 @@ export function stealSuccessRate(
   );
 }
 
+// A runner alone on second (first and third open) can break for third. Real basestealers
+// try this far less often than second - the payoff is smaller and a passed ball or wild
+// pitch can score them from third anyway - but succeed noticeably more often once they go,
+// since the throw is longer and nobody is usually holding third close.
+export function stealThirdAttemptRate(
+  runner: Player,
+  catcher: Player | undefined,
+  pitcher: Player,
+  strategy: TeamStrategy,
+  context: { inning: number; outs: number; scoreDifference: number },
+): number {
+  if (context.outs >= 2) return 0;
+  let abilityRate = clamp((((runner.p.sp ?? 50) - 30) / 260) * 0.32, 0.005, 0.075);
+  if (hasSpecial(runner, 'sb')) abilityRate *= 1.35;
+  if (hasGold(runner, 'sb_gold')) abilityRate *= 1.5;
+  const catcherArm =
+    (catcher?.p.arm ?? 50) +
+    (catcher ? specialLevel(catcher, 'strong_arm') * FIELDING_BALANCE.strongArmPerLevel : 0);
+  const deterrence = clamp(
+    1 - Math.max(0, catcherArm - 50) / 190 - Math.max(0, (pitcher.p.ctrl ?? 50) - 50) / 360,
+    0.55,
+    1.1,
+  );
+  const scoreFactor =
+    context.scoreDifference <= -2
+      ? 0.36
+      : context.scoreDifference >= 3
+        ? 0.5
+        : context.inning >= 7 && Math.abs(context.scoreDifference) <= 1
+          ? 1.24
+          : context.inning <= 2
+            ? 0.82
+            : 1;
+  return clamp(abilityRate * strategy.stealAggression * deterrence * scoreFactor, 0.002, 0.1);
+}
+
+export function stealThirdSuccessRate(
+  runner: Player,
+  catcher: Player | undefined,
+  pitcher: Player,
+): number {
+  const catcherArm =
+    (catcher?.p.arm ?? 50) +
+    (catcher ? specialLevel(catcher, 'strong_arm') * FIELDING_BALANCE.strongArmPerLevel : 0);
+  const defensePenalty = (catcherArm - 50) / 520 + ((pitcher.p.ctrl ?? 50) - 50) / 1000;
+  return clamp(
+    (0.74 + ((runner.p.sp ?? 50) - 50) / 320 - defensePenalty) *
+      (hasGold(runner, 'sb_gold') ? 1.08 : 1),
+    0.5,
+    0.95,
+  );
+}
+
 function approximatePositionScore(player: Player, position: FieldPosition): number {
   const contact = ((player.p.cf ?? 50) + (player.p.cb ?? 50)) / 2;
   const offense =

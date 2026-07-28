@@ -6,6 +6,8 @@ import {
   auditLineupCandidate,
   sacrificeBuntAttemptRate,
   stealAttemptRate,
+  stealThirdAttemptRate,
+  stealThirdSuccessRate,
   strategicBestLineup,
   strategicPitcherPlan,
   strategicPitcherOrder,
@@ -158,6 +160,46 @@ test('speed strategy attempts steals and late close-game bunts more often', () =
         scoreDifference: -3,
       }),
   );
+});
+
+test('a lone runner on second can attempt third, rarer than second but with a higher success rate', () => {
+  const teams = initTeams();
+  const runner = {
+    ...teams.dragons.fielders[0],
+    p: { ...teams.dragons.fielders[0]!.p, sp: 88, bnt: 80, pw: 35 },
+    specials: [],
+    specialLevels: {},
+  } as Player;
+  const pitcher = teams.giants.pitchers[0] as Player;
+  const catcher = teams.giants.fielders.find((player) => player.pos === '捕手');
+  const speed = strategyWith('dragons', {
+    philosophy: 'speed',
+    lineupPhilosophy: 'speedFirst',
+    stealAggression: 1.5,
+    buntAggression: 1.3,
+  });
+
+  const secondAttempt = stealAttemptRate(runner, catcher, pitcher, speed, {
+    inning: 8,
+    outs: 0,
+    scoreDifference: 0,
+  });
+  const thirdAttempt = stealThirdAttemptRate(runner, catcher, pitcher, speed, {
+    inning: 8,
+    outs: 0,
+    scoreDifference: 0,
+  });
+  assert.ok(thirdAttempt > 0, '三盗の企図率が発生していること');
+  assert.ok(thirdAttempt < secondAttempt, '三盗の企図は盗塁より控えめであること');
+
+  assert.equal(stealThirdAttemptRate(runner, catcher, pitcher, speed, {
+    inning: 8,
+    outs: 2,
+    scoreDifference: 0,
+  }), 0, '2アウトでは三盗を企図しないこと');
+
+  const successRate = stealThirdSuccessRate(runner, catcher, pitcher);
+  assert.ok(successRate > 0.5 && successRate <= 0.95, '三盗の成功率が妥当な範囲であること');
 });
 
 test('ordinary CPU games use strategic batting orders and pitcher plans', () => {

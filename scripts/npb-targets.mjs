@@ -4,9 +4,15 @@ export const NPB_SCORING_TARGETS = Object.freeze({
   era: Object.freeze({ minimum: 2.21, target: 3.01, maximum: 3.6 }),
   homeRuns: Object.freeze({ minimum: 1000, target: 1096, maximum: 1200 }),
   stolenBaseAttemptsPerTeamGame: Object.freeze({ minimum: 0.3, target: 0.45, maximum: 0.6 }),
+  // Team-average attempt pace alone can hide a thin individual leaderboard (few real
+  // stolen-base threats even though the league average looks right).
+  stolenBaseLeader: Object.freeze({ minimum: 15, target: 32, maximum: 60 }),
   // League averages alone cannot tell whether individual seasons are distributed
   // realistically: a league can hit .244 with nobody reaching .300. These gate the tails.
   battingAverage300PlusCount: Object.freeze({ minimum: 3, target: 9, maximum: 18 }),
+  // The 40+ gate alone let the whole 25-35 HR band collapse to a single standout hitter
+  // while everyone else stayed well under 30; this gates that middle tier directly.
+  homeRuns30Plus: Object.freeze({ minimum: 2, target: 6, maximum: 14 }),
   homeRuns40Plus: Object.freeze({ minimum: 0.2, target: 1.4, maximum: 4 }),
   runsBattedIn100Plus: Object.freeze({ minimum: 0.8, target: 3, maximum: 7 }),
   era200MinusCount: Object.freeze({ minimum: 1, target: 4, maximum: 10 }),

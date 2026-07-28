@@ -513,7 +513,7 @@ async function simulateFranchise(options: CliOptions) {
           reference: '2025 NPB official individual pitching statistics',
         },
         battingTail: {
-          homeRun: AT_BAT_BALANCE.homeRun,
+          homeRun: AT_BAT_BALANCE.homeRunOnFly,
           annualStatCaps: false,
           forcedPlayerCounts: false,
           reference: '2022-2025 NPB official individual batting statistics and season records',

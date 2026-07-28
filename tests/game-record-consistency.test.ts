@@ -115,12 +115,22 @@ function replay(
         case 'FO':
         case 'CS':
           addOut(1);
-          if (entry.result === 'CS') onFirst = false;
+          // A caught-stealing runner came from first (stealing second) unless first is
+          // empty, in which case it was the second-base runner going for third.
+          if (entry.result === 'CS') {
+            if (onFirst) onFirst = false;
+            else onSecond = false;
+          }
           if ((entry.result === 'GO' || entry.result === 'FO') && entry.rbi > 0) onThird = false;
           break;
         case 'SB':
-          onSecond = true;
-          onFirst = false;
+          if (onFirst) {
+            onSecond = true;
+            onFirst = false;
+          } else {
+            onThird = true;
+            onSecond = false;
+          }
           break;
         case 'HR':
           onFirst = onSecond = onThird = false;

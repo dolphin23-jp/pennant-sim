@@ -39,7 +39,7 @@ export const BS = [
   defineSpecial('oppo', '流し打ち', '#AB47BC', 0.07),
   defineSpecial('fbo', '初球○', '#66BB6A', 0.08),
   defineSpecial('fbx', '初球×', '#EF5350', 0.07),
-  defineSpecial('slugger_gold', 'アーチスト', '#FFD54F', 0.02, 1, 'gold'),
+  defineSpecial('slugger_gold', 'アーチスト', '#FFD54F', 0.06, 1, 'gold'),
   defineSpecial('avg_gold', '安打製造機', '#FFD54F', 0.015, 1, 'gold'),
   defineSpecial('spray_gold', '芸術的流し打ち', '#FFD54F', 0.015, 1, 'gold'),
   defineSpecial('eye_gold', '選球の達人', '#FFD54F', 0.015, 1, 'gold'),

@@ -85,6 +85,18 @@ export const PLAYER_DEVELOPMENT_BALANCE = {
   },
 } as const;
 
+// Position-conversion practice: a batter can be pointed at an unfamiliar position and
+// picks up aptitude there gradually, offseason by offseason, instead of it being fixed
+// forever at generation. Kept short of a lifelong specialist's ceiling on purpose - it
+// makes the player usable there, not their new best position.
+export const POSITION_CONVERSION_BALANCE = {
+  startingAptitude: { minimum: 15, maximum: 28 },
+  ceiling: 80,
+  annualGain: { minimum: 3, maximum: 9 },
+  ageFactor: { young: 1.3, prime: 1, veteran: 0.7, late: 0.45 },
+  ageThresholds: { young: 24, prime: 28, veteran: 32 },
+} as const;
+
 export const FOREIGN_PLAYER_BALANCE = {
   registeredLimit: 5,
   simultaneousHitterLimit: 3,
@@ -213,22 +225,6 @@ export const AT_BAT_BALANCE = {
     maxRate: 0.16,
   },
   hitByPitch: { baseRate: 0.009, fatigueBonus: 0.004, minRate: 0.004, maxRate: 0.022 },
-  homeRun: {
-    baseRate: 0.03,
-    velocityScale: 4000,
-    movementScale: 4000,
-    powerCurveReference: 60,
-    powerCurveScale: 30,
-    minimumPowerLogMultiplier: -1.25,
-    maximumPowerLogMultiplier: 0.9,
-    sluggerBaseMultiplier: 1.8,
-    sluggerPowerBonusScale: 100,
-    sluggerMaximumPowerBonus: 0.55,
-    fatigueBonus: 0.18,
-    environmentMultiplier: 0.49,
-    minRate: 0.0005,
-    maxRate: 0.12,
-  },
   // Stage 2 — what kind of ball was hit. Shares are the league-average mix before the
   // pitcher's and batter's tendencies move them; NPB sits near 45% grounders, 20% liners,
   // 27% fly balls and 8% pop-ups.
@@ -277,9 +273,12 @@ export const AT_BAT_BALANCE = {
     movementScale: 3400,
     directionFactor: { pull: 1.4, center: 0.85, oppo: 0.62 },
     fatigueBonus: 0.18,
-    sluggerBaseMultiplier: 1.55,
+    // Made more common (see slugger_gold's rarity roll in players.ts) and correspondingly
+    // smaller per player, so the 30-40 HR band fills in with several sluggers instead of a
+    // single jackpot hitter towering over an otherwise flat power distribution.
+    sluggerBaseMultiplier: 1.38,
     sluggerPowerBonusScale: 100,
-    sluggerMaximumPowerBonus: 0.5,
+    sluggerMaximumPowerBonus: 0.4,
     minRate: 0.0005,
     maxRate: 0.6,
   },
