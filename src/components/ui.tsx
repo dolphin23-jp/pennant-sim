@@ -301,3 +301,16 @@ export function NewGameButton({ onStartNewGame }: { onStartNewGame(): void }) {
     </Button>
   );
 }
+
+/**
+ * Pure navigation back to the title screen - doesn't touch save data, so it needs no
+ * confirmation. Lets a player review save slots (switch, export, start fresh) without
+ * committing to anything; the title screen itself offers a way back into this same game.
+ */
+export function BackToTitleButton({ onGoToTitle }: { onGoToTitle(): void }) {
+  return (
+    <Button onClick={onGoToTitle} color="var(--color-surface-muted)" ariaLabel="タイトル画面へ戻る">
+      タイトルへ戻る
+    </Button>
+  );
+}

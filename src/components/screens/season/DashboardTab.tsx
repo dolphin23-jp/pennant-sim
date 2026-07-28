@@ -2,13 +2,19 @@ import { useMemo } from 'react';
 
 import { TINFO } from '../../../data';
 import { bestLineup, deriveTeamForm } from '../../../engine';
+import type { TeamKey } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
 import { useBusyAction } from '../../useBusyAction';
 import { Button, Card, LampFigure, SectionTitle, StatChip, teamTextColor } from '../../ui';
 import { BoxScore } from '../../widgets/BoxScore';
 import { NoticeCenter } from '../../widgets/NoticeCenter';
+import { StandingsTable } from '../../widgets/StandingsTable';
 
-export function DashboardTab() {
+export function DashboardTab({
+  onSelectTeam,
+}: {
+  onSelectTeam?(teamKey: TeamKey): void;
+}) {
   const game = useGameState();
   const { busy, run } = useBusyAction();
   const nextGame = useMemo(
@@ -52,6 +58,14 @@ export function DashboardTab() {
           </div>
         </div>
       </Card>
+
+      <div style={{ marginBottom: 12 }}>
+        <StandingsTable
+          standings={game.standings}
+          schedule={game.season.schedule}
+          onSelectTeam={onSelectTeam}
+        />
+      </div>
 
       <div
         style={{

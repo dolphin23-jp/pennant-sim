@@ -395,6 +395,45 @@ export function calcInterleagueStandings(
   return records;
 }
 
+export interface HeadToHeadRecord {
+  w: number;
+  l: number;
+  d: number;
+}
+
+/** 星取表: each team's win/loss/draw record against every other given team. Symmetric -
+ * `matrix[a][b]` and `matrix[b][a]` are two sides of the same games. */
+export function buildHeadToHeadMatrix(
+  schedule: ScheduleGame[],
+  teamKeys: readonly TeamKey[],
+): Record<TeamKey, Record<TeamKey, HeadToHeadRecord>> {
+  const included = new Set<TeamKey>(teamKeys);
+  const matrix = Object.fromEntries(
+    teamKeys.map((key) => [
+      key,
+      Object.fromEntries(
+        teamKeys.map((opponent) => [opponent, { w: 0, l: 0, d: 0 }]),
+      ) as Record<TeamKey, HeadToHeadRecord>,
+    ]),
+  ) as Record<TeamKey, Record<TeamKey, HeadToHeadRecord>>;
+  for (const game of schedule) {
+    if (!game.played || !included.has(game.homeKey) || !included.has(game.awayKey)) continue;
+    const homeScore = game.hs ?? 0,
+      awayScore = game.as ?? 0;
+    if (homeScore === awayScore) {
+      matrix[game.homeKey][game.awayKey].d += 1;
+      matrix[game.awayKey][game.homeKey].d += 1;
+    } else if (homeScore > awayScore) {
+      matrix[game.homeKey][game.awayKey].w += 1;
+      matrix[game.awayKey][game.homeKey].l += 1;
+    } else {
+      matrix[game.awayKey][game.homeKey].w += 1;
+      matrix[game.homeKey][game.awayKey].l += 1;
+    }
+  }
+  return matrix;
+}
+
 /** Rough calendar offsets for a knockout series' games, with a rest/travel day worked in
  * roughly every third game the way the real Climax Series and Japan Series pace
  * themselves - so postseason games have real dates (and real gaps) instead of resolving

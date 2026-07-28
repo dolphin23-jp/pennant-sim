@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   addDays,
   bestLineup,
+  buildHeadToHeadMatrix,
   calcInterleagueStandings,
   calcStandings,
   configureRandom,
@@ -345,6 +346,40 @@ test('calcInterleagueStandings ranks all 12 clubs together from interleague game
     // Ranking spans both leagues at once rather than being split Central/Pacific.
     const ranks = new Set(Object.values(standings).map((record) => record.rank));
     assert.ok(ranks.has(12), '12球団を通したランキングになっていること');
+  } finally {
+    resetRandom();
+  }
+});
+
+test('buildHeadToHeadMatrix tallies each pair symmetrically and skips unplayed games', () => {
+  configureRandom(mulberry32(21), () => Date.UTC(2026, 0, 1));
+  try {
+    const schedule = generateSchedule(2026);
+    const pairGame = schedule.find((game) => !game.isInterleague);
+    assert.ok(pairGame);
+    const { homeKey, awayKey } = pairGame;
+    const rematch = schedule.find(
+      (game) =>
+        game.id !== pairGame.id &&
+        !game.played &&
+        ((game.homeKey === homeKey && game.awayKey === awayKey) ||
+          (game.homeKey === awayKey && game.awayKey === homeKey)),
+    );
+    assert.ok(rematch, 'このペアの2試合目が見つかること');
+    const played = schedule.map((game) => {
+      if (game.id === pairGame.id) return { ...game, played: true, hs: 5, as: 2 };
+      if (game.id === rematch.id) return { ...game, played: true, hs: 3, as: 3 };
+      return game;
+    });
+    const matrix = buildHeadToHeadMatrix(played, [homeKey, awayKey]);
+    const totalGames =
+      matrix[homeKey]?.[awayKey].w + matrix[homeKey]?.[awayKey].l + matrix[homeKey]?.[awayKey].d;
+    assert.equal(totalGames, 2, '対象2試合だけが集計されていること');
+    // Symmetric: whatever homeKey's record says about awayKey, awayKey's record says the
+    // mirror image about homeKey.
+    assert.equal(matrix[homeKey]?.[awayKey].w, matrix[awayKey]?.[homeKey].l);
+    assert.equal(matrix[homeKey]?.[awayKey].l, matrix[awayKey]?.[homeKey].w);
+    assert.equal(matrix[homeKey]?.[awayKey].d, matrix[awayKey]?.[homeKey].d);
   } finally {
     resetRandom();
   }

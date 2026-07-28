@@ -91,3 +91,34 @@ test('lower ERA ranks first without imposing a record cap', () => {
   assert.equal(ranking[0]?.year, 2027);
   assert.ok((ranking[0]?.value ?? 99) < (ranking[1]?.value ?? 0));
 });
+
+test('rate-stat rankings exclude players who never reached the qualification bar', () => {
+  const flukeYearly: YearlyPlayerRecords = {
+    '2026': [
+      // One at-bat, one hit: a perfect 1.000 average that must not outrank real
+      // qualified hitters, and a lone scoreless inning that must not outrank real ERA
+      // qualifiers either.
+      record('pinch-hitter', 2026, 24, 'giants', batter('代打の神様', 0, 1, 1)),
+      record('mop-up', 2026, 24, 'giants', pitcher('モップアップ', 0, 0, 3)),
+      record('regular', 2026, 25, 'giants', batter('レギュラー', 15, 130, 500)),
+      record('starter', 2026, 26, 'giants', pitcher('先発', 10, 40, 500)),
+    ],
+  };
+  const averageRanking = buildHistoricalRanking(flukeYearly, { scope: 'season', metric: 'average' });
+  assert.ok(
+    !averageRanking.some((entry) => entry.playerId === 'pinch-hitter'),
+    '規定打席未満の代打が打率ランキングに含まれてはいけない',
+  );
+  assert.equal(averageRanking[0]?.playerId, 'regular');
+
+  const eraRanking = buildHistoricalRanking(flukeYearly, { scope: 'season', metric: 'era' });
+  assert.ok(
+    !eraRanking.some((entry) => entry.playerId === 'mop-up'),
+    '規定投球回未満の投手が防御率ランキングに含まれてはいけない',
+  );
+  assert.equal(eraRanking[0]?.playerId, 'starter');
+
+  // Counting stats (e.g. home runs) are never qualification-gated in real record books.
+  const hitsRanking = buildHistoricalRanking(flukeYearly, { scope: 'season', metric: 'hits' });
+  assert.ok(hitsRanking.some((entry) => entry.playerId === 'pinch-hitter'));
+});

@@ -1,6 +1,7 @@
 import { TINFO } from '../data';
 import { calcOVR } from '../engine';
 import type {
+  AchievementEvent,
   GameBoxScore,
   InSeasonAwakeningEvent,
   Player,
@@ -195,6 +196,40 @@ export function createOffseasonDevelopmentNotices(
     }));
 
   return [...awakeningNotices, ...growthNotices];
+}
+
+function achievementTitle(event: AchievementEvent): string {
+  const team = TINFO[event.teamKey].ab;
+  if (event.kind === 'milestone') {
+    return `【メモリアル達成】${team} ${event.playerName} ${event.metricLabel}${event.value}到達`;
+  }
+  if (event.kind === 'seasonRecord') {
+    return `【今季新記録】${team} ${event.playerName} が${event.metricLabel}で${event.value}に到達`;
+  }
+  return `【球団史上最多】${team} ${event.playerName} が通算${event.metricLabel}で${event.value}に到達`;
+}
+
+function achievementBody(event: AchievementEvent): string {
+  if (event.kind === 'milestone') {
+    return `${event.metricLabel}が${event.value}に到達しました。`;
+  }
+  if (!event.previousHolderName || event.previousValue == null) {
+    return `現在チームが把握している中で最多の${event.metricLabel}です。`;
+  }
+  return `これまでの最多は${event.previousHolderName}の${event.previousValue}。これを更新しました。`;
+}
+
+export function createAchievementNotices(events: AchievementEvent[]): Notice[] {
+  return events.map((event) => ({
+    id: noticeId(['achievement', event.id]),
+    kind: 'achievement',
+    title: achievementTitle(event),
+    body: achievementBody(event),
+    tone: 'good',
+    date: event.date,
+    playerId: event.playerId,
+    teamKey: event.teamKey,
+  }));
 }
 
 export function createGameResultNotice(box: GameBoxScore, playerTeam: TeamKey): Notice | null {

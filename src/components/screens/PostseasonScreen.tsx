@@ -13,7 +13,15 @@ import type {
 import { useGameState } from '../../state/gameState';
 import { useBusyAction } from '../useBusyAction';
 import { TitleIcon } from '../icons';
-import { Button, Card, NewGameButton, PageShell, SectionTitle, teamTextColor } from '../ui';
+import {
+  BackToTitleButton,
+  Button,
+  Card,
+  NewGameButton,
+  PageShell,
+  SectionTitle,
+  teamTextColor,
+} from '../ui';
 
 interface SeriesGame {
   game: number;
@@ -561,9 +569,21 @@ export function PostseasonScreen() {
               )}
             </>
           ) : (
-            <Button onClick={() => game.setScreen('offseason')}>オフシーズンへ</Button>
+            <Button
+              onClick={() => {
+                const runnerUp =
+                  results.japanSeries.winner === results.japanSeries.first
+                    ? results.japanSeries.second
+                    : results.japanSeries.first;
+                game.recordChampionship(results.japanSeries.winner, runnerUp);
+                game.setScreen('offseason');
+              }}
+            >
+              オフシーズンへ
+            </Button>
           )}
           <NewGameButton onStartNewGame={game.startNewGame} />
+          <BackToTitleButton onGoToTitle={() => game.setScreen('welcome')} />
         </div>
       </header>
 

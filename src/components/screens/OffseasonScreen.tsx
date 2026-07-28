@@ -19,7 +19,15 @@ import { useGameState } from '../../state/gameState';
 import { createOffseasonDevelopmentNotices } from '../../state/notices';
 import type { Notice } from '../../state/storage';
 import { applyTrade, generateTradeOffers } from '../../state/offseason';
-import { Button, Card, EmptyState, NewGameButton, PageShell, SectionTitle } from '../ui';
+import {
+  BackToTitleButton,
+  Button,
+  Card,
+  EmptyState,
+  NewGameButton,
+  PageShell,
+  SectionTitle,
+} from '../ui';
 import { DraftScreen } from './DraftScreen';
 import { MarketScreen } from './MarketScreen';
 import { TradeScreen } from './TradeScreen';
@@ -266,6 +274,7 @@ function OffseasonContent({
         >
           <h1 style={{ margin: 0 }}>{game.season.year}年オフシーズン</h1>
           <NewGameButton onStartNewGame={game.startNewGame} />
+          <BackToTitleButton onGoToTitle={() => game.setScreen('welcome')} />
         </div>
         <OffseasonStepper phase={phase} />
       </header>

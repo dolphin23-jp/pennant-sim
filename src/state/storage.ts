@@ -8,6 +8,7 @@ import {
 } from '../engine';
 import type {
   AccumulatedStats,
+  AchievementEvent,
   GameBoxScore,
   GameSummary,
   Player,
@@ -17,6 +18,7 @@ import type {
   StandingRecord,
   TeamKey,
   Teams,
+  TeamStatLine,
   YearlyPlayerRecords,
 } from '../engine';
 
@@ -37,10 +39,17 @@ export interface Notice {
   body: string;
   tone?: 'good' | 'warn' | 'info';
   date?: string;
-  kind?: 'system' | 'awakening' | 'growth' | 'game';
+  kind?: 'system' | 'awakening' | 'growth' | 'game' | 'achievement';
   playerId?: string;
   teamKey?: TeamKey;
   gameId?: string;
+}
+
+export interface ChampionLineupEntry {
+  playerId: string;
+  playerName: string;
+  pos: string;
+  isPitcher: boolean;
 }
 
 export interface ChampionRecord {
@@ -49,6 +58,12 @@ export interface ChampionRecord {
   runnerUp?: TeamKey | null;
   keyBatters?: string[];
   keyPitchers?: string[];
+  /** The champion's starting lineup at the moment of winning, for the archive viewer. */
+  lineup?: ChampionLineupEntry[];
+  /** The champion's season batting/pitching aggregate, frozen at the moment of winning. */
+  teamStats?: TeamStatLine;
+  /** The champion's regular-season record, frozen at the moment of winning. */
+  record?: { w: number; l: number; d: number };
 }
 
 export interface PitcherPlan {
@@ -79,6 +94,7 @@ export interface GameSaveData {
   notices: Notice[];
   championHistory: ChampionRecord[];
   awardHistory: SeasonTitleRecord[];
+  achievementHistory: AchievementEvent[];
   gameSummaries?: Record<string, GameSummary>;
   gameBoxScores?: Record<string, GameBoxScore>;
   ts?: number;
@@ -365,7 +381,8 @@ function migrateNotices(value: unknown): Notice[] {
       raw.kind === 'system' ||
       raw.kind === 'awakening' ||
       raw.kind === 'growth' ||
-      raw.kind === 'game'
+      raw.kind === 'game' ||
+      raw.kind === 'achievement'
         ? raw.kind
         : 'system';
     const teamKey =
@@ -480,6 +497,49 @@ function migratePlayerArray(value: unknown): Player[] {
   return value.filter(isValidPlayerShape);
 }
 
+function migrateChampionLineup(value: unknown): ChampionLineupEntry[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const entries = value.flatMap((candidate) => {
+    if (!candidate || typeof candidate !== 'object') return [];
+    const raw = candidate as Partial<ChampionLineupEntry>;
+    if (
+      typeof raw.playerId !== 'string' ||
+      typeof raw.playerName !== 'string' ||
+      typeof raw.pos !== 'string' ||
+      typeof raw.isPitcher !== 'boolean'
+    )
+      return [];
+    return [
+      { playerId: raw.playerId, playerName: raw.playerName, pos: raw.pos, isPitcher: raw.isPitcher },
+    ];
+  });
+  return entries.length ? entries : undefined;
+}
+
+function migrateTeamStatLine(value: unknown): TeamStatLine | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Partial<TeamStatLine>;
+  if (
+    typeof raw.avg !== 'number' ||
+    typeof raw.hr !== 'number' ||
+    typeof raw.sb !== 'number' ||
+    typeof raw.era !== 'number' ||
+    typeof raw.k !== 'number'
+  )
+    return undefined;
+  return { avg: raw.avg, hr: raw.hr, sb: raw.sb, era: raw.era, k: raw.k };
+}
+
+function migrateChampionRecordSeries(
+  value: unknown,
+): { w: number; l: number; d: number } | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Partial<{ w: number; l: number; d: number }>;
+  if (typeof raw.w !== 'number' || typeof raw.l !== 'number' || typeof raw.d !== 'number')
+    return undefined;
+  return { w: raw.w, l: raw.l, d: raw.d };
+}
+
 function migrateChampionHistory(value: unknown): ChampionRecord[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((candidate) => {
@@ -498,6 +558,45 @@ function migrateChampionHistory(value: unknown): ChampionRecord[] {
         keyPitchers: Array.isArray(raw.keyPitchers)
           ? raw.keyPitchers.filter((entry): entry is string => typeof entry === 'string')
           : undefined,
+        lineup: migrateChampionLineup(raw.lineup),
+        teamStats: migrateTeamStatLine(raw.teamStats),
+        record: migrateChampionRecordSeries(raw.record),
+      },
+    ];
+  });
+}
+
+function migrateAchievementHistory(value: unknown): AchievementEvent[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((candidate) => {
+    if (!candidate || typeof candidate !== 'object') return [];
+    const raw = candidate as Partial<AchievementEvent>;
+    if (
+      typeof raw.id !== 'string' ||
+      (raw.kind !== 'milestone' && raw.kind !== 'seasonRecord' && raw.kind !== 'careerRecord') ||
+      typeof raw.playerId !== 'string' ||
+      typeof raw.playerName !== 'string' ||
+      !isValidTeamKey(raw.teamKey) ||
+      typeof raw.metricLabel !== 'string' ||
+      typeof raw.value !== 'number' ||
+      typeof raw.year !== 'number' ||
+      typeof raw.date !== 'string'
+    )
+      return [];
+    return [
+      {
+        id: raw.id,
+        kind: raw.kind,
+        playerId: raw.playerId,
+        playerName: raw.playerName,
+        teamKey: raw.teamKey,
+        metricLabel: raw.metricLabel,
+        value: raw.value,
+        previousValue: typeof raw.previousValue === 'number' ? raw.previousValue : null,
+        previousHolderName:
+          typeof raw.previousHolderName === 'string' ? raw.previousHolderName : null,
+        year: raw.year,
+        date: raw.date,
       },
     ];
   });
@@ -570,6 +669,7 @@ export function migrateSaveData(raw: unknown): GameSaveData | null {
     notices: migrateNotices(legacy.notices),
     championHistory: migrateChampionHistory(legacy.championHistory),
     awardHistory: migrateAwardHistory(legacy.awardHistory),
+    achievementHistory: migrateAchievementHistory(legacy.achievementHistory),
     gameSummaries: migrateGameSummaries(legacy.gameSummaries),
     gameBoxScores: migrateGameBoxScores(legacy.gameBoxScores),
     ts: legacy.ts,

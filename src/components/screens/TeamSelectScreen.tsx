@@ -1,7 +1,7 @@
 import { CENTRAL, PACIFIC, TINFO } from '../../data';
 import type { TeamKey } from '../../engine';
 import { useGameState } from '../../state/gameState';
-import { Button, Card, PageShell, SectionTitle, teamTextColor } from '../ui';
+import { BackToTitleButton, Button, Card, PageShell, SectionTitle, teamTextColor } from '../ui';
 
 const STRENGTH_MIN = 55;
 const STRENGTH_MAX = 85;
@@ -89,9 +89,21 @@ function LeagueChoices({ title, teams }: { title: string; teams: readonly TeamKe
 }
 
 export function TeamSelectScreen() {
+  const game = useGameState();
   return (
     <PageShell ariaLabel="球団選択画面">
-      <h1 style={{ marginTop: 0 }}>球団選択</h1>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 12,
+          flexWrap: 'wrap',
+        }}
+      >
+        <h1 style={{ marginTop: 0 }}>球団選択</h1>
+        <BackToTitleButton onGoToTitle={() => game.setScreen('welcome')} />
+      </div>
       <p style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>
         選択した球団で新しいペナントレースが始まります。全球団の選手・日程が自動生成されます。
       </p>

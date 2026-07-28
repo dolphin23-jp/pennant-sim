@@ -16,11 +16,26 @@ import { Button } from '../ui';
 export function SaveSlotControls({
   beforeExport,
   warnBeforeSwitch = false,
+  deferLoad = false,
+  onSlotChange,
 }: {
   beforeExport?: () => Promise<boolean>;
   warnBeforeSwitch?: boolean;
+  /**
+   * When true, picking a slot in the dropdown only targets it for the other actions
+   * (JSON export/import, and the caller's own load/new-game buttons) - it does NOT
+   * immediately reload into that slot's save. Without this, merely browsing slots on
+   * the title screen silently resumed whatever game was saved there, so there was never
+   * a chance to press "start new" before the old save had already loaded. Renders an
+   * explicit "続きから読み込む" button instead.
+   */
+  deferLoad?: boolean;
+  /** Fires whenever the targeted slot changes, so a parent (e.g. the title screen's
+   * "start new game" button) knows which slot to act on. */
+  onSlotChange?(slot: SaveSlot): void;
 }) {
   const [activeSlot, setActiveSlot] = useState<SaveSlot>(1);
+  const [selectedSlot, setSelectedSlot] = useState<SaveSlot>(1);
   const [summaries, setSummaries] = useState<SaveSlotSummary[]>([]);
   const [status, setStatus] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
@@ -30,24 +45,42 @@ export function SaveSlotControls({
     void Promise.all([getActiveSaveSlot(), listSaveSlots()]).then(([slot, slots]) => {
       if (!active) return;
       setActiveSlot(slot);
+      setSelectedSlot(slot);
+      onSlotChange?.(slot);
       setSummaries(slots);
     });
     return () => {
       active = false;
     };
+    // Only run once on mount - `onSlotChange` is a fresh closure each render and
+    // including it would re-fire this effect (and the callback) on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const refresh = async () => setSummaries(await listSaveSlots());
+  const selectedSummary = summaries.find((summary) => summary.slot === selectedSlot);
 
   const handleSlotChange = async (slot: SaveSlot) => {
-    if (
-      warnBeforeSwitch &&
-      slot !== activeSlot &&
-      !window.confirm('未保存の変更は失われます。別のセーブスロットへ切り替えますか？')
-    )
+    if (!deferLoad) {
+      if (
+        warnBeforeSwitch &&
+        slot !== activeSlot &&
+        !window.confirm('未保存の変更は失われます。別のセーブスロットへ切り替えますか？')
+      )
+        return;
+      await setActiveSaveSlot(slot);
+      setActiveSlot(slot);
+      setSelectedSlot(slot);
+      onSlotChange?.(slot);
+      window.location.reload();
       return;
-    await setActiveSaveSlot(slot);
-    setActiveSlot(slot);
+    }
+    setSelectedSlot(slot);
+    onSlotChange?.(slot);
+  };
+
+  const handleLoadSelected = async () => {
+    await setActiveSaveSlot(selectedSlot);
     window.location.reload();
   };
 
@@ -56,22 +89,24 @@ export function SaveSlotControls({
       setStatus('保存に失敗したため出力を中止しました');
       return;
     }
-    const success = await downloadSaveSlot(activeSlot);
-    setStatus(success ? `スロット${activeSlot}を出力しました` : '出力できるセーブがありません');
+    const success = await downloadSaveSlot(selectedSlot);
+    setStatus(success ? `スロット${selectedSlot}を出力しました` : '出力できるセーブがありません');
     await refresh();
   };
 
   const handleImport = async (file: File | undefined) => {
     if (!file) return;
-    const current = summaries.find((summary) => summary.slot === activeSlot);
     if (
-      current?.exists &&
-      !window.confirm(`スロット${activeSlot}のセーブをアップロード内容で上書きしますか？`)
+      selectedSummary?.exists &&
+      !window.confirm(`スロット${selectedSlot}のセーブをアップロード内容で上書きしますか？`)
     )
       return;
-    const success = await importSaveFileToSlot(file, activeSlot);
-    setStatus(success ? `スロット${activeSlot}へ読み込みました` : 'JSONを読み込めませんでした');
-    if (success) window.location.reload();
+    const success = await importSaveFileToSlot(file, selectedSlot);
+    setStatus(success ? `スロット${selectedSlot}へ読み込みました` : 'JSONを読み込めませんでした');
+    if (success) {
+      await setActiveSaveSlot(selectedSlot);
+      window.location.reload();
+    }
   };
 
   return (
@@ -83,7 +118,7 @@ export function SaveSlotControls({
         セーブ枠
         <select
           aria-label="使用するセーブスロット"
-          value={activeSlot}
+          value={selectedSlot}
           onChange={(event) => void handleSlotChange(Number(event.target.value) as SaveSlot)}
           style={{
             marginLeft: 6,
@@ -100,23 +135,34 @@ export function SaveSlotControls({
             return (
               <option key={slot} value={slot}>
                 スロット{slot} — {summary?.exists ? `${team ?? '未選択'} ${summary.year ?? '-'}年` : '空き'}
+                {slot === activeSlot ? '（読込中）' : ''}
               </option>
             );
           })}
         </select>
       </label>
+      {deferLoad && (
+        <Button
+          onClick={() => void handleLoadSelected()}
+          disabled={!selectedSummary?.exists}
+          color="var(--color-surface-muted)"
+          ariaLabel={`スロット${selectedSlot}のセーブを読み込んで続きから再開`}
+        >
+          続きから読み込む
+        </Button>
+      )}
       <Button
         onClick={() => void handleExport()}
-        disabled={!summaries.find((summary) => summary.slot === activeSlot)?.exists && !beforeExport}
+        disabled={!selectedSummary?.exists && !beforeExport}
         color="var(--color-surface-muted)"
-        ariaLabel={`スロット${activeSlot}をJSONファイルとして出力`}
+        ariaLabel={`スロット${selectedSlot}をJSONファイルとして出力`}
       >
         JSON出力
       </Button>
       <Button
         onClick={() => fileInput.current?.click()}
         color="var(--color-surface-muted)"
-        ariaLabel={`JSONファイルをスロット${activeSlot}へ読み込む`}
+        ariaLabel={`JSONファイルをスロット${selectedSlot}へ読み込む`}
       >
         JSON読込
       </Button>
