@@ -1,13 +1,14 @@
 import type { Player } from '../../engine';
-import { IconMedicalCross, IconSparkle, IconTrendDown, IconTrendUp } from '../icons';
+import { IconMedicalCross, IconSparkle, IconTarget, IconTrendDown, IconTrendUp } from '../icons';
 
-type StatusTone = 'good' | 'slump' | 'injury' | 'growth';
+type StatusTone = 'good' | 'slump' | 'injury' | 'growth' | 'convert';
 
 const TONE_ICONS: Record<StatusTone, typeof IconTrendUp> = {
   good: IconTrendUp,
   slump: IconTrendDown,
   injury: IconMedicalCross,
   growth: IconSparkle,
+  convert: IconTarget,
 };
 interface PlayerStatus {
   tone: StatusTone;
@@ -58,6 +59,15 @@ export function getPlayerStatuses(player: Player): PlayerStatus[] {
     (latestGrowth?.delta ?? 0) >= 3;
   if (growing) {
     statuses.push({ tone: 'growth', label: '成長中', detail: '最近大きな能力上昇あり' });
+  }
+
+  if (player.conversionTarget) {
+    const apt = player.positions?.find((entry) => entry.pos === player.conversionTarget?.pos)?.apt;
+    statuses.push({
+      tone: 'convert',
+      label: 'コンバート中',
+      detail: `${player.conversionTarget.pos}への守備適性訓練中${apt === undefined ? '' : `（適性${apt}%）`}`,
+    });
   }
   return statuses;
 }

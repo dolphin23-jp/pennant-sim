@@ -1,10 +1,18 @@
-import { BS, GROW_P, MATURITY_PEAK_AGE, PLAYER_DEVELOPMENT_BALANCE, PS } from '../data';
+import {
+  BS,
+  GROW_P,
+  MATURITY_PEAK_AGE,
+  PLAYER_DEVELOPMENT_BALANCE,
+  POSITION_CONVERSION_BALANCE,
+  PS,
+} from '../data';
 import { calcOVR } from './ratings';
 import { clamp, random, randomChoice, randomInt } from './random';
 import { ensureSpecialLevels, syncSpecialsFromLevels } from './specials';
 import type {
   AwakeningEvent,
   AwakeningResult,
+  FieldPosition,
   Maturity,
   Player,
   PlayerParams,
@@ -165,6 +173,59 @@ export function growPlayer(player: Player): Player {
   ];
   return updatedPlayer;
 }
+
+/** Point a batter at an unfamiliar position, starting from a low, deliberately shaky
+ * aptitude. Does nothing to their listed primary position (`pos`) or existing aptitudes -
+ * this only opens a new one and marks it for gradual yearly practice. */
+export function startPositionConversion(player: Player, pos: FieldPosition): Player {
+  const balance = POSITION_CONVERSION_BALANCE.startingAptitude,
+    positions = player.positions ?? [],
+    existing = positions.find((entry) => entry.pos === pos),
+    startingAptitude = existing
+      ? existing.apt
+      : randomInt(balance.minimum, balance.maximum),
+    nextPositions = existing
+      ? positions
+      : [...positions, { pos, apt: startingAptitude }];
+  return { ...player, positions: nextPositions, conversionTarget: { pos, startedAge: player.age } };
+}
+
+export function cancelPositionConversion(player: Player): Player {
+  if (!player.conversionTarget) return player;
+  return { ...player, conversionTarget: undefined };
+}
+
+function conversionAgeFactor(age: number): number {
+  const { ageFactor, ageThresholds } = POSITION_CONVERSION_BALANCE;
+  if (age <= ageThresholds.young) return ageFactor.young;
+  if (age <= ageThresholds.prime) return ageFactor.prime;
+  if (age <= ageThresholds.veteran) return ageFactor.veteran;
+  return ageFactor.late;
+}
+
+/** One offseason's worth of conversion practice. Aptitude climbs toward the practice
+ * ceiling and the target clears itself once reached, so a converted player settles into
+ * an ordinary secondary position going forward. */
+export function advancePositionConversion(player: Player): Player {
+  const target = player.conversionTarget;
+  if (!target) return player;
+  const balance = POSITION_CONVERSION_BALANCE,
+    positions = player.positions ?? [],
+    current = positions.find((entry) => entry.pos === target.pos)?.apt ?? 0;
+  if (current >= balance.ceiling) return { ...player, conversionTarget: undefined };
+  const gain = randomInt(balance.annualGain.minimum, balance.annualGain.maximum) *
+      conversionAgeFactor(player.age),
+    nextAptitude = Math.round(clamp(current + gain, 0, balance.ceiling)),
+    nextPositions = positions.some((entry) => entry.pos === target.pos)
+      ? positions.map((entry) => (entry.pos === target.pos ? { ...entry, apt: nextAptitude } : entry))
+      : [...positions, { pos: target.pos, apt: nextAptitude }];
+  return {
+    ...player,
+    positions: nextPositions,
+    conversionTarget: nextAptitude >= balance.ceiling ? undefined : target,
+  };
+}
+
 function awakeningPotentialGap(player: Player): number {
   const parameterNames = growthParameters(player);
   return Math.max(
@@ -277,7 +338,7 @@ export function growthPhase(teams: Teams): {
       return grown;
     });
     team.fielders = team.fielders.map((fielder) => {
-      const grown = growPlayer(fielder);
+      const grown = advancePositionConversion(growPlayer(fielder));
       grown.seasonAwakenDone = false;
       const awakening = checkAwakening(grown, false);
       if (awakening) {

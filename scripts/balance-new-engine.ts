@@ -164,6 +164,7 @@ function finalizeSeason(accumulatedStats: AccumulatedStats, games: number) {
     pitchingOuts = sumStats(pitching, 'ip3'),
     homeRunLeader = Math.max(0, ...batting.map((line) => line.hr)),
     runsBattedInLeader = Math.max(0, ...batting.map((line) => line.rbi)),
+    stolenBaseLeader = Math.max(0, ...batting.map((line) => line.sb)),
     errors = sumStats(batting, 'e'),
     runsAllowed = sumStats(pitching, 'r'),
     // Rate titles are only open to players who reached the qualifying thresholds, so the
@@ -186,6 +187,7 @@ function finalizeSeason(accumulatedStats: AccumulatedStats, games: number) {
     runsBattedIn120Plus: batting.filter((line) => line.rbi >= 120).length,
     stolenBaseSuccessRate: safeRatio(stolenBases, stolenBases + caughtStealing),
     stolenBaseAttemptsPerTeamGame: safeRatio(stolenBases + caughtStealing, games * 2),
+    stolenBaseLeader,
     walkRate: safeRatio(walks, plateAppearances),
     battingAverage300PlusCount: qualifiedBatters.filter((line) => line.h / line.ab >= 0.3).length,
     era200MinusCount: qualifiedPitchers.filter((line) => (line.er * 27) / line.ip3 < 2).length,
@@ -289,6 +291,7 @@ async function main(): Promise<void> {
         summarize(seasonStats.map((stats) => stats.stolenBaseAttemptsPerTeamGame)),
         6,
       ),
+      stolenBaseLeader: roundSummary(summarize(seasonStats.map((stats) => stats.stolenBaseLeader)), 3),
       walkRate: roundSummary(summarize(seasonStats.map((stats) => stats.walkRate)), 6),
       batterOvrStandardDeviation: roundSummary(
         summarize(seasonStats.map((stats) => stats.batterOvrStandardDeviation)),

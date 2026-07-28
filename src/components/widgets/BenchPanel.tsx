@@ -1,15 +1,18 @@
 import { displayOVRBreakdown } from '../../engine';
-import type { Player } from '../../engine';
+import type { AccumulatedStats, Player } from '../../engine';
 import { Card, EmptyState, SectionTitle } from '../ui';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
+import { BatterStatLine } from './StatLine';
 
 export function BenchPanel({
   players,
+  accumulated,
   armedPlayerId,
   onToggleArm,
   onSelectPlayer,
 }: {
   players: Player[];
+  accumulated: AccumulatedStats;
   armedPlayerId: string | null;
   onToggleArm(player: Player): void;
   onSelectPlayer(player: Player): void;
@@ -62,6 +65,9 @@ export function BenchPanel({
                   </button>
                   <div style={{ marginTop: 3, color: 'var(--color-text-muted)', fontSize: 10 }}>
                     {player.pos ?? '-'} / {breakdown.base} → <strong>{breakdown.total}</strong>
+                  </div>
+                  <div style={{ marginTop: 2, color: 'var(--color-text-muted)', fontSize: 10 }}>
+                    <BatterStatLine player={player} accumulated={accumulated} />
                   </div>
                   <div style={{ marginTop: 3 }}>
                     <PlayerStatusBadges player={player} compact />

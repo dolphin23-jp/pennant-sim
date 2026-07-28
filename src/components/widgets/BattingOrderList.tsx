@@ -1,10 +1,13 @@
 import { useCallback } from 'react';
 
-import type { Player } from '../../engine';
+import { aptitudeFor, displayOVRBreakdown } from '../../engine';
+import type { AccumulatedStats, Player } from '../../engine';
 import { Card, EmptyState, SectionTitle } from '../ui';
+import { aptitudeToneColor } from './aptitudeDisplay';
 import type { LineupAssignments, LineupSlot } from './FieldDiagram';
 import { LINEUP_SLOT_ORDER } from './FieldDiagram';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
+import { BatterStatLine } from './StatLine';
 import { usePointerDrag } from './usePointerDrag';
 
 function slotForPlayer(assignments: LineupAssignments, playerId: string): LineupSlot | null {
@@ -14,12 +17,14 @@ function slotForPlayer(assignments: LineupAssignments, playerId: string): Lineup
 export function BattingOrderList({
   players,
   assignments,
+  accumulated,
   onMove,
   onReorder,
   onSelectPlayer,
 }: {
   players: Player[];
   assignments: LineupAssignments;
+  accumulated: AccumulatedStats;
   onMove(index: number, direction: -1 | 1): void;
   onReorder(activeId: string, overId: string): void;
   onSelectPlayer(player: Player): void;
@@ -127,8 +132,23 @@ export function BattingOrderList({
                     {player.name}
                   </button>
                   <div style={{ marginTop: 3, color: 'var(--color-text-muted)', fontSize: 11 }}>
-                    {slot === 'extra' ? '追加打者' : (slot ?? '未配置')} / {player.hand.bat ?? '-'}
-                    打
+                    <span
+                      style={{
+                        color:
+                          slot && slot !== 'extra'
+                            ? (aptitudeToneColor(aptitudeFor(player, slot)) ?? undefined)
+                            : undefined,
+                      }}
+                    >
+                      {slot === 'extra' ? '追加打者' : (slot ?? '未配置')}
+                    </span>{' '}
+                    / {player.hand.bat ?? '-'}打 / OVR{' '}
+                    <strong style={{ color: 'var(--color-text)' }}>
+                      {displayOVRBreakdown(player, slot === 'extra' ? undefined : (slot ?? undefined)).total}
+                    </strong>
+                  </div>
+                  <div style={{ marginTop: 2, color: 'var(--color-text-muted)', fontSize: 11 }}>
+                    <BatterStatLine player={player} accumulated={accumulated} />
                   </div>
                   <div style={{ marginTop: 3 }}>
                     <PlayerStatusBadges player={player} compact />

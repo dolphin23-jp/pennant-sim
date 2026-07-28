@@ -4,6 +4,8 @@ import {
   sacrificeBuntSuccessRate,
   stealAttemptRate,
   stealSuccessRate,
+  stealThirdAttemptRate,
+  stealThirdSuccessRate,
   strategicBestLineup,
   strategicPitcherOrder,
   strategicPitcherPlan,
@@ -357,6 +359,95 @@ export function simHalf(
               result: 'CS',
               rbi: 0,
               desc: `${runnerPlayer.name}、盗塁失敗`,
+              snap: snapshot,
+            });
+            if (outs >= 3) break;
+          }
+        }
+      }
+    } else if (!bases[0] && bases[1] && !bases[2] && outs < 2) {
+      const runner = bases[1],
+        runnerPlayer = typeof runner === 'object' ? runner : undefined;
+      if (runnerPlayer) {
+        const liveScore = {
+            home: gameState.score.home + (battingSide === 'home' ? runs : 0),
+            away: gameState.score.away + (battingSide === 'away' ? runs : 0),
+          },
+          scoreDifference =
+            battingSide === 'home'
+              ? liveScore.home - liveScore.away
+              : liveScore.away - liveScore.home,
+          attemptRate = stealThirdAttemptRate(runnerPlayer, catcher, pitcher, battingStrategy, {
+            inning: inning + 1,
+            outs,
+            scoreDifference,
+          }),
+          attempted = random() < attemptRate,
+          decision: ManagementDecision = {
+            teamKey: teamKeyForSide(gameState, battingSide),
+            inning: inning + 1,
+            type: 'steal' as const,
+            playerId: runnerPlayer.id,
+            playerName: runnerPlayer.name,
+            attempted,
+            probability: attemptRate,
+            scoreDifference,
+            outs,
+            bases: [Boolean(bases[0]), Boolean(bases[1]), Boolean(bases[2])] as [
+              boolean,
+              boolean,
+              boolean,
+            ],
+            reason:
+              scoreDifference <= -2
+                ? '複数点を追うため企図を抑制'
+                : inning >= 7 && Math.abs(scoreDifference) <= 1
+                  ? '終盤接戦で三塁を狙う'
+                  : '走力・相手バッテリー・球団方針から三塁を判断',
+            runsAtDecision: runs,
+          };
+        gameState.managementLog?.push(decision);
+        if (attempted) {
+          const successRate = stealThirdSuccessRate(runnerPlayer, catcher, pitcher),
+            snapshot = {
+              home: gameState.score.home + (battingSide === 'home' ? runs : 0),
+              away: gameState.score.away + (battingSide === 'away' ? runs : 0),
+            };
+          if (random() < successRate) {
+            decision.success = true;
+            bases = [bases[0], false, runnerPlayer];
+            atBats.push({
+              inning: inning + 1,
+              isBot: battingSide === 'home',
+              batter: runnerPlayer.name,
+              batterId: runnerPlayer.id,
+              bSide: teamKeyForSide(gameState, battingSide),
+              pitcher: pitcher.name,
+              pitcherId: pitcher.id,
+              pSide: teamKeyForSide(gameState, fieldingSide),
+              result: 'SB',
+              rbi: 0,
+              desc: `${runnerPlayer.name}、盗塁成功（三塁）`,
+              snap: snapshot,
+            });
+          } else {
+            decision.success = false;
+            bases = [bases[0], false, bases[2]];
+            outs += 1;
+            const stealAppearance = openAppearanceFor(gameState, pitcher.id);
+            if (stealAppearance) stealAppearance.outsRecorded += 1;
+            atBats.push({
+              inning: inning + 1,
+              isBot: battingSide === 'home',
+              batter: runnerPlayer.name,
+              batterId: runnerPlayer.id,
+              bSide: teamKeyForSide(gameState, battingSide),
+              pitcher: pitcher.name,
+              pitcherId: pitcher.id,
+              pSide: teamKeyForSide(gameState, fieldingSide),
+              result: 'CS',
+              rbi: 0,
+              desc: `${runnerPlayer.name}、盗塁失敗（三塁）`,
               snap: snapshot,
             });
             if (outs >= 3) break;

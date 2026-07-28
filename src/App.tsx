@@ -3,7 +3,7 @@ import { PostseasonScreen } from './components/screens/PostseasonScreen';
 import { SeasonScreen } from './components/screens/SeasonScreen';
 import { TeamSelectScreen } from './components/screens/TeamSelectScreen';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { Button, Card, PageShell, ThemeToggle } from './components/ui';
+import { Button, Card, DebugModeToggle, PageShell, ThemeToggle } from './components/ui';
 import { GameDetailModal } from './components/widgets/GameDetailModal';
 import { PlayerDetailModal } from './components/widgets/PlayerDetailModal';
 import { SaveSlotControls } from './components/widgets/SaveSlotControls';
@@ -120,6 +120,7 @@ function GameRouter() {
   return (
     <>
       <ThemeToggle />
+      <DebugModeToggle enabled={game.debugMode} onToggle={game.toggleDebugMode} />
       {screen}
       <PlayerDetailModal
         player={game.selectedPlayer}
@@ -130,6 +131,9 @@ function GameRouter() {
         roster={modalRoster}
         onSelect={game.selectPlayer}
         onClose={() => game.selectPlayer(null)}
+        debugMode={game.debugMode}
+        onUpdatePlayer={game.updatePlayer}
+        isOwnTeam={isPlayerTeam}
       />
       <GameDetailModal
         box={selectedGameBox}

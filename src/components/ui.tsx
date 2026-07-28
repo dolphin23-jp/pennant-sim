@@ -286,3 +286,30 @@ export function ThemeToggle() {
     </button>
   );
 }
+
+/**
+ * Dev/QA-only switch: while on, player detail screens gain an editable "編集" tab so
+ * parameters, growth type, specials and position aptitude can be adjusted directly for
+ * testing. Never affects simulation results by itself - it only unlocks the editor UI.
+ */
+export function DebugModeToggle({
+  enabled,
+  onToggle,
+}: {
+  enabled: boolean;
+  onToggle(): void;
+}) {
+  return (
+    <button
+      type="button"
+      className="theme-toggle debug-mode-toggle"
+      onClick={onToggle}
+      aria-pressed={enabled}
+      aria-label={enabled ? 'デバッグモードを無効にする' : 'デバッグモードを有効にする'}
+      title="選手エディット機能（デバッグ用）の表示切替"
+    >
+      <span aria-hidden="true">{enabled ? '🛠' : '🔧'}</span>
+      <span>デバッグ{enabled ? 'ON' : 'OFF'}</span>
+    </button>
+  );
+}

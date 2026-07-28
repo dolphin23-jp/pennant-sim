@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { bestLineup, calcOVR, effectiveOVR } from '../../../engine';
-import type { FieldPosition, Player, Team } from '../../../engine';
+import type { AccumulatedStats, FieldPosition, Player, Team } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
 import { Button, Card, SectionTitle } from '../../ui';
 import { BattingOrderList } from '../../widgets/BattingOrderList';
@@ -132,12 +132,14 @@ function lineupFromEditor(editor: EditorState): Player[] {
 function LineupEditor({
   team,
   lineup,
+  accumulated,
   onCommit,
   onSelectPlayer,
   onDirtyChange,
 }: {
   team: Team;
   lineup: Player[];
+  accumulated: AccumulatedStats;
   onCommit(lineup: Player[]): void;
   onSelectPlayer(player: Player): void;
   onDirtyChange(dirty: boolean): void;
@@ -372,6 +374,7 @@ function LineupEditor({
         <BattingOrderList
           players={battingOrder}
           assignments={editor.assignments}
+          accumulated={accumulated}
           onMove={moveBatter}
           onReorder={reorderBatters}
           onSelectPlayer={onSelectPlayer}
@@ -380,6 +383,7 @@ function LineupEditor({
 
       <BenchPanel
         players={benchPlayers}
+        accumulated={accumulated}
         armedPlayerId={armedBenchId}
         onToggleArm={toggleArmBench}
         onSelectPlayer={onSelectPlayer}
@@ -405,6 +409,7 @@ export function LineupTab({ onDirtyChange }: { onDirtyChange(dirty: boolean): vo
     <LineupEditor
       team={game.teams[game.playerTeam]}
       lineup={game.lineup}
+      accumulated={game.accumulated}
       onCommit={game.setLineup}
       onSelectPlayer={game.selectPlayer}
       onDirtyChange={onDirtyChange}

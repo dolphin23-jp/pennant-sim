@@ -88,6 +88,7 @@ interface RuntimeState {
 
 interface GameContextValue extends RuntimeState {
   isSeasonOver: boolean;
+  debugMode: boolean;
   startNewGame(): void;
   chooseTeam(teamKey: TeamKey): void;
   simulateNextGame(): void;
@@ -102,8 +103,14 @@ interface GameContextValue extends RuntimeState {
   dismissNotice(noticeId: string): void;
   clearNotices(): void;
   replaceTeams(teams: Teams): void;
+  /** Debug-only: overwrite one player wherever they sit in `teams`, keeping the currently
+   * selected player in sync so an open detail modal reflects the edit immediately. */
+  updatePlayer(player: Player): void;
+  toggleDebugMode(): void;
   completeOffseason(teams: Teams, developmentNotices?: Notice[]): void;
 }
+
+const DEBUG_MODE_KEY = 'pennant-sim:debugMode';
 
 const initialState: RuntimeState = {
   loading: true,
@@ -216,6 +223,14 @@ function lastNewPlayerGameDate(
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<RuntimeState>(initialState);
+  const [debugMode, setDebugMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(DEBUG_MODE_KEY) === '1';
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem(DEBUG_MODE_KEY, debugMode ? '1' : '0');
+  }, [debugMode]);
 
   useEffect(() => {
     let active = true;
@@ -466,6 +481,30 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return snapshot ? saveGame(snapshot) : false;
   }, [state]);
 
+  const updatePlayer = useCallback((updated: Player) => {
+    setState((current) => {
+      if (!current.teams) return current;
+      let found = false;
+      const replace = (candidate: Player): Player => {
+        if (candidate.id !== updated.id) return candidate;
+        found = true;
+        return updated;
+      };
+      const teams = Object.fromEntries(
+        Object.entries(current.teams).map(([teamKey, team]) => [
+          teamKey,
+          { ...team, fielders: team.fielders.map(replace), pitchers: team.pitchers.map(replace) },
+        ]),
+      ) as Teams;
+      if (!found) return current;
+      return {
+        ...current,
+        teams,
+        selectedPlayer: current.selectedPlayer?.id === updated.id ? updated : current.selectedPlayer,
+      };
+    });
+  }, []);
+
   const completeOffseason = useCallback((teams: Teams, developmentNotices: Notice[] = []) => {
     setState((current) => {
       if (!current.playerTeam) return current;
@@ -526,6 +565,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       ...state,
       isSeasonOver:
         state.season.schedule.length > 0 && state.season.schedule.every((game) => game.played),
+      debugMode,
       startNewGame,
       chooseTeam,
       simulateNextGame,
@@ -544,9 +584,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
         })),
       clearNotices: () => setState((current) => ({ ...current, notices: [] })),
       replaceTeams: (teams) => setState((current) => ({ ...current, teams })),
+      updatePlayer,
+      toggleDebugMode: () => setDebugMode((current) => !current),
       completeOffseason,
     }),
-    [state, startNewGame, chooseTeam, simulateNextGame, skip, saveCurrent, completeOffseason],
+    [
+      state,
+      debugMode,
+      startNewGame,
+      chooseTeam,
+      simulateNextGame,
+      skip,
+      saveCurrent,
+      updatePlayer,
+      completeOffseason,
+    ],
   );
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

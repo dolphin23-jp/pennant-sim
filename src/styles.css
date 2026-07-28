@@ -313,6 +313,15 @@ input:focus-visible,
   cursor: pointer;
 }
 
+.debug-mode-toggle {
+  top: 58px;
+}
+
+.debug-mode-toggle[aria-pressed='true'] {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
 .term-tooltip {
   position: relative;
   display: inline-flex;
@@ -548,6 +557,70 @@ input:focus-visible,
   gap: 8px;
 }
 
+.debug-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.debug-field {
+  display: grid;
+  gap: 4px;
+}
+
+.debug-field label {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.debug-field input,
+.debug-field select {
+  padding: 7px 9px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  background: var(--color-surface-raised);
+  width: 100%;
+}
+
+.debug-special-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+}
+
+.debug-special-row__level {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.debug-special-row__level button {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  background: var(--color-surface-muted);
+  cursor: pointer;
+}
+
+.debug-banner {
+  padding: 9px 12px;
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-sm);
+  color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
 .position-chip {
   position: relative;
   overflow: hidden;
@@ -666,6 +739,11 @@ input:focus-visible,
 .status-badge--growth {
   color: var(--color-growth);
   background: color-mix(in srgb, var(--color-growth) 16%, transparent);
+}
+
+.status-badge--convert {
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
 }
 
 .growth-chart {
@@ -896,6 +974,10 @@ input:focus-visible,
   .theme-toggle {
     top: 8px;
     right: 8px;
+  }
+
+  .debug-mode-toggle {
+    top: 52px;
   }
 
   .player-modal-backdrop {

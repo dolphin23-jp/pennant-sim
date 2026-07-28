@@ -8,18 +8,21 @@ import {
   type TouchEvent,
 } from 'react';
 
-import { MATURITY_PEAK_AGE, SPECIAL_DESCRIPTIONS, SPECIAL_INDEX, TINFO } from '../../data';
+import { FIELD_POSITIONS, MATURITY_PEAK_AGE, SPECIAL_DESCRIPTIONS, SPECIAL_INDEX, TINFO } from '../../data';
 import {
   aptitudeRank,
   calcOVR,
+  cancelPositionConversion,
   displayOVRBreakdown,
   effectiveOVR,
   specialLevel,
+  startPositionConversion,
   statItems,
   yearlyRows,
 } from '../../engine';
 import type {
   AccumulatedStats,
+  FieldPosition,
   Player,
   PlayerStats,
   SeasonTitleRecord,
@@ -30,6 +33,7 @@ import { TitleIcon } from '../icons';
 import { AbilityRadarChart, type AbilityRadarItem } from './AbilityRadarChart';
 import { AptitudeFieldMap } from './AptitudeFieldMap';
 import { DisplayOVRValue } from './DisplayOVRValue';
+import { PlayerEditTab } from './PlayerEditTab';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
 import { useFocusTrap } from './useFocusTrap';
 
@@ -40,7 +44,7 @@ function teamColorFor(player: Player): string | null {
   return TEAM_KEY_SET.has(candidate) ? TINFO[candidate as TeamKey].c : null;
 }
 
-type TabId = 'basic' | 'season' | 'career' | 'special';
+type TabId = 'basic' | 'season' | 'career' | 'special' | 'edit';
 interface GrowthPoint {
   age: number;
   value: number;
@@ -52,6 +56,7 @@ const tabs: Array<{ id: TabId; label: string }> = [
   { id: 'career', label: '通算・年度別' },
   { id: 'special', label: '特殊能力' },
 ];
+const DEBUG_EDIT_TAB: { id: TabId; label: string } = { id: 'edit', label: '編集(Debug)' };
 
 function StatGrid({ stats }: { stats: PlayerStats | undefined }) {
   const items = statItems(stats);
@@ -177,7 +182,89 @@ function GrowthChart({ player, overall }: { player: Player; overall: number }) {
 const positionStyle = (aptitude: number): CSSProperties =>
   ({ '--aptitude': `${Math.max(0, Math.min(100, aptitude))}%` }) as CSSProperties;
 
-function BasicTab({ player, overall }: { player: Player; overall: number }) {
+function ConversionControls({
+  player,
+  onUpdatePlayer,
+}: {
+  player: Player;
+  onUpdatePlayer(player: Player): void;
+}) {
+  const [target, setTarget] = useState<FieldPosition | ''>('');
+  const active = player.conversionTarget;
+  const candidates = FIELD_POSITIONS.filter((pos) => {
+    if (pos === player.pos) return false;
+    const apt = player.positions?.find((entry) => entry.pos === pos)?.apt ?? 0;
+    return apt < 45;
+  });
+
+  if (active) {
+    const apt = player.positions?.find((entry) => entry.pos === active.pos)?.apt ?? 0;
+    return (
+      <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
+          {active.pos}への守備適性訓練中（{active.startedAge}歳開始・現在適性{apt}%）
+        </span>
+        <Button
+          onClick={() => onUpdatePlayer(cancelPositionConversion(player))}
+          color="var(--color-surface-muted)"
+          ariaLabel="守備位置コンバート練習を中止"
+        >
+          練習を中止
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+      {candidates.length ? (
+        <>
+          <select
+            aria-label="コンバート練習の対象ポジション"
+            value={target}
+            onChange={(event) => setTarget(event.target.value as FieldPosition | '')}
+            style={{
+              padding: '7px 9px',
+              border: '1px solid var(--color-border-strong)',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--color-text)',
+              background: 'var(--color-surface-raised)',
+            }}
+          >
+            <option value="">コンバート先のポジションを選択</option>
+            {candidates.map((pos) => (
+              <option key={pos} value={pos}>
+                {pos}
+              </option>
+            ))}
+          </select>
+          <Button
+            onClick={() => target && onUpdatePlayer(startPositionConversion(player, target))}
+            disabled={!target}
+            color="var(--color-surface-muted)"
+            ariaLabel="選択したポジションのコンバート練習を開始"
+          >
+            コンバート練習を開始
+          </Button>
+        </>
+      ) : (
+        <span style={{ color: 'var(--color-text-faint)', fontSize: 12 }}>
+          適性の低い（45%未満の）別ポジションがありません。
+        </span>
+      )}
+    </div>
+  );
+}
+
+function BasicTab({
+  player,
+  overall,
+  onUpdatePlayer,
+}: {
+  player: Player;
+  overall: number;
+  onUpdatePlayer?(player: Player): void;
+}) {
   const abilities: AbilityRadarItem[] = player.isP
     ? [
         { label: '球速', value: player.p.vel },
@@ -314,6 +401,7 @@ function BasicTab({ player, overall }: { player: Player; overall: number }) {
           ) : (
             <EmptyState>ポジション適性が登録されていません。</EmptyState>
           )}
+          {onUpdatePlayer && <ConversionControls player={player} onUpdatePlayer={onUpdatePlayer} />}
         </Card>
       )}
       <Card className="detail-card detail-card--wide" ariaLabel="能力値推移">
@@ -366,6 +454,9 @@ export function PlayerDetailModal({
   roster,
   onSelect,
   onClose,
+  debugMode = false,
+  onUpdatePlayer,
+  isOwnTeam = false,
 }: {
   player: Player | null;
   accumulated: AccumulatedStats;
@@ -375,8 +466,14 @@ export function PlayerDetailModal({
   roster: Player[];
   onSelect(player: Player): void;
   onClose(): void;
+  /** Dev/QA-only: shows the "編集(Debug)" tab and lets it write changes back. */
+  debugMode?: boolean;
+  onUpdatePlayer?(player: Player): void;
+  /** Gates position-conversion practice to the viewer's own roster. */
+  isOwnTeam?: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<TabId>('basic');
+  const visibleTabs = debugMode && onUpdatePlayer ? [...tabs, DEBUG_EDIT_TAB] : tabs;
   const dialogRef = useRef<HTMLDivElement>(null);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
@@ -389,7 +486,11 @@ export function PlayerDetailModal({
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [player]);
+    // Re-run only when navigating to a different player (by id), not when the same
+    // player's object is replaced in place - e.g. after a debug edit saves, which would
+    // otherwise reset the active tab and steal focus away from the editor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [player?.id]);
 
   useEffect(() => {
     if (!player) return;
@@ -426,8 +527,8 @@ export function PlayerDetailModal({
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
     event.preventDefault();
     const direction = event.key === 'ArrowRight' ? 1 : -1;
-    const nextIndex = (index + direction + tabs.length) % tabs.length;
-    const nextTab = tabs[nextIndex];
+    const nextIndex = (index + direction + visibleTabs.length) % visibleTabs.length;
+    const nextTab = visibleTabs[nextIndex];
     if (!nextTab) return;
     setActiveTab(nextTab.id);
     window.requestAnimationFrame(() =>
@@ -520,7 +621,7 @@ export function PlayerDetailModal({
         </header>
 
         <div className="player-modal__tabs" role="tablist" aria-label="選手詳細の表示項目">
-          {tabs.map((tab, index) => (
+          {visibleTabs.map((tab, index) => (
             <button
               className="player-modal__tab"
               id={`player-tab-${tab.id}`}
@@ -545,7 +646,13 @@ export function PlayerDetailModal({
             role="tabpanel"
             aria-labelledby={`player-tab-${activeTab}`}
           >
-            {activeTab === 'basic' && <BasicTab player={player} overall={baseOverall} />}
+            {activeTab === 'basic' && (
+              <BasicTab
+                player={player}
+                overall={baseOverall}
+                onUpdatePlayer={isOwnTeam ? onUpdatePlayer : undefined}
+              />
+            )}
             {activeTab === 'season' && (
               <Card className="detail-card" ariaLabel="今季成績">
                 <SectionTitle>Current Season</SectionTitle>
@@ -598,6 +705,9 @@ export function PlayerDetailModal({
               </div>
             )}
             {activeTab === 'special' && <SpecialTab player={player} />}
+            {activeTab === 'edit' && debugMode && onUpdatePlayer && (
+              <PlayerEditTab player={player} onSave={onUpdatePlayer} />
+            )}
           </div>
         </div>
 

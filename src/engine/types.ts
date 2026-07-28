@@ -146,6 +146,8 @@ export interface Player {
   /** 一軍登録フラグ。undefined/true = 一軍、false = 二軍。既存セーブは全員一軍扱い。 */
   activeRoster?: boolean;
   foreignProfile?: ForeignPlayerProfile;
+  /** 守備位置コンバート練習の対象。オフシーズンごとに当該ポジションの適性が徐々に上がる。 */
+  conversionTarget?: { pos: FieldPosition; startedAge: number };
   [key: string]: unknown;
 }
 export interface Team extends TeamInfo {
