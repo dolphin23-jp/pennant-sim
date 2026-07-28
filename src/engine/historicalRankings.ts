@@ -1,3 +1,4 @@
+import { qualifiesForRate, STATS_QUALIFICATION } from './statsQualification';
 import { ops } from './statsFormat';
 import type {
   PlayerSeasonRecord,
@@ -5,6 +6,18 @@ import type {
   TeamKey,
   YearlyPlayerRecords,
 } from './types';
+
+// Season records here are always a completed 143-game NPB season (the schedule always
+// produces exactly that), so a fixed season length is safe without storing per-record
+// team-games-played. Career totals are held to the same single-season bar: a career that
+// hasn't even cleared one qualifying season's worth of plate appearances/innings
+// shouldn't headline an all-time rate leaderboard either.
+const RATE_METRICS = new Set<HistoricalRankingMetric>(['average', 'era', 'ops']);
+
+function meetsRateQualification(metric: HistoricalRankingMetric, stats: PlayerStats): boolean {
+  if (!RATE_METRICS.has(metric)) return true;
+  return qualifiesForRate(stats, STATS_QUALIFICATION.fullSeasonTeamGames);
+}
 
 export type HistoricalRankingScope = 'season' | 'career';
 export type HistoricalRankingKind = 'bat' | 'pit';
@@ -125,6 +138,7 @@ function seasonEntries(
 ): HistoricalRankingEntry[] {
   return records.flatMap((record) => {
     if (record.stats.type !== metricKind[metric]) return [];
+    if (!meetsRateQualification(metric, record.stats)) return [];
     const value = historicalMetricValue(metric, record.stats);
     return value === null ? [] : [entryFromRecord(record, value, activePlayerIds)];
   });
@@ -151,6 +165,7 @@ function careerEntries(
   }
 
   return [...grouped.values()].flatMap(({ records: playerRecords, stats }) => {
+    if (!meetsRateQualification(metric, stats)) return [];
     const value = historicalMetricValue(metric, stats);
     if (value === null) return [];
     const latest = [...playerRecords].sort((a, b) => b.year - a.year)[0];

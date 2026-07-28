@@ -1,5 +1,5 @@
 import type { Player, Teams } from '../../engine';
-import { IconBaseball, IconBolt, IconMegaphone, IconSparkle } from '../icons';
+import { IconBaseball, IconBolt, IconMegaphone, IconSparkle, IconTrophy } from '../icons';
 import type { Notice } from '../../state/storage';
 import { Button, Card, EmptyState, SectionTitle } from '../ui';
 
@@ -8,6 +8,7 @@ const KIND_ICONS: Record<NonNullable<Notice['kind']>, typeof IconSparkle> = {
   awakening: IconBolt,
   growth: IconSparkle,
   game: IconBaseball,
+  achievement: IconTrophy,
 };
 
 function noticePlayer(notice: Notice, teams: Teams): Player | null {
@@ -35,6 +36,7 @@ function kindLabel(notice: Notice): string {
   if (notice.kind === 'awakening') return '覚醒';
   if (notice.kind === 'growth') return '成長';
   if (notice.kind === 'game') return '試合結果';
+  if (notice.kind === 'achievement') return '記録';
   return 'チーム情報';
 }
 

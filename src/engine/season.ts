@@ -19,7 +19,7 @@ export interface ScheduleGenerationOptions {
   maxRainouts?: number;
 }
 
-const addDays = (dateString: string, days: number): string => {
+export const addDays = (dateString: string, days: number): string => {
   const date = new Date(`${dateString}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
@@ -139,102 +139,197 @@ function applyRainouts(
   return sortSchedule(nextSchedule);
 }
 
-export function generateSchedule(
-  year: number,
-  options: ScheduleGenerationOptions = {},
-): ScheduleGame[] {
-  const intra: Array<{ h: TeamKey; a: TeamKey; type: 'league' }> = [],
-    inter: Array<{ h: TeamKey; a: TeamKey; type: 'interleague' }> = [];
-  for (const league of [CENTRAL, PACIFIC])
-    for (let first = 0; first < league.length; first += 1)
-      for (let second = first + 1; second < league.length; second += 1) {
-        for (let game = 0; game < 13; game += 1)
-          intra.push({ h: league[first] as TeamKey, a: league[second] as TeamKey, type: 'league' });
-        for (let game = 0; game < 12; game += 1)
-          intra.push({ h: league[second] as TeamKey, a: league[first] as TeamKey, type: 'league' });
-      }
-  CENTRAL.forEach((central, centralIndex) =>
+interface SeriesUnit {
+  home: TeamKey;
+  away: TeamKey;
+  games: number;
+  type: 'league' | 'interleague';
+}
+
+/** Break a season's worth of meetings at one venue into realistic 2-4 game series
+ * blocks (mostly 3), the way NPB actually groups games instead of one meeting a day. */
+function chunkSeriesLengths(total: number): number[] {
+  const lengths: number[] = [];
+  let remaining = total;
+  while (remaining > 0) {
+    const length = Math.min(3, remaining);
+    lengths.push(length);
+    remaining -= length;
+  }
+  const last = lengths[lengths.length - 1];
+  if (lengths.length > 1 && last !== undefined && last < 3) {
+    lengths.pop();
+    lengths[lengths.length - 1] = (lengths[lengths.length - 1] as number) + last;
+  }
+  return lengths;
+}
+
+function shuffleInPlace<T>(items: T[]): void {
+  for (let index = items.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(random() * (index + 1));
+    [items[index], items[swap]] = [items[swap] as T, items[index] as T];
+  }
+}
+
+/** 125 same-league games per team: 13 home / 12 away against each of the other five
+ * clubs, same as before - just grouped into series instead of individual entries. */
+function buildLeagueSeries(league: readonly TeamKey[]): SeriesUnit[] {
+  const series: SeriesUnit[] = [];
+  for (let first = 0; first < league.length; first += 1) {
+    for (let second = first + 1; second < league.length; second += 1) {
+      const teamA = league[first] as TeamKey,
+        teamB = league[second] as TeamKey;
+      for (const games of chunkSeriesLengths(13))
+        series.push({ home: teamA, away: teamB, games, type: 'league' });
+      for (const games of chunkSeriesLengths(12))
+        series.push({ home: teamB, away: teamA, games, type: 'league' });
+    }
+  }
+  return series;
+}
+
+/** 18 interleague games per team: one clean 3-game series against each of the other
+ * league's six clubs, hosted at a single venue and balanced to 9 home / 9 away. */
+function buildInterleagueSeries(): SeriesUnit[] {
+  const series: SeriesUnit[] = [];
+  CENTRAL.forEach((central, centralIndex) => {
     PACIFIC.forEach((pacific, pacificIndex) => {
       const centralHosts = (centralIndex + pacificIndex) % 2 === 0;
-      inter.push({
-        h: centralHosts ? central : pacific,
-        a: centralHosts ? pacific : central,
+      series.push({
+        home: centralHosts ? central : pacific,
+        away: centralHosts ? pacific : central,
+        games: 3,
         type: 'interleague',
       });
-      inter.push({
-        h: centralHosts ? central : pacific,
-        a: centralHosts ? pacific : central,
-        type: 'interleague',
-      });
-      inter.push({
-        h: centralHosts ? pacific : central,
-        a: centralHosts ? central : pacific,
-        type: 'interleague',
-      });
-    }),
-  );
-  for (let index = intra.length - 1; index > 0; index -= 1) {
-    const swap = Math.floor(random() * (index + 1));
-    [intra[index], intra[swap]] = [
-      intra[swap] as (typeof intra)[number],
-      intra[index] as (typeof intra)[number],
-    ];
+    });
+  });
+  return series;
+}
+
+/** Monday is the league's default off day: a series may only start on a day whose whole
+ * span avoids it, the same way a real series never gets scheduled to play through one. */
+function spanIncludesMonday(start: Date, day: number, games: number): boolean {
+  for (let offset = 0; offset < games; offset += 1) {
+    const gameDate = new Date(start);
+    gameDate.setDate(gameDate.getDate() + day + offset);
+    if (gameDate.getDay() === 1) return true;
   }
-  for (let index = inter.length - 1; index > 0; index -= 1) {
-    const swap = Math.floor(random() * (index + 1));
-    [inter[index], inter[swap]] = [
-      inter[swap] as (typeof inter)[number],
-      inter[index] as (typeof inter)[number],
-    ];
-  }
-  const schedule: ScheduleGame[] = [],
-    start = new Date(year, 2, 28);
-  let day = 0;
-  while (intra.length || inter.length) {
-    const date = new Date(start);
-    date.setDate(date.getDate() + day);
-    const dateString = date.toISOString().slice(0, 10),
-      inInterleague = day >= 62 && day <= 79,
-      pool = inInterleague && inter.length ? inter : intra.length ? intra : inter,
-      used = new Set<TeamKey>(),
-      today: Array<(typeof pool)[number]> = [];
-    for (let index = pool.length - 1; index >= 0 && today.length < 6; index -= 1) {
-      const game = pool[index] as (typeof pool)[number];
-      if (!used.has(game.h) && !used.has(game.a)) {
-        used.add(game.h);
-        used.add(game.a);
-        today.push(pool.splice(index, 1)[0] as (typeof pool)[number]);
-      }
-    }
-    if (!today.length) {
-      day += 1;
-      continue;
-    }
-    for (const game of today)
+  return false;
+}
+
+/** Start every series in `pool` whose two teams are both free today and whose full run
+ * avoids Monday, marking them busy through the series and removing it from the pool.
+ * Mutates `freeToday`/`busyUntil`. */
+function fillDayFromPool(
+  pool: SeriesUnit[],
+  day: number,
+  start: Date,
+  freeToday: Set<TeamKey>,
+  busyUntil: Record<TeamKey, number>,
+  schedule: ScheduleGame[],
+): void {
+  for (let index = pool.length - 1; index >= 0; index -= 1) {
+    const unit = pool[index] as SeriesUnit;
+    if (!freeToday.has(unit.home) || !freeToday.has(unit.away)) continue;
+    if (spanIncludesMonday(start, day, unit.games)) continue;
+    for (let offset = 0; offset < unit.games; offset += 1) {
+      const gameDate = new Date(start);
+      gameDate.setDate(gameDate.getDate() + day + offset);
+      const dateString = gameDate.toISOString().slice(0, 10);
       schedule.push({
         id: uid(),
         date: dateString,
         originalDate: dateString,
         postponedFrom: null,
         doubleHeaderGame: null,
-        homeKey: game.h,
-        awayKey: game.a,
+        homeKey: unit.home,
+        awayKey: unit.away,
         played: false,
         hs: null,
         as: null,
-        seriesType: game.type,
-        isInterleague: game.type === 'interleague',
+        seriesType: unit.type,
+        isInterleague: unit.type === 'interleague',
       });
+    }
+    busyUntil[unit.home] = day + unit.games;
+    busyUntil[unit.away] = day + unit.games;
+    freeToday.delete(unit.home);
+    freeToday.delete(unit.away);
+    pool.splice(index, 1);
+  }
+}
+
+// Interleague clusters into a single mid-season window (day index, roughly two months
+// in - late May in a season starting late March) instead of being scattered evenly
+// across the whole year. Once it drains, a break of ALL_STAR_BREAK_LENGTH days with no
+// games at all stands in for the All-Star break (no games are simulated for it - it's a
+// pure rest window, which matters once a fatigue system needs real off-days to recover
+// against).
+const INTERLEAGUE_WINDOW_START = 58;
+const INTERLEAGUE_WINDOW_END = 100;
+const ALL_STAR_BREAK_MINIMUM_GAP = 28;
+const ALL_STAR_BREAK_LENGTH = 9;
+const SCHEDULING_DAY_LIMIT = 500;
+
+export function generateSchedule(
+  year: number,
+  options: ScheduleGenerationOptions = {},
+): ScheduleGame[] {
+  const leagueSeries = [...buildLeagueSeries(CENTRAL), ...buildLeagueSeries(PACIFIC)],
+    interleagueSeries = buildInterleagueSeries();
+  shuffleInPlace(leagueSeries);
+  shuffleInPlace(interleagueSeries);
+
+  const schedule: ScheduleGame[] = [],
+    start = new Date(year, 2, 28),
+    teamKeys = Object.keys(TINFO) as TeamKey[],
+    busyUntil = Object.fromEntries(teamKeys.map((key) => [key, 0])) as Record<TeamKey, number>;
+  let day = 0,
+    interleagueFinishedDay: number | null = null,
+    allStarBreakInserted = false;
+
+  while (leagueSeries.length > 0 || interleagueSeries.length > 0) {
+    if (day > SCHEDULING_DAY_LIMIT) throw new Error('Schedule generation exceeded its day limit.');
+    const date = new Date(start);
+    date.setDate(date.getDate() + day);
+    const isMonday = date.getDay() === 1;
+
+    if (
+      !allStarBreakInserted &&
+      interleagueFinishedDay !== null &&
+      day >= interleagueFinishedDay + ALL_STAR_BREAK_MINIMUM_GAP
+    ) {
+      day += ALL_STAR_BREAK_LENGTH;
+      allStarBreakInserted = true;
+      continue;
+    }
+
+    if (isMonday) {
+      day += 1;
+      continue;
+    }
+
+    const freeToday = new Set<TeamKey>(teamKeys.filter((key) => (busyUntil[key] ?? 0) <= day)),
+      inInterleagueWindow = day >= INTERLEAGUE_WINDOW_START && day <= INTERLEAGUE_WINDOW_END,
+      primaryPool = inInterleagueWindow ? interleagueSeries : leagueSeries,
+      secondaryPool = inInterleagueWindow ? leagueSeries : interleagueSeries;
+
+    fillDayFromPool(primaryPool, day, start, freeToday, busyUntil, schedule);
+    fillDayFromPool(secondaryPool, day, start, freeToday, busyUntil, schedule);
+
+    if (interleagueFinishedDay === null && interleagueSeries.length === 0)
+      interleagueFinishedDay = day;
+
     day += 1;
-    if (date.getDay() === 1 || random() < 0.08) day += 1;
+    if (!isMonday && random() < 0.12) day += 1;
   }
 
   const rainoutRate = Math.max(0, Math.min(1, options.rainoutRate ?? 0.015)),
     maxRainouts = Math.max(0, Math.floor(options.maxRainouts ?? 12));
-  return applyRainouts(schedule, rainoutRate, maxRainouts);
+  return applyRainouts(sortSchedule(schedule), rainoutRate, maxRainouts);
 }
 
-export function calcStandings(schedule: ScheduleGame[]): Record<TeamKey, StandingRecord> {
+function tallyRecords(schedule: ScheduleGame[]): Record<TeamKey, StandingRecord> {
   const records = Object.fromEntries(
     Object.keys(TINFO).map((key) => [key, { w: 0, l: 0, d: 0, rs: 0, ra: 0, g: 0 }]),
   ) as Record<TeamKey, StandingRecord>;
@@ -260,23 +355,100 @@ export function calcStandings(schedule: ScheduleGame[]): Record<TeamKey, Standin
       away.d += 1;
     }
   }
-  for (const league of [CENTRAL, PACIFIC]) {
-    const sorted = [...league].sort((a, b) => {
-        const first = records[a],
-          second = records[b],
-          firstPct = first.w + first.l > 0 ? first.w / (first.w + first.l) : 0,
-          secondPct = second.w + second.l > 0 ? second.w / (second.w + second.l) : 0;
-        return secondPct - firstPct;
-      }),
-      leader = records[sorted[0] as TeamKey];
-    sorted.forEach((teamKey, index) => {
-      const record = records[teamKey];
-      record.pct = record.w + record.l > 0 ? record.w / (record.w + record.l) : 0;
-      record.gb = index === 0 ? '-' : ((leader.w - record.w + record.l - leader.l) / 2).toFixed(1);
-      record.rank = index + 1;
-    });
-  }
   return records;
+}
+
+/** Rank one group of teams against each other by winning percentage, filling in `pct`,
+ * `gb` (behind the group's own leader) and `rank`. Mutates `records` in place. */
+function rankGroup(records: Record<TeamKey, StandingRecord>, group: readonly TeamKey[]): void {
+  const sorted = [...group].sort((a, b) => {
+      const first = records[a],
+        second = records[b],
+        firstPct = first.w + first.l > 0 ? first.w / (first.w + first.l) : 0,
+        secondPct = second.w + second.l > 0 ? second.w / (second.w + second.l) : 0;
+      return secondPct - firstPct;
+    }),
+    leader = records[sorted[0] as TeamKey];
+  sorted.forEach((teamKey, index) => {
+    const record = records[teamKey];
+    record.pct = record.w + record.l > 0 ? record.w / (record.w + record.l) : 0;
+    record.gb = index === 0 ? '-' : ((leader.w - record.w + record.l - leader.l) / 2).toFixed(1);
+    record.rank = index + 1;
+  });
+}
+
+export function calcStandings(schedule: ScheduleGame[]): Record<TeamKey, StandingRecord> {
+  const records = tallyRecords(schedule);
+  rankGroup(records, CENTRAL);
+  rankGroup(records, PACIFIC);
+  return records;
+}
+
+/** 交流戦 standings: a single combined ranking across all 12 clubs, restricted to
+ * interleague games only (unlike the regular pennant race, Central and Pacific aren't
+ * ranked separately here). */
+export function calcInterleagueStandings(
+  schedule: ScheduleGame[],
+): Record<TeamKey, StandingRecord> {
+  const records = tallyRecords(schedule.filter((game) => game.isInterleague));
+  rankGroup(records, [...CENTRAL, ...PACIFIC]);
+  return records;
+}
+
+export interface HeadToHeadRecord {
+  w: number;
+  l: number;
+  d: number;
+}
+
+/** 星取表: each team's win/loss/draw record against every other given team. Symmetric -
+ * `matrix[a][b]` and `matrix[b][a]` are two sides of the same games. */
+export function buildHeadToHeadMatrix(
+  schedule: ScheduleGame[],
+  teamKeys: readonly TeamKey[],
+): Record<TeamKey, Record<TeamKey, HeadToHeadRecord>> {
+  const included = new Set<TeamKey>(teamKeys);
+  const matrix = Object.fromEntries(
+    teamKeys.map((key) => [
+      key,
+      Object.fromEntries(
+        teamKeys.map((opponent) => [opponent, { w: 0, l: 0, d: 0 }]),
+      ) as Record<TeamKey, HeadToHeadRecord>,
+    ]),
+  ) as Record<TeamKey, Record<TeamKey, HeadToHeadRecord>>;
+  for (const game of schedule) {
+    if (!game.played || !included.has(game.homeKey) || !included.has(game.awayKey)) continue;
+    const homeScore = game.hs ?? 0,
+      awayScore = game.as ?? 0;
+    if (homeScore === awayScore) {
+      matrix[game.homeKey][game.awayKey].d += 1;
+      matrix[game.awayKey][game.homeKey].d += 1;
+    } else if (homeScore > awayScore) {
+      matrix[game.homeKey][game.awayKey].w += 1;
+      matrix[game.awayKey][game.homeKey].l += 1;
+    } else {
+      matrix[game.awayKey][game.homeKey].w += 1;
+      matrix[game.homeKey][game.awayKey].l += 1;
+    }
+  }
+  return matrix;
+}
+
+/** Rough calendar offsets for a knockout series' games, with a rest/travel day worked in
+ * roughly every third game the way the real Climax Series and Japan Series pace
+ * themselves - so postseason games have real dates (and real gaps) instead of resolving
+ * instantly with no calendar position at all. Sized to the series' actual game count,
+ * not just the "typical" best-of length, so a rare tie-heavy series that runs long still
+ * gets a date for every game it plays. */
+export function postseasonSeriesDates(startDate: string, gameCount: number): string[] {
+  const dates: string[] = [];
+  let offset = 0;
+  for (let index = 0; index < gameCount; index += 1) {
+    if (index > 0 && index % 3 === 0) offset += 1;
+    dates.push(addDays(startDate, offset));
+    offset += 1;
+  }
+  return dates;
 }
 
 type TeamGameResult = 'w' | 'l' | 'd';

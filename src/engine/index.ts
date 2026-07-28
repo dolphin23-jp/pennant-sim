@@ -1,3 +1,4 @@
+export * from './achievements';
 export * from './aiStrategy';
 export * from './awards';
 export * from './atBat';

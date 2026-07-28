@@ -11,11 +11,14 @@ import {
 import {
   accumulateStats,
   accumulateStatsAll,
+  aggregateTeamStats,
   bestLineup,
   buildGameBoxScore,
+  calcOVR,
   calcStandings,
   createFictionalLeagueHistory,
   createPlayerSeasonRecords,
+  detectAchievements,
   generateSchedule,
   initTeams,
   registerExistingNames,
@@ -27,6 +30,7 @@ import {
 } from '../engine';
 import type {
   AccumulatedStats,
+  AchievementEvent,
   GameBoxScore,
   GameState,
   GameSummary,
@@ -39,6 +43,7 @@ import type {
   YearlyPlayerRecords,
 } from '../engine';
 import {
+  createAchievementNotices,
   createGameResultNotice,
   createInSeasonDevelopmentNotices,
   createSkippedInSeasonDevelopmentNotices,
@@ -79,6 +84,7 @@ interface RuntimeState {
   notices: Notice[];
   championHistory: ChampionRecord[];
   awardHistory: SeasonTitleRecord[];
+  achievementHistory: AchievementEvent[];
   lastGame: GameState | null;
   selectedPlayer: Player | null;
   gameSummaries: Record<string, GameSummary>;
@@ -108,6 +114,7 @@ interface GameContextValue extends RuntimeState {
   updatePlayer(player: Player): void;
   toggleDebugMode(): void;
   completeOffseason(teams: Teams, developmentNotices?: Notice[]): void;
+  recordChampionship(champion: TeamKey, runnerUp: TeamKey): void;
 }
 
 const DEBUG_MODE_KEY = 'pennant-sim:debugMode';
@@ -133,6 +140,7 @@ const initialState: RuntimeState = {
   notices: [],
   championHistory: [],
   awardHistory: [],
+  achievementHistory: [],
   lastGame: null,
   selectedPlayer: null,
   gameSummaries: {},
@@ -180,6 +188,7 @@ function snapshotFromState(state: RuntimeState): GameSaveData | null {
     notices: state.notices,
     championHistory: state.championHistory,
     awardHistory: state.awardHistory,
+    achievementHistory: state.achievementHistory,
     gameSummaries: state.gameSummaries,
     gameBoxScores: state.gameBoxScores,
     uiVersion: 1,
@@ -393,6 +402,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
         current.playerTeam,
         nextGame.date,
       );
+      const achievements = detectAchievements({
+        year: current.season.year,
+        date: nextGame.date,
+        teams: current.teams,
+        beforeSeasonStats: current.leagueAccumulated,
+        afterSeasonStats: finalLeagueStats,
+        beforeCareerStats: current.leagueCareerAccumulated,
+        afterCareerStats: finalCareerLeagueStats,
+        yearlyStats: current.yearlyStats,
+      });
+      const achievementNotices = createAchievementNotices(achievements);
       const seasonOver = prepared.sched.every((game) => game.played);
       const next: RuntimeState = {
         ...current,
@@ -404,6 +424,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         leagueAccumulated: finalLeagueStats,
         careerAccumulated,
         leagueCareerAccumulated: finalCareerLeagueStats,
+        achievementHistory: [...current.achievementHistory, ...achievements],
         gameSummaries: {
           ...current.gameSummaries,
           [nextGame.id]: toSummary(playerGameBox),
@@ -414,10 +435,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
           [nextGame.id]: playerGameBox,
           ...prepared.gameBoxScores,
         },
-        notices: mergeNotices(
-          current.notices,
-          gameNotice ? [gameNotice, ...developmentNotices] : developmentNotices,
-        ),
+        notices: mergeNotices(current.notices, [
+          ...(gameNotice ? [gameNotice] : []),
+          ...developmentNotices,
+          ...achievementNotices,
+        ]),
         lastGame: result,
       };
       autosave(next);
@@ -441,6 +463,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       );
       const accumulated = mergeStats(current.accumulated, result.distStats);
       const leagueAccumulated = mergeStats(current.leagueAccumulated, result.leagueDistStats);
+      const leagueCareerAccumulated = mergeStats(
+        current.leagueCareerAccumulated,
+        result.leagueDistStats,
+      );
       const seasonOver = result.sched.every((game) => game.played);
       const noticeDate =
         lastNewPlayerGameDate(current.season.schedule, result.sched, current.playerTeam) ??
@@ -454,6 +480,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const gameNotices = Object.values(result.gameBoxScores)
         .map((box) => createGameResultNotice(box, current.playerTeam as TeamKey))
         .filter((notice): notice is Notice => notice !== null);
+      const achievements = detectAchievements({
+        year: current.season.year,
+        date: noticeDate,
+        teams: current.teams,
+        beforeSeasonStats: current.leagueAccumulated,
+        afterSeasonStats: leagueAccumulated,
+        beforeCareerStats: current.leagueCareerAccumulated,
+        afterCareerStats: leagueCareerAccumulated,
+        yearlyStats: current.yearlyStats,
+      });
+      const achievementNotices = createAchievementNotices(achievements);
       const next: RuntimeState = {
         ...current,
         screen: seasonOver ? 'postseason' : 'season',
@@ -463,13 +500,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
         accumulated,
         leagueAccumulated,
         careerAccumulated: mergeStats(current.careerAccumulated, result.distStats),
-        leagueCareerAccumulated: mergeStats(
-          current.leagueCareerAccumulated,
-          result.leagueDistStats,
-        ),
+        leagueCareerAccumulated,
+        achievementHistory: [...current.achievementHistory, ...achievements],
         gameSummaries: { ...current.gameSummaries, ...result.gameSummaries },
         gameBoxScores: { ...current.gameBoxScores, ...result.gameBoxScores },
-        notices: mergeNotices(current.notices, [...gameNotices, ...developmentNotices]),
+        notices: mergeNotices(current.notices, [
+          ...gameNotices,
+          ...developmentNotices,
+          ...achievementNotices,
+        ]),
       };
       autosave(next);
       return next;
@@ -560,6 +599,48 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const recordChampionship = useCallback((champion: TeamKey, runnerUp: TeamKey) => {
+    setState((current) => {
+      if (!current.teams) return current;
+      const team = current.teams[champion];
+      const lineup = bestLineup(team).map((player) => ({
+        playerId: player.id,
+        playerName: player.name,
+        pos: player._assignedPos ?? player.pos ?? '',
+        isPitcher: player.isP,
+      }));
+      const teamStats = aggregateTeamStats(team, current.leagueAccumulated);
+      const standing = current.standings[champion];
+      const record: ChampionRecord = {
+        year: current.season.year,
+        champion,
+        runnerUp,
+        keyBatters: team.fielders
+          .slice()
+          .sort((first, second) => calcOVR(second, second.pos) - calcOVR(first, first.pos))
+          .slice(0, 2)
+          .map((player) => player.name),
+        keyPitchers: team.pitchers
+          .slice()
+          .sort((first, second) => calcOVR(second, second.pos) - calcOVR(first, first.pos))
+          .slice(0, 2)
+          .map((player) => player.name),
+        lineup,
+        teamStats,
+        record: standing ? { w: standing.w, l: standing.l, d: standing.d } : undefined,
+      };
+      const next: RuntimeState = {
+        ...current,
+        championHistory: [
+          ...current.championHistory.filter((entry) => entry.year !== current.season.year),
+          record,
+        ],
+      };
+      autosave(next);
+      return next;
+    });
+  }, []);
+
   const value = useMemo<GameContextValue>(
     () => ({
       ...state,
@@ -587,6 +668,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       updatePlayer,
       toggleDebugMode: () => setDebugMode((current) => !current),
       completeOffseason,
+      recordChampionship,
     }),
     [
       state,
@@ -598,6 +680,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       saveCurrent,
       updatePlayer,
       completeOffseason,
+      recordChampionship,
     ],
   );
 

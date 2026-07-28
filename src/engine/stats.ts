@@ -5,6 +5,7 @@ import type {
   GameState,
   PitcherStats,
   PlayerStats,
+  Team,
   TeamKey,
 } from './types';
 export const createBatterStats = (name: string): BatterStats => ({
@@ -251,4 +252,48 @@ export function mergeStatMaps(
     output[id] = target as unknown as PlayerStats;
   }
   return output;
+}
+
+export interface TeamStatLine {
+  avg: number;
+  hr: number;
+  sb: number;
+  era: number;
+  k: number;
+}
+
+/** Team-level batting/pitching totals for a standings or team-report view, built by
+ * summing every rostered player's individual accumulated stats. */
+export function aggregateTeamStats(team: Team, statsSource: AccumulatedStats): TeamStatLine {
+  let ab = 0,
+    h = 0,
+    hr = 0,
+    sb = 0;
+  for (const player of team.fielders) {
+    const stats = statsSource[player.id];
+    if (stats?.type === 'bat') {
+      ab += stats.ab;
+      h += stats.h;
+      hr += stats.hr;
+      sb += stats.sb;
+    }
+  }
+  let ip3 = 0,
+    er = 0,
+    k = 0;
+  for (const player of team.pitchers) {
+    const stats = statsSource[player.id];
+    if (stats?.type === 'pit') {
+      ip3 += stats.ip3;
+      er += stats.er;
+      k += stats.k;
+    }
+  }
+  return {
+    avg: ab > 0 ? h / ab : 0,
+    hr,
+    sb,
+    era: ip3 > 0 ? (er * 27) / ip3 : 0,
+    k,
+  };
 }

@@ -1,12 +1,13 @@
 import { CENTRAL, TINFO } from '../../../data';
 import {
+  aggregateTeamStats,
   bestLineup,
   calcOVR,
   deriveTeamForm,
   resolveCloserOrder,
   resolveStarterRotation,
 } from '../../../engine';
-import type { AccumulatedStats, Team, TeamKey } from '../../../engine';
+import type { TeamKey } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
 import { Card, LampFigure, SectionTitle, StatChip, teamTextColor } from '../../ui';
 import { TeamFormationOverview } from '../../widgets/TeamFormationOverview';
@@ -14,37 +15,6 @@ import { TeamSwitcher } from '../../widgets/TeamSwitcher';
 
 function leagueLabel(teamKey: TeamKey): string {
   return (CENTRAL as readonly TeamKey[]).includes(teamKey) ? 'セ・リーグ' : 'パ・リーグ';
-}
-
-function aggregateTeamStats(team: Team, statsSource: AccumulatedStats) {
-  let ab = 0;
-  let h = 0;
-  let hr = 0;
-  for (const player of team.fielders) {
-    const stats = statsSource[player.id];
-    if (stats?.type === 'bat') {
-      ab += stats.ab;
-      h += stats.h;
-      hr += stats.hr;
-    }
-  }
-  let ip3 = 0;
-  let er = 0;
-  let k = 0;
-  for (const player of team.pitchers) {
-    const stats = statsSource[player.id];
-    if (stats?.type === 'pit') {
-      ip3 += stats.ip3;
-      er += stats.er;
-      k += stats.k;
-    }
-  }
-  return {
-    avg: ab > 0 ? h / ab : 0,
-    hr,
-    era: ip3 > 0 ? (er * 27) / ip3 : 0,
-    k,
-  };
 }
 
 export function TeamReportTab() {

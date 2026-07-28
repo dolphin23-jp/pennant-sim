@@ -1,14 +1,16 @@
 import { useState, type KeyboardEvent } from 'react';
 
 import { useGameState } from '../../state/gameState';
-import { Button, PageShell, teamTextColor } from '../ui';
+import { BackToTitleButton, Button, NewGameButton, PageShell, teamTextColor } from '../ui';
 import { SaveSlotControls } from '../widgets/SaveSlotControls';
 import { DashboardTab } from './season/DashboardTab';
 import { GameResultsTab } from './season/GameResultsTab';
+import { HistoryTab } from './season/HistoryTab';
 import { LineupTab } from './season/LineupTab';
 import { RankingTab } from './season/RankingTab';
 import { RosterTab } from './season/RosterTab';
 import { RotationTab } from './season/RotationTab';
+import { SquadTab } from './season/SquadTab';
 import { StandingsTab } from './season/StandingsTab';
 import { StatsTab } from './season/StatsTab';
 import { TeamReportTab } from './season/TeamReportTab';
@@ -22,7 +24,9 @@ type SeasonTab =
   | 'standings'
   | 'gameResults'
   | 'teamReport'
-  | 'roster';
+  | 'roster'
+  | 'squad'
+  | 'history';
 
 const tabs: Array<{ id: SeasonTab; label: string }> = [
   { id: 'dashboard', label: 'ダッシュボード' },
@@ -34,6 +38,8 @@ const tabs: Array<{ id: SeasonTab; label: string }> = [
   { id: 'gameResults', label: '試合結果' },
   { id: 'teamReport', label: '球団情報' },
   { id: 'roster', label: '選手一覧' },
+  { id: 'squad', label: '一軍・二軍' },
+  { id: 'history', label: '記録' },
 ];
 
 export function SeasonScreen() {
@@ -120,6 +126,8 @@ export function SeasonScreen() {
           >
             保存
           </Button>
+          <NewGameButton onStartNewGame={game.startNewGame} />
+          <BackToTitleButton onGoToTitle={() => game.setScreen('welcome')} />
         </div>
       </header>
 
@@ -175,7 +183,14 @@ export function SeasonScreen() {
         aria-labelledby={`season-tab-${activeTab}`}
         tabIndex={0}
       >
-        {activeTab === 'dashboard' && <DashboardTab />}
+        {activeTab === 'dashboard' && (
+          <DashboardTab
+            onSelectTeam={(teamKey) => {
+              game.setViewTeam(teamKey);
+              requestTabChange('teamReport');
+            }}
+          />
+        )}
         {activeTab === 'lineup' && <LineupTab onDirtyChange={setLineupDirty} />}
         {activeTab === 'rotation' && <RotationTab onDirtyChange={setRotationDirty} />}
         {activeTab === 'stats' && <StatsTab />}
@@ -191,6 +206,8 @@ export function SeasonScreen() {
         {activeTab === 'gameResults' && <GameResultsTab />}
         {activeTab === 'teamReport' && <TeamReportTab />}
         {activeTab === 'roster' && <RosterTab />}
+        {activeTab === 'squad' && <SquadTab />}
+        {activeTab === 'history' && <HistoryTab />}
       </section>
     </PageShell>
   );
