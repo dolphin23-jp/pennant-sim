@@ -1,9 +1,4 @@
-import {
-  useEffect,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 
 const THEME_KEY = 'pennant-sim-theme';
 type Theme = 'dark' | 'light';
@@ -15,7 +10,9 @@ function relativeLuminance(hex: string): number {
 }
 
 function contrastRatio(hexA: string, hexB: string): number {
-  const [lighter, darker] = [relativeLuminance(hexA), relativeLuminance(hexB)].sort((a, b) => b - a);
+  const [lighter, darker] = [relativeLuminance(hexA), relativeLuminance(hexB)].sort(
+    (a, b) => b - a,
+  );
   return (lighter + 0.05) / (darker + 0.05);
 }
 
@@ -82,13 +79,7 @@ export function Card({
   );
 }
 
-export function SectionTitle({
-  children,
-  id,
-}: {
-  children: ReactNode;
-  id?: string;
-}) {
+export function SectionTitle({ children, id }: { children: ReactNode; id?: string }) {
   return (
     <h2 className="section-title" id={id}>
       {children}
@@ -168,15 +159,7 @@ export function SegmentedControl<T extends string>({
   );
 }
 
-export function StatChip({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: string;
-}) {
+export function StatChip({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
     <div
       style={{
@@ -217,11 +200,7 @@ export function LampFigure({
   compact?: boolean;
   ariaLabel: string;
 }) {
-  const className = [
-    'lamp-figure',
-    elite && 'lamp-figure--elite',
-    compact && 'lamp-figure--sm',
-  ]
+  const className = ['lamp-figure', elite && 'lamp-figure--elite', compact && 'lamp-figure--sm']
     .filter(Boolean)
     .join(' ');
   return (
@@ -236,19 +215,9 @@ export function LampFigure({
   );
 }
 
-export function TermTooltip({
-  term,
-  description,
-}: {
-  term: string;
-  description: string;
-}) {
+export function TermTooltip({ term, description }: { term: string; description: string }) {
   return (
-    <span
-      className="term-tooltip"
-      tabIndex={0}
-      aria-label={`${term}: ${description}`}
-    >
+    <span className="term-tooltip" tabIndex={0} aria-label={`${term}: ${description}`}>
       <span className="term-tooltip__term">{term}</span>
       <span className="term-tooltip__bubble" role="tooltip">
         {description}
@@ -292,13 +261,7 @@ export function ThemeToggle() {
  * parameters, growth type, specials and position aptitude can be adjusted directly for
  * testing. Never affects simulation results by itself - it only unlocks the editor UI.
  */
-export function DebugModeToggle({
-  enabled,
-  onToggle,
-}: {
-  enabled: boolean;
-  onToggle(): void;
-}) {
+export function DebugModeToggle({ enabled, onToggle }: { enabled: boolean; onToggle(): void }) {
   return (
     <button
       type="button"
@@ -311,5 +274,30 @@ export function DebugModeToggle({
       <span aria-hidden="true">{enabled ? '🛠' : '🔧'}</span>
       <span>デバッグ{enabled ? 'ON' : 'OFF'}</span>
     </button>
+  );
+}
+
+/**
+ * The only way back to team selection / a fresh save once a game is underway - none of
+ * the in-game screens otherwise ever navigate back to the welcome screen. Confirms first
+ * since proceeding through team select will eventually autosave over the active slot.
+ */
+export function NewGameButton({ onStartNewGame }: { onStartNewGame(): void }) {
+  return (
+    <Button
+      onClick={() => {
+        if (
+          window.confirm(
+            '新しいゲームを始めますか？現在のセーブ枠の進行状況は、新しいゲームを進めた時点で上書きされます。',
+          )
+        ) {
+          onStartNewGame();
+        }
+      }}
+      color="var(--color-surface-muted)"
+      ariaLabel="新しいゲームを始める（チーム選択に戻る）"
+    >
+      新しいゲーム
+    </Button>
   );
 }

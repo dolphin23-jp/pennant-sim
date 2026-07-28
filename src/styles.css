@@ -314,7 +314,12 @@ input:focus-visible,
 }
 
 .debug-mode-toggle {
-  top: 58px;
+  /* Bottom-right, not stacked under the theme toggle - every screen's header runs
+     buttons out toward that top-right corner, and a second fixed pill there collided
+     with them (e.g. SeasonScreen's own "新しいゲーム" button). */
+  top: auto;
+  right: 12px;
+  bottom: 12px;
 }
 
 .debug-mode-toggle[aria-pressed='true'] {
@@ -977,7 +982,8 @@ input:focus-visible,
   }
 
   .debug-mode-toggle {
-    top: 52px;
+    right: 8px;
+    bottom: 8px;
   }
 
   .player-modal-backdrop {

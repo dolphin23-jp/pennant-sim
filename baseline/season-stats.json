@@ -70,42 +70,42 @@
     "passed": true,
     "comparison": {
       "battingAverage": {
-        "value": 0.245966,
+        "value": 0.245882,
         "minimum": 0.232,
         "target": 0.244,
         "maximum": 0.257,
         "passed": true
       },
       "era": {
-        "value": 3.315794,
+        "value": 3.315891,
         "minimum": 2.21,
         "target": 3.01,
         "maximum": 3.6,
         "passed": true
       },
       "homeRuns": {
-        "value": 1143.11,
+        "value": 1144.34,
         "minimum": 1000,
         "target": 1096,
         "maximum": 1200,
         "passed": true
       },
       "stolenBaseAttemptsPerTeamGame": {
-        "value": 0.532541,
+        "value": 0.532133,
         "minimum": 0.3,
         "target": 0.45,
         "maximum": 0.6,
         "passed": true
       },
       "stolenBaseLeader": {
-        "value": 29.17,
+        "value": 29.55,
         "minimum": 15,
         "target": 32,
         "maximum": 60,
         "passed": true
       },
       "battingAverage300PlusCount": {
-        "value": 13.91,
+        "value": 13.79,
         "minimum": 3,
         "target": 9,
         "maximum": 18,
@@ -119,35 +119,35 @@
         "passed": true
       },
       "homeRuns40Plus": {
-        "value": 1.33,
+        "value": 1.25,
         "minimum": 0.2,
         "target": 1.4,
         "maximum": 4,
         "passed": true
       },
       "runsBattedIn100Plus": {
-        "value": 6.36,
+        "value": 6.37,
         "minimum": 0.8,
         "target": 3,
         "maximum": 7,
         "passed": true
       },
       "era200MinusCount": {
-        "value": 5.16,
+        "value": 5.11,
         "minimum": 1,
         "target": 4,
         "maximum": 10,
         "passed": true
       },
       "errorsPerTeam": {
-        "value": 75.697,
+        "value": 75.861,
         "minimum": 65,
         "target": 86,
         "maximum": 110,
         "passed": true
       },
       "unearnedRunShare": {
-        "value": 0.079464,
+        "value": 0.080268,
         "minimum": 0.04,
         "target": 0.08,
         "maximum": 0.13,
@@ -157,92 +157,92 @@
   },
   "summary": {
     "battingAverage": {
-      "mean": 0.245966,
-      "standardDeviation": 0.005726
+      "mean": 0.245882,
+      "standardDeviation": 0.00571
     },
     "era": {
-      "mean": 3.315794,
-      "standardDeviation": 0.149835
+      "mean": 3.315891,
+      "standardDeviation": 0.1459
     },
     "homeRuns": {
-      "mean": 1143.11,
-      "standardDeviation": 81.902
+      "mean": 1144.34,
+      "standardDeviation": 86.883
     },
     "homeRunLeader": {
-      "mean": 45.9,
-      "standardDeviation": 9.008
+      "mean": 44.82,
+      "standardDeviation": 7.906
     },
     "homeRuns30Plus": {
       "mean": 3.95,
-      "standardDeviation": 1.797
+      "standardDeviation": 1.682
     },
     "battingAverage300PlusCount": {
-      "mean": 13.91,
-      "standardDeviation": 3.076
+      "mean": 13.79,
+      "standardDeviation": 3.217
     },
     "era200MinusCount": {
-      "mean": 5.16,
-      "standardDeviation": 2.727
+      "mean": 5.11,
+      "standardDeviation": 2.782
     },
     "errorsPerTeam": {
-      "mean": 75.697,
-      "standardDeviation": 3.062
+      "mean": 75.861,
+      "standardDeviation": 3.58
     },
     "unearnedRunShare": {
-      "mean": 0.079464,
-      "standardDeviation": 0.005284
+      "mean": 0.080268,
+      "standardDeviation": 0.005771
     },
     "homeRuns40Plus": {
-      "mean": 1.33,
-      "standardDeviation": 1.132
+      "mean": 1.25,
+      "standardDeviation": 1.081
     },
     "homeRuns50Plus": {
-      "mean": 0.38,
-      "standardDeviation": 0.596
+      "mean": 0.28,
+      "standardDeviation": 0.492
     },
     "homeRuns60Plus": {
-      "mean": 0.06,
-      "standardDeviation": 0.237
+      "mean": 0.05,
+      "standardDeviation": 0.26
     },
     "runsBattedInLeader": {
-      "mean": 139.08,
-      "standardDeviation": 21.113
+      "mean": 139.24,
+      "standardDeviation": 17.398
     },
     "runsBattedIn100Plus": {
-      "mean": 6.36,
-      "standardDeviation": 2.147
+      "mean": 6.37,
+      "standardDeviation": 2.373
     },
     "runsBattedIn120Plus": {
-      "mean": 1.87,
-      "standardDeviation": 1.369
+      "mean": 2,
+      "standardDeviation": 1.356
     },
     "stolenBaseSuccessRate": {
-      "mean": 0.72948,
-      "standardDeviation": 0.019219
+      "mean": 0.728729,
+      "standardDeviation": 0.022253
     },
     "stolenBaseAttemptsPerTeamGame": {
-      "mean": 0.532541,
-      "standardDeviation": 0.040405
+      "mean": 0.532133,
+      "standardDeviation": 0.038412
     },
     "stolenBaseLeader": {
-      "mean": 29.17,
-      "standardDeviation": 3.927
+      "mean": 29.55,
+      "standardDeviation": 4.151
     },
     "walkRate": {
-      "mean": 0.073702,
-      "standardDeviation": 0.00209
+      "mean": 0.073887,
+      "standardDeviation": 0.002076
     },
     "batterOvrStandardDeviation": {
-      "mean": 20.193333,
-      "standardDeviation": 0.866911
+      "mean": 20.194074,
+      "standardDeviation": 0.867666
     },
     "pitcherOvrStandardDeviation": {
-      "mean": 17.833426,
-      "standardDeviation": 1.084797
+      "mean": 17.833749,
+      "standardDeviation": 1.087168
     },
     "batterOvrTop1Percent": {
-      "mean": 111.07,
-      "standardDeviation": 3.683
+      "mean": 111.09,
+      "standardDeviation": 3.699
     },
     "batterOvrTop5Percent": {
       "mean": 84.92,
@@ -273,20 +273,20 @@
       "standardDeviation": 0
     },
     "latentFactorMaximumRate": {
-      "mean": 0.790079,
-      "standardDeviation": 0.016214
+      "mean": 0.790066,
+      "standardDeviation": 0.016374
     },
     "potentialGap40PlusRate": {
-      "mean": 0.067632,
-      "standardDeviation": 0.009336
+      "mean": 0.067672,
+      "standardDeviation": 0.009285
     },
     "meanMaximumPotentialGap": {
-      "mean": 26.240701,
-      "standardDeviation": 0.394419
+      "mean": 26.240317,
+      "standardDeviation": 0.395872
     },
     "meanAveragePotentialGap": {
-      "mean": 19.144145,
-      "standardDeviation": 0.337009
+      "mean": 19.144193,
+      "standardDeviation": 0.336581
     },
     "elitePotentialRate": {
       "mean": 0.024286,

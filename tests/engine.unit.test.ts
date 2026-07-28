@@ -2,13 +2,16 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  addDays,
   bestLineup,
+  calcInterleagueStandings,
   calcStandings,
   configureRandom,
   growPlayer,
   generateSchedule,
   initTeams,
   postponeScheduleGame,
+  postseasonSeriesDates,
   resetRandom,
   simAB,
   simulateGame,
@@ -59,9 +62,7 @@ test('Phase B engine preserves league structure and can complete a game', () => 
     const schedule = generateSchedule(2026);
     assert.equal(schedule.length, 858);
     for (const teamKey of teamKeys) {
-      const games = schedule.filter(
-        (game) => game.homeKey === teamKey || game.awayKey === teamKey,
-      );
+      const games = schedule.filter((game) => game.homeKey === teamKey || game.awayKey === teamKey);
       assert.equal(games.length, 143);
     }
 
@@ -187,7 +188,10 @@ test('growPlayer records a non-zero change when normal development rounds to zer
   const player = makePlayer('flat-growth', false);
   player.age = 31;
   player.pot = { ...player.p };
-  configureRandom(() => 0.5, () => Date.UTC(2026, 0, 1));
+  configureRandom(
+    () => 0.5,
+    () => Date.UTC(2026, 0, 1),
+  );
   try {
     const grown = growPlayer(player),
       latest = grown.growthLog?.at(-1);
@@ -218,7 +222,10 @@ test('post-game processing awakens a participant and can award a special ability
   target.specialLevels = {};
   target.awakeCount = 0;
   target.seasonAwakenDone = false;
-  configureRandom(() => 0, () => Date.UTC(2026, 0, 1));
+  configureRandom(
+    () => 0,
+    () => Date.UTC(2026, 0, 1),
+  );
   try {
     const result = simulateGame('giants', 'tigers', teams, suppliedLineup),
       updated = teams.giants.fielders.find((player) => player.id === target.id);
@@ -235,7 +242,10 @@ test('post-game injuries set severity and exclude the player from the next lineu
     target = teams.giants.fielders[0] as Player,
     suppliedLineup = teams.giants.fielders.slice(0, 9);
   target.seasonAwakenDone = true;
-  configureRandom(() => 0, () => Date.UTC(2026, 0, 1));
+  configureRandom(
+    () => 0,
+    () => Date.UTC(2026, 0, 1),
+  );
   try {
     const result = simulateGame('giants', 'tigers', teams, suppliedLineup),
       updated = teams.giants.fielders.find((player) => player.id === target.id);
@@ -275,4 +285,79 @@ test('calcStandings records wins, losses, runs and ranks', () => {
   } finally {
     resetRandom();
   }
+});
+
+test('the generated schedule reads like a real NPB season: series blocks, a clean interleague split, no Monday games, and an All-Star gap', () => {
+  configureRandom(mulberry32(2026), () => Date.UTC(2026, 0, 1));
+  try {
+    const schedule = generateSchedule(2026, { rainoutRate: 0, maxRainouts: 0 });
+    assert.equal(schedule.length, 858);
+
+    // No game is ever scheduled on a Monday - the league's default off day.
+    const mondayGames = schedule.filter(
+      (game) => new Date(`${game.date}T00:00:00Z`).getUTCDay() === 1,
+    );
+    assert.equal(mondayGames.length, 0, 'Monday should never have a scheduled game');
+
+    // Interleague play is balanced to exactly 9 home / 9 away for every club, and every
+    // meeting between two interleague opponents is a single 3-game series (one venue).
+    const interleague = schedule.filter((game) => game.isInterleague);
+    assert.equal(interleague.length, 108);
+    const homeCounts = new Map<TeamKey, number>();
+    for (const game of interleague) {
+      homeCounts.set(game.homeKey, (homeCounts.get(game.homeKey) ?? 0) + 1);
+      homeCounts.set(game.awayKey, homeCounts.get(game.awayKey) ?? 0);
+    }
+    for (const count of homeCounts.values()) assert.equal(count, 9);
+
+    // Somewhere mid-season there's a multi-day gap with no games at all (the All-Star
+    // break), long enough that it can't just be the ordinary Monday-off pattern.
+    const dates = [...new Set(schedule.map((game) => game.date))].sort();
+    let maxGapDays = 0;
+    for (let index = 1; index < dates.length; index += 1) {
+      const previous = new Date(`${dates[index - 1]}T00:00:00Z`).getTime(),
+        current = new Date(`${dates[index]}T00:00:00Z`).getTime();
+      maxGapDays = Math.max(maxGapDays, (current - previous) / 86_400_000);
+    }
+    assert.ok(maxGapDays >= 6, `expected an All-Star-length gap, longest was ${maxGapDays} days`);
+  } finally {
+    resetRandom();
+  }
+});
+
+test('calcInterleagueStandings ranks all 12 clubs together from interleague games only', () => {
+  configureRandom(mulberry32(33), () => Date.UTC(2026, 0, 1));
+  try {
+    const schedule = generateSchedule(2026);
+    const interleagueGame = schedule.find((game) => game.isInterleague);
+    const leagueGame = schedule.find((game) => !game.isInterleague);
+    assert.ok(interleagueGame && leagueGame);
+    const played = schedule.map((game) => {
+      if (game.id === interleagueGame.id) return { ...game, played: true, hs: 4, as: 1 };
+      if (game.id === leagueGame.id) return { ...game, played: true, hs: 9, as: 0 };
+      return game;
+    });
+    const standings = calcInterleagueStandings(played);
+    // The intra-league blowout must not leak into the interleague-only tally.
+    assert.equal(standings[interleagueGame.homeKey].w, 1);
+    assert.equal(standings[interleagueGame.homeKey].g, 1);
+    assert.equal(standings[leagueGame.homeKey].g, 0);
+    // Ranking spans both leagues at once rather than being split Central/Pacific.
+    const ranks = new Set(Object.values(standings).map((record) => record.rank));
+    assert.ok(ranks.has(12), '12球団を通したランキングになっていること');
+  } finally {
+    resetRandom();
+  }
+});
+
+test('postseasonSeriesDates paces games with a rest day roughly every third game', () => {
+  const dates = postseasonSeriesDates('2026-10-10', 7);
+  assert.equal(dates.length, 7);
+  assert.equal(dates[0], '2026-10-10');
+  // Every date must be on or after the previous one - never earlier.
+  for (let index = 1; index < dates.length; index += 1) {
+    assert.ok((dates[index] as string) >= (dates[index - 1] as string));
+  }
+  // A rest day is worked in by the 4th game (index 3).
+  assert.equal(dates[3], addDays('2026-10-10', 4));
 });

@@ -1,7 +1,7 @@
 import { useState, type KeyboardEvent } from 'react';
 
 import { useGameState } from '../../state/gameState';
-import { Button, PageShell, teamTextColor } from '../ui';
+import { Button, NewGameButton, PageShell, teamTextColor } from '../ui';
 import { SaveSlotControls } from '../widgets/SaveSlotControls';
 import { DashboardTab } from './season/DashboardTab';
 import { GameResultsTab } from './season/GameResultsTab';
@@ -120,6 +120,7 @@ export function SeasonScreen() {
           >
             保存
           </Button>
+          <NewGameButton onStartNewGame={game.startNewGame} />
         </div>
       </header>
 
