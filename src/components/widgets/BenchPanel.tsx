@@ -1,6 +1,10 @@
+import { useMemo, useState } from 'react';
+
 import { displayOVRBreakdown } from '../../engine';
 import type { AccumulatedStats, Player } from '../../engine';
 import { Card, EmptyState, SectionTitle } from '../ui';
+import { AgePositionFilterBar } from './AgePositionFilterBar';
+import { matchesAge, matchesPositionFilter, type AgeFilter, type PositionFilter } from './playerFilters';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
 import { BatterStatLine } from './StatLine';
 
@@ -17,14 +21,37 @@ export function BenchPanel({
   onToggleArm(player: Player): void;
   onSelectPlayer(player: Player): void;
 }) {
+  const [ageFilter, setAgeFilter] = useState<AgeFilter>('all');
+  const [positionFilter, setPositionFilter] = useState<PositionFilter>('all');
+  const filteredPlayers = useMemo(
+    () =>
+      players.filter(
+        (player) => matchesAge(player, ageFilter) && matchesPositionFilter(player, positionFilter),
+      ),
+    [players, ageFilter, positionFilter],
+  );
+
   return (
     <Card ariaLabel="ベンチの野手一覧">
       <SectionTitle>Bench</SectionTitle>
       <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginBottom: 10 }}>
         選手をタップしてから守備位置をタップすると入れ替えます。もう一度タップすると解除します。
       </div>
+      {players.length > 0 && (
+        <AgePositionFilterBar
+          ageFilter={ageFilter}
+          onAgeFilterChange={setAgeFilter}
+          positionFilter={positionFilter}
+          onPositionFilterChange={setPositionFilter}
+          matchCount={filteredPlayers.length}
+          totalCount={players.length}
+          ariaLabelPrefix="ベンチの野手"
+        />
+      )}
       {!players.length ? (
         <EmptyState>ベンチの野手はいません。</EmptyState>
+      ) : !filteredPlayers.length ? (
+        <EmptyState>条件に一致するベンチの野手がいません。</EmptyState>
       ) : (
         <div
           role="list"
@@ -35,7 +62,7 @@ export function BenchPanel({
             gap: 7,
           }}
         >
-          {players.map((player) => {
+          {filteredPlayers.map((player) => {
             const armed = armedPlayerId === player.id;
             const injured = (player.injuryDays ?? 0) > 0;
             const breakdown = displayOVRBreakdown(player, player.pos);

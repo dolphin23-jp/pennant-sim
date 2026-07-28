@@ -273,20 +273,20 @@
       "standardDeviation": 0
     },
     "latentFactorMaximumRate": {
-      "mean": 0.790066,
-      "standardDeviation": 0.016374
+      "mean": 0.796481,
+      "standardDeviation": 0.01605
     },
     "potentialGap40PlusRate": {
-      "mean": 0.067672,
-      "standardDeviation": 0.009285
+      "mean": 0.069603,
+      "standardDeviation": 0.009405
     },
     "meanMaximumPotentialGap": {
-      "mean": 26.240317,
-      "standardDeviation": 0.395872
+      "mean": 26.348862,
+      "standardDeviation": 0.399043
     },
     "meanAveragePotentialGap": {
-      "mean": 19.144193,
-      "standardDeviation": 0.336581
+      "mean": 19.244625,
+      "standardDeviation": 0.33954
     },
     "elitePotentialRate": {
       "mean": 0.024286,

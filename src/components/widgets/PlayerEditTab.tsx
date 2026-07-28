@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react';
 
-import { BS, CATCH_SP, CS2, FIELD_POSITIONS, MATURITY_TYPES, PS, SPECIAL_INDEX } from '../../data';
-import { syncSpecialsFromLevels } from '../../engine';
+import {
+  BS,
+  CATCH_SP,
+  CS2,
+  FIELD_POSITIONS,
+  MATURITY_TYPES,
+  PLAYER_DEVELOPMENT_BALANCE,
+  PS,
+  SPECIAL_INDEX,
+} from '../../data';
+import { hasPositionAptitude, kmhToVelocity, syncSpecialsFromLevels, velocityToKmh } from '../../engine';
 import type { FieldPosition, Player, PlayerParams, SpecialAbility } from '../../engine';
 import { Button, Card, SectionTitle } from '../ui';
 
@@ -25,18 +34,22 @@ const PITCHER_PARAM_FIELDS: Array<{ key: keyof PlayerParams; label: string }> = 
   { key: 'fld', label: '守備' },
 ];
 
+// リード is otherwise only shown for a player's primary position - but a batter partway
+// (or fully) through catcher conversion can carry catcher aptitude without '捕手' ever
+// becoming their primary pos, and debug mode is exactly where you'd want to reach in and
+// fix/inspect that value by hand, so the gate matches hasPositionAptitude, not pos alone.
 function paramFieldsFor(player: Player): Array<{ key: keyof PlayerParams; label: string }> {
   if (player.isP) return PITCHER_PARAM_FIELDS;
-  return player.pos === '捕手' ? [...BATTER_PARAM_FIELDS, CATCHER_FIELD] : BATTER_PARAM_FIELDS;
+  return hasPositionAptitude(player, '捕手') ? [...BATTER_PARAM_FIELDS, CATCHER_FIELD] : BATTER_PARAM_FIELDS;
 }
 
 /** Which special-ability pool applies to this player, mirroring how the engine reads them
  * (pitcher specials + 鉄人 for pitchers; batter specials + 勝負強さ/対エース○ for hitters;
- * catcher-only specials only for catchers). */
+ * catcher-only specials for anyone with catcher aptitude, born or converted). */
 function specialPoolFor(player: Player): SpecialAbility[] {
   if (player.isP) return [...PS, ...CS2.filter((special) => special.id === 'iron')];
   const pool = [...BS, ...CS2.filter((special) => special.id !== 'iron')];
-  if (player.pos === '捕手') pool.push(...CATCH_SP);
+  if (hasPositionAptitude(player, '捕手')) pool.push(...CATCH_SP);
   return pool;
 }
 
@@ -68,6 +81,47 @@ function NumberField({
         max={max}
         value={value}
         onChange={(event) => onChange(clampInt(event.target.value, min, max, value))}
+      />
+    </div>
+  );
+}
+
+const RATING_MIN = 1;
+const RATING_MAX = PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.maximumRating;
+const potentialMax = (potentialClass: Player['potentialClass']): number =>
+  potentialClass === 'elite'
+    ? PLAYER_DEVELOPMENT_BALANCE.potentialCeiling.elite
+    : PLAYER_DEVELOPMENT_BALANCE.potentialCeiling.standard;
+
+/** 球速 is displayed everywhere else in km/h now, so editing it as a raw 1-130ish rating
+ * here would force guessing the conversion by hand. Shows/accepts km/h directly and
+ * converts back to the underlying rating at the boundary; the rating itself is still what
+ * gets stored and clamped. */
+function VelocityField({
+  label,
+  rawValue,
+  rawMax,
+  onChangeRaw,
+}: {
+  label: string;
+  rawValue: number;
+  rawMax: number;
+  onChangeRaw(nextRaw: number): void;
+}) {
+  const kmhMin = velocityToKmh(RATING_MIN);
+  const kmhMax = velocityToKmh(rawMax);
+  return (
+    <div className="debug-field">
+      <label>{`${label}（km/h）`}</label>
+      <input
+        type="number"
+        min={kmhMin}
+        max={kmhMax}
+        value={velocityToKmh(rawValue)}
+        onChange={(event) => {
+          const kmh = clampInt(event.target.value, kmhMin, kmhMax, velocityToKmh(rawValue));
+          onChangeRaw(clampInt(String(kmhToVelocity(kmh)), RATING_MIN, rawMax, rawValue));
+        }}
       />
     </div>
   );
@@ -202,24 +256,44 @@ export function PlayerEditTab({
       <Card className="detail-card detail-card--wide" ariaLabel="能力値と潜在能力の編集">
         <SectionTitle>Parameters（現在値 / 潜在上限）</SectionTitle>
         <div className="debug-field-grid">
-          {paramFields.map(({ key, label }) => (
-            <div key={key} style={{ display: 'grid', gap: 6 }}>
-              <NumberField
-                label={label}
-                value={Number(draft.p[key] ?? 50)}
-                min={1}
-                max={120}
-                onChange={(value) => setParam(key, value)}
-              />
-              <NumberField
-                label={`${label}（潜在）`}
-                value={Number(draft.pot[key] ?? draft.p[key] ?? 50)}
-                min={1}
-                max={120}
-                onChange={(value) => setPotential(key, value)}
-              />
-            </div>
-          ))}
+          {paramFields.map(({ key, label }) => {
+            const potMax = potentialMax(draft.potentialClass);
+            if (key === 'vel')
+              return (
+                <div key={key} style={{ display: 'grid', gap: 6 }}>
+                  <VelocityField
+                    label={label}
+                    rawValue={Number(draft.p.vel ?? 50)}
+                    rawMax={RATING_MAX}
+                    onChangeRaw={(value) => setParam('vel', value)}
+                  />
+                  <VelocityField
+                    label={`${label}（潜在）`}
+                    rawValue={Number(draft.pot.vel ?? draft.p.vel ?? 50)}
+                    rawMax={potMax}
+                    onChangeRaw={(value) => setPotential('vel', value)}
+                  />
+                </div>
+              );
+            return (
+              <div key={key} style={{ display: 'grid', gap: 6 }}>
+                <NumberField
+                  label={label}
+                  value={Number(draft.p[key] ?? 50)}
+                  min={RATING_MIN}
+                  max={RATING_MAX}
+                  onChange={(value) => setParam(key, value)}
+                />
+                <NumberField
+                  label={`${label}（潜在）`}
+                  value={Number(draft.pot[key] ?? draft.p[key] ?? 50)}
+                  min={RATING_MIN}
+                  max={potMax}
+                  onChange={(value) => setPotential(key, value)}
+                />
+              </div>
+            );
+          })}
         </div>
       </Card>
 

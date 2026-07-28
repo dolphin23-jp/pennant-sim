@@ -1,13 +1,15 @@
 import {
   BS,
+  CATCH_SP,
   GROW_P,
   MATURITY_PEAK_AGE,
   PLAYER_DEVELOPMENT_BALANCE,
   POSITION_CONVERSION_BALANCE,
   PS,
 } from '../data';
-import { calcOVR } from './ratings';
-import { clamp, random, randomChoice, randomInt } from './random';
+import { generatePotential, pickSpecialAbilities } from './players';
+import { calcOVR, hasPositionAptitude } from './ratings';
+import { clamp, gaussian, random, randomChoice, randomInt } from './random';
 import { ensureSpecialLevels, syncSpecialsFromLevels } from './specials';
 import type {
   AwakeningEvent,
@@ -18,6 +20,34 @@ import type {
   PlayerParams,
   Teams,
 } from './types';
+
+/** リード (catcher game-calling) and the catcher-only special pool are normally rolled
+ * once, at initial generation, only for a player who starts out at catcher - see
+ * generateBatter. A player who later trains into catcher through position conversion
+ * would otherwise carry ld:0 forever (quietly tanking their catcher OVR - calcOVR reads
+ * `(params.ld ?? 0) * weights.ld`) and never get a shot at the catcher specials. This
+ * backfills both, once, for anyone who currently has catcher aptitude (born or converted)
+ * but no ld yet; it is a no-op once ld is set. Discipline (`dc`) is reused as a stand-in
+ * for the "effectiveQuality" input generateBatter would have used, since both were
+ * originally sampled from the same base (`effectiveQuality * 0.85`).
+ */
+export function ensureCatcherAttributes(player: Player): Player {
+  if (player.isP || !hasPositionAptitude(player, '捕手') || player.p.ld) return player;
+  const catcherAgeMultiplier =
+      player.age <= 22 ? 0.75 : player.age <= 26 ? 0.88 : player.age <= 31 ? 1 : player.age <= 35 ? 1.03 : 1.01,
+    qualityProxy = Number(player.p.dc ?? 50),
+    gameCalling = clamp(Math.round(gaussian(qualityProxy, 12) * catcherAgeMultiplier), 20, 108);
+  const params: PlayerParams = { ...player.p, ld: gameCalling };
+  const potential: Player['pot'] = {
+    ...player.pot,
+    ld: generatePotential(gameCalling, 22, player.potentialClass ?? 'standard', 0),
+  };
+  const additionalLevels = pickSpecialAbilities(CATCH_SP, qualityProxy / 0.85, params);
+  const specialLevels = { ...(player.specialLevels ?? {}) };
+  for (const [id, level] of Object.entries(additionalLevels))
+    if (!specialLevels[id]) specialLevels[id] = level;
+  return syncSpecialsFromLevels({ ...player, p: params, pot: potential, specialLevels });
+}
 
 export function developmentAgeCoefficient(age: number, maturity: Maturity): number {
   const balance = PLAYER_DEVELOPMENT_BALANCE.careerCurve,
@@ -64,7 +94,7 @@ export function growthParameters(player: Player): Array<keyof PlayerParams> {
         'df',
         'arm',
         'stam',
-        ...(player.pos === '捕手' ? (['ld'] as Array<keyof PlayerParams>) : []),
+        ...(hasPositionAptitude(player, '捕手') ? (['ld'] as Array<keyof PlayerParams>) : []),
       ];
 }
 export function growPlayer(player: Player): Player {
@@ -187,7 +217,11 @@ export function startPositionConversion(player: Player, pos: FieldPosition): Pla
     nextPositions = existing
       ? positions
       : [...positions, { pos, apt: startingAptitude }];
-  return { ...player, positions: nextPositions, conversionTarget: { pos, startedAge: player.age } };
+  return ensureCatcherAttributes({
+    ...player,
+    positions: nextPositions,
+    conversionTarget: { pos, startedAge: player.age },
+  });
 }
 
 export function cancelPositionConversion(player: Player): Player {
@@ -338,7 +372,12 @@ export function growthPhase(teams: Teams): {
       return grown;
     });
     team.fielders = team.fielders.map((fielder) => {
-      const grown = advancePositionConversion(growPlayer(fielder));
+      // Seed catcher-only attributes before growth runs, not after: growth would
+      // otherwise see ld already gated into growthParameters (via hasPositionAptitude)
+      // but still at its unset 0 baseline, take one degenerate tiny growth step on it,
+      // and leave that non-zero-but-broken value behind for ensureCatcherAttributes'
+      // "already set" check to wrongly treat as already backfilled.
+      const grown = advancePositionConversion(growPlayer(ensureCatcherAttributes(fielder)));
       grown.seasonAwakenDone = false;
       const awakening = checkAwakening(grown, false);
       if (awakening) {

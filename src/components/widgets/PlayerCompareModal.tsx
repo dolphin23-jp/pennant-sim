@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 
-import { calcOVR, displayOVR, displayOVRBreakdown, effectiveOVR, ops } from '../../engine';
+import { calcOVR, displayOVR, displayOVRBreakdown, effectiveOVR, ops, velocityKmhText } from '../../engine';
 import type { AccumulatedStats, Player } from '../../engine';
 import { Button, Card, EmptyState, SectionTitle } from '../ui';
 import {
@@ -14,7 +14,7 @@ const RADAR_COLORS = ['var(--color-accent)', 'var(--color-warning)', 'var(--colo
 function abilityItems(player: Player): AbilityRadarItem[] {
   return player.isP
     ? [
-        { label: '球速', value: player.p.vel },
+        { label: '球速', value: player.p.vel, displayText: velocityKmhText(player.p.vel) },
         { label: '制球', value: player.p.ctrl },
         { label: 'スタミナ', value: player.p.stam },
         { label: 'ノビ', value: player.p.nobi },
@@ -130,7 +130,7 @@ const pitcherAbilityMetrics: CompareMetric[] = [
     id: 'vel',
     label: '球速',
     value: (player) => (player.isP ? (player.p.vel ?? null) : null),
-    format: integerText,
+    format: velocityKmhText,
   },
   {
     id: 'ctrl',

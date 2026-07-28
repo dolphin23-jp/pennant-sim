@@ -1,6 +1,10 @@
+import { useMemo, useState } from 'react';
+
 import { calcOVR } from '../../engine';
 import type { Player } from '../../engine';
 import { Card, EmptyState, SectionTitle } from '../ui';
+import { AgePositionFilterBar } from './AgePositionFilterBar';
+import { matchesAge, type AgeFilter } from './playerFilters';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
 
 function PitcherSlot({
@@ -96,7 +100,15 @@ export function BullpenBoard({
   onSelectPlayer(player: Player): void;
 }) {
   const setupPitchers = relievers.slice(0, 2);
-  const others = [...closers.slice(2), ...relievers.slice(2)];
+  const others = useMemo(
+    () => [...closers.slice(2), ...relievers.slice(2)],
+    [closers, relievers],
+  );
+  const [ageFilter, setAgeFilter] = useState<AgeFilter>('all');
+  const filteredOthers = useMemo(
+    () => others.filter((pitcher) => matchesAge(pitcher, ageFilter)),
+    [others, ageFilter],
+  );
 
   return (
     <Card ariaLabel="ブルペン編成">
@@ -141,8 +153,19 @@ export function BullpenBoard({
         <div style={{ marginBottom: 7, color: 'var(--color-text-faint)', fontSize: 10, fontWeight: 900 }}>
           その他
         </div>
+        {others.length > 0 && (
+          <AgePositionFilterBar
+            ageFilter={ageFilter}
+            onAgeFilterChange={setAgeFilter}
+            matchCount={filteredOthers.length}
+            totalCount={others.length}
+            ariaLabelPrefix="その他のブルペン投手"
+          />
+        )}
         {!others.length ? (
           <EmptyState>その他のブルペン投手はいません。</EmptyState>
+        ) : !filteredOthers.length ? (
+          <EmptyState>条件に一致するブルペン投手がいません。</EmptyState>
         ) : (
           <div
             style={{
@@ -151,7 +174,7 @@ export function BullpenBoard({
               gap: 7,
             }}
           >
-            {others.map((pitcher) => (
+            {filteredOthers.map((pitcher) => (
               <button
                 key={pitcher.id}
                 type="button"

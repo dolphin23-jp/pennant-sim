@@ -74,7 +74,7 @@ function maturityModifier(age: number, maturity: Maturity): number {
   if (years <= 2) return clamp(1 - years * 0.03, 0.8, 1);
   return clamp(0.94 - (years - 2) * 0.048, 0.4, 0.94);
 }
-function generatePotential(
+export function generatePotential(
   value: number,
   margin: number | undefined,
   potentialClass: PotentialClass,
@@ -84,13 +84,13 @@ function generatePotential(
     return clamp(
       Math.max(value + 15, value + Math.round(latentDevelopment + gaussian(42, 11))),
       value,
-      140,
+      PLAYER_DEVELOPMENT_BALANCE.potentialCeiling.elite,
     );
   const base = Math.max(7, (margin || 20) - 8);
   return clamp(
     Math.max(value + 5, value + Math.round(latentDevelopment + gaussian(base, 5))),
     value,
-    125,
+    PLAYER_DEVELOPMENT_BALANCE.potentialCeiling.standard,
   );
 }
 function generateSecondaryPositions(primary: FieldPosition): PositionAptitude[] {
@@ -189,7 +189,7 @@ function specialProfileMultiplier(specialId: string, params: PlayerParams): numb
     relativeScore = (relatedMean - mean) / standardDeviation;
   return clamp(1 + relativeScore, 0.25, 3);
 }
-function pickSpecialAbilities(
+export function pickSpecialAbilities(
   pool: SpecialAbility[],
   quality: number,
   params: PlayerParams,

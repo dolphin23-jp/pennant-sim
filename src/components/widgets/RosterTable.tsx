@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { FIELD_POSITIONS, SPECIAL_INDEX } from '../../data';
 import { calcOVR, displayOVR, effectiveOVR } from '../../engine';
-import type { AccumulatedStats, FieldPosition, Player, Team } from '../../engine';
+import type { AccumulatedStats, Player, Team } from '../../engine';
 import { Button, Card, EmptyState, SectionTitle, TermTooltip } from '../ui';
 import { DisplayOVRValue } from './DisplayOVRValue';
 import { PlayerCompareModal } from './PlayerCompareModal';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
+import { matchesAge, matchesPositionFilter, type AgeFilter, type PositionFilter } from './playerFilters';
 import { hasGoldSpecial } from './specialDisplay';
 import { BatterStatLine, PitcherStatLine } from './StatLine';
 import './phaseB.css';
@@ -14,8 +15,6 @@ import './phaseB.css';
 type SortKey = 'name' | 'age' | 'ovr' | 'effective' | 'display' | 'status';
 type SortDirection = 'asc' | 'desc';
 type KindFilter = 'all' | 'fielder' | 'pitcher';
-type AgeFilter = 'all' | 'under24' | '25to29' | 'over30';
-type PositionFilter = 'all' | FieldPosition;
 
 const rosterSortOptions: Array<{ key: SortKey; label: string }> = [
   { key: 'display', label: '特殊込みOVR' },
@@ -47,22 +46,6 @@ function statusText(player: Player): string {
   if ((player.injuryDays ?? 0) > 0) return `故障 ${player.injuryDays}日`;
   if (typeof player.fatigue === 'number') return `疲労 ${Math.round(player.fatigue)}`;
   return '通常';
-}
-
-function supportsPosition(player: Player, position: FieldPosition): boolean {
-  if (player.isP) return false;
-  return (
-    player._assignedPos === position ||
-    player.pos === position ||
-    Boolean(player.positions?.some((entry) => entry.pos === position))
-  );
-}
-
-function matchesAge(player: Player, filter: AgeFilter): boolean {
-  if (filter === 'under24') return player.age <= 24;
-  if (filter === '25to29') return player.age >= 25 && player.age <= 29;
-  if (filter === 'over30') return player.age >= 30;
-  return true;
 }
 
 function sortValue(player: Player, key: SortKey): number | string {
@@ -307,7 +290,7 @@ export function RosterTable({
         .filter((player) => {
           if (kindFilter === 'fielder' && player.isP) return false;
           if (kindFilter === 'pitcher' && !player.isP) return false;
-          if (positionFilter !== 'all' && !supportsPosition(player, positionFilter)) return false;
+          if (!matchesPositionFilter(player, positionFilter)) return false;
           return matchesAge(player, ageFilter);
         })
         .sort((first, second) => {
