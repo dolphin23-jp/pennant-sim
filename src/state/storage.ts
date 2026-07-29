@@ -730,6 +730,26 @@ export async function saveGameToSlot(
 }
 
 /**
+ * Wipes a slot's save data. Writes an empty string rather than adding a `remove` method
+ * to StorageBackend - `loadGameFromSlot`/`listSaveSlots` already treat any falsy stored
+ * value as "no save" (`if (!raw) return null`), so this reuses that existing contract
+ * instead of needing every backend (IndexedDB, host API, localStorage) to implement
+ * deletion. Does not touch which slot is active - a cleared slot just reads as empty.
+ */
+export async function clearSaveSlot(
+  slot: SaveSlot,
+  backend: StorageBackend = browserStorage,
+): Promise<boolean> {
+  try {
+    await backend.set(SAVE_KEY(slot), '');
+    return true;
+  } catch (error) {
+    console.error(error);
+    return false;
+  }
+}
+
+/**
  * Loads a slot's save data. Deliberately does NOT swallow every failure into `null`:
  * a slot with no data at all is a legitimate `null` (new player), but a slot that
  * holds a string that fails to parse/migrate is a corrupted save, and silently

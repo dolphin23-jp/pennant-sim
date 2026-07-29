@@ -1,5 +1,6 @@
 import type { Player, Teams } from '../../engine';
 import { IconBaseball, IconBolt, IconMegaphone, IconSparkle, IconTrophy } from '../icons';
+import { useSettings } from '../../state/settings';
 import type { Notice } from '../../state/storage';
 import { Button, Card, EmptyState, SectionTitle } from '../ui';
 
@@ -55,6 +56,9 @@ export function NoticeCenter({
   onDismiss(noticeId: string): void;
   onClear(): void;
 }) {
+  const { hiddenNoticeKinds } = useSettings();
+  const visibleNotices = notices.filter((notice) => !hiddenNoticeKinds.has(notice.kind ?? 'system'));
+
   return (
     <Card ariaLabel="チーム通知センター">
       <div
@@ -84,8 +88,10 @@ export function NoticeCenter({
         )}
       </div>
 
-      {!notices.length ? (
-        <EmptyState>新しいチーム情報はありません。</EmptyState>
+      {!visibleNotices.length ? (
+        <EmptyState>
+          {notices.length ? '設定で非表示にした種類以外の通知はありません。' : '新しいチーム情報はありません。'}
+        </EmptyState>
       ) : (
         <div
           role="log"
@@ -93,7 +99,7 @@ export function NoticeCenter({
           aria-label="新着チーム情報"
           style={{ display: 'grid', gap: 8 }}
         >
-          {notices.slice(0, 20).map((notice) => {
+          {visibleNotices.slice(0, 20).map((notice) => {
             const player = noticePlayer(notice, teams);
             const color = toneColor(notice);
             const KindIcon = KIND_ICONS[notice.kind ?? 'system'];
