@@ -1,7 +1,6 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 
-const THEME_KEY = 'pennant-sim-theme';
-type Theme = 'dark' | 'light';
+import { useSettings } from '../state/settings';
 
 function relativeLuminance(hex: string): number {
   const channels = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
@@ -226,53 +225,13 @@ export function TermTooltip({ term, description }: { term: string; description: 
   );
 }
 
-function initialTheme(): Theme {
-  if (typeof window === 'undefined') return 'dark';
-  const saved = window.localStorage.getItem(THEME_KEY);
-  if (saved === 'dark' || saved === 'light') return saved;
-  return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-}
-
-export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>(initialTheme);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    window.localStorage.setItem(THEME_KEY, theme);
-  }, [theme]);
-
-  const nextTheme = theme === 'dark' ? 'light' : 'dark';
+/** Compact icon-only button that opens the settings sheet - replaces what used to be
+ * two separate always-visible fixed pills (theme + debug toggles), which together were
+ * too large/prominent on narrow phone screens. */
+export function SettingsButton({ onClick }: { onClick(): void }) {
   return (
-    <button
-      type="button"
-      className="theme-toggle"
-      onClick={() => setTheme(nextTheme)}
-      aria-label={`${nextTheme === 'light' ? 'ライト' : 'ダーク'}テーマに切り替える`}
-      aria-pressed={theme === 'light'}
-    >
-      <span aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span>
-      <span>{theme === 'dark' ? 'ライト' : 'ダーク'}</span>
-    </button>
-  );
-}
-
-/**
- * Dev/QA-only switch: while on, player detail screens gain an editable "編集" tab so
- * parameters, growth type, specials and position aptitude can be adjusted directly for
- * testing. Never affects simulation results by itself - it only unlocks the editor UI.
- */
-export function DebugModeToggle({ enabled, onToggle }: { enabled: boolean; onToggle(): void }) {
-  return (
-    <button
-      type="button"
-      className="theme-toggle debug-mode-toggle"
-      onClick={onToggle}
-      aria-pressed={enabled}
-      aria-label={enabled ? 'デバッグモードを無効にする' : 'デバッグモードを有効にする'}
-      title="選手エディット機能（デバッグ用）の表示切替"
-    >
-      <span aria-hidden="true">{enabled ? '🛠' : '🔧'}</span>
-      <span>デバッグ{enabled ? 'ON' : 'OFF'}</span>
+    <button type="button" className="settings-button" onClick={onClick} aria-label="設定を開く" title="設定">
+      <span aria-hidden="true">⚙</span>
     </button>
   );
 }
@@ -283,10 +242,12 @@ export function DebugModeToggle({ enabled, onToggle }: { enabled: boolean; onTog
  * since proceeding through team select will eventually autosave over the active slot.
  */
 export function NewGameButton({ onStartNewGame }: { onStartNewGame(): void }) {
+  const { skipConfirmations } = useSettings();
   return (
     <Button
       onClick={() => {
         if (
+          skipConfirmations ||
           window.confirm(
             '新しいゲームを始めますか？現在のセーブ枠の進行状況は、新しいゲームを進めた時点で上書きされます。',
           )

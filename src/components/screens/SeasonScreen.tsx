@@ -2,7 +2,6 @@ import { useState, type KeyboardEvent } from 'react';
 
 import { useGameState } from '../../state/gameState';
 import { BackToTitleButton, Button, NewGameButton, PageShell, teamTextColor } from '../ui';
-import { SaveSlotControls } from '../widgets/SaveSlotControls';
 import { DashboardTab } from './season/DashboardTab';
 import { GameResultsTab } from './season/GameResultsTab';
 import { HistoryTab } from './season/HistoryTab';
@@ -115,7 +114,6 @@ export function SeasonScreen() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <SaveSlotControls beforeExport={game.saveCurrent} warnBeforeSwitch />
           <span className="inline-status" role="status" aria-live="polite">
             {saveStatus}
           </span>

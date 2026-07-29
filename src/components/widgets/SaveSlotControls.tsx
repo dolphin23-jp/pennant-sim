@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { TINFO } from '../../data';
+import { useSettings } from '../../state/settings';
 import {
   SAVE_SLOTS,
+  clearSaveSlot,
   downloadSaveSlot,
   getActiveSaveSlot,
   importSaveFileToSlot,
@@ -17,7 +19,9 @@ export function SaveSlotControls({
   beforeExport,
   warnBeforeSwitch = false,
   deferLoad = false,
+  allowClear = false,
   onSlotChange,
+  onActiveSlotCleared,
 }: {
   beforeExport?: () => Promise<boolean>;
   warnBeforeSwitch?: boolean;
@@ -30,10 +34,20 @@ export function SaveSlotControls({
    * explicit "続きから読み込む" button instead.
    */
   deferLoad?: boolean;
+  /** Renders a destructive "この枠を初期化" button that wipes the selected slot's data.
+   * Always confirms regardless of any "skip confirmations" preference - unlike switching
+   * or overwriting a slot, this can't be undone by picking a different slot afterward. */
+  allowClear?: boolean;
   /** Fires whenever the targeted slot changes, so a parent (e.g. the title screen's
    * "start new game" button) knows which slot to act on. */
   onSlotChange?(slot: SaveSlot): void;
+  /** Fires only when the slot just cleared was the *active* slot (the one actually
+   * loaded), so a parent can reset its in-memory game state - otherwise the next
+   * autosave would silently recreate the save that was just wiped. Clearing any other
+   * slot needs no such reaction, since nothing in memory is backed by it. */
+  onActiveSlotCleared?(): void;
 }) {
+  const { skipConfirmations } = useSettings();
   const [activeSlot, setActiveSlot] = useState<SaveSlot>(1);
   const [selectedSlot, setSelectedSlot] = useState<SaveSlot>(1);
   const [summaries, setSummaries] = useState<SaveSlotSummary[]>([]);
@@ -65,6 +79,7 @@ export function SaveSlotControls({
       if (
         warnBeforeSwitch &&
         slot !== activeSlot &&
+        !skipConfirmations &&
         !window.confirm('未保存の変更は失われます。別のセーブスロットへ切り替えますか？')
       )
         return;
@@ -98,6 +113,7 @@ export function SaveSlotControls({
     if (!file) return;
     if (
       selectedSummary?.exists &&
+      !skipConfirmations &&
       !window.confirm(`スロット${selectedSlot}のセーブをアップロード内容で上書きしますか？`)
     )
       return;
@@ -106,6 +122,22 @@ export function SaveSlotControls({
     if (success) {
       await setActiveSaveSlot(selectedSlot);
       window.location.reload();
+    }
+  };
+
+  const handleClear = async () => {
+    if (
+      !window.confirm(
+        `スロット${selectedSlot}のセーブデータを完全に削除しますか？この操作は元に戻せません。`,
+      )
+    )
+      return;
+    const wasActiveSlot = selectedSlot === activeSlot;
+    const success = await clearSaveSlot(selectedSlot);
+    setStatus(success ? `スロット${selectedSlot}を初期化しました` : '初期化に失敗しました');
+    if (success) {
+      if (wasActiveSlot) onActiveSlotCleared?.();
+      await refresh();
     }
   };
 
@@ -166,6 +198,16 @@ export function SaveSlotControls({
       >
         JSON読込
       </Button>
+      {allowClear && (
+        <Button
+          onClick={() => void handleClear()}
+          disabled={!selectedSummary?.exists}
+          color="var(--color-danger)"
+          ariaLabel={`スロット${selectedSlot}のセーブデータを初期化`}
+        >
+          この枠を初期化
+        </Button>
+      )}
       <input
         ref={fileInput}
         type="file"

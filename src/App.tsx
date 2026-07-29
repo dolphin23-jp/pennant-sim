@@ -5,15 +5,18 @@ import { PostseasonScreen } from './components/screens/PostseasonScreen';
 import { SeasonScreen } from './components/screens/SeasonScreen';
 import { TeamSelectScreen } from './components/screens/TeamSelectScreen';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { Button, Card, DebugModeToggle, PageShell, ThemeToggle } from './components/ui';
+import { Button, Card, PageShell, SettingsButton } from './components/ui';
 import { GameDetailModal } from './components/widgets/GameDetailModal';
 import { PlayerDetailModal } from './components/widgets/PlayerDetailModal';
 import { SaveSlotControls } from './components/widgets/SaveSlotControls';
+import { SettingsSheet } from './components/widgets/SettingsSheet';
 import { GameProvider, useGameState } from './state/gameState';
+import { SettingsProvider, useSettings } from './state/settings';
 import { setActiveSaveSlot, type SaveSlot } from './state/storage';
 
 function WelcomeScreen() {
   const game = useGameState();
+  const { skipConfirmations } = useSettings();
   const [targetSlot, setTargetSlot] = useState<SaveSlot>(1);
   // Reachable via "タイトルへ戻る" mid-game: the previous game is still live in memory,
   // so offer to jump straight back to it instead of only offering to reload from disk.
@@ -21,6 +24,7 @@ function WelcomeScreen() {
 
   const handleStartNew = async () => {
     if (
+      !skipConfirmations &&
       !window.confirm(
         `スロット${targetSlot}で新しいゲームを始めますか？チームを選ぶと、そのスロットの既存のセーブは上書きされます。`,
       )
@@ -103,6 +107,7 @@ function WelcomeScreen() {
 
 function GameRouter() {
   const game = useGameState();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   if (game.loading) {
     return (
       <PageShell ariaLabel="セーブデータ読込中">
@@ -154,8 +159,20 @@ function GameRouter() {
 
   return (
     <>
-      <ThemeToggle />
-      <DebugModeToggle enabled={game.debugMode} onToggle={game.toggleDebugMode} />
+      <SettingsButton onClick={() => setSettingsOpen(true)} />
+      {settingsOpen && (
+        <SettingsSheet
+          debugMode={game.debugMode}
+          onToggleDebugMode={game.toggleDebugMode}
+          hasActiveGame={Boolean(game.teams && game.playerTeam)}
+          onSaveCurrent={game.saveCurrent}
+          onActiveSlotCleared={() => {
+            game.startNewGame();
+            setSettingsOpen(false);
+          }}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
       {screen}
       <PlayerDetailModal
         player={game.selectedPlayer}
@@ -182,9 +199,11 @@ function GameRouter() {
 function App() {
   return (
     <ErrorBoundary>
-      <GameProvider>
-        <GameRouter />
-      </GameProvider>
+      <SettingsProvider>
+        <GameProvider>
+          <GameRouter />
+        </GameProvider>
+      </SettingsProvider>
     </ErrorBoundary>
   );
 }

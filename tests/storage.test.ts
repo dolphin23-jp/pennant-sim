@@ -7,6 +7,7 @@ import {
   ACTIVE_SAVE_SLOT_KEY,
   LEGACY_SAVE_KEY,
   SAVE_KEY,
+  clearSaveSlot,
   createResilientStorageBackend,
   exportSaveData,
   importSaveData,
@@ -138,6 +139,43 @@ test('save slots are independent and active-slot save/load uses the selected key
         { slot: 3, exists: false, playerTeam: null, year: null },
       ],
     );
+  } finally {
+    resetRandom();
+  }
+});
+
+test('clearSaveSlot wipes only the targeted slot, leaving others and the active-slot pointer untouched', async () => {
+  configureRandom(mulberry32(21), () => Date.UTC(2026, 0, 1));
+  try {
+    const giantsSave = createSave('giants', 2026),
+      tigersSave = createSave('tigers', 2031),
+      { backend } = createBackend();
+
+    assert.equal(await saveGameToSlot(giantsSave, 1, backend), true);
+    assert.equal(await saveGameToSlot(tigersSave, 2, backend), true);
+    await setActiveSaveSlot(2, backend);
+
+    assert.equal(await clearSaveSlot(1, backend), true);
+
+    assert.equal(await loadGameFromSlot(1, backend), null, '初期化した枠は空として扱われる');
+    assert.equal(
+      (await loadGameFromSlot(2, backend))?.playerTeam,
+      'tigers',
+      '初期化していない枠は影響を受けない',
+    );
+
+    const summaries = await listSaveSlots(backend);
+    assert.deepEqual(
+      summaries.map(({ slot, exists }) => ({ slot, exists })),
+      [
+        { slot: 1, exists: false },
+        { slot: 2, exists: true },
+        { slot: 3, exists: false },
+      ],
+    );
+
+    // Clearing a slot never changes which slot is active - only its contents.
+    assert.equal((await loadGame(backend))?.playerTeam, 'tigers');
   } finally {
     resetRandom();
   }
