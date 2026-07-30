@@ -1,4 +1,4 @@
-import type { BatterStats, PitcherStats, PlayerStats } from './types';
+import type { BatterStats, PitcherStats, PlayerStats, TeamKey } from './types';
 
 export interface StatItem {
   label: string;
@@ -11,6 +11,9 @@ export interface StatItem {
 export interface YearlyRow {
   year: string;
   stats: PlayerStats;
+  teamKey?: TeamKey;
+  teamName?: string;
+  teamAbbreviation?: string;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -77,7 +80,11 @@ export function statItems(stats: PlayerStats | undefined): StatItem[] {
       { label: '登板', value: String(stats.g) },
       { label: '先発', value: String(stats.gs) },
       { label: '勝敗', value: `${stats.w}勝 ${stats.l}敗`, elite: stats.w >= 10 },
-      { label: '防御率', value: era === null ? '-.--' : era.toFixed(2), elite: era !== null && era < 3 },
+      {
+        label: '防御率',
+        value: era === null ? '-.--' : era.toFixed(2),
+        elite: era !== null && era < 3,
+      },
       { label: '投球回', value: inningsText(stats.ip3) },
       { label: '奪三振', value: String(stats.k), elite: stats.k >= 100 },
       {
@@ -140,21 +147,32 @@ export function statItems(stats: PlayerStats | undefined): StatItem[] {
   ];
 }
 
-export function yearlyRows(
-  yearlyStats: Record<string, unknown[]>,
-  playerId: string,
-): YearlyRow[] {
+function teamInfoFrom(
+  record: Record<string, unknown>,
+): Pick<YearlyRow, 'teamKey' | 'teamName' | 'teamAbbreviation'> {
+  return {
+    teamKey: typeof record.teamKey === 'string' ? (record.teamKey as TeamKey) : undefined,
+    teamName: typeof record.teamName === 'string' ? record.teamName : undefined,
+    teamAbbreviation:
+      typeof record.teamAbbreviation === 'string' ? record.teamAbbreviation : undefined,
+  };
+}
+
+export function yearlyRows(yearlyStats: Record<string, unknown[]>, playerId: string): YearlyRow[] {
   const rows: YearlyRow[] = [];
   for (const [year, entries] of Object.entries(yearlyStats)) {
     for (const entry of entries) {
       if (!isRecord(entry)) continue;
       let candidate: unknown;
+      let teamInfo: Pick<YearlyRow, 'teamKey' | 'teamName' | 'teamAbbreviation'> = {};
       if (entry.playerId === playerId || entry.id === playerId || entry.pid === playerId) {
         candidate = entry.stats ?? entry;
+        teamInfo = teamInfoFrom(entry);
       } else if (isRecord(entry[playerId])) {
         candidate = entry[playerId];
+        teamInfo = teamInfoFrom(entry[playerId] as Record<string, unknown>);
       }
-      if (isPlayerStats(candidate)) rows.push({ year, stats: candidate });
+      if (isPlayerStats(candidate)) rows.push({ year, stats: candidate, ...teamInfo });
     }
   }
   return rows.sort((first, second) => second.year.localeCompare(first.year));

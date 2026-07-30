@@ -10,14 +10,13 @@ function playerOverall(player: Player): number {
 
 function TradeSidePanel({
   label,
-  player,
+  players,
   tone,
 }: {
   label: string;
-  player: Player;
+  players: Player[];
   tone: 'give' | 'receive';
 }) {
-  const overall = playerOverall(player);
   return (
     <div
       style={{
@@ -41,9 +40,15 @@ function TradeSidePanel({
       >
         {label}
       </div>
-      <div style={{ fontWeight: 900, marginTop: 5 }}>{player.name}</div>
-      <div style={{ color: 'var(--color-text-muted)', fontSize: 11, marginTop: 3 }}>
-        {player.isP ? player.role : player.pos} / OVR {overall}
+      <div style={{ display: 'grid', gap: 6, marginTop: 5 }}>
+        {players.map((player) => (
+          <div key={player.id}>
+            <div style={{ fontWeight: 900 }}>{player.name}</div>
+            <div style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>
+              {player.isP ? player.role : player.pos} / OVR {playerOverall(player)}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -58,8 +63,8 @@ function TradeOfferCard({
   playerTeam: TeamKey;
   onAccept(offer: TradeOffer): void;
 }) {
-  const giveOverall = playerOverall(offer.receive);
-  const receiveOverall = playerOverall(offer.give);
+  const giveOverall = offer.receive.reduce((total, player) => total + playerOverall(player), 0);
+  const receiveOverall = offer.give.reduce((total, player) => total + playerOverall(player), 0);
   const diff = receiveOverall - giveOverall;
   return (
     <Card ariaLabel={offer.summary}>
@@ -72,7 +77,9 @@ function TradeOfferCard({
           marginBottom: 10,
         }}
       >
-        <span style={{ color: teamTextColor(TINFO[offer.fromTeam].c), fontWeight: 900, fontSize: 12 }}>
+        <span
+          style={{ color: teamTextColor(TINFO[offer.fromTeam].c), fontWeight: 900, fontSize: 12 }}
+        >
           {TINFO[offer.fromTeam].ab}からのオファー
         </span>
         <span
@@ -87,16 +94,22 @@ function TradeOfferCard({
           {diff}
         </span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 10 }}>
-        <TradeSidePanel label="あなたが放出" player={offer.receive} tone="give" />
-        <TradeSidePanel label="あなたが獲得" player={offer.give} tone="receive" />
+      <div
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 10 }}
+      >
+        <TradeSidePanel label="あなたが放出" players={offer.receive} tone="give" />
+        <TradeSidePanel label="あなたが獲得" players={offer.give} tone="receive" />
       </div>
       {offer.cash > 0 && (
         <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginBottom: 10 }}>
           金銭 {offer.cash}万円を追加で獲得
         </div>
       )}
-      <Button onClick={() => onAccept(offer)} color={TINFO[playerTeam].c} ariaLabel={`${offer.summary}を承諾`}>
+      <Button
+        onClick={() => onAccept(offer)}
+        color={TINFO[playerTeam].c}
+        ariaLabel={`${offer.summary}を承諾`}
+      >
         この条件で成立
       </Button>
     </Card>
@@ -132,7 +145,11 @@ export function TradeScreen({
             届いているオファーをまとめて比較できます。承諾するとその場でトレードが成立します。
           </div>
         </div>
-        <Button onClick={onSkip} color="var(--color-surface-muted)" ariaLabel="トレードを見送ってドラフトへ進む">
+        <Button
+          onClick={onSkip}
+          color="var(--color-surface-muted)"
+          ariaLabel="トレードを見送ってドラフトへ進む"
+        >
           見送ってドラフトへ
         </Button>
       </div>
@@ -150,7 +167,12 @@ export function TradeScreen({
           }}
         >
           {offers.map((offer) => (
-            <TradeOfferCard key={offer.id} offer={offer} playerTeam={playerTeam} onAccept={onAccept} />
+            <TradeOfferCard
+              key={offer.id}
+              offer={offer}
+              playerTeam={playerTeam}
+              onAccept={onAccept}
+            />
           ))}
         </div>
       )}

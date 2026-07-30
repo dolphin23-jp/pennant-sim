@@ -764,6 +764,16 @@ input:focus-visible,
   background: color-mix(in srgb, var(--color-accent) 16%, transparent);
 }
 
+.status-badge--rookie {
+  color: var(--color-leader);
+  background: color-mix(in srgb, var(--color-leader) 16%, transparent);
+}
+
+.status-badge--veteran {
+  color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 16%, transparent);
+}
+
 .growth-chart {
   width: 100%;
   min-height: 150px;

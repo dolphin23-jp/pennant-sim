@@ -62,6 +62,28 @@ export function IconMedicalCross(props: IconProps) {
   );
 }
 
+/** ルーキー — a sprout, for a player in their debut NPB season. */
+export function IconSeedling(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M12 21 V11" />
+      <path d="M12 12 C12 8 9 6 5 6 C5 10 8 12 12 12 Z" strokeLinejoin="round" />
+      <path d="M12 9 C12 6 14.5 4 18 4 C18 7 15.5 9 12 9 Z" strokeLinejoin="round" />
+    </IconBase>
+  );
+}
+
+/** 要引退検討 — an hourglass, for an aging player past the mandatory-retirement age. */
+export function IconHourglass(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M6 3 H18 M6 21 H18" />
+      <path d="M7 3 C7 8 12 9.5 12 12 C12 14.5 7 16 7 21" />
+      <path d="M17 3 C17 8 12 9.5 12 12 C12 14.5 17 16 17 21" />
+    </IconBase>
+  );
+}
+
 /** 成長中 / 成長(notice) — sparkle, a small breakthrough. */
 export function IconSparkle(props: IconProps) {
   return (

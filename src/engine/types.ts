@@ -143,6 +143,8 @@ export interface Player {
   note?: string;
   signedVia?: string;
   draftOrigin?: DraftOrigin;
+  /** ドラフトで指名されたルーキーがデビューする1シーズンだけ立つフラグ。翌年の成長フェーズで自動的に外れる。 */
+  rookieSeason?: boolean;
   /** 一軍登録フラグ。undefined/true = 一軍、false = 二軍。既存セーブは全員一軍扱い。 */
   activeRoster?: boolean;
   foreignProfile?: ForeignPlayerProfile;
