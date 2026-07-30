@@ -9,6 +9,50 @@ import { generateBatter, generatePitcher } from './players';
 import { bestLineup, calcOVR, effectiveOVR } from './ratings';
 import { clamp, gaussian, random, randomChoice, randomInt } from './random';
 import type { FieldPosition, Player, Team, TeamKey, Teams } from './types';
+
+/** A cohort skewing old raises the value of a young reinforcement (and docks another
+ * aging body); a cohort that's still very green rewards a proven, near-peak veteran
+ * instead of yet another project. Keeps the OVR term as the dominant signal - this is a
+ * tie-breaking nudge, not a replacement for "is this player actually good". */
+function ageFitBonus(cohort: Player[], candidateAge: number): number {
+  if (!cohort.length) return 0;
+  const averageAge = cohort.reduce((total, player) => total + player.age, 0) / cohort.length;
+  if (averageAge >= 29) {
+    const agingPressure = averageAge - 29;
+    if (candidateAge <= 26) return clamp(agingPressure * 1.8, 0, 10);
+    if (candidateAge >= 34) return clamp(-agingPressure * 1.2, -8, 0);
+    return 0;
+  }
+  if (averageAge <= 25 && candidateAge >= 27 && candidateAge <= 32) return 4;
+  return 0;
+}
+
+/** A cohort already carrying injuries values outside reinforcement more, and an injured
+ * candidate is worth less regardless of how the roster otherwise looks. */
+function injuryAdjustment(cohort: Player[], candidate: Player): number {
+  const injuredCount = cohort.filter((player) => (player.injuryDays ?? 0) > 0).length;
+  const candidatePenalty = (candidate.injuryDays ?? 0) > 0 ? -10 : 0;
+  return Math.min(injuredCount * 2, 8) + candidatePenalty;
+}
+
+/** Mirrors the draft/retention upside read (see draft.ts prospectFutureBonus and
+ * offseason.ts retentionScore) so CPU acquisition decisions weigh future ceiling, not
+ * only the player's OVR today. */
+function potentialUpside(player: Player): number {
+  const potentialGap = Math.max(
+    0,
+    ...Object.entries(player.pot ?? {}).map(([key, value]) => {
+      const current = player.p[key as keyof typeof player.p];
+      return typeof value === 'number' && typeof current === 'number' ? value - current : 0;
+    }),
+  );
+  const youthFactor = player.age <= 24 ? 1 : player.age <= 27 ? 0.5 : 0;
+  if (!youthFactor) return 0;
+  return (
+    potentialGap * 0.1 * youthFactor + (player.potentialClass === 'elite' ? 3 * youthFactor : 0)
+  );
+}
+
 export function teamNeedsScore(team: Team, player: Player): number {
   if (player.isP) {
     const starters = team.pitchers.filter((pitcher) => pitcher.role === '先発').length,
@@ -16,7 +60,13 @@ export function teamNeedsScore(team: Team, player: Player): number {
     let need = Math.max(0, 28 - team.pitchers.length) * 12;
     if (player.role === '先発') need += starters < 6 ? 12 : 0;
     else need += relievers < 7 ? 10 : 0;
-    return need + calcOVR(player) * 0.6;
+    return (
+      need +
+      calcOVR(player) * 0.6 +
+      ageFitBonus(team.pitchers, player.age) +
+      injuryAdjustment(team.pitchers, player) +
+      potentialUpside(player)
+    );
   }
   const position = player.pos as FieldPosition,
     count = team.fielders.filter(
@@ -25,7 +75,14 @@ export function teamNeedsScore(team: Team, player: Player): number {
     ).length,
     weakSpot = Math.max(0, 3 - count) * 8,
     rosterNeed = Math.max(0, 35 - team.fielders.length) * 12;
-  return rosterNeed + weakSpot + effectiveOVR(player, position) * 0.7;
+  return (
+    rosterNeed +
+    weakSpot +
+    effectiveOVR(player, position) * 0.7 +
+    ageFitBonus(team.fielders, player.age) +
+    injuryAdjustment(team.fielders, player) +
+    potentialUpside(player)
+  );
 }
 export function marketPlayerCost(player: Player, multiplier = 1): number {
   const overall = Math.round(player.isP ? calcOVR(player) : effectiveOVR(player, player.pos));

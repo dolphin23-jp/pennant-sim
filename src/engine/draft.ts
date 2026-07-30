@@ -1,6 +1,6 @@
 import { CENTRAL, FIELD_POSITIONS, PACIFIC, PLAYER_DEVELOPMENT_BALANCE } from '../data';
 import { generateBatter, generatePitcher } from './players';
-import { gaussian, random, randomChoice, randomInt } from './random';
+import { gaussian, random, randomChoice, randomInt, weightedRandom } from './random';
 import { bestLineup, calcOVR, effectiveOVR, topStarters } from './ratings';
 import { teamNeedsScore } from './market';
 import type { DraftOrigin, FieldPosition, Player, Team, TeamKey, Teams } from './types';
@@ -183,10 +183,37 @@ export function generateDraftProspects(): Player[] {
   );
 }
 
+const LOTTERY_POOL_SIZE = 6;
+const LOTTERY_PICKS = 3;
+
+/** Worst-to-best strength order, but the top picks among the weakest teams are decided by
+ * a weighted lottery (weakest gets the most tickets, not a guarantee) instead of being
+ * fixed by standings alone - so the same teams don't lock in the same top slots every year. */
 export function draftOrder(teams: Teams): TeamKey[] {
-  return [...CENTRAL, ...PACIFIC].sort(
+  const ranked = [...CENTRAL, ...PACIFIC].sort(
     (first, second) => teamStrength(teams[first]) - teamStrength(teams[second]),
   );
+  const poolSize = Math.min(LOTTERY_POOL_SIZE, ranked.length);
+  const lotteryCount = Math.min(LOTTERY_PICKS, poolSize);
+  const pool = ranked.slice(0, poolSize);
+  const weights = pool.map((_, index) => poolSize - index);
+  const lotteryOrder: TeamKey[] = [];
+  for (let pick = 0; pick < lotteryCount; pick += 1) {
+    if (!pool.length) break;
+    const chosen = weightedRandom(pool, weights);
+    const chosenIndex = pool.indexOf(chosen);
+    lotteryOrder.push(chosen);
+    pool.splice(chosenIndex, 1);
+    weights.splice(chosenIndex, 1);
+  }
+  const lotteryChosen = new Set(lotteryOrder);
+  return [...lotteryOrder, ...ranked.filter((teamKey) => !lotteryChosen.has(teamKey))];
+}
+
+/** Round-robin order flips each round (snake draft) so the same team doesn't pick last
+ * in every round - only round 1 keeps the raw (lottery-adjusted) strength order. */
+export function draftRoundOrder(order: TeamKey[], round: number): TeamKey[] {
+  return round % 2 === 0 ? [...order].reverse() : order;
 }
 
 export function cpuDraftPick(team: Team, prospects: Player[]): Player | undefined {
@@ -210,7 +237,7 @@ export function applyDraftPicks(teams: Teams, picks: DraftPick[]): Teams {
   const next = { ...teams };
   for (const pick of picks) {
     const team = { ...next[pick.teamKey] };
-    const signed = { ...pick, tk: pick.teamKey };
+    const signed = { ...pick, tk: pick.teamKey, rookieSeason: true };
     if (signed.isP) team.pitchers = [...team.pitchers, signed];
     else team.fielders = [...team.fielders, signed];
     next[pick.teamKey] = team;
@@ -224,7 +251,7 @@ export function runCpuDraft(teams: Teams, rounds = 6): { teams: Teams; picks: Dr
   let nextTeams = teams;
   const picks: DraftPick[] = [];
   for (let round = 1; round <= rounds; round += 1) {
-    for (const teamKey of order) {
+    for (const teamKey of draftRoundOrder(order, round)) {
       const selected = cpuDraftPick(nextTeams[teamKey], prospects);
       if (!selected) throw new Error(`Draft pool exhausted in round ${round}.`);
       const pick = { ...selected, teamKey, round };

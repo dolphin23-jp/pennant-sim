@@ -1,7 +1,15 @@
 import type { Player } from '../../engine';
-import { IconMedicalCross, IconSparkle, IconTarget, IconTrendDown, IconTrendUp } from '../icons';
+import {
+  IconHourglass,
+  IconMedicalCross,
+  IconSeedling,
+  IconSparkle,
+  IconTarget,
+  IconTrendDown,
+  IconTrendUp,
+} from '../icons';
 
-type StatusTone = 'good' | 'slump' | 'injury' | 'growth' | 'convert';
+type StatusTone = 'good' | 'slump' | 'injury' | 'growth' | 'convert' | 'rookie' | 'veteran';
 
 const TONE_ICONS: Record<StatusTone, typeof IconTrendUp> = {
   good: IconTrendUp,
@@ -9,7 +17,13 @@ const TONE_ICONS: Record<StatusTone, typeof IconTrendUp> = {
   injury: IconMedicalCross,
   growth: IconSparkle,
   convert: IconTarget,
+  rookie: IconSeedling,
+  veteran: IconHourglass,
 };
+
+/** Mandatory retirement age for CPU teams (see engine/offseason.ts exitReason) — the
+ * player's own team isn't forced out at this age, so this badge is the only warning. */
+const RETIREMENT_WARNING_AGE = 42;
 interface PlayerStatus {
   tone: StatusTone;
   label: string;
@@ -40,6 +54,20 @@ const conditionStatus = (player: Player): PlayerStatus | null => {
 
 export function getPlayerStatuses(player: Player): PlayerStatus[] {
   const statuses: PlayerStatus[] = [];
+  if (player.rookieSeason) {
+    statuses.push({
+      tone: 'rookie',
+      label: 'ルーキー',
+      detail: `${player.age}歳。NPBデビューシーズン`,
+    });
+  }
+  if (player.age >= RETIREMENT_WARNING_AGE) {
+    statuses.push({
+      tone: 'veteran',
+      label: '要引退検討',
+      detail: `${player.age}歳。強制ではありませんが引退の検討をおすすめします`,
+    });
+  }
   if ((player.injuryDays ?? 0) > 0) {
     statuses.push({
       tone: 'injury',

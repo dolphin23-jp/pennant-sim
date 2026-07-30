@@ -6,6 +6,7 @@ import {
   calcOVR,
   cpuDraftPick,
   draftOrder,
+  draftRoundOrder,
   effectiveOVR,
   generateDraftProspects,
   type DraftPick,
@@ -40,7 +41,7 @@ export function DraftScreen({
     let remaining = prospects.filter((player) => player.id !== selected.id);
     const nextPicks: DraftPick[] = [...picks, { ...selected, teamKey: playerTeam, round }];
     let draftTeams = applyDraftPicks(teams, nextPicks);
-    for (const teamKey of order) {
+    for (const teamKey of draftRoundOrder(order, round)) {
       if (teamKey === playerTeam || !remaining.length) continue;
       const cpuPick = cpuDraftPick(draftTeams[teamKey], remaining);
       if (!cpuPick) continue;
@@ -64,7 +65,7 @@ export function DraftScreen({
     const nextPicks = [...picks];
     let draftTeams = applyDraftPicks(teams, nextPicks);
     for (let currentRound = round; currentRound <= 6; currentRound += 1) {
-      for (const teamKey of order) {
+      for (const teamKey of draftRoundOrder(order, currentRound)) {
         if (!remaining.length) break;
         const selected = cpuDraftPick(draftTeams[teamKey], remaining);
         if (!selected) continue;

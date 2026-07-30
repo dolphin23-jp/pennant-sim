@@ -34,7 +34,15 @@ import type {
 export function ensureCatcherAttributes(player: Player): Player {
   if (player.isP || !hasPositionAptitude(player, '捕手') || player.p.ld) return player;
   const catcherAgeMultiplier =
-      player.age <= 22 ? 0.75 : player.age <= 26 ? 0.88 : player.age <= 31 ? 1 : player.age <= 35 ? 1.03 : 1.01,
+      player.age <= 22
+        ? 0.75
+        : player.age <= 26
+          ? 0.88
+          : player.age <= 31
+            ? 1
+            : player.age <= 35
+              ? 1.03
+              : 1.01,
     qualityProxy = Number(player.p.dc ?? 50),
     gameCalling = clamp(Math.round(gaussian(qualityProxy, 12) * catcherAgeMultiplier), 20, 108);
   const params: PlayerParams = { ...player.p, ld: gameCalling };
@@ -189,7 +197,10 @@ export function growPlayer(player: Player): Player {
     changes.push({ param: fallbackParameter, before, after, diff: after - before });
   }
   const overallBefore = calcOVR(player, player.pos),
-    updatedPlayer: Player = { ...player, p: params, age: player.age + 1 },
+    // A player only reaches growPlayer once their rookie season has been fully played out
+    // (the draft assigns rookieSeason after this offseason's growth step, so it survives
+    // exactly one trip through here before clearing).
+    updatedPlayer: Player = { ...player, p: params, age: player.age + 1, rookieSeason: undefined },
     overallAfter = calcOVR(updatedPlayer, updatedPlayer.pos);
   updatedPlayer.growthLog = [
     ...(player.growthLog ?? []).slice(-9),
@@ -211,12 +222,8 @@ export function startPositionConversion(player: Player, pos: FieldPosition): Pla
   const balance = POSITION_CONVERSION_BALANCE.startingAptitude,
     positions = player.positions ?? [],
     existing = positions.find((entry) => entry.pos === pos),
-    startingAptitude = existing
-      ? existing.apt
-      : randomInt(balance.minimum, balance.maximum),
-    nextPositions = existing
-      ? positions
-      : [...positions, { pos, apt: startingAptitude }];
+    startingAptitude = existing ? existing.apt : randomInt(balance.minimum, balance.maximum),
+    nextPositions = existing ? positions : [...positions, { pos, apt: startingAptitude }];
   return ensureCatcherAttributes({
     ...player,
     positions: nextPositions,
@@ -247,11 +254,14 @@ export function advancePositionConversion(player: Player): Player {
     positions = player.positions ?? [],
     current = positions.find((entry) => entry.pos === target.pos)?.apt ?? 0;
   if (current >= balance.ceiling) return { ...player, conversionTarget: undefined };
-  const gain = randomInt(balance.annualGain.minimum, balance.annualGain.maximum) *
+  const gain =
+      randomInt(balance.annualGain.minimum, balance.annualGain.maximum) *
       conversionAgeFactor(player.age),
     nextAptitude = Math.round(clamp(current + gain, 0, balance.ceiling)),
     nextPositions = positions.some((entry) => entry.pos === target.pos)
-      ? positions.map((entry) => (entry.pos === target.pos ? { ...entry, apt: nextAptitude } : entry))
+      ? positions.map((entry) =>
+          entry.pos === target.pos ? { ...entry, apt: nextAptitude } : entry,
+        )
       : [...positions, { pos: target.pos, apt: nextAptitude }];
   return {
     ...player,

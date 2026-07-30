@@ -28,6 +28,7 @@ import {
   PageShell,
   SectionTitle,
 } from '../ui';
+import { PlayerStatusBadges } from '../widgets/PlayerStatusBadges';
 import { DraftScreen } from './DraftScreen';
 import { MarketScreen } from './MarketScreen';
 import { TradeScreen } from './TradeScreen';
@@ -419,8 +420,17 @@ function OffseasonContent({
                         )
                       }
                     />
-                    <span style={{ flex: 1 }}>
+                    <span
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        flexWrap: 'wrap',
+                      }}
+                    >
                       {player.name} / {player.age}歳
+                      <PlayerStatusBadges player={player} compact />
                     </span>
                     <strong>OVR {calcOVR(player, player.pos)}</strong>
                   </label>

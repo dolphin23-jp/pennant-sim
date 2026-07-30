@@ -36,7 +36,15 @@ import type {
   SeasonTitleRecord,
   TeamKey,
 } from '../../engine';
-import { Button, Card, EmptyState, LampFigure, SectionTitle, TermTooltip } from '../ui';
+import {
+  Button,
+  Card,
+  EmptyState,
+  LampFigure,
+  SectionTitle,
+  TermTooltip,
+  teamTextColor,
+} from '../ui';
 import { TitleIcon } from '../icons';
 import { AbilityRadarChart, type AbilityRadarItem } from './AbilityRadarChart';
 import { AptitudeFieldMap } from './AptitudeFieldMap';
@@ -219,7 +227,9 @@ function ConversionControls({
   if (active) {
     const apt = player.positions?.find((entry) => entry.pos === active.pos)?.apt ?? 0;
     return (
-      <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      <div
+        style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}
+      >
         <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
           {active.pos}への守備適性訓練中（{active.startedAge}歳開始・現在適性{apt}%）
         </span>
@@ -715,9 +725,31 @@ export function PlayerDetailModal({
                         <Card
                           className="detail-card"
                           key={`${row.year}-${index}`}
-                          ariaLabel={`${row.year}年成績`}
+                          ariaLabel={`${row.year}年成績${row.teamAbbreviation ? `、${row.teamAbbreviation}` : ''}`}
                         >
-                          <SectionTitle>{row.year}年</SectionTitle>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'baseline',
+                              justifyContent: 'space-between',
+                              gap: 8,
+                            }}
+                          >
+                            <SectionTitle>{row.year}年</SectionTitle>
+                            {row.teamAbbreviation && (
+                              <span
+                                style={{
+                                  color: row.teamKey
+                                    ? teamTextColor(TINFO[row.teamKey].c)
+                                    : undefined,
+                                  fontSize: 11,
+                                  fontWeight: 900,
+                                }}
+                              >
+                                {row.teamAbbreviation}
+                              </span>
+                            )}
+                          </div>
                           <StatGrid stats={row.stats} />
                         </Card>
                       ))}
