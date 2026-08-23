@@ -197,7 +197,7 @@ test('future subsystem events enter the same article pipeline without inferred f
   });
   assert.equal(transaction.id, 'transaction:trade-1');
   assert.equal(transaction.kind, 'transaction');
-  assert.ok(transaction.segments.some((segment) => segment.text.includes('巨人')));
+  assert.ok(transaction.segments.some((segment) => segment.text.includes('ジャイアンツ')));
   assert.ok(transaction.segments.some((segment) => segment.text.includes('ソフトバンク')));
   assert.ok(transaction.segments.some((segment) => segment.text === '交換要員は契約済みの2選手。'));
 
