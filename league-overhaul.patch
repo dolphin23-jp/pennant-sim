@@ -1,0 +1,826 @@
+diff --git a/src/engine/draft.ts b/src/engine/draft.ts
+--- a/src/engine/draft.ts
++++ b/src/engine/draft.ts
+@@ -1,10 +1,19 @@
+ import { CENTRAL, FIELD_POSITIONS, PACIFIC, PLAYER_DEVELOPMENT_BALANCE } from '../data';
+ import { generateBatter, generatePitcher } from './players';
+-import { gaussian, random, randomChoice, randomInt, weightedRandom } from './random';
++import { gaussian, random, randomChoice, randomInt } from './random';
+ import { bestLineup, calcOVR, effectiveOVR, topStarters } from './ratings';
+ import { teamNeedsScore } from './market';
+-import type { DraftOrigin, FieldPosition, Player, Team, TeamKey, Teams } from './types';
++import type {
++  DraftOrigin,
++  FieldPosition,
++  Player,
++  StandingRecord,
++  Team,
++  TeamKey,
++  Teams,
++} from './types';
+ 
+ export type DraftPick = Player & { teamKey: TeamKey; round: number };
++export interface FirstRoundWaveResult {
++  picks: DraftPick[];
++  unresolvedTeams: TeamKey[];
++  bids: Record<string, TeamKey[]>;
++}
+@@ -102,8 +111,12 @@ function calibrateDraftBatter(player: Player): Player {
+   if (player.isP) return player;
+   const contactBonus = 3;
+   const fieldingAdjustment = -3;
+-  const cf = Math.min(120, Number(player.p.cf ?? 0) + contactBonus);
+-  const cb = Math.min(120, Number(player.p.cb ?? 0) + contactBonus);
++  const ratingCeiling = PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.maximumRating;
++  const potentialCeiling =
++    player.potentialClass === 'elite'
++      ? PLAYER_DEVELOPMENT_BALANCE.potentialCeiling.elite
++      : PLAYER_DEVELOPMENT_BALANCE.potentialCeiling.standard;
++  const cf = Math.min(ratingCeiling, Number(player.p.cf ?? 0) + contactBonus);
++  const cb = Math.min(ratingCeiling, Number(player.p.cb ?? 0) + contactBonus);
+   const df = Math.max(1, Number(player.p.df ?? 0) + fieldingAdjustment);
+   return {
+     ...player,
+@@ -111,8 +124,8 @@ function calibrateDraftBatter(player: Player): Player {
+     pot: {
+       ...player.pot,
+-      cf: Math.max(cf, Math.min(140, Number(player.pot.cf ?? cf) + contactBonus)),
+-      cb: Math.max(cb, Math.min(140, Number(player.pot.cb ?? cb) + contactBonus)),
++      cf: Math.max(cf, Math.min(potentialCeiling, Number(player.pot.cf ?? cf) + contactBonus)),
++      cb: Math.max(cb, Math.min(potentialCeiling, Number(player.pot.cb ?? cb) + contactBonus)),
+       df: Math.max(df, Number(player.pot.df ?? df) + fieldingAdjustment),
+     },
+   };
+@@ -184,38 +197,89 @@ export function generateDraftProspects(): Player[] {
+   );
+ }
+ 
+-const LOTTERY_POOL_SIZE = 6;
+-const LOTTERY_PICKS = 3;
+-
+-/** Worst-to-best strength order, but the top picks among the weakest teams are decided by
+- * a weighted lottery (weakest gets the most tickets, not a guarantee) instead of being
+- * fixed by standings alone - so the same teams don't lock in the same top slots every year. */
++/** Headless fallback for callers that do not have a completed season table. The playable
++ * offseason uses draftOrderFromStandings so FA/trades can never rewrite the prior season. */
+ export function draftOrder(teams: Teams): TeamKey[] {
+-  const ranked = [...CENTRAL, ...PACIFIC].sort(
++  return [...CENTRAL, ...PACIFIC].sort(
+     (first, second) => teamStrength(teams[first]) - teamStrength(teams[second]),
+   );
+-  const poolSize = Math.min(LOTTERY_POOL_SIZE, ranked.length);
+-  const lotteryCount = Math.min(LOTTERY_PICKS, poolSize);
+-  const pool = ranked.slice(0, poolSize);
+-  const weights = pool.map((_, index) => poolSize - index);
+-  const lotteryOrder: TeamKey[] = [];
+-  for (let pick = 0; pick < lotteryCount; pick += 1) {
+-    if (!pool.length) break;
+-    const chosen = weightedRandom(pool, weights);
+-    const chosenIndex = pool.indexOf(chosen);
+-    lotteryOrder.push(chosen);
+-    pool.splice(chosenIndex, 1);
+-    weights.splice(chosenIndex, 1);
+-  }
+-  const lotteryChosen = new Set(lotteryOrder);
+-  return [...lotteryOrder, ...ranked.filter((teamKey) => !lotteryChosen.has(teamKey))];
+ }
+ 
+-/** Round-robin order flips each round (snake draft) so the same team doesn't pick last
+- * in every round - only round 1 keeps the raw (lottery-adjusted) strength order. */
++/** Freeze the NPB-style second-round order from the completed regular season. Within
++ * each league the worst club picks first; the league that performed better in
++ * interleague play gets the first slot at each rank. */
++export function draftOrderFromStandings(
++  standings: Record<TeamKey, StandingRecord>,
++  interleagueStandings?: Record<TeamKey, StandingRecord>,
++): TeamKey[] {
++  const worstFirst = (league: readonly TeamKey[]) =>
++    [...league].sort((first, second) => {
++      const firstRank = standings[first].rank ?? 0;
++      const secondRank = standings[second].rank ?? 0;
++      if (firstRank !== secondRank) return secondRank - firstRank;
++      return (standings[first].pct ?? 0) - (standings[second].pct ?? 0);
++    });
++  const central = worstFirst(CENTRAL);
++  const pacific = worstFirst(PACIFIC);
++  const leagueWins = (league: readonly TeamKey[]) =>
++    league.reduce((sum, teamKey) => sum + (interleagueStandings?.[teamKey].w ?? 0), 0);
++  const centralFirst = leagueWins(CENTRAL) >= leagueWins(PACIFIC);
++  const first = centralFirst ? central : pacific;
++  const second = centralFirst ? pacific : central;
++  const order: TeamKey[] = [];
++  for (let index = 0; index < Math.max(first.length, second.length); index += 1) {
++    if (first[index]) order.push(first[index] as TeamKey);
++    if (second[index]) order.push(second[index] as TeamKey);
++  }
++  return order;
++}
++
++/** Round 1 is simultaneous bidding. Round 2 starts from the frozen reverse-standing
++ * order, then subsequent rounds alternate direction. */
+ export function draftRoundOrder(order: TeamKey[], round: number): TeamKey[] {
+-  return round % 2 === 0 ? [...order].reverse() : order;
++  return round >= 3 && round % 2 === 1 ? [...order].reverse() : [...order];
+ }
++
++/** Resolve one simultaneous first-round nomination wave. A contested prospect is awarded
++ * by equal-probability lottery; losing clubs remain unresolved and bid again next wave. */
++export function resolveFirstRoundWave(
++  teams: Teams,
++  prospects: Player[],
++  biddingTeams: readonly TeamKey[],
++  playerTeam: TeamKey | null = null,
++  userChoice: Player | null = null,
++): FirstRoundWaveResult {
++  const bidsByProspect = new Map<string, TeamKey[]>();
++  const unresolvedWithoutBid: TeamKey[] = [];
++  for (const teamKey of biddingTeams) {
++    const selected =
++      teamKey === playerTeam
++        ? userChoice && prospects.some((prospect) => prospect.id === userChoice.id)
++          ? userChoice
++          : undefined
++        : cpuDraftPick(teams[teamKey], prospects);
++    if (!selected) {
++      unresolvedWithoutBid.push(teamKey);
++      continue;
++    }
++    const bidders = bidsByProspect.get(selected.id) ?? [];
++    bidders.push(teamKey);
++    bidsByProspect.set(selected.id, bidders);
++  }
++
++  const picks: DraftPick[] = [];
++  const unresolvedTeams = [...unresolvedWithoutBid];
++  for (const [prospectId, bidders] of bidsByProspect) {
++    const prospect = prospects.find((candidate) => candidate.id === prospectId);
++    if (!prospect || !bidders.length) {
++      unresolvedTeams.push(...bidders);
++      continue;
++    }
++    const winner = randomChoice(bidders);
++    picks.push({ ...prospect, teamKey: winner, round: 1 });
++    unresolvedTeams.push(...bidders.filter((teamKey) => teamKey !== winner));
++  }
++  return {
++    picks,
++    unresolvedTeams,
++    bids: Object.fromEntries(bidsByProspect.entries()),
++  };
++}
+@@ -240,14 +304,27 @@ export function applyDraftPicks(teams: Teams, picks: DraftPick[]): Teams {
+ }
+ 
+ export function runCpuDraft(teams: Teams, rounds = 6): { teams: Teams; picks: DraftPick[] } {
+   const order = draftOrder(teams);
+   let prospects = generateDraftProspects();
+   let nextTeams = teams;
+   const picks: DraftPick[] = [];
+-  for (let round = 1; round <= rounds; round += 1) {
++  let unresolved = [...order];
++  while (unresolved.length && rounds >= 1) {
++    const wave = resolveFirstRoundWave(nextTeams, prospects, unresolved);
++    if (!wave.picks.length) throw new Error('Draft first-round bidding could not resolve.');
++    picks.push(...wave.picks);
++    nextTeams = applyDraftPicks(nextTeams, wave.picks);
++    const wonIds = new Set(wave.picks.map((pick) => pick.id));
++    prospects = prospects.filter((prospect) => !wonIds.has(prospect.id));
++    unresolved = wave.unresolvedTeams;
++  }
++  for (let round = 2; round <= rounds; round += 1) {
+     for (const teamKey of draftRoundOrder(order, round)) {
+       const selected = cpuDraftPick(nextTeams[teamKey], prospects);
+       if (!selected) throw new Error(`Draft pool exhausted in round ${round}.`);
+       const pick = { ...selected, teamKey, round };
+       picks.push(pick);
+       nextTeams = applyDraftPicks(nextTeams, [pick]);
+       prospects = prospects.filter((prospect) => prospect.id !== selected.id);
+     }
+   }
+   return { teams: nextTeams, picks };
+ }
+diff --git a/src/components/screens/DraftScreen.tsx b/src/components/screens/DraftScreen.tsx
+--- a/src/components/screens/DraftScreen.tsx
++++ b/src/components/screens/DraftScreen.tsx
+@@ -1,14 +1,14 @@
+-import { useMemo, useState } from 'react';
++import { useState } from 'react';
+ 
+ import { TINFO } from '../../data';
+ import {
+   applyDraftPicks,
+   calcOVR,
+   cpuDraftPick,
+-  draftOrder,
+   draftRoundOrder,
+   effectiveOVR,
+   generateDraftProspects,
++  resolveFirstRoundWave,
+   type DraftPick,
+   type Player,
+   type TeamKey,
+@@ -17,18 +17,63 @@ import {
+ } from '../../engine';
+ import { Button, Card, EmptyState, SectionTitle } from '../ui';
+ 
++interface DraftProgress {
++  teams: Teams;
++  prospects: Player[];
++  picks: DraftPick[];
++}
++
++function runSequentialCpuPicks(
++  progress: DraftProgress,
++  teamKeys: readonly TeamKey[],
++  round: number,
++): DraftProgress {
++  let nextTeams = progress.teams;
++  let remaining = [...progress.prospects];
++  const nextPicks = [...progress.picks];
++  for (const teamKey of teamKeys) {
++    const selected = cpuDraftPick(nextTeams[teamKey], remaining);
++    if (!selected) continue;
++    const pick: DraftPick = { ...selected, teamKey, round };
++    nextPicks.push(pick);
++    nextTeams = applyDraftPicks(nextTeams, [pick]);
++    remaining = remaining.filter((prospect) => prospect.id !== selected.id);
++  }
++  return { teams: nextTeams, prospects: remaining, picks: nextPicks };
++}
++
++function prepareUserTurn(
++  progress: DraftProgress,
++  order: TeamKey[],
++  playerTeam: TeamKey,
++  round: number,
++): DraftProgress {
++  const roundOrder = draftRoundOrder(order, round);
++  const userIndex = roundOrder.indexOf(playerTeam);
++  if (userIndex < 0) return progress;
++  return runSequentialCpuPicks(progress, roundOrder.slice(0, userIndex), round);
++}
++
+ export function DraftScreen({
+   teams,
+   playerTeam,
++  order,
+   onComplete,
+ }: {
+   teams: Teams;
+   playerTeam: TeamKey;
++  order: TeamKey[];
+   onComplete(teams: Teams, picks: DraftPick[]): void;
+ }) {
+   const [round, setRound] = useState(1);
+   const [prospects, setProspects] = useState<Player[]>(() => generateDraftProspects());
+   const [selectedId, setSelectedId] = useState<string | null>(null);
+   const [picks, setPicks] = useState<DraftPick[]>([]);
+-  const order = useMemo(() => draftOrder(teams), [teams]);
++  const [pendingFirstRoundTeams, setPendingFirstRoundTeams] = useState<TeamKey[]>(() => [
++    ...order,
++  ]);
++  const [firstRoundMessage, setFirstRoundMessage] = useState('');
+   const selected = prospects.find((player) => player.id === selectedId) ?? null;
+ 
+   const complete = (finalPicks: DraftPick[]) => {
+@@ -37,47 +82,126 @@ export function DraftScreen({
+ 
+   const makePick = () => {
+     if (!selected) return;
+-    let remaining = prospects.filter((player) => player.id !== selected.id);
+-    const nextPicks: DraftPick[] = [...picks, { ...selected, teamKey: playerTeam, round }];
+-    let draftTeams = applyDraftPicks(teams, nextPicks);
+-    for (const teamKey of draftRoundOrder(order, round)) {
+-      if (teamKey === playerTeam || !remaining.length) continue;
+-      const cpuPick = cpuDraftPick(draftTeams[teamKey], remaining);
+-      if (!cpuPick) continue;
+-      const pick = { ...cpuPick, teamKey, round };
+-      nextPicks.push(pick);
+-      draftTeams = applyDraftPicks(draftTeams, [pick]);
+-      remaining = remaining.filter((player) => player.id !== cpuPick.id);
+-    }
+-    if (round >= 6) {
+-      complete(nextPicks);
++    if (round === 1) {
++      let draftTeams = applyDraftPicks(teams, picks);
++      let remaining = [...prospects];
++      let nextPicks = [...picks];
++      const wave = resolveFirstRoundWave(
++        draftTeams,
++        remaining,
++        pendingFirstRoundTeams,
++        playerTeam,
++        selected,
++      );
++      nextPicks = [...nextPicks, ...wave.picks];
++      draftTeams = applyDraftPicks(draftTeams, wave.picks);
++      const wonIds = new Set(wave.picks.map((pick) => pick.id));
++      remaining = remaining.filter((prospect) => !wonIds.has(prospect.id));
++      let pending = wave.unresolvedTeams;
++      const userWon = wave.picks.some((pick) => pick.teamKey === playerTeam);
++      if (!userWon) {
++        const competition =
++          Object.values(wave.bids).find((bidders) => bidders.includes(playerTeam))?.length ?? 1;
++        setFirstRoundMessage(
++          competition > 1
++            ? `${competition}球団競合の抽選に外れました。外れ1位を選択してください。`
++            : '指名を確定できませんでした。候補を選び直してください。',
++        );
++        setProspects(remaining);
++        setPicks(nextPicks);
++        setPendingFirstRoundTeams(pending);
++        setSelectedId(null);
++        return;
++      }
++
++      while (pending.length) {
++        const cpuWave = resolveFirstRoundWave(draftTeams, remaining, pending);
++        if (!cpuWave.picks.length) break;
++        nextPicks = [...nextPicks, ...cpuWave.picks];
++        draftTeams = applyDraftPicks(draftTeams, cpuWave.picks);
++        const cpuWonIds = new Set(cpuWave.picks.map((pick) => pick.id));
++        remaining = remaining.filter((prospect) => !cpuWonIds.has(prospect.id));
++        pending = cpuWave.unresolvedTeams;
++      }
++
++      const prepared = prepareUserTurn(
++        { teams: draftTeams, prospects: remaining, picks: nextPicks },
++        order,
++        playerTeam,
++        2,
++      );
++      setProspects(prepared.prospects);
++      setPicks(prepared.picks);
++      setPendingFirstRoundTeams([]);
++      setFirstRoundMessage('');
++      setSelectedId(null);
++      setRound(2);
+       return;
+     }
+-    setProspects(remaining);
+-    setPicks(nextPicks);
+-    setSelectedId(null);
+-    setRound((current) => current + 1);
++
++    let draftTeams = applyDraftPicks(teams, picks);
++    const userPick: DraftPick = { ...selected, teamKey: playerTeam, round };
++    let progress: DraftProgress = {
++      teams: applyDraftPicks(draftTeams, [userPick]),
++      prospects: prospects.filter((prospect) => prospect.id !== selected.id),
++      picks: [...picks, userPick],
++    };
++    const roundOrder = draftRoundOrder(order, round);
++    const userIndex = roundOrder.indexOf(playerTeam);
++    progress = runSequentialCpuPicks(progress, roundOrder.slice(userIndex + 1), round);
++    if (round >= 6) {
++      complete(progress.picks);
++      return;
++    }
++    const nextRound = round + 1;
++    progress = prepareUserTurn(progress, order, playerTeam, nextRound);
++    setProspects(progress.prospects);
++    setPicks(progress.picks);
++    setSelectedId(null);
++    setRound(nextRound);
+   };
+ 
+   const autoFinish = () => {
+     let remaining = [...prospects];
+-    const nextPicks = [...picks];
++    let nextPicks = [...picks];
+     let draftTeams = applyDraftPicks(teams, nextPicks);
+-    for (let currentRound = round; currentRound <= 6; currentRound += 1) {
++    let currentRound = round;
++    if (currentRound === 1) {
++      let pending = [...pendingFirstRoundTeams];
++      while (pending.length) {
++        const wave = resolveFirstRoundWave(draftTeams, remaining, pending);
++        if (!wave.picks.length) break;
++        nextPicks = [...nextPicks, ...wave.picks];
++        draftTeams = applyDraftPicks(draftTeams, wave.picks);
++        const wonIds = new Set(wave.picks.map((pick) => pick.id));
++        remaining = remaining.filter((prospect) => !wonIds.has(prospect.id));
++        pending = wave.unresolvedTeams;
++      }
++      currentRound = 2;
++    } else {
++      const roundOrder = draftRoundOrder(order, currentRound);
++      const userIndex = roundOrder.indexOf(playerTeam);
++      const current = runSequentialCpuPicks(
++        { teams: draftTeams, prospects: remaining, picks: nextPicks },
++        roundOrder.slice(Math.max(0, userIndex)),
++        currentRound,
++      );
++      draftTeams = current.teams;
++      remaining = current.prospects;
++      nextPicks = current.picks;
++      currentRound += 1;
++    }
++    for (; currentRound <= 6; currentRound += 1) {
+       for (const teamKey of draftRoundOrder(order, currentRound)) {
+         if (!remaining.length) break;
+-        const selected = cpuDraftPick(draftTeams[teamKey], remaining);
+-        if (!selected) continue;
+-        const pick = { ...selected, teamKey, round: currentRound };
++        const cpuSelected = cpuDraftPick(draftTeams[teamKey], remaining);
++        if (!cpuSelected) continue;
++        const pick: DraftPick = { ...cpuSelected, teamKey, round: currentRound };
+         nextPicks.push(pick);
+         draftTeams = applyDraftPicks(draftTeams, [pick]);
+-        remaining = remaining.filter((player) => player.id !== selected.id);
++        remaining = remaining.filter((player) => player.id !== cpuSelected.id);
+       }
+     }
+     complete(nextPicks);
+@@ -94,7 +218,7 @@ export function DraftScreen({
+           <h2 id="draft-title" style={{ margin: 0 }}>
+             ドラフト会議
+           </h2>
+           <div style={{ color: 'var(--color-text-faint)', fontSize: 12, marginTop: 4 }}>
+-            第{round}巡指名
++            {round === 1 ? '第1巡 入札・競合抽選' : `第${round}巡指名`}
+           </div>
+         </div>
+@@ -108,6 +232,11 @@ export function DraftScreen({
+           以降を自動指名
+         </Button>
+       </div>
++      {firstRoundMessage && (
++        <div style={{ marginBottom: 10, color: 'var(--color-warning)', fontSize: 12 }}>
++          {firstRoundMessage}
++        </div>
++      )}
+       <div
+         style={{
+           display: 'grid',
+diff --git a/src/components/screens/OffseasonScreen.tsx b/src/components/screens/OffseasonScreen.tsx
+--- a/src/components/screens/OffseasonScreen.tsx
++++ b/src/components/screens/OffseasonScreen.tsx
+@@ -4,9 +4,11 @@ import { FOREIGN_PLAYER_BALANCE, TINFO } from '../../data';
+ import {
+   calcOVR,
++  calcInterleagueStandings,
+   countForeignPlayers,
+   cpuAutoSignMarketRounds,
+   cpuAutoTradeBetweenTeams,
++  draftOrderFromStandings,
+   finalizeCpuRosters,
+   genForeignMarket,
+   genFreeAgentMarket,
+@@ -493,6 +495,10 @@ function OffseasonContent({
+         <DraftScreen
+           teams={workTeams}
+           playerTeam={playerTeam}
++          order={draftOrderFromStandings(
++            game.standings,
++            calcInterleagueStandings(game.season.schedule),
++          )}
+           onComplete={(draftedTeams) => {
+             const finalized = finalizeCpuRosters(draftedTeams, { excludedTeam: playerTeam });
+             game.completeOffseason(finalized.teams, developmentNotices);
+diff --git a/src/engine/season.ts b/src/engine/season.ts
+--- a/src/engine/season.ts
++++ b/src/engine/season.ts
+@@ -267,7 +267,6 @@ function fillDayFromPool(
+ // pure rest window, which matters once a fatigue system needs real off-days to recover
+ // against).
+ const INTERLEAGUE_WINDOW_START = 58;
+-const INTERLEAGUE_WINDOW_END = 100;
+ const ALL_STAR_BREAK_MINIMUM_GAP = 28;
+ const ALL_STAR_BREAK_LENGTH = 9;
+ const SCHEDULING_DAY_LIMIT = 500;
+@@ -310,14 +309,22 @@ export function generateSchedule(
+     }
+ 
+     const freeToday = new Set<TeamKey>(teamKeys.filter((key) => (busyUntil[key] ?? 0) <= day)),
+-      inInterleagueWindow = day >= INTERLEAGUE_WINDOW_START && day <= INTERLEAGUE_WINDOW_END,
+-      primaryPool = inInterleagueWindow ? interleagueSeries : leagueSeries,
+-      secondaryPool = inInterleagueWindow ? leagueSeries : interleagueSeries;
+-
+-    fillDayFromPool(primaryPool, day, start, freeToday, busyUntil, schedule);
+-    fillDayFromPool(secondaryPool, day, start, freeToday, busyUntil, schedule);
+-
+-    if (interleagueFinishedDay === null && interleagueSeries.length === 0)
+-      interleagueFinishedDay = day;
++      inInterleaguePhase =
++        day >= INTERLEAGUE_WINDOW_START &&
++        (interleagueSeries.length > 0 ||
++          (interleagueFinishedDay !== null && day < interleagueFinishedDay));
++
++    // Do not leak interleague games into the regular league calendar (or vice versa).
++    // Once the interleague block starts it owns the calendar until every already-started
++    // series has finished; rainouts may still move individual games later afterwards.
++    if (inInterleaguePhase) fillDayFromPool(interleagueSeries, day, start, freeToday, busyUntil, schedule);
++    else fillDayFromPool(leagueSeries, day, start, freeToday, busyUntil, schedule);
++
++    if (day >= INTERLEAGUE_WINDOW_START && interleagueFinishedDay === null && interleagueSeries.length === 0) {
++      interleagueFinishedDay = Math.max(
++        day + 1,
++        ...teamKeys.map((teamKey) => busyUntil[teamKey] ?? day + 1),
++      );
++    }
+ 
+     day += 1;
+     if (!isMonday && random() < 0.12) day += 1;
+diff --git a/src/engine/market.ts b/src/engine/market.ts
+--- a/src/engine/market.ts
++++ b/src/engine/market.ts
+@@ -177,9 +177,9 @@ export function cpuAutoSignMarket(
+     signedClubs = new Set<TeamKey>(),
+     bidScore = (teamKey: TeamKey, pick: Player): number => {
+       const need = teamNeedsScore(nextTeams[teamKey], pick) + (type === 'foreign' ? 3 : 0),
+-        budget = (TINFO[teamKey].bd || 50) * 100,
+-        affordability = (budget - (pick.ask || 0)) / 1200;
++        financialPowerLimit = (TINFO[teamKey].bd || 50) * 100,
++        affordability = (financialPowerLimit - (pick.ask || 0)) / 1200;
+       return need + affordability + gaussian(0, 0.9);
+     },
+@@ -198,8 +198,8 @@ export function cpuAutoSignMarket(
+               countForeignPlayers(nextTeams[teamKey]) < FOREIGN_PLAYER_BALANCE.registeredLimit),
+         )
+         .map((teamKey) => {
+-          const budget = (TINFO[teamKey].bd || 50) * 100;
+-          if ((pick.ask || 0) > budget + 1500) return null;
++          const financialPowerLimit = (TINFO[teamKey].bd || 50) * 100;
++          if ((pick.ask || 0) > financialPowerLimit + 1500) return null;
+           return { teamKey, score: bidScore(teamKey, pick) };
+         })
+@@ -232,6 +232,25 @@ export function cpuAutoSignMarketRounds(
+   }
+   return { teams: nextTeams, remaining };
+ }
++
++function rosterCoreValue(team: Team): number {
++  const lineup = bestLineup(team);
++  const batting = lineup.length
++    ? lineup.reduce((sum, player) => sum + calcOVR(player, player.pos), 0) / lineup.length
++    : 50;
++  const starters = team.pitchers
++    .filter((pitcher) => pitcher.role === '先発')
++    .sort((first, second) => calcOVR(second) - calcOVR(first))
++    .slice(0, 5);
++  const starting = starters.length
++    ? starters.reduce((sum, player) => sum + calcOVR(player), 0) / starters.length
++    : 50;
++  const bullpen = team.pitchers
++    .filter((pitcher) => pitcher.role !== '先発')
++    .sort((first, second) => calcOVR(second) - calcOVR(first))
++    .slice(0, 6);
++  const relief = bullpen.length
++    ? bullpen.reduce((sum, player) => sum + calcOVR(player), 0) / bullpen.length
++    : 50;
++  return batting * 0.45 + starting * 0.3 + relief * 0.25;
++}
++
+ export function cpuAutoTradeBetweenTeams(teams: Teams, playerTeam: TeamKey, rounds = 4): Teams {
+   const nextTeams = { ...teams };
+   const clubs = [...CENTRAL, ...PACIFIC]
+@@ -255,46 +274,62 @@ export function cpuAutoTradeBetweenTeams(teams: Teams, playerTeam: TeamKey, roun
+             ],
+             pitchers: team.pitchers.filter((pitcher) => pitcher.id !== removed.id),
+           };
++  const tradeable = (team: Team): Player[] => {
++    const starters = new Set(bestLineup(team).map((player) => player.id));
++    return [
++      ...team.fielders.filter((player) => !starters.has(player.id)),
++      ...team.pitchers.filter((player) => player.role !== '先発'),
++    ]
++      .sort(
++        (first, second) =>
++          (second.isP ? calcOVR(second) : effectiveOVR(second, second.pos)) -
++          (first.isP ? calcOVR(first) : effectiveOVR(first, first.pos)),
++      )
++      .slice(0, 8);
++  };
+   for (let round = 0; round < rounds; round += 1) {
+     const firstTeamKey = clubs[round % clubs.length],
+       secondTeamKey = clubs[(round + 3) % clubs.length];
+     if (!firstTeamKey || !secondTeamKey || firstTeamKey === secondTeamKey) continue;
+-    const firstTeam = nextTeams[firstTeamKey],
+-      secondTeam = nextTeams[secondTeamKey],
+-      firstBench = [...firstTeam.fielders]
+-        .filter((fielder) => !bestLineup(firstTeam).some((starter) => starter.id === fielder.id))
+-        .sort((first, second) => effectiveOVR(second, second.pos) - effectiveOVR(first, first.pos)),
+-      secondBench = [...secondTeam.fielders]
+-        .filter((fielder) => !bestLineup(secondTeam).some((starter) => starter.id === fielder.id))
+-        .sort((first, second) => effectiveOVR(second, second.pos) - effectiveOVR(first, first.pos)),
+-      firstArms = [...firstTeam.pitchers]
+-        .filter((pitcher) => pitcher.role !== '先発')
+-        .sort((first, second) => calcOVR(second) - calcOVR(first)),
+-      secondArms = [...secondTeam.pitchers]
+-        .filter((pitcher) => pitcher.role !== '先発')
+-        .sort((first, second) => calcOVR(second) - calcOVR(first)),
+-      firstChip = firstBench[0] || firstArms[0],
+-      secondChip = secondBench[0] || secondArms[0],
+-      firstWant = [...secondTeam.fielders, ...secondTeam.pitchers].sort(
+-        (first, second) => teamNeedsScore(firstTeam, second) - teamNeedsScore(firstTeam, first),
+-      )[0],
+-      secondWant = [...firstTeam.fielders, ...firstTeam.pitchers].sort(
+-        (first, second) => teamNeedsScore(secondTeam, second) - teamNeedsScore(secondTeam, first),
+-      )[0];
+-    if (!firstChip || !secondChip || !firstWant || !secondWant) continue;
+-    const firstFit = teamNeedsScore(firstTeam, firstWant) - teamNeedsScore(firstTeam, firstChip),
+-      secondFit = teamNeedsScore(secondTeam, secondWant) - teamNeedsScore(secondTeam, secondChip),
+-      valueGap = Math.abs(
+-        (firstWant.isP ? calcOVR(firstWant) : effectiveOVR(firstWant, firstWant.pos)) -
+-          (secondWant.isP ? calcOVR(secondWant) : effectiveOVR(secondWant, secondWant.pos)),
+-      );
+-    if (firstFit < 8 || secondFit < 8 || valueGap > 12) continue;
+-    nextTeams[firstTeamKey] = move(firstTeam, secondWant, firstWant, firstTeamKey);
+-    nextTeams[secondTeamKey] = move(secondTeam, firstWant, secondWant, secondTeamKey);
++    const firstTeam = nextTeams[firstTeamKey];
++    const secondTeam = nextTeams[secondTeamKey];
++    const firstPool = tradeable(firstTeam);
++    const secondPool = tradeable(secondTeam);
++    const firstBefore = rosterCoreValue(firstTeam);
++    const secondBefore = rosterCoreValue(secondTeam);
++    let best:
++      | { firstOut: Player; secondOut: Player; score: number; firstAfter: Team; secondAfter: Team }
++      | null = null;
++    for (const firstOut of firstPool) {
++      for (const secondOut of secondPool) {
++        const firstValue = firstOut.isP ? calcOVR(firstOut) : effectiveOVR(firstOut, firstOut.pos);
++        const secondValue = secondOut.isP ? calcOVR(secondOut) : effectiveOVR(secondOut, secondOut.pos);
++        const valueGap = Math.abs(firstValue - secondValue);
++        if (valueGap > 12) continue;
++        const firstAfter = move(firstTeam, firstOut, secondOut, firstTeamKey);
++        const secondAfter = move(secondTeam, secondOut, firstOut, secondTeamKey);
++        const firstFit = teamNeedsScore(firstTeam, secondOut) - teamNeedsScore(firstTeam, firstOut);
++        const secondFit = teamNeedsScore(secondTeam, firstOut) - teamNeedsScore(secondTeam, secondOut);
++        const firstGain = (rosterCoreValue(firstAfter) - firstBefore) * 1.5 + firstFit * 0.35;
++        const secondGain = (rosterCoreValue(secondAfter) - secondBefore) * 1.5 + secondFit * 0.35;
++        if (firstGain < 0.5 || secondGain < 0.5) continue;
++        const score = firstGain + secondGain - valueGap * 0.2 + gaussian(0, 0.75);
++        if (!best || score > best.score)
++          best = { firstOut, secondOut, score, firstAfter, secondAfter };
++      }
++    }
++    if (!best || best.score < 5) continue;
++    nextTeams[firstTeamKey] = best.firstAfter;
++    nextTeams[secondTeamKey] = best.secondAfter;
+   }
+   return nextTeams;
+ }
+diff --git a/tests/system-consistency.test.ts b/tests/system-consistency.test.ts
+new file mode 100644
+--- /dev/null
++++ b/tests/system-consistency.test.ts
+@@ -0,0 +1,132 @@
++import assert from 'node:assert/strict';
++import test from 'node:test';
++
++import { CENTRAL, PACIFIC, PLAYER_DEVELOPMENT_BALANCE } from '../src/data';
++import {
++  bestLineup,
++  calcInterleagueStandings,
++  calcStandings,
++  configureRandom,
++  cpuAutoTradeBetweenTeams,
++  draftOrderFromStandings,
++  generateDraftProspects,
++  generateSchedule,
++  initTeams,
++  progressiveScoringEvents,
++  resetRandom,
++  resolveFirstRoundWave,
++  type TeamKey,
++} from '../src/engine';
++
++function mulberry32(seed: number): () => number {
++  let state = seed >>> 0;
++  return () => {
++    state += 0x6d2b79f5;
++    let value = state;
++    value = Math.imul(value ^ (value >>> 15), value | 1);
++    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
++    return ((value ^ (value >>> 14)) >>> 0) / 4_294_967_296;
++  };
++}
++
++test('every generated lineup has eight unique fielders plus exactly one DH', () => {
++  configureRandom(mulberry32(20260823), () => 1_700_000_000_000);
++  try {
++    const teams = initTeams();
++    for (const teamKey of [...CENTRAL, ...PACIFIC]) {
++      const lineup = bestLineup(teams[teamKey]);
++      assert.equal(lineup.length, 9);
++      assert.equal(lineup.filter((player) => player._isDH).length, 1);
++      const defenders = lineup.filter((player) => !player._isDH);
++      assert.equal(defenders.length, 8);
++      assert.equal(new Set(defenders.map((player) => player._assignedPos)).size, 8);
++      assert.equal(lineup.find((player) => player._isDH)?._assignedPos, undefined);
++    }
++  } finally {
++    resetRandom();
++  }
++});
++
++test('multi-run scoring advances the score one runner at a time', () => {
++  const events = progressiveScoringEvents(
++    { home: 2, away: 2 },
++    'home',
++    0,
++    [
++      { runnerId: 'r1', chargedPitcherId: 'p1', earned: true },
++      { runnerId: 'r2', chargedPitcherId: 'p2', earned: true },
++    ],
++  );
++  assert.deepEqual(
++    events.map((event) => [event.homeScore, event.awayScore, event.chargedPitcherId]),
++    [
++      [3, 2, 'p1'],
++      [4, 2, 'p2'],
++    ],
++  );
++});
++
++test('first-round bidding resolves one winner and keeps lottery losers alive', () => {
++  configureRandom(mulberry32(1), () => 1_700_000_000_000);
++  try {
++    const teams = initTeams();
++    const prospect = generateDraftProspects()[0]!;
++    const wave = resolveFirstRoundWave(teams, [prospect], ['giants', 'tigers']);
++    assert.equal(wave.picks.length, 1);
++    assert.equal(wave.unresolvedTeams.length, 1);
++    assert.equal(wave.picks[0]?.id, prospect.id);
++  } finally {
++    resetRandom();
++  }
++});
++
++test('draft order is frozen from standings rather than current roster strength', () => {
++  const standings = calcStandings([]);
++  CENTRAL.forEach((teamKey, index) => {
++    standings[teamKey].rank = index + 1;
++    standings[teamKey].pct = 0.6 - index * 0.04;
++  });
++  PACIFIC.forEach((teamKey, index) => {
++    standings[teamKey].rank = index + 1;
++    standings[teamKey].pct = 0.59 - index * 0.04;
++  });
++  const interleague = calcInterleagueStandings([]);
++  for (const teamKey of CENTRAL) interleague[teamKey].w = 2;
++  for (const teamKey of PACIFIC) interleague[teamKey].w = 1;
++  const order = draftOrderFromStandings(standings, interleague);
++  assert.equal(order[0], CENTRAL[5]);
++  assert.equal(order[1], PACIFIC[5]);
++  assert.equal(order[10], CENTRAL[0]);
++  assert.equal(order[11], PACIFIC[0]);
++});
++
++test('interleague games occupy one exclusive calendar block', () => {
++  configureRandom(mulberry32(2026), () => 1_700_000_000_000);
++  try {
++    const schedule = generateSchedule(2026, { rainoutRate: 0, maxRainouts: 0 });
++    const interleague = schedule.filter((game) => game.isInterleague);
++    assert.ok(interleague.length > 0);
++    const first = interleague.map((game) => game.date).sort()[0]!;
++    const last = interleague.map((game) => game.date).sort().at(-1)!;
++    assert.equal(
++      schedule.filter((game) => game.date >= first && game.date <= last && !game.isInterleague)
++        .length,
++      0,
++    );
++    for (const teamKey of [...CENTRAL, ...PACIFIC]) {
++      const teamGames = schedule.filter(
++        (game) => game.homeKey === teamKey || game.awayKey === teamKey,
++      );
++      assert.equal(teamGames.length, 143);
++      assert.equal(teamGames.filter((game) => game.isInterleague).length, 18);
++    }
++  } finally {
++    resetRandom();
++  }
++});
++
++test('draft contact calibration respects shared rating and potential ceilings', () => {
++  configureRandom(mulberry32(77), () => 1_700_000_000_000);
++  try {
++    for (const player of generateDraftProspects().filter((candidate) => !candidate.isP)) {
++      assert.ok((player.p.cf ?? 0) <= PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.maximumRating);
++      assert.ok((player.p.cb ?? 0) <= PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.maximumRating);
++      const ceiling =
++        player.potentialClass === 'elite'
++          ? PLAYER_DEVELOPMENT_BALANCE.potentialCeiling.elite
++          : PLAYER_DEVELOPMENT_BALANCE.potentialCeiling.standard;
++      assert.ok((player.pot.cf ?? 0) <= ceiling);
++      assert.ok((player.pot.cb ?? 0) <= ceiling);
++    }
++  } finally {
++    resetRandom();
++  }
++});
++
++test('CPU trades never duplicate a player across rosters', () => {
++  configureRandom(mulberry32(998), () => 1_700_000_000_000);
++  try {
++    const after = cpuAutoTradeBetweenTeams(initTeams(), 'giants', 12);
++    const ids = (Object.keys(after) as TeamKey[]).flatMap((teamKey) => [
++      ...after[teamKey].pitchers.map((player) => player.id),
++      ...after[teamKey].fielders.map((player) => player.id),
++    ]);
++    assert.equal(new Set(ids).size, ids.length);
++  } finally {
++    resetRandom();
++  }
++});
