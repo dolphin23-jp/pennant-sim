@@ -77,7 +77,7 @@ function SlotButton({
   const aptitude = slotAptitude(slot, player);
   const rank = aptitude === null ? null : aptitudeRank(aptitude);
   const aptitudeColor = aptitudeToneColor(aptitude);
-  const label = slot === 'extra' ? '追加打者' : slot;
+  const label = slot === 'extra' ? 'DH' : slot;
   const armedTarget = Boolean(armedHint) && !dropTarget;
   const borderColor = dropTarget
     ? 'var(--color-accent)'

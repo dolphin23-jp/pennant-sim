@@ -266,7 +266,6 @@ function fillDayFromPool(
 // pure rest window, which matters once a fatigue system needs real off-days to recover
 // against).
 const INTERLEAGUE_WINDOW_START = 58;
-const INTERLEAGUE_WINDOW_END = 100;
 const ALL_STAR_BREAK_MINIMUM_GAP = 28;
 const ALL_STAR_BREAK_LENGTH = 9;
 const SCHEDULING_DAY_LIMIT = 500;
@@ -310,15 +309,23 @@ export function generateSchedule(
     }
 
     const freeToday = new Set<TeamKey>(teamKeys.filter((key) => (busyUntil[key] ?? 0) <= day)),
-      inInterleagueWindow = day >= INTERLEAGUE_WINDOW_START && day <= INTERLEAGUE_WINDOW_END,
-      primaryPool = inInterleagueWindow ? interleagueSeries : leagueSeries,
-      secondaryPool = inInterleagueWindow ? leagueSeries : interleagueSeries;
+      inInterleaguePhase =
+        day >= INTERLEAGUE_WINDOW_START &&
+        (interleagueSeries.length > 0 ||
+          (interleagueFinishedDay !== null && day < interleagueFinishedDay));
 
-    fillDayFromPool(primaryPool, day, start, freeToday, busyUntil, schedule);
-    fillDayFromPool(secondaryPool, day, start, freeToday, busyUntil, schedule);
+    // Do not leak interleague games into the regular league calendar (or vice versa).
+    // Once the interleague block starts it owns the calendar until every already-started
+    // series has finished; rainouts may still move individual games later afterwards.
+    if (inInterleaguePhase) fillDayFromPool(interleagueSeries, day, start, freeToday, busyUntil, schedule);
+    else fillDayFromPool(leagueSeries, day, start, freeToday, busyUntil, schedule);
 
-    if (interleagueFinishedDay === null && interleagueSeries.length === 0)
-      interleagueFinishedDay = day;
+    if (day >= INTERLEAGUE_WINDOW_START && interleagueFinishedDay === null && interleagueSeries.length === 0) {
+      interleagueFinishedDay = Math.max(
+        day + 1,
+        ...teamKeys.map((teamKey) => busyUntil[teamKey] ?? day + 1),
+      );
+    }
 
     day += 1;
     if (!isMonday && random() < 0.12) day += 1;

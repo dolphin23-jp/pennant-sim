@@ -119,6 +119,8 @@ export interface Player {
   role?: PitcherRole;
   pos?: FieldPosition;
   _assignedPos?: FieldPosition;
+  /** Transient lineup marker. The designated hitter bats but never takes the field. */
+  _isDH?: boolean;
   positions?: PositionAptitude[];
   mat: Maturity;
   hand: { th?: '右' | '左'; bat?: '右' | '左' | '両' };

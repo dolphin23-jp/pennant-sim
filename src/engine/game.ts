@@ -27,13 +27,15 @@ import {
   prepareTeamPitchersForGame,
 } from './pitcherUsage';
 import { clamp, random, randomChoice, randomInt } from './random';
-import { bestLineup, masteryFromAccum } from './ratings';
+import { bestLineup, effectiveOVR, masteryFromAccum } from './ratings';
+import { progressiveScoringEvents } from './scoring';
 import { specialLevel } from './specials';
 import type {
   AccumulatedStats,
   AtBatLogEntry,
   BaseState,
   BattedBallType,
+  FieldPosition,
   GameState,
   HalfInningResult,
   ManagementDecision,
@@ -47,20 +49,58 @@ import type {
   Teams,
 } from './types';
 const teamKeyForSide = (gameState: GameState, side: Side): TeamKey => gameState.teams[side].key;
+
+/** Every game permanently uses a DH. Normalise old/custom ninth-fielder saves here. */
+function normalizeDesignatedHitter(lineup: Player[]): Player[] {
+  const selected = lineup.slice(0, 9).map((player) => ({ ...player }));
+  const alreadyMarked = selected.find((player) => player._isDH);
+  if (alreadyMarked) {
+    return selected.map((player) =>
+      player.id === alreadyMarked.id
+        ? { ...player, _assignedPos: undefined, _isDH: true }
+        : { ...player, _isDH: undefined },
+    );
+  }
+  const byPosition = new Map<FieldPosition, Player>();
+  let dhId: string | null = null;
+  for (const player of selected) {
+    const position = player._assignedPos ?? player.pos;
+    if (!position) continue;
+    const incumbent = byPosition.get(position);
+    if (!incumbent) {
+      byPosition.set(position, player);
+      continue;
+    }
+    dhId = effectiveOVR(incumbent, position) >= effectiveOVR(player, position) ? player.id : incumbent.id;
+    break;
+  }
+  const resolvedDhId = dhId ?? selected[selected.length - 1]?.id ?? null;
+  return selected.map((player) =>
+    player.id === resolvedDhId
+      ? { ...player, _assignedPos: undefined, _isDH: true }
+      : { ...player, _isDH: undefined },
+  );
+}
+
 function resolveLineup(team: Team, supplied?: Player[] | null): Player[] {
-  if (supplied === null || supplied === undefined) return strategicBestLineup(team).lineup;
+  if (supplied === null || supplied === undefined)
+    return normalizeDesignatedHitter(strategicBestLineup(team).lineup);
   if (!supplied.length) return bestLineup(team);
   const roster = new Map(team.fielders.map((player) => [player.id, player])),
     resolved: Player[] = [];
   for (const player of supplied) {
     const current = roster.get(player.id);
     if (!current || (current.injuryDays ?? 0) > 0) continue;
-    resolved.push({ ...current, _assignedPos: player._assignedPos ?? current.pos });
+    resolved.push({
+      ...current,
+      _assignedPos: player._isDH ? undefined : (player._assignedPos ?? current.pos),
+      _isDH: player._isDH,
+    });
   }
   const selected = resolved.slice(0, 9);
   return resolved.length >= 9 &&
     selected.filter(isForeignPlayer).length <= FOREIGN_PLAYER_BALANCE.simultaneousHitterLimit
-    ? selected
+    ? normalizeDesignatedHitter(selected)
     : bestLineup(team);
 }
 interface HalfInningManagement {
@@ -148,7 +188,7 @@ export function simHalf(
     bullpenPriority = management?.bullpenPriority ?? [],
     decisionStart = (gameState.managementLog ??= []).length;
   const catcher = gameState.lineups[fieldingSide].find(
-      (player) => player._assignedPos === '捕手' || player.pos === '捕手',
+      (player) => !player._isDH && (player._assignedPos === '捕手' || player.pos === '捕手'),
     ),
     catcherGameCalling = catcher
       ? (catcher.p.ld || 50) +
@@ -620,18 +660,14 @@ export function simHalf(
       };
     });
     const scoredIds = runsScored.map((run) => run.runnerId);
-    for (const run of runsScored) {
-      const homeScore = gameState.score.home + (battingSide === 'home' ? runs : 0);
-      const awayScore = gameState.score.away + (battingSide === 'away' ? runs : 0);
-      (gameState.scoringSequence ??= []).push({
-        scoringSide: battingSide,
-        chargedPitcherId: run.chargedPitcherId,
-        homeScore,
-        awayScore,
-      });
+    const runsBeforePlay = runs - runsScored.length;
+    const scoringEvents = progressiveScoringEvents(gameState.score, battingSide, runsBeforePlay, runsScored);
+    scoringEvents.forEach((event, index) => {
+      (gameState.scoringSequence ??= []).push(event);
+      const run = runsScored[index] as ScoredRun;
       const appearance = openAppearanceFor(gameState, run.chargedPitcherId);
       if (appearance) appearance.runsCharged += 1;
-    }
+    });
 
     // Register the batter if he is now standing on a base, so a later run is charged to
     // the pitcher who let him on.

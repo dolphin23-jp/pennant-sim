@@ -51,7 +51,13 @@ function createEditorState(lineup: Player[], fielders: Player[]): EditorState {
   const savedPlayers = lineup
     .map<Player | null>((saved) => {
       const current = rosterById.get(saved.id);
-      return current ? { ...current, _assignedPos: saved._assignedPos } : null;
+      return current
+        ? {
+            ...current,
+            _assignedPos: saved._isDH ? undefined : saved._assignedPos,
+            _isDH: saved._isDH,
+          }
+        : null;
     })
     .filter((player): player is Player => player !== null);
   const used = new Set<string>();
@@ -75,7 +81,9 @@ function createEditorState(lineup: Player[], fielders: Player[]): EditorState {
     if (selected) used.add(selected.id);
   }
 
-  const savedExtra = savedPlayers.find((player) => !used.has(player.id));
+  const savedExtra =
+    savedPlayers.find((player) => player._isDH && !used.has(player.id)) ??
+    savedPlayers.find((player) => !used.has(player.id));
   const bestExtra = activeFielders
     .filter((player) => !used.has(player.id))
     .sort((first, second) => calcOVR(second) - calcOVR(first))[0];
@@ -114,6 +122,7 @@ function lineupFromEditor(editor: EditorState): Player[] {
     const player = editor.assignments[position];
     if (player) assignedPositionById.set(player.id, position);
   }
+  const dhId = editor.assignments.extra?.id ?? null;
   const byId = new Map<string, Player>(
     LINEUP_SLOT_ORDER.map((slot) => editor.assignments[slot])
       .filter((player): player is Player => player !== null)
@@ -124,7 +133,12 @@ function lineupFromEditor(editor: EditorState): Player[] {
       const player = byId.get(id);
       if (!player) return null;
       const assignedPosition = assignedPositionById.get(id);
-      return { ...player, _assignedPos: assignedPosition };
+      const isDH = player.id === dhId;
+      return {
+        ...player,
+        _assignedPos: isDH ? undefined : assignedPosition,
+        _isDH: isDH ? true : undefined,
+      };
     })
     .filter((player): player is Player => player !== null);
 }
