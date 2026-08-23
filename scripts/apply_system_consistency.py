@@ -71,8 +71,6 @@ def apply_unified_patch(patch_path: str) -> None:
                 continue
             index += 1
 
-        # core-overhaul.patch contains a temporary self-repair diff for the other
-        # patch payload. Source materialisation should ignore patch-on-patch edits.
         if new_path.endswith(".patch"):
             continue
 
@@ -141,6 +139,11 @@ def apply_follow_up_edits() -> None:
         "src/engine/aiStrategy.ts",
         "    selected.push({ ...player, _assignedPos: player.pos });",
         "    selected.push({ ...player, _assignedPos: undefined, _isDH: true });",
+    )
+    replace_once(
+        "src/components/screens/DraftScreen.tsx",
+        "      let draftTeams = applyDraftPicks(teams, picks);",
+        "      const draftTeams = applyDraftPicks(teams, picks);",
     )
 
 
