@@ -1,9 +1,6 @@
 name: Apply system consistency overhaul
 
 on:
-  push:
-    branches:
-      - codex/system-consistency-overhaul
   pull_request:
     branches:
       - main
@@ -16,7 +13,7 @@ jobs:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout implementation branch
         uses: actions/checkout@v4
         with:
           ref: codex/system-consistency-overhaul
@@ -25,60 +22,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Apply source changes
-        run: |
-          git apply --recount --check core-overhaul.patch
-          git apply --recount core-overhaul.patch
-          git apply --recount --check league-overhaul.patch
-          git apply --recount league-overhaul.patch
-          python - <<'PY'
-          from pathlib import Path
-
-          def replace_once(path: str, old: str, new: str) -> None:
-              target = Path(path)
-              text = target.read_text()
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f'{path}: expected exactly one match, found {count}')
-              target.write_text(text.replace(old, new, 1))
-
-          replace_once(
-              'src/components/widgets/FieldDiagram.tsx',
-              "const label = slot === 'extra' ? '追加打者' : slot;",
-              "const label = slot === 'extra' ? 'DH' : slot;",
-          )
-          replace_once(
-              'src/engine/aiStrategy.ts',
-              "import { selectRosterPool } from './ratings';",
-              "import { designatedHitterScore, selectRosterPool } from './ratings';",
-          )
-          replace_once(
-              'src/engine/aiStrategy.ts',
-              """  for (const player of [...pool].sort(
-    (first, second) =>
-      auditLineupCandidate(
-        second,
-        second.pos as FieldPosition,
-        strategy,
-        approximatePositionScore(second, second.pos as FieldPosition),
-      ).score -
-      auditLineupCandidate(
-        first,
-        first.pos as FieldPosition,
-        strategy,
-        approximatePositionScore(first, first.pos as FieldPosition),
-      ).score,
-  )) {""",
-              """  for (const player of [...pool].sort(
-    (first, second) => designatedHitterScore(second) - designatedHitterScore(first),
-  )) {""",
-          )
-          replace_once(
-              'src/engine/aiStrategy.ts',
-              "    selected.push({ ...player, _assignedPos: player.pos });",
-              "    selected.push({ ...player, _assignedPos: undefined, _isDH: true });",
-          )
-          PY
+      - name: Materialize source changes
+        run: python scripts/apply_system_consistency.py
       - name: Install dependencies
         run: npm install
       - name: Lint
@@ -87,12 +32,12 @@ jobs:
         run: npm test
       - name: Build
         run: npm run build
-      - name: Commit applied overhaul
+      - name: Commit validated overhaul
         run: |
-          rm core-overhaul.patch league-overhaul.patch .github/workflows/apply-system-consistency-overhaul.yml
+          rm core-overhaul.patch league-overhaul.patch scripts/apply_system_consistency.py .github/workflows/apply-system-consistency-overhaul.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- src/engine/types.ts src/engine/ratings.ts src/engine/fielding.ts src/engine/scoring.ts src/engine/index.ts src/engine/game.ts src/engine/aiStrategy.ts src/components/screens/season/LineupTab.tsx src/components/widgets/FieldDiagram.tsx src/engine/draft.ts src/components/screens/DraftScreen.tsx src/components/screens/OffseasonScreen.tsx src/engine/season.ts src/engine/market.ts tests/system-consistency.test.ts
-          git add -u -- core-overhaul.patch league-overhaul.patch .github/workflows/apply-system-consistency-overhaul.yml
+          git add -u -- core-overhaul.patch league-overhaul.patch scripts/apply_system_consistency.py .github/workflows/apply-system-consistency-overhaul.yml
           git commit -m "Fix league simulation consistency"
           git push origin HEAD:codex/system-consistency-overhaul
