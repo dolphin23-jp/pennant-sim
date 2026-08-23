@@ -40,13 +40,11 @@ export function contentRevision(serialized: string): string {
 }
 
 export function createWorldId(): string {
-  const randomUuid = globalThis.crypto?.randomUUID?.();
-  if (randomUuid) return randomUuid;
   return `world-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
 function safeSegment(value: string): string {
-  return encodeURIComponent(value).replaceAll('%', '_');
+  return encodeURIComponent(value).replace(/%/g, '_');
 }
 
 export function seasonArchiveKey(
