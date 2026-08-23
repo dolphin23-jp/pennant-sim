@@ -21,11 +21,7 @@ diff --git a/src/engine/ratings.ts b/src/engine/ratings.ts
 + * influence who is selected to a role that never takes the field. */
 +export function designatedHitterScore(player: Player): number {
 +  const contact = ((player.p.cf ?? 50) + (player.p.cb ?? 50)) / 2;
-+  return (
-+    contact * 0.45 +
-+    (player.p.dc ?? 50) * 0.2 +
-+    (player.p.pw ?? 50) * 0.35
-+  );
++  return contact * 0.45 + (player.p.dc ?? 50) * 0.2 + (player.p.pw ?? 50) * 0.35;
 +}
 +
  /**
@@ -74,14 +70,10 @@ diff --git a/src/engine/scoring.ts b/src/engine/scoring.ts
 new file mode 100644
 --- /dev/null
 +++ b/src/engine/scoring.ts
-@@ -0,0 +1,30 @@
+@@ -0,0 +1,27 @@
 +import type { ScoredRun, ScoringEvent, Score, Side } from './types';
 +
-+/**
-+ * Expand a multi-run play into one scoring event per runner. The score must advance one
-+ * run at a time because the go-ahead run can belong to a different responsible pitcher
-+ * from another runner who scored on the same play.
-+ */
++/** Expand a multi-run play into one scoring event per runner. */
 +export function progressiveScoringEvents(
 +  baseScore: Score,
 +  scoringSide: Side,
@@ -93,10 +85,8 @@ new file mode 100644
 +    return {
 +      scoringSide,
 +      chargedPitcherId: run.chargedPitcherId,
-+      homeScore:
-+        baseScore.home + (scoringSide === 'home' ? halfInningRunsAfterEvent : 0),
-+      awayScore:
-+        baseScore.away + (scoringSide === 'away' ? halfInningRunsAfterEvent : 0),
++      homeScore: baseScore.home + (scoringSide === 'home' ? halfInningRunsAfterEvent : 0),
++      awayScore: baseScore.away + (scoringSide === 'away' ? halfInningRunsAfterEvent : 0),
 +    };
 +  });
 +}
@@ -134,8 +124,7 @@ diff --git a/src/engine/game.ts b/src/engine/game.ts
  } from './types';
  const teamKeyForSide = (gameState: GameState, side: Side): TeamKey => gameState.teams[side].key;
 +
-+/** Every game in pennant-sim permanently uses a DH. Old/custom lineups may still carry
-+ * the historical ninth-fielder representation, so normalise them at the game boundary. */
++/** Every game permanently uses a DH. Normalise old/custom ninth-fielder saves here. */
 +function normalizeDesignatedHitter(lineup: Player[]): Player[] {
 +  const selected = lineup.slice(0, 9).map((player) => ({ ...player }));
 +  const alreadyMarked = selected.find((player) => player._isDH);
@@ -146,7 +135,6 @@ diff --git a/src/engine/game.ts b/src/engine/game.ts
 +        : { ...player, _isDH: undefined },
 +    );
 +  }
-+
 +  const byPosition = new Map<FieldPosition, Player>();
 +  let dhId: string | null = null;
 +  for (const player of selected) {
@@ -157,10 +145,7 @@ diff --git a/src/engine/game.ts b/src/engine/game.ts
 +      byPosition.set(position, player);
 +      continue;
 +    }
-+    dhId =
-+      effectiveOVR(incumbent, position) >= effectiveOVR(player, position)
-+        ? player.id
-+        : incumbent.id;
++    dhId = effectiveOVR(incumbent, position) >= effectiveOVR(player, position) ? player.id : incumbent.id;
 +    break;
 +  }
 +  const resolvedDhId = dhId ?? selected[selected.length - 1]?.id ?? null;
@@ -218,12 +203,7 @@ diff --git a/src/engine/game.ts b/src/engine/game.ts
 -        awayScore,
 -      });
 +    const runsBeforePlay = runs - runsScored.length;
-+    const scoringEvents = progressiveScoringEvents(
-+      gameState.score,
-+      battingSide,
-+      runsBeforePlay,
-+      runsScored,
-+    );
++    const scoringEvents = progressiveScoringEvents(gameState.score, battingSide, runsBeforePlay, runsScored);
 +    scoringEvents.forEach((event, index) => {
 +      (gameState.scoringSequence ??= []).push(event);
 +      const run = runsScored[index] as ScoredRun;
@@ -284,15 +264,3 @@ diff --git a/src/components/screens/season/LineupTab.tsx b/src/components/screen
      })
      .filter((player): player is Player => player !== null);
  }
-diff --git a/src/components/widgets/FieldDiagram.tsx b/src/components/widgets/FieldDiagram.tsx
---- a/src/components/widgets/FieldDiagram.tsx
-+++ b/src/components/widgets/FieldDiagram.tsx
-@@ -78,7 +78,7 @@ function SlotButton({
-   const aptitude = slotAptitude(slot, player);
-   const rank = aptitude === null ? null : aptitudeRank(aptitude);
-   const aptitudeColor = aptitudeToneColor(aptitude);
--  const label = slot === 'extra' ? '追加打者' : slot;
-+  const label = slot === 'extra' ? 'DH' : slot;
-   const armedTarget = Boolean(armedHint) && !dropTarget;
-   const borderColor = dropTarget
-     ? 'var(--color-accent)'
