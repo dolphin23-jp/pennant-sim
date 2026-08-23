@@ -1,0 +1,108 @@
+name: Finalize draft league tiebreak
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/system-consistency-overhaul
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply league tiebreak fix and regression test
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, found {count}')
+              target.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'src/engine/draft.ts',
+              """  const leagueWins = (league: readonly TeamKey[]) =>
+    league.reduce((sum, teamKey) => sum + (interleagueStandings?.[teamKey].w ?? 0), 0);
+  const centralFirst = leagueWins(CENTRAL) >= leagueWins(PACIFIC);""",
+              """  const leagueInterleagueResult = (league: readonly TeamKey[]) =>
+    league.reduce(
+      (result, teamKey) => ({
+        wins: result.wins + (interleagueStandings?.[teamKey].w ?? 0),
+        runDifferential:
+          result.runDifferential +
+          (interleagueStandings?.[teamKey].rs ?? 0) -
+          (interleagueStandings?.[teamKey].ra ?? 0),
+      }),
+      { wins: 0, runDifferential: 0 },
+    );
+  const centralInterleague = leagueInterleagueResult(CENTRAL);
+  const pacificInterleague = leagueInterleagueResult(PACIFIC);
+  const centralFirst =
+    centralInterleague.wins !== pacificInterleague.wins
+      ? centralInterleague.wins > pacificInterleague.wins
+      : centralInterleague.runDifferential !== pacificInterleague.runDifferential
+        ? centralInterleague.runDifferential > pacificInterleague.runDifferential
+        : random() < 0.5;""",
+          )
+
+          anchor = """test('interleague games occupy one exclusive calendar block', () => {"""
+          test_block = """test('draft league priority uses interleague run differential when wins are tied', () => {
+  configureRandom(mulberry32(314), () => 1_700_000_000_000);
+  try {
+    const standings = calcStandings([]);
+    CENTRAL.forEach((teamKey, index) => {
+      standings[teamKey].rank = index + 1;
+      standings[teamKey].pct = 0.6 - index * 0.04;
+    });
+    PACIFIC.forEach((teamKey, index) => {
+      standings[teamKey].rank = index + 1;
+      standings[teamKey].pct = 0.59 - index * 0.04;
+    });
+    const interleague = calcInterleagueStandings([]);
+    for (const teamKey of [...CENTRAL, ...PACIFIC]) interleague[teamKey].w = 1;
+    interleague[CENTRAL[0]!].rs = 5;
+    interleague[PACIFIC[0]!].rs = 2;
+    const order = draftOrderFromStandings(standings, interleague);
+    assert.equal(order[0], CENTRAL[5]);
+    assert.equal(order[1], PACIFIC[5]);
+  } finally {
+    resetRandom();
+  }
+});
+
+"""
+          replace_once('tests/system-consistency.test.ts', anchor, test_block + anchor)
+          PY
+      - name: Install dependencies
+        run: npm install
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build
+      - name: Commit final fix
+        run: |
+          rm .github/workflows/finalize-draft-tiebreak.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- src/engine/draft.ts tests/system-consistency.test.ts
+          git add -u -- .github/workflows/finalize-draft-tiebreak.yml
+          git commit -m "Handle tied interleague draft priority"
+          git push origin HEAD:codex/system-consistency-overhaul
