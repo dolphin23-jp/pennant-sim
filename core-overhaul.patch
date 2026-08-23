@@ -264,3 +264,35 @@ diff --git a/src/components/screens/season/LineupTab.tsx b/src/components/screen
      })
      .filter((player): player is Player => player !== null);
  }
+diff --git a/league-overhaul.patch b/league-overhaul.patch
+--- a/league-overhaul.patch
++++ b/league-overhaul.patch
+@@ -4,28 +4,30 @@
+-@@ -1,10 +1,19 @@
++@@ -1,10 +1,23 @@
+  import { CENTRAL, FIELD_POSITIONS, PACIFIC, PLAYER_DEVELOPMENT_BALANCE } from '../data';
+  import { generateBatter, generatePitcher } from './players';
+ -import { gaussian, random, randomChoice, randomInt, weightedRandom } from './random';
+ +import { gaussian, random, randomChoice, randomInt } from './random';
+  import { bestLineup, calcOVR, effectiveOVR, topStarters } from './ratings';
+  import { teamNeedsScore } from './market';
+ -import type { DraftOrigin, FieldPosition, Player, Team, TeamKey, Teams } from './types';
+ +import type {
+ +  DraftOrigin,
+ +  FieldPosition,
+ +  Player,
+ +  StandingRecord,
+ +  Team,
+ +  TeamKey,
+ +  Teams,
+ +} from './types';
+  
+  export type DraftPick = Player & { teamKey: TeamKey; round: number };
+ +export interface FirstRoundWaveResult {
+ +  picks: DraftPick[];
+ +  unresolvedTeams: TeamKey[];
+ +  bids: Record<string, TeamKey[]>;
+ +}
++ 
++ function prospectFutureBonus(player: Player): number {
+ @@ -102,8 +111,12 @@ function calibrateDraftBatter(player: Player): Player {
