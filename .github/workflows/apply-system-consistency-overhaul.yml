@@ -1,0 +1,47 @@
+name: Apply system consistency overhaul
+
+on:
+  push:
+    branches:
+      - codex/system-consistency-overhaul
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: codex/system-consistency-overhaul
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply patches
+        run: |
+          git apply --check core-overhaul.patch
+          git apply core-overhaul.patch
+          git apply --check league-overhaul.patch
+          git apply league-overhaul.patch
+      - name: Install dependencies
+        run: npm install
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build
+      - name: Commit applied overhaul
+        run: |
+          rm core-overhaul.patch league-overhaul.patch .github/workflows/apply-system-consistency-overhaul.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- src/engine/types.ts src/engine/ratings.ts src/engine/fielding.ts src/engine/scoring.ts src/engine/index.ts src/engine/game.ts src/components/screens/season/LineupTab.tsx src/components/widgets/FieldDiagram.tsx src/engine/draft.ts src/components/screens/DraftScreen.tsx src/components/screens/OffseasonScreen.tsx src/engine/season.ts src/engine/market.ts tests/system-consistency.test.ts
+          git add -u -- core-overhaul.patch league-overhaul.patch .github/workflows/apply-system-consistency-overhaul.yml
+          git commit -m "Fix league simulation consistency"
+          git push origin HEAD:codex/system-consistency-overhaul
