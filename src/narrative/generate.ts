@@ -96,7 +96,8 @@ function gameHeadline(box: GameBoxScore): string {
   )}で下す`;
 }
 
-function gameFactRefs(box: GameBoxScore): NarrativeFactRef[] {
+/** Exposes the exact factual ledger classes that a game recap may cite. */
+export function gameFactRefs(box: GameBoxScore): NarrativeFactRef[] {
   const refs = [ref('GAME_RESULT', box.gameId)];
   if (box.innings.length) refs.push(ref('SCORE_TIMELINE', box.gameId));
   if (box.walkoff) refs.push(ref('WALK_OFF', box.gameId));
