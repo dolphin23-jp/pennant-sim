@@ -27,10 +27,10 @@ jobs:
           node-version: 22
       - name: Apply patches
         run: |
-          git apply --check core-overhaul.patch
-          git apply core-overhaul.patch
-          git apply --check league-overhaul.patch
-          git apply league-overhaul.patch
+          git apply --recount --check core-overhaul.patch
+          git apply --recount core-overhaul.patch
+          git apply --recount --check league-overhaul.patch
+          git apply --recount league-overhaul.patch
       - name: Install dependencies
         run: npm install
       - name: Lint
