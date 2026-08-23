@@ -1,0 +1,299 @@
+diff --git a/src/engine/types.ts b/src/engine/types.ts
+--- a/src/engine/types.ts
++++ b/src/engine/types.ts
+@@ -112,6 +112,8 @@ export interface Player {
+   role?: PitcherRole;
+   pos?: FieldPosition;
+   _assignedPos?: FieldPosition;
++  /** Transient lineup marker. The designated hitter bats but never takes the field. */
++  _isDH?: boolean;
+   positions?: PositionAptitude[];
+   mat: Maturity;
+   hand: { th?: '右' | '左'; bat?: '右' | '左' | '両' };
+diff --git a/src/engine/ratings.ts b/src/engine/ratings.ts
+--- a/src/engine/ratings.ts
++++ b/src/engine/ratings.ts
+@@ -196,6 +196,17 @@ export function orderBattingLineup(players: Player[]): Player[] {
+   return slots.filter((player): player is Player => Boolean(player));
+ }
+ 
++/** Offensive-only score used for the permanent DH slot. Defence and aptitude must not
++ * influence who is selected to a role that never takes the field. */
++export function designatedHitterScore(player: Player): number {
++  const contact = ((player.p.cf ?? 50) + (player.p.cb ?? 50)) / 2;
++  return (
++    contact * 0.45 +
++    (player.p.dc ?? 50) * 0.2 +
++    (player.p.pw ?? 50) * 0.35
++  );
++}
++
+ /**
+  * Prefer healthy, non-fatigued players from the 一軍(active) roster, falling back
+  * through fatigue, then injury-only, then the full roster (including 二軍) as each
+@@ -260,7 +271,7 @@ export function bestLineup(team: Team): Player[] {
+     }
+   }
+   for (const fielder of pool
+     .filter((player) => !used.has(player.id))
+-    .sort((first, second) => calcOVR(second) - calcOVR(first))) {
++    .sort((first, second) => designatedHitterScore(second) - designatedHitterScore(first))) {
+     if (lineup.length >= 9) break;
+     if (
+       isForeignPlayer(fielder) &&
+@@ -268,7 +279,7 @@ export function bestLineup(team: Team): Player[] {
+               FOREIGN_PLAYER_BALANCE.simultaneousHitterLimit
+     )
+       continue;
+-    lineup.push({ ...fielder, _assignedPos: fielder.pos });
++    lineup.push({ ...fielder, _assignedPos: undefined, _isDH: true });
+   }
+   return orderBattingLineup(lineup.slice(0, 9));
+ }
+diff --git a/src/engine/fielding.ts b/src/engine/fielding.ts
+--- a/src/engine/fielding.ts
++++ b/src/engine/fielding.ts
+@@ -62,10 +62,12 @@ export function resolveFielder(lineup: Player[], slot: FieldingSlot): Player | n
+  */
+ export function resolveFielder(lineup: Player[], slot: FieldingSlot): Player | null {
+   if (slot === '投手') return null;
+-  const assigned = lineup.find((player) => player._assignedPos === slot);
++  const assigned = lineup.find((player) => !player._isDH && player._assignedPos === slot);
+   if (assigned) return assigned;
+-  const natural = lineup.find((player) => player.pos === slot);
++  const natural = lineup.find((player) => !player._isDH && player.pos === slot);
+   if (natural) return natural;
+   // Nobody is listed there: use whoever in the lineup is least bad at it.
+   let best: Player | null = null;
+   let bestAptitude = -1;
+   for (const player of lineup) {
++    if (player._isDH) continue;
+     const aptitude = aptitudeFor(player, slot);
+     if (aptitude > bestAptitude) {
+       bestAptitude = aptitude;
+diff --git a/src/engine/scoring.ts b/src/engine/scoring.ts
+new file mode 100644
+--- /dev/null
++++ b/src/engine/scoring.ts
+@@ -0,0 +1,30 @@
++import type { ScoredRun, ScoringEvent, Score, Side } from './types';
++
++/**
++ * Expand a multi-run play into one scoring event per runner. The score must advance one
++ * run at a time because the go-ahead run can belong to a different responsible pitcher
++ * from another runner who scored on the same play.
++ */
++export function progressiveScoringEvents(
++  baseScore: Score,
++  scoringSide: Side,
++  runsBeforePlay: number,
++  runsScored: readonly ScoredRun[],
++): ScoringEvent[] {
++  return runsScored.map((run, index) => {
++    const halfInningRunsAfterEvent = runsBeforePlay + index + 1;
++    return {
++      scoringSide,
++      chargedPitcherId: run.chargedPitcherId,
++      homeScore:
++        baseScore.home + (scoringSide === 'home' ? halfInningRunsAfterEvent : 0),
++      awayScore:
++        baseScore.away + (scoringSide === 'away' ? halfInningRunsAfterEvent : 0),
++    };
++  });
++}
+diff --git a/src/engine/index.ts b/src/engine/index.ts
+--- a/src/engine/index.ts
++++ b/src/engine/index.ts
+@@ -20,6 +20,7 @@ export * from './random';
+ export * from './ratings';
++export * from './scoring';
+ export * from './season';
+ export * from './specials';
+ export * from './stats';
+diff --git a/src/engine/game.ts b/src/engine/game.ts
+--- a/src/engine/game.ts
++++ b/src/engine/game.ts
+@@ -26,7 +26,8 @@ import {
+   prepareTeamPitchersForGame,
+ } from './pitcherUsage';
+ import { clamp, random, randomChoice, randomInt } from './random';
+-import { bestLineup, masteryFromAccum } from './ratings';
++import { bestLineup, effectiveOVR, masteryFromAccum } from './ratings';
++import { progressiveScoringEvents } from './scoring';
+ import { specialLevel } from './specials';
+ import type {
+   AccumulatedStats,
+@@ -34,6 +35,7 @@ import type {
+   BaseState,
+   BattedBallType,
++  FieldPosition,
+   GameState,
+   HalfInningResult,
+   ManagementDecision,
+@@ -46,19 +48,51 @@ import type {
+   Teams,
+ } from './types';
+ const teamKeyForSide = (gameState: GameState, side: Side): TeamKey => gameState.teams[side].key;
++
++/** Every game in pennant-sim permanently uses a DH. Old/custom lineups may still carry
++ * the historical ninth-fielder representation, so normalise them at the game boundary. */
++function normalizeDesignatedHitter(lineup: Player[]): Player[] {
++  const selected = lineup.slice(0, 9).map((player) => ({ ...player }));
++  const alreadyMarked = selected.find((player) => player._isDH);
++  if (alreadyMarked) {
++    return selected.map((player) =>
++      player.id === alreadyMarked.id
++        ? { ...player, _assignedPos: undefined, _isDH: true }
++        : { ...player, _isDH: undefined },
++    );
++  }
++
++  const byPosition = new Map<FieldPosition, Player>();
++  let dhId: string | null = null;
++  for (const player of selected) {
++    const position = player._assignedPos ?? player.pos;
++    if (!position) continue;
++    const incumbent = byPosition.get(position);
++    if (!incumbent) {
++      byPosition.set(position, player);
++      continue;
++    }
++    dhId =
++      effectiveOVR(incumbent, position) >= effectiveOVR(player, position)
++        ? player.id
++        : incumbent.id;
++    break;
++  }
++  const resolvedDhId = dhId ?? selected[selected.length - 1]?.id ?? null;
++  return selected.map((player) =>
++    player.id === resolvedDhId
++      ? { ...player, _assignedPos: undefined, _isDH: true }
++      : { ...player, _isDH: undefined },
++  );
++}
++
+ function resolveLineup(team: Team, supplied?: Player[] | null): Player[] {
+-  if (supplied === null || supplied === undefined) return strategicBestLineup(team).lineup;
++  if (supplied === null || supplied === undefined)
++    return normalizeDesignatedHitter(strategicBestLineup(team).lineup);
+   if (!supplied.length) return bestLineup(team);
+   const roster = new Map(team.fielders.map((player) => [player.id, player])),
+     resolved: Player[] = [];
+   for (const player of supplied) {
+     const current = roster.get(player.id);
+     if (!current || (current.injuryDays ?? 0) > 0) continue;
+-    resolved.push({ ...current, _assignedPos: player._assignedPos ?? current.pos });
++    resolved.push({
++      ...current,
++      _assignedPos: player._isDH ? undefined : (player._assignedPos ?? current.pos),
++      _isDH: player._isDH,
++    });
+   }
+   const selected = resolved.slice(0, 9);
+   return resolved.length >= 9 &&
+     selected.filter(isForeignPlayer).length <= FOREIGN_PLAYER_BALANCE.simultaneousHitterLimit
+-    ? selected
++    ? normalizeDesignatedHitter(selected)
+     : bestLineup(team);
+ }
+@@ -149,7 +183,7 @@ export function simHalf(
+     bullpenPriority = management?.bullpenPriority ?? [],
+     decisionStart = (gameState.managementLog ??= []).length;
+   const catcher = gameState.lineups[fieldingSide].find(
+-      (player) => player._assignedPos === '捕手' || player.pos === '捕手',
++      (player) => !player._isDH && (player._assignedPos === '捕手' || player.pos === '捕手'),
+     ),
+     catcherGameCalling = catcher
+       ? (catcher.p.ld || 50) +
+@@ -624,19 +658,17 @@ export function simHalf(
+       };
+     });
+     const scoredIds = runsScored.map((run) => run.runnerId);
+-    for (const run of runsScored) {
+-      const homeScore = gameState.score.home + (battingSide === 'home' ? runs : 0);
+-      const awayScore = gameState.score.away + (battingSide === 'away' ? runs : 0);
+-      (gameState.scoringSequence ??= []).push({
+-        scoringSide: battingSide,
+-        chargedPitcherId: run.chargedPitcherId,
+-        homeScore,
+-        awayScore,
+-      });
++    const runsBeforePlay = runs - runsScored.length;
++    const scoringEvents = progressiveScoringEvents(
++      gameState.score,
++      battingSide,
++      runsBeforePlay,
++      runsScored,
++    );
++    scoringEvents.forEach((event, index) => {
++      (gameState.scoringSequence ??= []).push(event);
++      const run = runsScored[index] as ScoredRun;
+       const appearance = openAppearanceFor(gameState, run.chargedPitcherId);
+       if (appearance) appearance.runsCharged += 1;
+-    }
++    });
+ 
+     // Register the batter if he is now standing on a base, so a later run is charged to
+     // the pitcher who let him on.
+diff --git a/src/components/screens/season/LineupTab.tsx b/src/components/screens/season/LineupTab.tsx
+--- a/src/components/screens/season/LineupTab.tsx
++++ b/src/components/screens/season/LineupTab.tsx
+@@ -45,7 +45,12 @@ function createEditorState(lineup: Player[], fielders: Player[]): EditorState {
+   const rosterById = new Map(fielders.map((player) => [player.id, player]));
+   const savedPlayers = lineup
+     .map<Player | null>((saved) => {
+       const current = rosterById.get(saved.id);
+-      return current ? { ...current, _assignedPos: saved._assignedPos } : null;
++      return current
++        ? {
++            ...current,
++            _assignedPos: saved._isDH ? undefined : saved._assignedPos,
++            _isDH: saved._isDH,
++          }
++        : null;
+     })
+     .filter((player): player is Player => player !== null);
+@@ -75,7 +80,9 @@ function createEditorState(lineup: Player[], fielders: Player[]): EditorState {
+     if (selected) used.add(selected.id);
+   }
+ 
+-  const savedExtra = savedPlayers.find((player) => !used.has(player.id));
++  const savedExtra =
++    savedPlayers.find((player) => player._isDH && !used.has(player.id)) ??
++    savedPlayers.find((player) => !used.has(player.id));
+   const bestExtra = activeFielders
+     .filter((player) => !used.has(player.id))
+     .sort((first, second) => calcOVR(second) - calcOVR(first))[0];
+@@ -110,6 +117,7 @@ function lineupFromEditor(editor: EditorState): Player[] {
+     if (player) assignedPositionById.set(player.id, position);
+   }
++  const dhId = editor.assignments.extra?.id ?? null;
+   const byId = new Map<string, Player>(
+     LINEUP_SLOT_ORDER.map((slot) => editor.assignments[slot])
+       .filter((player): player is Player => player !== null)
+@@ -120,8 +128,13 @@ function lineupFromEditor(editor: EditorState): Player[] {
+       const player = byId.get(id);
+       if (!player) return null;
+       const assignedPosition = assignedPositionById.get(id);
+-      return { ...player, _assignedPos: assignedPosition };
++      const isDH = player.id === dhId;
++      return {
++        ...player,
++        _assignedPos: isDH ? undefined : assignedPosition,
++        _isDH: isDH ? true : undefined,
++      };
+     })
+     .filter((player): player is Player => player !== null);
+ }
+diff --git a/src/components/widgets/FieldDiagram.tsx b/src/components/widgets/FieldDiagram.tsx
+--- a/src/components/widgets/FieldDiagram.tsx
++++ b/src/components/widgets/FieldDiagram.tsx
+@@ -78,7 +78,7 @@ function SlotButton({
+   const aptitude = slotAptitude(slot, player);
+   const rank = aptitude === null ? null : aptitudeRank(aptitude);
+   const aptitudeColor = aptitudeToneColor(aptitude);
+-  const label = slot === 'extra' ? '追加打者' : slot;
++  const label = slot === 'extra' ? 'DH' : slot;
+   const armedTarget = Boolean(armedHint) && !dropTarget;
+   const borderColor = dropTarget
+     ? 'var(--color-accent)'
