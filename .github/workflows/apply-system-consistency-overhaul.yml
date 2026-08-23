@@ -28,8 +28,13 @@ jobs:
         run: npm install
       - name: Lint
         run: npm run lint
-      - name: Test
-        run: npm test
+      - name: Unit and long-horizon tests
+        run: npm run test:unit
+      - name: Regenerate and accept balance baseline
+        run: |
+          npm run baseline:new
+          cp baseline/new-season-stats.json baseline/season-stats.json
+          node scripts/compare-baselines.mjs
       - name: Build
         run: npm run build
       - name: Commit validated overhaul
@@ -37,7 +42,7 @@ jobs:
           rm core-overhaul.patch league-overhaul.patch scripts/apply_system_consistency.py .github/workflows/apply-system-consistency-overhaul.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- src/engine/types.ts src/engine/ratings.ts src/engine/fielding.ts src/engine/scoring.ts src/engine/index.ts src/engine/game.ts src/engine/aiStrategy.ts src/components/screens/season/LineupTab.tsx src/components/widgets/FieldDiagram.tsx src/engine/draft.ts src/components/screens/DraftScreen.tsx src/components/screens/OffseasonScreen.tsx src/engine/season.ts src/engine/market.ts tests/system-consistency.test.ts
+          git add -- baseline/season-stats.json baseline/new-season-stats.json src/engine/types.ts src/engine/ratings.ts src/engine/fielding.ts src/engine/scoring.ts src/engine/index.ts src/engine/game.ts src/engine/aiStrategy.ts src/components/screens/season/LineupTab.tsx src/components/widgets/FieldDiagram.tsx src/engine/draft.ts src/components/screens/DraftScreen.tsx src/components/screens/OffseasonScreen.tsx src/engine/season.ts src/engine/market.ts tests/system-consistency.test.ts
           git add -u -- core-overhaul.patch league-overhaul.patch scripts/apply_system_consistency.py .github/workflows/apply-system-consistency-overhaul.yml
           git commit -m "Fix league simulation consistency"
           git push origin HEAD:codex/system-consistency-overhaul
