@@ -22,12 +22,26 @@ import type {
   TeamStatLine,
   YearlyPlayerRecords,
 } from '../engine';
+import {
+  WORLD_ARCHIVE_SCHEMA_VERSION,
+  WORLD_STORAGE_VERSION,
+  contentRevision,
+  createEmptyWorldArchiveIndex,
+  createWorldId,
+  readArchiveChunk,
+  retiredPlayerArchiveKey,
+  seasonArchiveKey,
+  tombstoneArchiveChunk,
+  writeArchiveChunk,
+} from './worldArchive';
+import type { ArchiveChunkRef, WorldArchiveIndex } from './worldArchive';
 
 export const LEGACY_SAVE_KEY = 'npb_sim_v3_restored';
 export const ACTIVE_SAVE_SLOT_KEY = 'npb_sim_v3_active_slot';
 export const SAVE_SLOTS = [1, 2, 3] as const;
 export type SaveSlot = (typeof SAVE_SLOTS)[number];
 export const SAVE_KEY = (slot: SaveSlot): string => `npb_sim_v3_slot_${slot}`;
+export const SAVE_STORAGE_VERSION = WORLD_STORAGE_VERSION;
 
 export interface SeasonState {
   year: number;
@@ -122,8 +136,42 @@ interface WindowWithStorage extends Window {
   };
 }
 
+interface SeasonArchiveChunk {
+  schemaVersion: typeof WORLD_ARCHIVE_SCHEMA_VERSION;
+  year: number;
+  yearlyStats: YearlyPlayerRecords[string];
+  championHistory: ChampionRecord[];
+  awardHistory: SeasonTitleRecord[];
+  achievementHistory: AchievementEvent[];
+  gameSummaries: Record<string, GameSummary>;
+  gameBoxScores: Record<string, GameBoxScore>;
+}
+
+interface RetiredPlayerArchiveEntry {
+  order: number;
+  player: Player;
+  careerStats?: PlayerStats;
+  leagueCareerStats?: PlayerStats;
+}
+
+interface RetiredPlayerArchiveChunk {
+  schemaVersion: typeof WORLD_ARCHIVE_SCHEMA_VERSION;
+  bucket: number;
+  entries: RetiredPlayerArchiveEntry[];
+}
+
+interface PersistedSaveV4 {
+  storageVersion: typeof WORLD_STORAGE_VERSION;
+  uiVersion: 2;
+  worldId: string;
+  current: GameSaveData;
+  archive: WorldArchiveIndex;
+  ts: number;
+}
+
 const INDEXED_DB_NAME = 'pennant-sim';
 const INDEXED_DB_STORE = 'save-data';
+const RETIRED_PLAYER_BUCKET_COUNT = 64;
 
 // The canonical list of team keys lives once in data/teams.ts (CENTRAL/PACIFIC);
 // deriving it here avoids a second hand-maintained copy that could drift out of sync.
@@ -168,8 +216,9 @@ function openSaveDatabase(): Promise<IDBDatabase> {
     const request = indexedDB.open(INDEXED_DB_NAME, 1);
     request.onupgradeneeded = () => {
       const database = request.result;
-      if (!database.objectStoreNames.contains(INDEXED_DB_STORE))
+      if (!database.objectStoreNames.contains(INDEXED_DB_STORE)) {
         database.createObjectStore(INDEXED_DB_STORE);
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error('IndexedDB could not be opened'));
@@ -249,13 +298,31 @@ const browserStorage = createResilientStorageBackend([
   localStorageBackend,
 ]);
 
+let persistenceRequestStarted = false;
+
+/** Best-effort protection against browser eviction. Capacity is still browser/device limited. */
+export async function requestPersistentBrowserStorage(): Promise<boolean | null> {
+  if (typeof navigator === 'undefined' || !navigator.storage?.persist) return null;
+  try {
+    return await navigator.storage.persist();
+  } catch {
+    return false;
+  }
+}
+
+function requestPersistenceOnce(): void {
+  if (persistenceRequestStarted) return;
+  persistenceRequestStarted = true;
+  void requestPersistentBrowserStorage();
+}
+
 const isSaveSlot = (value: number): value is SaveSlot => SAVE_SLOTS.includes(value as SaveSlot);
 
 export async function getActiveSaveSlot(
   backend: StorageBackend = browserStorage,
 ): Promise<SaveSlot> {
-  const raw = await backend.get(ACTIVE_SAVE_SLOT_KEY),
-    parsed = Number.parseInt(raw ?? '', 10);
+  const raw = await backend.get(ACTIVE_SAVE_SLOT_KEY);
+  const parsed = Number.parseInt(raw ?? '', 10);
   return isSaveSlot(parsed) ? parsed : 1;
 }
 
@@ -308,11 +375,7 @@ const migratePitcherPlan = (plan: PitcherPlan | undefined): PitcherPlan => ({
     : [],
 });
 
-/**
- * Normalize one stat line so fields added after the save was written come back as 0
- * instead of undefined. Without this every downstream `a + b` turns into NaN, and the
- * damage spreads silently through career totals and rankings.
- */
+/** Normalize stat lines so fields added after a save was written come back as zero. */
 function migrateStatLine(value: unknown): PlayerStats | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const line = value as Record<string, unknown>;
@@ -360,10 +423,9 @@ function migrateYearlyStats(value: unknown): YearlyPlayerRecords {
         typeof record.params !== 'object' ||
         !record.stats ||
         typeof record.stats !== 'object'
-      )
+      ) {
         return [];
-      // Historical seasons embed a frozen copy of the stat line, so they need the same
-      // field normalization as the live maps.
+      }
       const stats = migrateStatLine(record.stats);
       if (!stats) return [];
       return [{ ...record, stats } as unknown as YearlyPlayerRecords[string][number]];
@@ -428,8 +490,9 @@ function migrateAwardHistory(value: unknown): SeasonTitleRecord[] {
       !teamKeys.includes(raw.teamKey as TeamKey) ||
       typeof raw.value !== 'number' ||
       typeof raw.displayValue !== 'string'
-    )
+    ) {
       return [];
+    }
     return [raw as SeasonTitleRecord];
   });
 }
@@ -451,7 +514,7 @@ function isValidGameSummaryShape(value: unknown): value is GameSummary {
 }
 
 function migrateGameSummaries(value: unknown): Record<string, GameSummary> {
-  if (!value || typeof value !== 'object') return {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const output: Record<string, GameSummary> = {};
   for (const [gameId, candidate] of Object.entries(value as Record<string, unknown>)) {
     if (isValidGameSummaryShape(candidate)) output[gameId] = candidate;
@@ -460,7 +523,7 @@ function migrateGameSummaries(value: unknown): Record<string, GameSummary> {
 }
 
 function migrateGameBoxScores(value: unknown): Record<string, GameBoxScore> {
-  if (!value || typeof value !== 'object') return {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const output: Record<string, GameBoxScore> = {};
   for (const [gameId, candidate] of Object.entries(value as Record<string, unknown>)) {
     if (!isValidGameSummaryShape(candidate)) continue;
@@ -475,11 +538,6 @@ function isValidTeamKey(value: unknown): value is TeamKey {
   return typeof value === 'string' && teamKeys.includes(value as TeamKey);
 }
 
-/**
- * Loosely validate the structurally load-bearing fields only (id/name/age/isP/p/pot).
- * Not a full Player shape check — the goal is to reject obviously malformed entries
- * (wrong type, missing core fields) rather than to re-validate every optional field.
- */
 function isValidPlayerShape(value: unknown): value is Player {
   if (!value || typeof value !== 'object') return false;
   const raw = value as Partial<Player>;
@@ -510,8 +568,9 @@ function migrateChampionLineup(value: unknown): ChampionLineupEntry[] | undefine
       typeof raw.playerName !== 'string' ||
       typeof raw.pos !== 'string' ||
       typeof raw.isPitcher !== 'boolean'
-    )
+    ) {
       return [];
+    }
     return [
       { playerId: raw.playerId, playerName: raw.playerName, pos: raw.pos, isPitcher: raw.isPitcher },
     ];
@@ -528,8 +587,9 @@ function migrateTeamStatLine(value: unknown): TeamStatLine | undefined {
     typeof raw.sb !== 'number' ||
     typeof raw.era !== 'number' ||
     typeof raw.k !== 'number'
-  )
+  ) {
     return undefined;
+  }
   return { avg: raw.avg, hr: raw.hr, sb: raw.sb, era: raw.era, k: raw.k };
 }
 
@@ -538,8 +598,9 @@ function migrateChampionRecordSeries(
 ): { w: number; l: number; d: number } | undefined {
   if (!value || typeof value !== 'object') return undefined;
   const raw = value as Partial<{ w: number; l: number; d: number }>;
-  if (typeof raw.w !== 'number' || typeof raw.l !== 'number' || typeof raw.d !== 'number')
+  if (typeof raw.w !== 'number' || typeof raw.l !== 'number' || typeof raw.d !== 'number') {
     return undefined;
+  }
   return { w: raw.w, l: raw.l, d: raw.d };
 }
 
@@ -584,8 +645,9 @@ function migrateAchievementHistory(value: unknown): AchievementEvent[] {
       typeof raw.value !== 'number' ||
       typeof raw.year !== 'number' ||
       typeof raw.date !== 'string'
-    )
+    ) {
       return [];
+    }
     return [
       {
         id: raw.id,
@@ -680,6 +742,389 @@ export function migrateSaveData(raw: unknown): GameSaveData | null {
   };
 }
 
+function yearFromDate(date: string, fallback: number): number {
+  const match = /^(\d{4})/.exec(date);
+  const parsed = match ? Number.parseInt(match[1], 10) : Number.NaN;
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function emptySeasonArchive(year: number): SeasonArchiveChunk {
+  return {
+    schemaVersion: WORLD_ARCHIVE_SCHEMA_VERSION,
+    year,
+    yearlyStats: [],
+    championHistory: [],
+    awardHistory: [],
+    achievementHistory: [],
+    gameSummaries: {},
+    gameBoxScores: {},
+  };
+}
+
+function buildSeasonArchives(data: GameSaveData): Map<number, SeasonArchiveChunk> {
+  const chunks = new Map<number, SeasonArchiveChunk>();
+  const getChunk = (year: number): SeasonArchiveChunk => {
+    const existing = chunks.get(year);
+    if (existing) return existing;
+    const created = emptySeasonArchive(year);
+    chunks.set(year, created);
+    return created;
+  };
+
+  for (const [yearKey, entries] of Object.entries(data.yearlyStats)) {
+    const year = Number.parseInt(yearKey, 10);
+    if (Number.isFinite(year) && entries.length) getChunk(year).yearlyStats = entries;
+  }
+  for (const record of data.championHistory) getChunk(record.year).championHistory.push(record);
+  for (const record of data.awardHistory) getChunk(record.year).awardHistory.push(record);
+  for (const event of data.achievementHistory) getChunk(event.year).achievementHistory.push(event);
+  for (const [gameId, summary] of Object.entries(data.gameSummaries ?? {})) {
+    getChunk(yearFromDate(summary.date, data.season.year)).gameSummaries[gameId] = summary;
+  }
+  for (const [gameId, boxScore] of Object.entries(data.gameBoxScores ?? {})) {
+    getChunk(yearFromDate(boxScore.date, data.season.year)).gameBoxScores[gameId] = boxScore;
+  }
+  return chunks;
+}
+
+function retiredBucket(playerId: string): number {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < playerId.length; index += 1) {
+    hash ^= playerId.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0) % RETIRED_PLAYER_BUCKET_COUNT;
+}
+
+function buildRetiredPlayerArchives(data: GameSaveData): Map<number, RetiredPlayerArchiveChunk> {
+  const chunks = new Map<number, RetiredPlayerArchiveChunk>();
+  data.retiredPlayers.forEach((player, order) => {
+    const bucket = retiredBucket(player.id);
+    let chunk = chunks.get(bucket);
+    if (!chunk) {
+      chunk = { schemaVersion: WORLD_ARCHIVE_SCHEMA_VERSION, bucket, entries: [] };
+      chunks.set(bucket, chunk);
+    }
+    chunk.entries.push({
+      order,
+      player,
+      careerStats: data.careerAccumulated[player.id],
+      leagueCareerStats: data.leagueCareerAccumulated[player.id],
+    });
+  });
+  return chunks;
+}
+
+function currentStateWithoutArchive(data: GameSaveData, timestamp: number): GameSaveData {
+  const retiredIds = new Set(data.retiredPlayers.map((player) => player.id));
+  const activeCareer = Object.fromEntries(
+    Object.entries(data.careerAccumulated).filter(([playerId]) => !retiredIds.has(playerId)),
+  ) as AccumulatedStats;
+  const activeLeagueCareer = Object.fromEntries(
+    Object.entries(data.leagueCareerAccumulated).filter(([playerId]) => !retiredIds.has(playerId)),
+  ) as AccumulatedStats;
+
+  return {
+    ...data,
+    careerAccumulated: activeCareer,
+    leagueCareerAccumulated: activeLeagueCareer,
+    yearlyStats: {},
+    retiredPlayers: [],
+    championHistory: [],
+    awardHistory: [],
+    achievementHistory: [],
+    gameSummaries: {},
+    gameBoxScores: {},
+    ts: timestamp,
+    uiVersion: 2,
+  };
+}
+
+function isArchiveRef(value: unknown): value is ArchiveChunkRef {
+  if (!value || typeof value !== 'object') return false;
+  const raw = value as Partial<ArchiveChunkRef>;
+  return typeof raw.key === 'string' && typeof raw.revision === 'string';
+}
+
+function parseArchiveRefMap(value: unknown): Record<string, ArchiveChunkRef> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const refs: Record<string, ArchiveChunkRef> = {};
+  for (const [key, candidate] of Object.entries(value)) {
+    if (!isArchiveRef(candidate)) return null;
+    refs[key] = candidate;
+  }
+  return refs;
+}
+
+function parsePersistedSaveV4(value: unknown): PersistedSaveV4 | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Partial<PersistedSaveV4> & { archive?: Partial<WorldArchiveIndex> };
+  if (
+    raw.storageVersion !== WORLD_STORAGE_VERSION ||
+    raw.uiVersion !== 2 ||
+    typeof raw.worldId !== 'string' ||
+    !raw.current ||
+    typeof raw.current !== 'object' ||
+    !raw.archive ||
+    raw.archive.schemaVersion !== WORLD_ARCHIVE_SCHEMA_VERSION ||
+    typeof raw.ts !== 'number'
+  ) {
+    return null;
+  }
+  const seasons = parseArchiveRefMap(raw.archive.seasons);
+  const retiredPlayerBuckets = parseArchiveRefMap(raw.archive.retiredPlayerBuckets);
+  if (!seasons || !retiredPlayerBuckets) return null;
+  return {
+    storageVersion: WORLD_STORAGE_VERSION,
+    uiVersion: 2,
+    worldId: raw.worldId,
+    current: raw.current as GameSaveData,
+    archive: {
+      schemaVersion: WORLD_ARCHIVE_SCHEMA_VERSION,
+      seasons,
+      retiredPlayerBuckets,
+    },
+    ts: raw.ts,
+  };
+}
+
+function parseJson(raw: string): unknown {
+  return JSON.parse(raw) as unknown;
+}
+
+function migrateSeasonArchive(value: unknown, expectedYear: number): SeasonArchiveChunk | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Partial<SeasonArchiveChunk>;
+  if (raw.schemaVersion !== WORLD_ARCHIVE_SCHEMA_VERSION || raw.year !== expectedYear) return null;
+  const yearly = migrateYearlyStats({ [String(expectedYear)]: raw.yearlyStats ?? [] });
+  return {
+    schemaVersion: WORLD_ARCHIVE_SCHEMA_VERSION,
+    year: expectedYear,
+    yearlyStats: yearly[String(expectedYear)] ?? [],
+    championHistory: migrateChampionHistory(raw.championHistory),
+    awardHistory: migrateAwardHistory(raw.awardHistory),
+    achievementHistory: migrateAchievementHistory(raw.achievementHistory),
+    gameSummaries: migrateGameSummaries(raw.gameSummaries),
+    gameBoxScores: migrateGameBoxScores(raw.gameBoxScores),
+  };
+}
+
+function migrateRetiredPlayerArchive(
+  value: unknown,
+  expectedBucket: number,
+): RetiredPlayerArchiveChunk | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Partial<RetiredPlayerArchiveChunk>;
+  if (
+    raw.schemaVersion !== WORLD_ARCHIVE_SCHEMA_VERSION ||
+    raw.bucket !== expectedBucket ||
+    !Array.isArray(raw.entries)
+  ) {
+    return null;
+  }
+  const entries = raw.entries.flatMap<RetiredPlayerArchiveEntry>((candidate) => {
+    if (!candidate || typeof candidate !== 'object') return [];
+    const entry = candidate as Partial<RetiredPlayerArchiveEntry>;
+    if (typeof entry.order !== 'number' || !isValidPlayerShape(entry.player)) return [];
+    const careerStats = migrateStatLine(entry.careerStats);
+    const leagueCareerStats = migrateStatLine(entry.leagueCareerStats);
+    return [
+      {
+        order: entry.order,
+        player: entry.player,
+        careerStats: careerStats ?? undefined,
+        leagueCareerStats: leagueCareerStats ?? undefined,
+      },
+    ];
+  });
+  return { schemaVersion: WORLD_ARCHIVE_SCHEMA_VERSION, bucket: expectedBucket, entries };
+}
+
+function changedArchiveRefs(
+  before: Record<string, ArchiveChunkRef>,
+  after: Record<string, ArchiveChunkRef>,
+): ArchiveChunkRef[] {
+  return Object.entries(before).flatMap(([id, ref]) => (after[id]?.key === ref.key ? [] : [ref]));
+}
+
+async function writeSeasonArchives(
+  data: GameSaveData,
+  slot: SaveSlot,
+  worldId: string,
+  previous: Record<string, ArchiveChunkRef>,
+  backend: StorageBackend,
+): Promise<Record<string, ArchiveChunkRef>> {
+  const refs: Record<string, ArchiveChunkRef> = {};
+  for (const [year, chunk] of [...buildSeasonArchives(data)].sort(([a], [b]) => a - b)) {
+    const serialized = JSON.stringify(chunk);
+    const revision = contentRevision(serialized);
+    const id = String(year);
+    const oldRef = previous[id];
+    if (oldRef?.revision === revision) {
+      refs[id] = oldRef;
+      continue;
+    }
+    const key = seasonArchiveKey(slot, worldId, year, revision);
+    await writeArchiveChunk(backend, key, serialized);
+    refs[id] = { key, revision };
+  }
+  return refs;
+}
+
+async function writeRetiredPlayerArchives(
+  data: GameSaveData,
+  slot: SaveSlot,
+  worldId: string,
+  previous: Record<string, ArchiveChunkRef>,
+  backend: StorageBackend,
+): Promise<Record<string, ArchiveChunkRef>> {
+  const refs: Record<string, ArchiveChunkRef> = {};
+  for (const [bucket, chunk] of [...buildRetiredPlayerArchives(data)].sort(([a], [b]) => a - b)) {
+    const serialized = JSON.stringify(chunk);
+    const revision = contentRevision(serialized);
+    const id = String(bucket);
+    const oldRef = previous[id];
+    if (oldRef?.revision === revision) {
+      refs[id] = oldRef;
+      continue;
+    }
+    const key = retiredPlayerArchiveKey(slot, worldId, bucket, revision);
+    await writeArchiveChunk(backend, key, serialized);
+    refs[id] = { key, revision };
+  }
+  return refs;
+}
+
+async function persistGameV4(
+  data: GameSaveData,
+  slot: SaveSlot,
+  backend: StorageBackend,
+  timestamp = Date.now(),
+): Promise<void> {
+  const migrated = migrateSaveData(data);
+  if (!migrated) throw new Error('Save data could not be migrated before persistence.');
+
+  let previous: PersistedSaveV4 | null = null;
+  const previousRaw = await backend.get(SAVE_KEY(slot));
+  if (previousRaw) {
+    try {
+      previous = parsePersistedSaveV4(parseJson(previousRaw));
+    } catch {
+      previous = null;
+    }
+  }
+
+  const worldId = previous?.worldId ?? createWorldId();
+  const previousArchive = previous?.archive ?? createEmptyWorldArchiveIndex();
+  const seasons = await writeSeasonArchives(
+    migrated,
+    slot,
+    worldId,
+    previousArchive.seasons,
+    backend,
+  );
+  const retiredPlayerBuckets = await writeRetiredPlayerArchives(
+    migrated,
+    slot,
+    worldId,
+    previousArchive.retiredPlayerBuckets,
+    backend,
+  );
+  const archive: WorldArchiveIndex = {
+    schemaVersion: WORLD_ARCHIVE_SCHEMA_VERSION,
+    seasons,
+    retiredPlayerBuckets,
+  };
+  const envelope: PersistedSaveV4 = {
+    storageVersion: WORLD_STORAGE_VERSION,
+    uiVersion: 2,
+    worldId,
+    current: currentStateWithoutArchive(migrated, timestamp),
+    archive,
+    ts: timestamp,
+  };
+
+  // Archive chunks are written first. The small current-state envelope is the commit point.
+  // If that write fails, the previous envelope still references its intact immutable chunks.
+  await backend.set(SAVE_KEY(slot), JSON.stringify(envelope));
+
+  const stale = [
+    ...changedArchiveRefs(previousArchive.seasons, seasons),
+    ...changedArchiveRefs(previousArchive.retiredPlayerBuckets, retiredPlayerBuckets),
+  ];
+  for (const ref of stale) {
+    try {
+      await tombstoneArchiveChunk(backend, ref);
+    } catch {
+      // Cleanup failure only leaves an unreachable old revision; it must never fail a save.
+    }
+  }
+}
+
+async function loadPersistedSaveV4(
+  persisted: PersistedSaveV4,
+  backend: StorageBackend,
+): Promise<GameSaveData> {
+  const current = migrateSaveData(persisted.current);
+  if (!current) throw new Error('Current-state portion of the save is unreadable.');
+
+  const yearlyStats: YearlyPlayerRecords = {};
+  const championHistory: ChampionRecord[] = [];
+  const awardHistory: SeasonTitleRecord[] = [];
+  const achievementHistory: AchievementEvent[] = [];
+  const gameSummaries: Record<string, GameSummary> = {};
+  const gameBoxScores: Record<string, GameBoxScore> = {};
+
+  for (const [yearKey, ref] of Object.entries(persisted.archive.seasons).sort(
+    ([a], [b]) => Number(a) - Number(b),
+  )) {
+    const year = Number.parseInt(yearKey, 10);
+    const raw = await readArchiveChunk(backend, ref);
+    const chunk = migrateSeasonArchive(parseJson(raw), year);
+    if (!chunk) throw new Error(`Season archive ${yearKey} is corrupted or incompatible.`);
+    if (chunk.yearlyStats.length) yearlyStats[yearKey] = chunk.yearlyStats;
+    championHistory.push(...chunk.championHistory);
+    awardHistory.push(...chunk.awardHistory);
+    achievementHistory.push(...chunk.achievementHistory);
+    Object.assign(gameSummaries, chunk.gameSummaries);
+    Object.assign(gameBoxScores, chunk.gameBoxScores);
+  }
+
+  const retiredEntries: RetiredPlayerArchiveEntry[] = [];
+  for (const [bucketKey, ref] of Object.entries(persisted.archive.retiredPlayerBuckets).sort(
+    ([a], [b]) => Number(a) - Number(b),
+  )) {
+    const bucket = Number.parseInt(bucketKey, 10);
+    const raw = await readArchiveChunk(backend, ref);
+    const chunk = migrateRetiredPlayerArchive(parseJson(raw), bucket);
+    if (!chunk) throw new Error(`Retired-player archive bucket ${bucketKey} is corrupted.`);
+    retiredEntries.push(...chunk.entries);
+  }
+  retiredEntries.sort((a, b) => a.order - b.order);
+
+  const careerAccumulated = { ...current.careerAccumulated };
+  const leagueCareerAccumulated = { ...current.leagueCareerAccumulated };
+  for (const entry of retiredEntries) {
+    if (entry.careerStats) careerAccumulated[entry.player.id] = entry.careerStats;
+    if (entry.leagueCareerStats) leagueCareerAccumulated[entry.player.id] = entry.leagueCareerStats;
+  }
+
+  return {
+    ...current,
+    careerAccumulated,
+    leagueCareerAccumulated,
+    yearlyStats,
+    retiredPlayers: retiredEntries.map((entry) => entry.player),
+    championHistory,
+    awardHistory,
+    achievementHistory,
+    gameSummaries,
+    gameBoxScores,
+    ts: persisted.ts,
+    uiVersion: 2,
+  };
+}
+
 export function exportSaveData(data: GameSaveData): string {
   const migrated = migrateSaveData(data);
   if (!migrated) throw new Error('Save data could not be exported.');
@@ -688,7 +1133,7 @@ export function exportSaveData(data: GameSaveData): string {
 
 export function importSaveData(serialized: string): GameSaveData | null {
   try {
-    return migrateSaveData(JSON.parse(serialized) as unknown);
+    return migrateSaveData(parseJson(serialized));
   } catch {
     return null;
   }
@@ -703,10 +1148,7 @@ export async function migrateLegacySaveToSlotOne(
   if (!legacyRaw) return false;
   const migrated = importSaveData(legacyRaw);
   if (!migrated) return false;
-  await backend.set(
-    SAVE_KEY(1),
-    JSON.stringify({ ...migrated, uiVersion: 2, ts: migrated.ts ?? Date.now() }),
-  );
+  await persistGameV4(migrated, 1, backend, migrated.ts ?? Date.now());
   return true;
 }
 
@@ -716,12 +1158,8 @@ export async function saveGameToSlot(
   backend: StorageBackend = browserStorage,
 ): Promise<boolean> {
   try {
-    const migrated = migrateSaveData(data);
-    if (!migrated) return false;
-    await backend.set(
-      SAVE_KEY(slot),
-      JSON.stringify({ ...migrated, uiVersion: 2, ts: Date.now() }),
-    );
+    if (backend === browserStorage) requestPersistenceOnce();
+    await persistGameV4(data, slot, backend);
     return true;
   } catch (error) {
     console.error(error);
@@ -729,18 +1167,31 @@ export async function saveGameToSlot(
   }
 }
 
-/**
- * Wipes a slot's save data. Writes an empty string rather than adding a `remove` method
- * to StorageBackend - `loadGameFromSlot`/`listSaveSlots` already treat any falsy stored
- * value as "no save" (`if (!raw) return null`), so this reuses that existing contract
- * instead of needing every backend (IndexedDB, host API, localStorage) to implement
- * deletion. Does not touch which slot is active - a cleared slot just reads as empty.
- */
 export async function clearSaveSlot(
   slot: SaveSlot,
   backend: StorageBackend = browserStorage,
 ): Promise<boolean> {
   try {
+    const raw = await backend.get(SAVE_KEY(slot));
+    if (raw) {
+      try {
+        const persisted = parsePersistedSaveV4(parseJson(raw));
+        if (persisted) {
+          for (const ref of [
+            ...Object.values(persisted.archive.seasons),
+            ...Object.values(persisted.archive.retiredPlayerBuckets),
+          ]) {
+            try {
+              await tombstoneArchiveChunk(backend, ref);
+            } catch {
+              // The slot itself is still cleared even if an unreachable chunk remains.
+            }
+          }
+        }
+      } catch {
+        // Corrupted roots can still be cleared deliberately.
+      }
+    }
     await backend.set(SAVE_KEY(slot), '');
     return true;
   } catch (error) {
@@ -749,16 +1200,7 @@ export async function clearSaveSlot(
   }
 }
 
-/**
- * Loads a slot's save data. Deliberately does NOT swallow every failure into `null`:
- * a slot with no data at all is a legitimate `null` (new player), but a slot that
- * holds a string that fails to parse/migrate is a corrupted save, and silently
- * treating it the same as "no save" risks the caller starting a new game and
- * overwriting the only copy of the corrupted-but-possibly-recoverable data. Backend
- * read failures (e.g. every storage backend unavailable) are allowed to propagate for
- * the same reason — callers should be able to tell "we couldn't read storage" apart
- * from "there's nothing here yet".
- */
+/** Empty slots return null; corrupted roots or archive chunks throw instead of being overwritten silently. */
 export async function loadGameFromSlot(
   slot: SaveSlot,
   backend: StorageBackend = browserStorage,
@@ -766,13 +1208,26 @@ export async function loadGameFromSlot(
   await migrateLegacySaveToSlotOne(backend);
   const raw = await backend.get(SAVE_KEY(slot));
   if (!raw) return null;
-  const data = importSaveData(raw);
-  if (!data) {
+
+  let parsed: unknown;
+  try {
+    parsed = parseJson(raw);
+  } catch {
     throw new Error(
       `Save data in slot ${slot} could not be read. It may be corrupted or from an incompatible version.`,
     );
   }
-  return data;
+
+  const persistedV4 = parsePersistedSaveV4(parsed);
+  if (persistedV4) return loadPersistedSaveV4(persistedV4, backend);
+
+  const legacy = migrateSaveData(parsed);
+  if (!legacy) {
+    throw new Error(
+      `Save data in slot ${slot} could not be read. It may be corrupted or from an incompatible version.`,
+    );
+  }
+  return legacy;
 }
 
 export async function saveGame(
@@ -791,6 +1246,38 @@ export async function loadGame(
   return loadGameFromSlot(slot, backend);
 }
 
+function slotSummaryFromRaw(slot: SaveSlot, raw: string): SaveSlotSummary {
+  try {
+    const parsed = parseJson(raw);
+    const persisted = parsePersistedSaveV4(parsed);
+    if (persisted) {
+      const current = migrateSaveData(persisted.current);
+      if (!current) {
+        return { slot, exists: false, playerTeam: null, year: null, updatedAt: null };
+      }
+      return {
+        slot,
+        exists: true,
+        playerTeam: current.playerTeam,
+        year: current.season.year,
+        updatedAt: persisted.ts,
+      };
+    }
+    const legacy = migrateSaveData(parsed);
+    return legacy
+      ? {
+          slot,
+          exists: true,
+          playerTeam: legacy.playerTeam,
+          year: legacy.season.year,
+          updatedAt: legacy.ts ?? null,
+        }
+      : { slot, exists: false, playerTeam: null, year: null, updatedAt: null };
+  } catch {
+    return { slot, exists: false, playerTeam: null, year: null, updatedAt: null };
+  }
+}
+
 export async function listSaveSlots(
   backend: StorageBackend = browserStorage,
 ): Promise<SaveSlotSummary[]> {
@@ -798,16 +1285,8 @@ export async function listSaveSlots(
   return Promise.all(
     SAVE_SLOTS.map(async (slot) => {
       const raw = await backend.get(SAVE_KEY(slot));
-      if (!raw) return { slot, exists: false, playerTeam: null, year: null, updatedAt: null };
-      const data = importSaveData(raw);
-      return data
-        ? {
-            slot,
-            exists: true,
-            playerTeam: data.playerTeam,
-            year: data.season.year,
-            updatedAt: data.ts ?? null,
-          }
+      return raw
+        ? slotSummaryFromRaw(slot, raw)
         : { slot, exists: false, playerTeam: null, year: null, updatedAt: null };
     }),
   );
@@ -838,9 +1317,9 @@ export async function downloadSaveSlot(
   const data = await loadGameFromSlot(slot, backend);
   if (!data) return false;
   try {
-    const blob = new Blob([exportSaveData(data)], { type: 'application/json' }),
-      url = URL.createObjectURL(blob),
-      anchor = document.createElement('a');
+    const blob = new Blob([exportSaveData(data)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = `pennant-sim-slot-${slot}-${data.season.year}.json`;
     document.body.appendChild(anchor);
