@@ -142,8 +142,8 @@ def apply_follow_up_edits() -> None:
     )
     replace_once(
         "src/components/screens/DraftScreen.tsx",
-        "      let draftTeams = applyDraftPicks(teams, picks);",
-        "      const draftTeams = applyDraftPicks(teams, picks);",
+        "    let draftTeams = applyDraftPicks(teams, picks);",
+        "    const draftTeams = applyDraftPicks(teams, picks);",
     )
 
 
