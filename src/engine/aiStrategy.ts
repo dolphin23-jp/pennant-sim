@@ -1,7 +1,7 @@
 import { AT_BAT_BALANCE, FIELDING_BALANCE, FOREIGN_PLAYER_BALANCE } from '../data';
 import { isForeignPlayer } from './foreign';
 import { clamp } from './random';
-import { selectRosterPool } from './ratings';
+import { designatedHitterScore, selectRosterPool } from './ratings';
 import { hasGold, hasSpecial, specialLevel } from './specials';
 import type {
   AccumulatedStats,
@@ -586,19 +586,7 @@ export function strategicBestLineup(
     selected.push({ ...player, _assignedPos: position });
   }
   for (const player of [...pool].sort(
-    (first, second) =>
-      auditLineupCandidate(
-        second,
-        second.pos as FieldPosition,
-        strategy,
-        approximatePositionScore(second, second.pos as FieldPosition),
-      ).score -
-      auditLineupCandidate(
-        first,
-        first.pos as FieldPosition,
-        strategy,
-        approximatePositionScore(first, first.pos as FieldPosition),
-      ).score,
+    (first, second) => designatedHitterScore(second) - designatedHitterScore(first),
   )) {
     if (selected.length >= 9) break;
     if (
@@ -607,7 +595,7 @@ export function strategicBestLineup(
         selected.filter(isForeignPlayer).length >= FOREIGN_PLAYER_BALANCE.simultaneousHitterLimit)
     )
       continue;
-    selected.push({ ...player, _assignedPos: player.pos });
+    selected.push({ ...player, _assignedPos: undefined, _isDH: true });
     used.add(player.id);
   }
   return { lineup: strategicBattingOrder(selected.slice(0, 9), strategy), audit };

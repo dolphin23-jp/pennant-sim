@@ -1,14 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 
 import { TINFO } from '../../data';
 import {
   applyDraftPicks,
   calcOVR,
   cpuDraftPick,
-  draftOrder,
   draftRoundOrder,
   effectiveOVR,
   generateDraftProspects,
+  resolveFirstRoundWave,
   type DraftPick,
   type Player,
   type TeamKey,
@@ -16,20 +16,62 @@ import {
 } from '../../engine';
 import { Button, Card, EmptyState, SectionTitle } from '../ui';
 
+interface DraftProgress {
+  teams: Teams;
+  prospects: Player[];
+  picks: DraftPick[];
+}
+
+function runSequentialCpuPicks(
+  progress: DraftProgress,
+  teamKeys: readonly TeamKey[],
+  round: number,
+): DraftProgress {
+  let nextTeams = progress.teams;
+  let remaining = [...progress.prospects];
+  const nextPicks = [...progress.picks];
+  for (const teamKey of teamKeys) {
+    const selected = cpuDraftPick(nextTeams[teamKey], remaining);
+    if (!selected) continue;
+    const pick: DraftPick = { ...selected, teamKey, round };
+    nextPicks.push(pick);
+    nextTeams = applyDraftPicks(nextTeams, [pick]);
+    remaining = remaining.filter((prospect) => prospect.id !== selected.id);
+  }
+  return { teams: nextTeams, prospects: remaining, picks: nextPicks };
+}
+
+function prepareUserTurn(
+  progress: DraftProgress,
+  order: TeamKey[],
+  playerTeam: TeamKey,
+  round: number,
+): DraftProgress {
+  const roundOrder = draftRoundOrder(order, round);
+  const userIndex = roundOrder.indexOf(playerTeam);
+  if (userIndex < 0) return progress;
+  return runSequentialCpuPicks(progress, roundOrder.slice(0, userIndex), round);
+}
+
 export function DraftScreen({
   teams,
   playerTeam,
+  order,
   onComplete,
 }: {
   teams: Teams;
   playerTeam: TeamKey;
+  order: TeamKey[];
   onComplete(teams: Teams, picks: DraftPick[]): void;
 }) {
   const [round, setRound] = useState(1);
   const [prospects, setProspects] = useState<Player[]>(() => generateDraftProspects());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [picks, setPicks] = useState<DraftPick[]>([]);
-  const order = useMemo(() => draftOrder(teams), [teams]);
+  const [pendingFirstRoundTeams, setPendingFirstRoundTeams] = useState<TeamKey[]>(() => [
+    ...order,
+  ]);
+  const [firstRoundMessage, setFirstRoundMessage] = useState('');
   const selected = prospects.find((player) => player.id === selectedId) ?? null;
 
   const complete = (finalPicks: DraftPick[]) => {
@@ -38,41 +80,124 @@ export function DraftScreen({
 
   const makePick = () => {
     if (!selected) return;
-    let remaining = prospects.filter((player) => player.id !== selected.id);
-    const nextPicks: DraftPick[] = [...picks, { ...selected, teamKey: playerTeam, round }];
-    let draftTeams = applyDraftPicks(teams, nextPicks);
-    for (const teamKey of draftRoundOrder(order, round)) {
-      if (teamKey === playerTeam || !remaining.length) continue;
-      const cpuPick = cpuDraftPick(draftTeams[teamKey], remaining);
-      if (!cpuPick) continue;
-      const pick = { ...cpuPick, teamKey, round };
-      nextPicks.push(pick);
-      draftTeams = applyDraftPicks(draftTeams, [pick]);
-      remaining = remaining.filter((player) => player.id !== cpuPick.id);
-    }
-    if (round >= 6) {
-      complete(nextPicks);
+    if (round === 1) {
+      let draftTeams = applyDraftPicks(teams, picks);
+      let remaining = [...prospects];
+      let nextPicks = [...picks];
+      const wave = resolveFirstRoundWave(
+        draftTeams,
+        remaining,
+        pendingFirstRoundTeams,
+        playerTeam,
+        selected,
+      );
+      nextPicks = [...nextPicks, ...wave.picks];
+      draftTeams = applyDraftPicks(draftTeams, wave.picks);
+      const wonIds = new Set(wave.picks.map((pick) => pick.id));
+      remaining = remaining.filter((prospect) => !wonIds.has(prospect.id));
+      let pending = wave.unresolvedTeams;
+      const userWon = wave.picks.some((pick) => pick.teamKey === playerTeam);
+      if (!userWon) {
+        const competition =
+          Object.values(wave.bids).find((bidders) => bidders.includes(playerTeam))?.length ?? 1;
+        setFirstRoundMessage(
+          competition > 1
+            ? `${competition}球団競合の抽選に外れました。外れ1位を選択してください。`
+            : '指名を確定できませんでした。候補を選び直してください。',
+        );
+        setProspects(remaining);
+        setPicks(nextPicks);
+        setPendingFirstRoundTeams(pending);
+        setSelectedId(null);
+        return;
+      }
+
+      while (pending.length) {
+        const cpuWave = resolveFirstRoundWave(draftTeams, remaining, pending);
+        if (!cpuWave.picks.length) break;
+        nextPicks = [...nextPicks, ...cpuWave.picks];
+        draftTeams = applyDraftPicks(draftTeams, cpuWave.picks);
+        const cpuWonIds = new Set(cpuWave.picks.map((pick) => pick.id));
+        remaining = remaining.filter((prospect) => !cpuWonIds.has(prospect.id));
+        pending = cpuWave.unresolvedTeams;
+      }
+
+      const prepared = prepareUserTurn(
+        { teams: draftTeams, prospects: remaining, picks: nextPicks },
+        order,
+        playerTeam,
+        2,
+      );
+      setProspects(prepared.prospects);
+      setPicks(prepared.picks);
+      setPendingFirstRoundTeams([]);
+      setFirstRoundMessage('');
+      setSelectedId(null);
+      setRound(2);
       return;
     }
-    setProspects(remaining);
-    setPicks(nextPicks);
+
+    const draftTeams = applyDraftPicks(teams, picks);
+    const userPick: DraftPick = { ...selected, teamKey: playerTeam, round };
+    let progress: DraftProgress = {
+      teams: applyDraftPicks(draftTeams, [userPick]),
+      prospects: prospects.filter((prospect) => prospect.id !== selected.id),
+      picks: [...picks, userPick],
+    };
+    const roundOrder = draftRoundOrder(order, round);
+    const userIndex = roundOrder.indexOf(playerTeam);
+    progress = runSequentialCpuPicks(progress, roundOrder.slice(userIndex + 1), round);
+    if (round >= 6) {
+      complete(progress.picks);
+      return;
+    }
+    const nextRound = round + 1;
+    progress = prepareUserTurn(progress, order, playerTeam, nextRound);
+    setProspects(progress.prospects);
+    setPicks(progress.picks);
     setSelectedId(null);
-    setRound((current) => current + 1);
+    setRound(nextRound);
   };
 
   const autoFinish = () => {
     let remaining = [...prospects];
-    const nextPicks = [...picks];
+    let nextPicks = [...picks];
     let draftTeams = applyDraftPicks(teams, nextPicks);
-    for (let currentRound = round; currentRound <= 6; currentRound += 1) {
+    let currentRound = round;
+    if (currentRound === 1) {
+      let pending = [...pendingFirstRoundTeams];
+      while (pending.length) {
+        const wave = resolveFirstRoundWave(draftTeams, remaining, pending);
+        if (!wave.picks.length) break;
+        nextPicks = [...nextPicks, ...wave.picks];
+        draftTeams = applyDraftPicks(draftTeams, wave.picks);
+        const wonIds = new Set(wave.picks.map((pick) => pick.id));
+        remaining = remaining.filter((prospect) => !wonIds.has(prospect.id));
+        pending = wave.unresolvedTeams;
+      }
+      currentRound = 2;
+    } else {
+      const roundOrder = draftRoundOrder(order, currentRound);
+      const userIndex = roundOrder.indexOf(playerTeam);
+      const current = runSequentialCpuPicks(
+        { teams: draftTeams, prospects: remaining, picks: nextPicks },
+        roundOrder.slice(Math.max(0, userIndex)),
+        currentRound,
+      );
+      draftTeams = current.teams;
+      remaining = current.prospects;
+      nextPicks = current.picks;
+      currentRound += 1;
+    }
+    for (; currentRound <= 6; currentRound += 1) {
       for (const teamKey of draftRoundOrder(order, currentRound)) {
         if (!remaining.length) break;
-        const selected = cpuDraftPick(draftTeams[teamKey], remaining);
-        if (!selected) continue;
-        const pick = { ...selected, teamKey, round: currentRound };
+        const cpuSelected = cpuDraftPick(draftTeams[teamKey], remaining);
+        if (!cpuSelected) continue;
+        const pick: DraftPick = { ...cpuSelected, teamKey, round: currentRound };
         nextPicks.push(pick);
         draftTeams = applyDraftPicks(draftTeams, [pick]);
-        remaining = remaining.filter((player) => player.id !== selected.id);
+        remaining = remaining.filter((player) => player.id !== cpuSelected.id);
       }
     }
     complete(nextPicks);
@@ -95,13 +220,18 @@ export function DraftScreen({
             ドラフト会議
           </h2>
           <div style={{ color: 'var(--color-text-faint)', fontSize: 12, marginTop: 4 }}>
-            第{round}巡指名
+            {round === 1 ? '第1巡 入札・競合抽選' : `第${round}巡指名`}
           </div>
         </div>
         <Button onClick={autoFinish} color="var(--color-surface-muted)">
           以降を自動指名
         </Button>
       </div>
+      {firstRoundMessage && (
+        <div style={{ marginBottom: 10, color: 'var(--color-warning)', fontSize: 12 }}>
+          {firstRoundMessage}
+        </div>
+      )}
       <div
         style={{
           display: 'grid',

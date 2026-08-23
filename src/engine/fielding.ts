@@ -64,14 +64,15 @@ export const isOutfieldSlot = (slot: FieldingSlot): boolean =>
  */
 export function resolveFielder(lineup: Player[], slot: FieldingSlot): Player | null {
   if (slot === '投手') return null;
-  const assigned = lineup.find((player) => player._assignedPos === slot);
+  const assigned = lineup.find((player) => !player._isDH && player._assignedPos === slot);
   if (assigned) return assigned;
-  const natural = lineup.find((player) => player.pos === slot);
+  const natural = lineup.find((player) => !player._isDH && player.pos === slot);
   if (natural) return natural;
   // Nobody is listed there: use whoever in the lineup is least bad at it.
   let best: Player | null = null;
   let bestAptitude = -1;
   for (const player of lineup) {
+    if (player._isDH) continue;
     const aptitude = aptitudeFor(player, slot);
     if (aptitude > bestAptitude) {
       bestAptitude = aptitude;

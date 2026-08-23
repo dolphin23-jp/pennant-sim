@@ -183,8 +183,8 @@ export function cpuAutoSignMarket(
     signedClubs = new Set<TeamKey>(),
     bidScore = (teamKey: TeamKey, pick: Player): number => {
       const need = teamNeedsScore(nextTeams[teamKey], pick) + (type === 'foreign' ? 3 : 0),
-        budget = (TINFO[teamKey].bd || 50) * 100,
-        affordability = (budget - (pick.ask || 0)) / 1200;
+        financialPowerLimit = (TINFO[teamKey].bd || 50) * 100,
+        affordability = (financialPowerLimit - (pick.ask || 0)) / 1200;
       return need + affordability + gaussian(0, 0.9);
     },
     candidates = [...remaining].sort(
@@ -202,8 +202,8 @@ export function cpuAutoSignMarket(
               countForeignPlayers(nextTeams[teamKey]) < FOREIGN_PLAYER_BALANCE.registeredLimit),
         )
         .map((teamKey) => {
-          const budget = (TINFO[teamKey].bd || 50) * 100;
-          if ((pick.ask || 0) > budget + 1500) return null;
+          const financialPowerLimit = (TINFO[teamKey].bd || 50) * 100;
+          if ((pick.ask || 0) > financialPowerLimit + 1500) return null;
           return { teamKey, score: bidScore(teamKey, pick) };
         })
         .filter((bid): bid is { teamKey: TeamKey; score: number } => bid !== null)
@@ -232,6 +232,29 @@ export function cpuAutoSignMarketRounds(
   }
   return { teams: nextTeams, remaining };
 }
+
+function rosterCoreValue(team: Team): number {
+  const lineup = bestLineup(team);
+  const batting = lineup.length
+    ? lineup.reduce((sum, player) => sum + calcOVR(player, player.pos), 0) / lineup.length
+    : 50;
+  const starters = team.pitchers
+    .filter((pitcher) => pitcher.role === '先発')
+    .sort((first, second) => calcOVR(second) - calcOVR(first))
+    .slice(0, 5);
+  const starting = starters.length
+    ? starters.reduce((sum, player) => sum + calcOVR(player), 0) / starters.length
+    : 50;
+  const bullpen = team.pitchers
+    .filter((pitcher) => pitcher.role !== '先発')
+    .sort((first, second) => calcOVR(second) - calcOVR(first))
+    .slice(0, 6);
+  const relief = bullpen.length
+    ? bullpen.reduce((sum, player) => sum + calcOVR(player), 0) / bullpen.length
+    : 50;
+  return batting * 0.45 + starting * 0.3 + relief * 0.25;
+}
+
 export function cpuAutoTradeBetweenTeams(teams: Teams, playerTeam: TeamKey, rounds = 4): Teams {
   const nextTeams = { ...teams };
   const clubs = [...CENTRAL, ...PACIFIC]
@@ -255,42 +278,53 @@ export function cpuAutoTradeBetweenTeams(teams: Teams, playerTeam: TeamKey, roun
             ],
             pitchers: team.pitchers.filter((pitcher) => pitcher.id !== removed.id),
           };
+  const tradeable = (team: Team): Player[] => {
+    const starters = new Set(bestLineup(team).map((player) => player.id));
+    return [
+      ...team.fielders.filter((player) => !starters.has(player.id)),
+      ...team.pitchers.filter((player) => player.role !== '先発'),
+    ]
+      .sort(
+        (first, second) =>
+          (second.isP ? calcOVR(second) : effectiveOVR(second, second.pos)) -
+          (first.isP ? calcOVR(first) : effectiveOVR(first, first.pos)),
+      )
+      .slice(0, 8);
+  };
   for (let round = 0; round < rounds; round += 1) {
     const firstTeamKey = clubs[round % clubs.length],
       secondTeamKey = clubs[(round + 3) % clubs.length];
     if (!firstTeamKey || !secondTeamKey || firstTeamKey === secondTeamKey) continue;
-    const firstTeam = nextTeams[firstTeamKey],
-      secondTeam = nextTeams[secondTeamKey],
-      firstBench = [...firstTeam.fielders]
-        .filter((fielder) => !bestLineup(firstTeam).some((starter) => starter.id === fielder.id))
-        .sort((first, second) => effectiveOVR(second, second.pos) - effectiveOVR(first, first.pos)),
-      secondBench = [...secondTeam.fielders]
-        .filter((fielder) => !bestLineup(secondTeam).some((starter) => starter.id === fielder.id))
-        .sort((first, second) => effectiveOVR(second, second.pos) - effectiveOVR(first, first.pos)),
-      firstArms = [...firstTeam.pitchers]
-        .filter((pitcher) => pitcher.role !== '先発')
-        .sort((first, second) => calcOVR(second) - calcOVR(first)),
-      secondArms = [...secondTeam.pitchers]
-        .filter((pitcher) => pitcher.role !== '先発')
-        .sort((first, second) => calcOVR(second) - calcOVR(first)),
-      firstChip = firstBench[0] || firstArms[0],
-      secondChip = secondBench[0] || secondArms[0],
-      firstWant = [...secondTeam.fielders, ...secondTeam.pitchers].sort(
-        (first, second) => teamNeedsScore(firstTeam, second) - teamNeedsScore(firstTeam, first),
-      )[0],
-      secondWant = [...firstTeam.fielders, ...firstTeam.pitchers].sort(
-        (first, second) => teamNeedsScore(secondTeam, second) - teamNeedsScore(secondTeam, first),
-      )[0];
-    if (!firstChip || !secondChip || !firstWant || !secondWant) continue;
-    const firstFit = teamNeedsScore(firstTeam, firstWant) - teamNeedsScore(firstTeam, firstChip),
-      secondFit = teamNeedsScore(secondTeam, secondWant) - teamNeedsScore(secondTeam, secondChip),
-      valueGap = Math.abs(
-        (firstWant.isP ? calcOVR(firstWant) : effectiveOVR(firstWant, firstWant.pos)) -
-          (secondWant.isP ? calcOVR(secondWant) : effectiveOVR(secondWant, secondWant.pos)),
-      );
-    if (firstFit < 8 || secondFit < 8 || valueGap > 12) continue;
-    nextTeams[firstTeamKey] = move(firstTeam, secondWant, firstWant, firstTeamKey);
-    nextTeams[secondTeamKey] = move(secondTeam, firstWant, secondWant, secondTeamKey);
+    const firstTeam = nextTeams[firstTeamKey];
+    const secondTeam = nextTeams[secondTeamKey];
+    const firstPool = tradeable(firstTeam);
+    const secondPool = tradeable(secondTeam);
+    const firstBefore = rosterCoreValue(firstTeam);
+    const secondBefore = rosterCoreValue(secondTeam);
+    let best:
+      | { firstOut: Player; secondOut: Player; score: number; firstAfter: Team; secondAfter: Team }
+      | null = null;
+    for (const firstOut of firstPool) {
+      for (const secondOut of secondPool) {
+        const firstValue = firstOut.isP ? calcOVR(firstOut) : effectiveOVR(firstOut, firstOut.pos);
+        const secondValue = secondOut.isP ? calcOVR(secondOut) : effectiveOVR(secondOut, secondOut.pos);
+        const valueGap = Math.abs(firstValue - secondValue);
+        if (valueGap > 12) continue;
+        const firstAfter = move(firstTeam, firstOut, secondOut, firstTeamKey);
+        const secondAfter = move(secondTeam, secondOut, firstOut, secondTeamKey);
+        const firstFit = teamNeedsScore(firstTeam, secondOut) - teamNeedsScore(firstTeam, firstOut);
+        const secondFit = teamNeedsScore(secondTeam, firstOut) - teamNeedsScore(secondTeam, secondOut);
+        const firstGain = (rosterCoreValue(firstAfter) - firstBefore) * 1.5 + firstFit * 0.35;
+        const secondGain = (rosterCoreValue(secondAfter) - secondBefore) * 1.5 + secondFit * 0.35;
+        if (firstGain < 0.5 || secondGain < 0.5) continue;
+        const score = firstGain + secondGain - valueGap * 0.2 + gaussian(0, 0.75);
+        if (!best || score > best.score)
+          best = { firstOut, secondOut, score, firstAfter, secondAfter };
+      }
+    }
+    if (!best || best.score < 5) continue;
+    nextTeams[firstTeamKey] = best.firstAfter;
+    nextTeams[secondTeamKey] = best.secondAfter;
   }
   return nextTeams;
 }

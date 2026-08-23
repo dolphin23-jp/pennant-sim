@@ -19,6 +19,7 @@ export * from './playerEvents';
 export * from './players';
 export * from './random';
 export * from './ratings';
+export * from './scoring';
 export * from './season';
 export * from './specials';
 export * from './stats';

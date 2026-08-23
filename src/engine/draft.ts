@@ -1,11 +1,24 @@
 import { CENTRAL, FIELD_POSITIONS, PACIFIC, PLAYER_DEVELOPMENT_BALANCE } from '../data';
 import { generateBatter, generatePitcher } from './players';
-import { gaussian, random, randomChoice, randomInt, weightedRandom } from './random';
+import { gaussian, random, randomChoice, randomInt } from './random';
 import { bestLineup, calcOVR, effectiveOVR, topStarters } from './ratings';
 import { teamNeedsScore } from './market';
-import type { DraftOrigin, FieldPosition, Player, Team, TeamKey, Teams } from './types';
+import type {
+  DraftOrigin,
+  FieldPosition,
+  Player,
+  StandingRecord,
+  Team,
+  TeamKey,
+  Teams,
+} from './types';
 
 export type DraftPick = Player & { teamKey: TeamKey; round: number };
+export interface FirstRoundWaveResult {
+  picks: DraftPick[];
+  unresolvedTeams: TeamKey[];
+  bids: Record<string, TeamKey[]>;
+}
 
 function prospectFutureBonus(player: Player): number {
   const maximumPotentialGap = Math.max(
@@ -97,16 +110,21 @@ function calibrateDraftBatter(player: Player): Player {
   if (player.isP) return player;
   const contactBonus = 3;
   const fieldingAdjustment = -3;
-  const cf = Math.min(120, Number(player.p.cf ?? 0) + contactBonus);
-  const cb = Math.min(120, Number(player.p.cb ?? 0) + contactBonus);
+  const ratingCeiling = PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.maximumRating;
+  const potentialCeiling =
+    player.potentialClass === 'elite'
+      ? PLAYER_DEVELOPMENT_BALANCE.potentialCeiling.elite
+      : PLAYER_DEVELOPMENT_BALANCE.potentialCeiling.standard;
+  const cf = Math.min(ratingCeiling, Number(player.p.cf ?? 0) + contactBonus);
+  const cb = Math.min(ratingCeiling, Number(player.p.cb ?? 0) + contactBonus);
   const df = Math.max(1, Number(player.p.df ?? 0) + fieldingAdjustment);
   return {
     ...player,
     p: { ...player.p, cf, cb, df },
     pot: {
       ...player.pot,
-      cf: Math.max(cf, Math.min(140, Number(player.pot.cf ?? cf) + contactBonus)),
-      cb: Math.max(cb, Math.min(140, Number(player.pot.cb ?? cb) + contactBonus)),
+      cf: Math.max(cf, Math.min(potentialCeiling, Number(player.pot.cf ?? cf) + contactBonus)),
+      cb: Math.max(cb, Math.min(potentialCeiling, Number(player.pot.cb ?? cb) + contactBonus)),
       df: Math.max(df, Number(player.pot.df ?? df) + fieldingAdjustment),
     },
   };
@@ -183,37 +201,93 @@ export function generateDraftProspects(): Player[] {
   );
 }
 
-const LOTTERY_POOL_SIZE = 6;
-const LOTTERY_PICKS = 3;
-
-/** Worst-to-best strength order, but the top picks among the weakest teams are decided by
- * a weighted lottery (weakest gets the most tickets, not a guarantee) instead of being
- * fixed by standings alone - so the same teams don't lock in the same top slots every year. */
+/** Headless fallback for callers that do not have a completed season table. The playable
+ * offseason uses draftOrderFromStandings so FA/trades can never rewrite the prior season. */
 export function draftOrder(teams: Teams): TeamKey[] {
-  const ranked = [...CENTRAL, ...PACIFIC].sort(
+  return [...CENTRAL, ...PACIFIC].sort(
     (first, second) => teamStrength(teams[first]) - teamStrength(teams[second]),
   );
-  const poolSize = Math.min(LOTTERY_POOL_SIZE, ranked.length);
-  const lotteryCount = Math.min(LOTTERY_PICKS, poolSize);
-  const pool = ranked.slice(0, poolSize);
-  const weights = pool.map((_, index) => poolSize - index);
-  const lotteryOrder: TeamKey[] = [];
-  for (let pick = 0; pick < lotteryCount; pick += 1) {
-    if (!pool.length) break;
-    const chosen = weightedRandom(pool, weights);
-    const chosenIndex = pool.indexOf(chosen);
-    lotteryOrder.push(chosen);
-    pool.splice(chosenIndex, 1);
-    weights.splice(chosenIndex, 1);
-  }
-  const lotteryChosen = new Set(lotteryOrder);
-  return [...lotteryOrder, ...ranked.filter((teamKey) => !lotteryChosen.has(teamKey))];
 }
 
-/** Round-robin order flips each round (snake draft) so the same team doesn't pick last
- * in every round - only round 1 keeps the raw (lottery-adjusted) strength order. */
+/** Freeze the NPB-style second-round order from the completed regular season. Within
+ * each league the worst club picks first; the league that performed better in
+ * interleague play gets the first slot at each rank. */
+export function draftOrderFromStandings(
+  standings: Record<TeamKey, StandingRecord>,
+  interleagueStandings?: Record<TeamKey, StandingRecord>,
+): TeamKey[] {
+  const worstFirst = (league: readonly TeamKey[]) =>
+    [...league].sort((first, second) => {
+      const firstRank = standings[first].rank ?? 0;
+      const secondRank = standings[second].rank ?? 0;
+      if (firstRank !== secondRank) return secondRank - firstRank;
+      return (standings[first].pct ?? 0) - (standings[second].pct ?? 0);
+    });
+  const central = worstFirst(CENTRAL);
+  const pacific = worstFirst(PACIFIC);
+  const leagueWins = (league: readonly TeamKey[]) =>
+    league.reduce((sum, teamKey) => sum + (interleagueStandings?.[teamKey].w ?? 0), 0);
+  const centralFirst = leagueWins(CENTRAL) >= leagueWins(PACIFIC);
+  const first = centralFirst ? central : pacific;
+  const second = centralFirst ? pacific : central;
+  const order: TeamKey[] = [];
+  for (let index = 0; index < Math.max(first.length, second.length); index += 1) {
+    if (first[index]) order.push(first[index] as TeamKey);
+    if (second[index]) order.push(second[index] as TeamKey);
+  }
+  return order;
+}
+
+/** Round 1 is simultaneous bidding. Round 2 starts from the frozen reverse-standing
+ * order, then subsequent rounds alternate direction. */
 export function draftRoundOrder(order: TeamKey[], round: number): TeamKey[] {
-  return round % 2 === 0 ? [...order].reverse() : order;
+  return round >= 3 && round % 2 === 1 ? [...order].reverse() : [...order];
+}
+
+/** Resolve one simultaneous first-round nomination wave. A contested prospect is awarded
+ * by equal-probability lottery; losing clubs remain unresolved and bid again next wave. */
+export function resolveFirstRoundWave(
+  teams: Teams,
+  prospects: Player[],
+  biddingTeams: readonly TeamKey[],
+  playerTeam: TeamKey | null = null,
+  userChoice: Player | null = null,
+): FirstRoundWaveResult {
+  const bidsByProspect = new Map<string, TeamKey[]>();
+  const unresolvedWithoutBid: TeamKey[] = [];
+  for (const teamKey of biddingTeams) {
+    const selected =
+      teamKey === playerTeam
+        ? userChoice && prospects.some((prospect) => prospect.id === userChoice.id)
+          ? userChoice
+          : undefined
+        : cpuDraftPick(teams[teamKey], prospects);
+    if (!selected) {
+      unresolvedWithoutBid.push(teamKey);
+      continue;
+    }
+    const bidders = bidsByProspect.get(selected.id) ?? [];
+    bidders.push(teamKey);
+    bidsByProspect.set(selected.id, bidders);
+  }
+
+  const picks: DraftPick[] = [];
+  const unresolvedTeams = [...unresolvedWithoutBid];
+  for (const [prospectId, bidders] of bidsByProspect) {
+    const prospect = prospects.find((candidate) => candidate.id === prospectId);
+    if (!prospect || !bidders.length) {
+      unresolvedTeams.push(...bidders);
+      continue;
+    }
+    const winner = randomChoice(bidders);
+    picks.push({ ...prospect, teamKey: winner, round: 1 });
+    unresolvedTeams.push(...bidders.filter((teamKey) => teamKey !== winner));
+  }
+  return {
+    picks,
+    unresolvedTeams,
+    bids: Object.fromEntries(bidsByProspect.entries()),
+  };
 }
 
 export function cpuDraftPick(team: Team, prospects: Player[]): Player | undefined {
@@ -250,7 +324,17 @@ export function runCpuDraft(teams: Teams, rounds = 6): { teams: Teams; picks: Dr
   let prospects = generateDraftProspects();
   let nextTeams = teams;
   const picks: DraftPick[] = [];
-  for (let round = 1; round <= rounds; round += 1) {
+  let unresolved = [...order];
+  while (unresolved.length && rounds >= 1) {
+    const wave = resolveFirstRoundWave(nextTeams, prospects, unresolved);
+    if (!wave.picks.length) throw new Error('Draft first-round bidding could not resolve.');
+    picks.push(...wave.picks);
+    nextTeams = applyDraftPicks(nextTeams, wave.picks);
+    const wonIds = new Set(wave.picks.map((pick) => pick.id));
+    prospects = prospects.filter((prospect) => !wonIds.has(prospect.id));
+    unresolved = wave.unresolvedTeams;
+  }
+  for (let round = 2; round <= rounds; round += 1) {
     for (const teamKey of draftRoundOrder(order, round)) {
       const selected = cpuDraftPick(nextTeams[teamKey], prospects);
       if (!selected) throw new Error(`Draft pool exhausted in round ${round}.`);

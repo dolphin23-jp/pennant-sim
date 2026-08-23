@@ -3,9 +3,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { FOREIGN_PLAYER_BALANCE, TINFO } from '../../data';
 import {
   calcOVR,
+  calcInterleagueStandings,
   countForeignPlayers,
   cpuAutoSignMarketRounds,
   cpuAutoTradeBetweenTeams,
+  draftOrderFromStandings,
   finalizeCpuRosters,
   genForeignMarket,
   genFreeAgentMarket,
@@ -513,6 +515,10 @@ function OffseasonContent({
         <DraftScreen
           teams={workTeams}
           playerTeam={playerTeam}
+          order={draftOrderFromStandings(
+            game.standings,
+            calcInterleagueStandings(game.season.schedule),
+          )}
           onComplete={(draftedTeams) => {
             const finalized = finalizeCpuRosters(draftedTeams, { excludedTeam: playerTeam });
             game.completeOffseason(finalized.teams, developmentNotices);

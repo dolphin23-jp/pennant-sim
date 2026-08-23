@@ -222,6 +222,13 @@ export function orderBattingLineup(players: Player[]): Player[] {
   return slots.filter((player): player is Player => Boolean(player));
 }
 
+/** Offensive-only score used for the permanent DH slot. Defence and aptitude must not
+ * influence who is selected to a role that never takes the field. */
+export function designatedHitterScore(player: Player): number {
+  const contact = ((player.p.cf ?? 50) + (player.p.cb ?? 50)) / 2;
+  return contact * 0.45 + (player.p.dc ?? 50) * 0.2 + (player.p.pw ?? 50) * 0.35;
+}
+
 /**
  * Prefer healthy, non-fatigued players from the 一軍(active) roster, falling back
  * through fatigue, then injury-only, then the full roster (including 二軍) as each
@@ -278,14 +285,14 @@ export function bestLineup(team: Team): Player[] {
   }
   for (const fielder of pool
     .filter((player) => !used.has(player.id))
-    .sort((first, second) => calcOVR(second) - calcOVR(first))) {
+    .sort((first, second) => designatedHitterScore(second) - designatedHitterScore(first))) {
     if (lineup.length >= 9) break;
     if (
       isForeignPlayer(fielder) &&
       lineup.filter(isForeignPlayer).length >= FOREIGN_PLAYER_BALANCE.simultaneousHitterLimit
     )
       continue;
-    lineup.push({ ...fielder, _assignedPos: fielder.pos });
+    lineup.push({ ...fielder, _assignedPos: undefined, _isDH: true });
   }
   return orderBattingLineup(lineup.slice(0, 9));
 }
