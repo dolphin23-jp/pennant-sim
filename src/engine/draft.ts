@@ -225,9 +225,25 @@ export function draftOrderFromStandings(
     });
   const central = worstFirst(CENTRAL);
   const pacific = worstFirst(PACIFIC);
-  const leagueWins = (league: readonly TeamKey[]) =>
-    league.reduce((sum, teamKey) => sum + (interleagueStandings?.[teamKey].w ?? 0), 0);
-  const centralFirst = leagueWins(CENTRAL) >= leagueWins(PACIFIC);
+  const leagueInterleagueResult = (league: readonly TeamKey[]) =>
+    league.reduce(
+      (result, teamKey) => ({
+        wins: result.wins + (interleagueStandings?.[teamKey].w ?? 0),
+        runDifferential:
+          result.runDifferential +
+          (interleagueStandings?.[teamKey].rs ?? 0) -
+          (interleagueStandings?.[teamKey].ra ?? 0),
+      }),
+      { wins: 0, runDifferential: 0 },
+    );
+  const centralInterleague = leagueInterleagueResult(CENTRAL);
+  const pacificInterleague = leagueInterleagueResult(PACIFIC);
+  const centralFirst =
+    centralInterleague.wins !== pacificInterleague.wins
+      ? centralInterleague.wins > pacificInterleague.wins
+      : centralInterleague.runDifferential !== pacificInterleague.runDifferential
+        ? centralInterleague.runDifferential > pacificInterleague.runDifferential
+        : random() < 0.5;
   const first = centralFirst ? central : pacific;
   const second = centralFirst ? pacific : central;
   const order: TeamKey[] = [];
