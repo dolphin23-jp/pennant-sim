@@ -1,7 +1,13 @@
 import { narrativeEventArticleId } from './ledger';
 import type { NarrativeEventLedger } from './types';
 import { TINFO } from '../data';
-import type { AchievementEvent, GameBoxScore, SeasonTitleRecord, TeamKey } from '../engine';
+import type {
+  AchievementEvent,
+  GameBoxScore,
+  SeasonTitleRecord,
+  TeamKey,
+  YearlyPlayerRecords,
+} from '../engine';
 import type { ChampionRecord } from '../state/storage';
 import {
   NARRATIVE_GENERATOR_VERSION,
@@ -26,6 +32,8 @@ export interface NarrativeSource {
   championHistory: ChampionRecord[];
   awardHistory: SeasonTitleRecord[];
   narrativeEvents?: NarrativeEventLedger;
+  /** Archived end-of-season player snapshots used only for grounded career context. */
+  yearlyStats?: YearlyPlayerRecords;
 }
 
 export interface NarrativeFeedResult {

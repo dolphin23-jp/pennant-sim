@@ -118,6 +118,38 @@ resumes at the offseason. This prevents rerolling an event that already has a
 canonical article. Repeated offseason completion callbacks from the previous year
 are ignored. These guards do not alter simulation outcomes or random draws.
 
+## CareerMemory and StoryArc projection
+
+CareerMemory is a deterministic index over facts that already exist in the save.
+It does **not** add another authoritative player-history database. The index uses
+yearly player snapshots plus the narrative event ledger, awards and championship
+history. It is transient and can be rebuilt from the archive.
+
+For an article about a player, the packet may include a sparse set of archived
+season lines: the most recent completed season, title seasons, objectively notable
+seasons and the first active season. Newspaper prose never sees the internal OVR
+as a career fact. A `PLAYER_SEASON:<year>:<playerId>` FactRef points back to the
+exact archived `PlayerSeasonRecord`.
+
+Year boundaries are strict. A final 2034 season line is not available to an article
+dated June 2034; same-year final stats become eligible only for a year-end
+(`YYYY-12-31`) rendering. This prevents final-season knowledge leaking into
+historical in-season coverage.
+
+StoryArcs are also derived, not persisted. Current arc types are:
+
+- `career-origin`: an earlier draft event for the same player
+- `club-journey`: a prior recorded transaction
+- `injury-recovery`: an archived injury followed by eligibility recovery
+- `long-career`: at least eight completed active seasons
+- `title-history`: prior individual titles
+- `championship-history`: earlier championships for an involved club
+- `repeat-final`: the same two clubs previously met in the Japan Series
+
+An arc is an editorial relationship and only affects story selection/context
+priority. It is not a new factual claim. Every sentence still has to cite primary
+or context claims and pass both factual validators.
+
 ## Narrative Director and story context
 
 The renderer does not spend model tokens on every ledger row. A deterministic
