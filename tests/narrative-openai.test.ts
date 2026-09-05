@@ -62,12 +62,14 @@ const source = {
 };
 const packet = buildFactPacket(template, source)!;
 function prose(p: FactPacket = packet): Prose {
-  const make = (c: FactPacket['claims'][number]) => ({
+  const headline = p.claims.find((claim) => claim.id === 'headline')!;
+  const primary = p.claims.filter((claim) => claim.role === 'primary' && claim.id !== 'headline');
+  const make = (claims: FactPacket['claims']) => ({
     class: 'FACTUAL' as const,
-    text: c.text,
-    claimId: c.id,
+    text: claims.map((claim) => claim.text).join(' '),
+    claimIds: claims.map((claim) => claim.id),
   });
-  return { headline: make(p.claims[0]), segments: p.claims.slice(1).map(make) };
+  return { headline: make([headline]), dek: null, segments: primary.map((claim) => make([claim])) };
 }
 async function snapshot(p = packet, worldId = world, revision = 0): Promise<ArticleSnapshot> {
   const hash = await packetFactsHash(p);
@@ -140,11 +142,24 @@ function success(p = packet): typeof fetch {
     assert.equal(body.store, false);
     assert.equal(body.text.format.strict, true);
     assert.equal(body.tools, undefined);
+    const verification = body.text.format.name === 'narrative_verification';
     return Response.json({
       status: 'completed',
-      usage: { input_tokens: 100, output_tokens: 50 },
+      usage: verification
+        ? { input_tokens: 40, output_tokens: 10 }
+        : { input_tokens: 100, output_tokens: 50 },
       output: [
-        { type: 'message', content: [{ type: 'output_text', text: JSON.stringify(prose(p)) }] },
+        {
+          type: 'message',
+          content: [
+            {
+              type: 'output_text',
+              text: JSON.stringify(
+                verification ? { supported: true, issues: [] } : prose(p),
+              ),
+            },
+          ],
+        },
       ],
     });
   };
@@ -184,7 +199,7 @@ test('packet uses only the archived event, dates and exact refs, without mutatin
 test('validation rejects false references, swapped numbers, quotes, future claims, and COLOR facts', () => {
   for (const edit of [
     (p: Prose) => {
-      p.headline.claimId = 'unknown';
+      p.headline.claimIds = ['unknown'];
     },
     (p: Prose) => {
       p.segments[0].text += '監督は「期待している」と語った。';
@@ -193,7 +208,7 @@ test('validation rejects false references, swapped numbers, quotes, future claim
       p.segments[0].text = p.segments[0].text.replace('1巡目', '2巡目');
     },
     (p: Prose) => {
-      p.segments.push({ class: 'COLOR', claimId: null, text: '翌年は首位打者を獲得した。' });
+      p.segments.push({ class: 'COLOR', claimIds: [], text: '翌年は首位打者を獲得した。' });
     },
     (p: Prose) => {
       p.segments[0].class = 'ANALYTICAL';
@@ -291,13 +306,48 @@ test('D1 atomically dedupes simultaneous requests and preserves token accounting
     handleRequest(request(), env, upstream),
     handleRequest(request(), env, upstream),
   ]);
-  assert.equal(calls, 1);
+  assert.equal(calls, 2, 'one writer and one verifier call');
   assert.ok(responses.some((r) => r.status === 200));
   assert.equal((await handleRequest(request(), env, upstream)).status, 200);
-  assert.equal(calls, 1);
-  assert.equal(db.prepare('SELECT SUM(charged) AS n FROM requests').get()!.n, 150);
+  assert.equal(calls, 2);
+  assert.equal(db.prepare('SELECT SUM(charged) AS n FROM requests').get()!.n, 200);
   assert.equal((await handleRequest(request(packet, 1), env, upstream)).status, 200);
-  assert.equal(calls, 2, 'explicit new revision is the only regeneration');
+  assert.equal(calls, 4, 'explicit new revision runs writer and verifier again');
+});
+
+test('independent verifier rejects fluent but unsupported prose', async () => {
+  const { env } = await environment();
+  let calls = 0;
+  const upstream: typeof fetch = async (_url, options) => {
+    calls++;
+    const body = JSON.parse(String(options?.body));
+    if (body.text.format.name === 'narrative_prose') {
+      return Response.json({
+        status: 'completed',
+        usage: { input_tokens: 100, output_tokens: 50 },
+        output: [
+          { type: 'message', content: [{ type: 'output_text', text: JSON.stringify(prose()) }] },
+        ],
+      });
+    }
+    return Response.json({
+      status: 'completed',
+      usage: { input_tokens: 40, output_tokens: 10 },
+      output: [
+        {
+          type: 'message',
+          content: [
+            {
+              type: 'output_text',
+              text: JSON.stringify({ supported: false, issues: ['unsupported causal framing'] }),
+            },
+          ],
+        },
+      ],
+    });
+  };
+  assert.equal((await handleRequest(request(packet, 77), env, upstream)).status, 502);
+  assert.equal(calls, 2);
 });
 
 test('uncertain upstream failures and invalid prose do not retry the same key or release unknown charges', async () => {

@@ -2,11 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import type { NarrativeArticle } from '../../../narrative/types';
 import type { NarrativeSource } from '../../../narrative/generate';
 import { buildFactPacket } from '../../../narrative/packet';
+import { planNarrativeStory } from '../../../narrative/story';
 import type { ArticleSnapshot, Quality } from '../../../narrative/protocol';
 import { narrativeArticleService, type NarrativeConnection } from '../../../narrative/service';
 import { useGameState } from '../../../state/gameState';
 
-/** Only cards entering the viewport enqueue generation; revisits use the shared service. */
+/**
+ * Only consequential stories auto-enqueue when they enter the viewport. Routine notices remain
+ * deterministic and free; the user can still explicitly expand any of them into an AI feature.
+ */
 export function AiArticle({
   template,
   source,
@@ -30,9 +34,9 @@ export function AiArticle({
   });
   const [busy, setBusy] = useState(false);
   const stored = game.narrativeArticles[String(template.year)] ?? [];
-  // References change during saves; a result must not enqueue the same request again.
   const input = useRef({ source, stored, record: game.recordNarrativeArticle });
   input.current = { source, stored, record: game.recordNarrativeArticle };
+
   useEffect(() => {
     if (!ref.current || typeof IntersectionObserver === 'undefined') return;
     const observer = new IntersectionObserver(([entry]) => {
@@ -44,13 +48,31 @@ export function AiArticle({
     observer.observe(ref.current);
     return () => observer.disconnect();
   }, []);
+
+  const storyPlan = planNarrativeStory(template, source);
+
   useEffect(() => {
     if (!visible || !connection.enabled) {
       setRendered(template);
+      setStatus('');
+      setBusy(false);
       return;
     }
+
+    const currentPlan = planNarrativeStory(template, input.current.source);
+    if (!currentPlan.autoGenerate && !request.force) {
+      setRendered(template);
+      setStatus('速報・AI未使用');
+      setBusy(false);
+      return;
+    }
+
     let active = true;
-    const packet = buildFactPacket(template, input.current.source);
+    const packet = buildFactPacket(
+      template,
+      input.current.source,
+      request.force && currentPlan.depth === 'brief' ? 'feature' : undefined,
+    );
     if (!packet) return;
     setBusy(true);
     void narrativeArticleService
@@ -68,7 +90,13 @@ export function AiArticle({
         if (!active) return;
         setRendered(result.article);
         setStatus(
-          result.snapshot ? 'AI記事' : result.status === 'unavailable' ? '標準記事を表示中' : '',
+          result.snapshot
+            ? packet.story.depth === 'cover'
+              ? 'AI特集'
+              : 'AI記事'
+            : result.status === 'unavailable'
+              ? '標準記事を表示中'
+              : '',
         );
         if (result.snapshot) input.current.record(game.worldId, result.snapshot);
         setBusy(false);
@@ -77,6 +105,7 @@ export function AiArticle({
       active = false;
     };
   }, [visible, connection, template, game.worldId, request]);
+
   function regenerate(quality: Quality) {
     const max = Math.max(
       request.revision,
@@ -85,14 +114,15 @@ export function AiArticle({
     );
     setRequest({ quality, revision: max + 1, force: true });
   }
+
   return (
     <div ref={ref}>
       {children(connection.enabled ? rendered : template)}
       {connection.enabled && (
-        <div style={{ display: 'flex', gap: 10, fontSize: 11, marginTop: 5 }}>
+        <div style={{ display: 'flex', gap: 10, fontSize: 11, marginTop: 5, flexWrap: 'wrap' }}>
           <span role="status">{busy ? '記事を準備中…' : status}</span>
           <button disabled={busy || !connection.token} onClick={() => regenerate('standard')}>
-            書き直す
+            {storyPlan.autoGenerate ? '書き直す' : 'AIで特集化'}
           </button>
           <button disabled={busy || !connection.token} onClick={() => regenerate('premium')}>
             高品質で書く
