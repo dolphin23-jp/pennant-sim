@@ -263,8 +263,8 @@ export function validateProse(raw: unknown, packet: FactPacket): Prose | null {
     )
       return false;
 
-    const text = text as string;
-    const claimIds = claimIds as string[];
+    const text = value.text as string;
+    const claimIds = value.claimIds as string[];
     if (value.class === 'COLOR') {
       colorCount++;
       return (
