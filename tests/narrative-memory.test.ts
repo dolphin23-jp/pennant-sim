@@ -25,7 +25,7 @@ function batterRecord(year: number, teamKey: TeamKey = 'giants'): PlayerSeasonRe
     teamName: teamKey === 'giants' ? '読売ジャイアンツ' : '阪神タイガース',
     teamAbbreviation: teamKey === 'giants' ? '巨' : '神',
     isPitcher: false,
-    position: 'cf',
+    position: '中堅手',
     ovr: 70 + (year - 2027),
     params: {} as PlayerSeasonRecord['params'],
     stats: {
