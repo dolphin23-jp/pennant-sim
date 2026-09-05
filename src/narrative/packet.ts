@@ -1,6 +1,7 @@
 import { TINFO } from '../data';
 import { narrativeEventArticleId } from './ledger';
-import type { NarrativeMemoryIndex } from './memory';
+import { buildNarrativeHistoryFacts } from './historyFacts';
+import { buildNarrativeMemoryIndex, type NarrativeMemoryIndex } from './memory';
 import {
   articleFromAchievement,
   articleFromChampionship,
@@ -87,7 +88,8 @@ export function buildFactPacket(
   visit(value);
   for (const team of Object.values(TINFO)) for (const name of [team.n, team.ab]) names.add(name);
 
-  const basePlan = planNarrativeStory(article, source, memory);
+  const memoryIndex = memory ?? buildNarrativeMemoryIndex(source);
+  const basePlan = planNarrativeStory(article, source, memoryIndex);
   const story =
     depthOverride && basePlan.depth === 'brief'
       ? {
@@ -98,14 +100,21 @@ export function buildFactPacket(
           targetParagraphs: depthOverride === 'cover' ? { min: 5, max: 8 } : { min: 3, max: 5 },
         }
       : basePlan;
-  const context = buildNarrativeStoryContext(
+  const articleContext = buildNarrativeStoryContext(
     article,
     source,
-    story.depth === 'cover' ? 16 : 10,
-    memory,
+    story.depth === 'cover' ? 12 : 8,
+    memoryIndex,
   );
-  for (const claim of context)
+  const historyFacts = buildNarrativeHistoryFacts(
+    article,
+    source,
+    memoryIndex,
+    story.depth === 'cover' ? 8 : story.depth === 'feature' ? 6 : 4,
+  );
+  for (const claim of articleContext)
     if (claim.factValue !== undefined) visit(claim.factValue);
+  for (const fact of historyFacts) visit(fact.value);
 
   // Preserve exact high-risk relations in the primary event. Context is supplementary and may be
   // paraphrased, but every sentence still has to cite it and pass both validators.
@@ -128,8 +137,15 @@ export function buildFactPacket(
         locked,
       })),
   ];
-  const contextClaims: FactPacket['claims'] = context.map((claim) => ({
-    id: claim.id,
+  const historyClaims: FactPacket['claims'] = historyFacts.map((fact, index) => ({
+    id: `h${index}`,
+    role: 'context' as const,
+    text: fact.text,
+    factRefs: fact.factRefs,
+    locked: false,
+  }));
+  const articleClaims: FactPacket['claims'] = articleContext.map((claim, index) => ({
+    id: `ctx${index}`,
     role: 'context' as const,
     text: claim.text,
     factRefs: claim.factRefs,
@@ -147,13 +163,21 @@ export function buildFactPacket(
       value: index === 0 ? structuredClone(value) : { sameArchivedSourceAs: article.factRefs[0] },
     });
   }
-  for (const claim of context) {
-    for (const ref of claim.factRefs) {
-      const key = refKey(ref);
+  for (const fact of historyFacts) {
+    for (const factRef of fact.factRefs) {
+      const key = refKey(factRef);
+      if (seenFacts.has(key)) continue;
+      seenFacts.add(key);
+      facts.push({ ref: factRef, value: structuredClone(fact.value) });
+    }
+  }
+  for (const claim of articleContext) {
+    for (const factRef of claim.factRefs) {
+      const key = refKey(factRef);
       if (seenFacts.has(key)) continue;
       seenFacts.add(key);
       facts.push({
-        ref,
+        ref: factRef,
         value:
           claim.factValue !== undefined
             ? structuredClone(claim.factValue)
@@ -175,7 +199,7 @@ export function buildFactPacket(
     asOfDate: article.asOfDate,
     publishedAt: article.publishedAt,
     facts,
-    claims: [...primaryClaims, ...contextClaims],
+    claims: [...primaryClaims, ...historyClaims, ...articleClaims],
     entities: [...names].sort(),
     story: {
       depth: story.depth,
@@ -183,7 +207,10 @@ export function buildFactPacket(
       reasons: story.reasons,
       targetParagraphs: story.targetParagraphs,
       primaryClaimIds: primaryClaims.map((claim) => claim.id),
-      contextArticleIds: [...new Set(context.map((claim) => claim.sourceArticleId))],
+      contextArticleIds: [
+        ...historyFacts.map((fact) => fact.id),
+        ...articleContext.map((claim) => claim.sourceArticleId),
+      ].slice(0, 32),
     },
   };
   return validPacket(packet) ? packet : null;
