@@ -163,7 +163,7 @@ test('history facts never leak the current final season into an in-season articl
   assert.match(text, /古巣/);
 });
 
-test('championship history prioritizes dynasty and rematch arithmetic before player detail', () => {
+test('championship history prioritizes dynasty and rematch arithmetic', () => {
   const data = source();
   const article = articleFromChampionship(data.championHistory.at(-1)!);
   const facts = buildNarrativeHistoryFacts(article, data, buildNarrativeMemoryIndex(data), 8);
@@ -172,6 +172,5 @@ test('championship history prioritizes dynasty and rematch arithmetic before pla
   assert.match(text, /2年連続で日本一/);
   assert.match(text, /3年連続で日本一/);
   assert.match(text, /2030年の日本シリーズでも対戦/);
-  assert.ok(facts.some((fact) => fact.factRefs.some((ref) => ref.kind === 'TEAM_HISTORY')));
-  assert.ok(facts.findIndex((fact) => fact.id.includes('championship-gap')) < facts.findIndex((fact) => fact.id.includes('career')));
+  assert.ok(facts.slice(0, 3).every((fact) => fact.factRefs.some((ref) => ref.kind === 'TEAM_HISTORY')));
 });
