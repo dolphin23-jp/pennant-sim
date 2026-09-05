@@ -1,3 +1,5 @@
+import { migrateNarrativeEvents } from '../narrative/ledger';
+import type { NarrativeEvent, NarrativeEventLedger } from '../narrative/types';
 import { CENTRAL, PACIFIC, TINFO } from '../data';
 import {
   calcStandings,
@@ -112,6 +114,7 @@ export interface GameSaveData {
   achievementHistory: AchievementEvent[];
   gameSummaries?: Record<string, GameSummary>;
   gameBoxScores?: Record<string, GameBoxScore>;
+  narrativeEvents?: NarrativeEventLedger;
   ts?: number;
   uiVersion?: number;
 }
@@ -137,6 +140,8 @@ interface WindowWithStorage extends Window {
 }
 
 interface SeasonArchiveChunk {
+  /** Optional on pre-ledger v4 chunks; empty years preserve their original revision. */
+  narrativeEvents?: NarrativeEvent[];
   schemaVersion: typeof WORLD_ARCHIVE_SCHEMA_VERSION;
   year: number;
   yearlyStats: YearlyPlayerRecords[string];
@@ -572,7 +577,12 @@ function migrateChampionLineup(value: unknown): ChampionLineupEntry[] | undefine
       return [];
     }
     return [
-      { playerId: raw.playerId, playerName: raw.playerName, pos: raw.pos, isPitcher: raw.isPitcher },
+      {
+        playerId: raw.playerId,
+        playerName: raw.playerName,
+        pos: raw.pos,
+        isPitcher: raw.isPitcher,
+      },
     ];
   });
   return entries.length ? entries : undefined;
@@ -737,6 +747,7 @@ export function migrateSaveData(raw: unknown): GameSaveData | null {
     achievementHistory: migrateAchievementHistory(legacy.achievementHistory),
     gameSummaries: migrateGameSummaries(legacy.gameSummaries),
     gameBoxScores: migrateGameBoxScores(legacy.gameBoxScores),
+    narrativeEvents: migrateNarrativeEvents(legacy.narrativeEvents),
     ts: legacy.ts,
     uiVersion: 2,
   };
@@ -783,6 +794,9 @@ function buildSeasonArchives(data: GameSaveData): Map<number, SeasonArchiveChunk
   }
   for (const [gameId, boxScore] of Object.entries(data.gameBoxScores ?? {})) {
     getChunk(yearFromDate(boxScore.date, data.season.year)).gameBoxScores[gameId] = boxScore;
+  }
+  for (const [year, events] of Object.entries(data.narrativeEvents ?? {})) {
+    if (events.length) getChunk(Number(year)).narrativeEvents = events;
   }
   return chunks;
 }
@@ -835,6 +849,7 @@ function currentStateWithoutArchive(data: GameSaveData, timestamp: number): Game
     achievementHistory: [],
     gameSummaries: {},
     gameBoxScores: {},
+    narrativeEvents: {},
     ts: timestamp,
     uiVersion: 2,
   };
@@ -906,6 +921,14 @@ function migrateSeasonArchive(value: unknown, expectedYear: number): SeasonArchi
     achievementHistory: migrateAchievementHistory(raw.achievementHistory),
     gameSummaries: migrateGameSummaries(raw.gameSummaries),
     gameBoxScores: migrateGameBoxScores(raw.gameBoxScores),
+    ...(raw.narrativeEvents === undefined
+      ? {}
+      : {
+          narrativeEvents:
+            migrateNarrativeEvents({ [String(expectedYear)]: raw.narrativeEvents })[
+              String(expectedYear)
+            ] ?? [],
+        }),
   };
 }
 
@@ -1068,6 +1091,7 @@ async function loadPersistedSaveV4(
   const current = migrateSaveData(persisted.current);
   if (!current) throw new Error('Current-state portion of the save is unreadable.');
 
+  const narrativeEvents: NarrativeEventLedger = { ...current.narrativeEvents };
   const yearlyStats: YearlyPlayerRecords = {};
   const championHistory: ChampionRecord[] = [];
   const awardHistory: SeasonTitleRecord[] = [];
@@ -1088,6 +1112,9 @@ async function loadPersistedSaveV4(
     achievementHistory.push(...chunk.achievementHistory);
     Object.assign(gameSummaries, chunk.gameSummaries);
     Object.assign(gameBoxScores, chunk.gameBoxScores);
+    if (chunk.narrativeEvents?.length) {
+      narrativeEvents[yearKey] = [...(narrativeEvents[yearKey] ?? []), ...chunk.narrativeEvents];
+    }
   }
 
   const retiredEntries: RetiredPlayerArchiveEntry[] = [];
@@ -1120,6 +1147,7 @@ async function loadPersistedSaveV4(
     achievementHistory,
     gameSummaries,
     gameBoxScores,
+    narrativeEvents: migrateNarrativeEvents(narrativeEvents),
     ts: persisted.ts,
     uiVersion: 2,
   };

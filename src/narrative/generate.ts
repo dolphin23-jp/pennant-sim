@@ -1,3 +1,5 @@
+import { narrativeEventArticleId } from './ledger';
+import type { NarrativeEventLedger } from './types';
 import { TINFO } from '../data';
 import type { AchievementEvent, GameBoxScore, SeasonTitleRecord, TeamKey } from '../engine';
 import type { ChampionRecord } from '../state/storage';
@@ -23,6 +25,7 @@ export interface NarrativeSource {
   achievementHistory: AchievementEvent[];
   championHistory: ChampionRecord[];
   awardHistory: SeasonTitleRecord[];
+  narrativeEvents?: NarrativeEventLedger;
 }
 
 export interface NarrativeFeedResult {
@@ -68,7 +71,9 @@ function color(text: string): NarrativeSegment {
   return { class: 'COLOR', text, factRefs: [] };
 }
 
-function makeArticle(input: Omit<NarrativeArticle, 'generatorVersion' | 'factRefs'>): NarrativeArticle {
+function makeArticle(
+  input: Omit<NarrativeArticle, 'generatorVersion' | 'factRefs'>,
+): NarrativeArticle {
   return {
     ...input,
     generatorVersion: NARRATIVE_GENERATOR_VERSION,
@@ -121,10 +126,7 @@ export function articleFromGameBoxScore(box: GameBoxScore): NarrativeArticle {
 
   if (box.tie) {
     segments.push(
-      factual(
-        `${away.n}と${home.n}は${box.awayScore}-${box.homeScore}で引き分けた。`,
-        [resultRef],
-      ),
+      factual(`${away.n}と${home.n}は${box.awayScore}-${box.homeScore}で引き分けた。`, [resultRef]),
     );
   } else {
     const homeWon = box.homeScore > box.awayScore;
@@ -159,7 +161,8 @@ export function articleFromGameBoxScore(box: GameBoxScore): NarrativeArticle {
       factual(
         notable.map((event) => event.description).join('。') + '。',
         notable.flatMap((event) => {
-          if (event.type === 'walkoff' || event.type === 'walkoffHr') return [ref('WALK_OFF', box.gameId)];
+          if (event.type === 'walkoff' || event.type === 'walkoffHr')
+            return [ref('WALK_OFF', box.gameId)];
           if (event.type === 'comeback') return [ref('COMEBACK', box.gameId)];
           return [ref('PLAYER_GAME_LINE', box.gameId)];
         }),
@@ -195,17 +198,15 @@ export function articleFromAchievement(event: AchievementEvent): NarrativeArticl
   const info = TINFO[event.teamKey];
   const eventRef = ref('ACHIEVEMENT', event.id);
   const segments = [
-    factual(
-      `${info.n}の${event.playerName}が${event.metricLabel}${event.value}を記録した。`,
-      [eventRef],
-    ),
+    factual(`${info.n}の${event.playerName}が${event.metricLabel}${event.value}を記録した。`, [
+      eventRef,
+    ]),
   ];
   if (event.previousHolderName && event.previousValue != null) {
     segments.push(
-      factual(
-        `従来の記録は${event.previousHolderName}の${event.previousValue}だった。`,
-        [eventRef],
-      ),
+      factual(`従来の記録は${event.previousHolderName}の${event.previousValue}だった。`, [
+        eventRef,
+      ]),
     );
   }
 
@@ -270,7 +271,10 @@ export function articleFromChampionship(record: ChampionRecord): NarrativeArticl
   });
 }
 
-export function articleFromSeasonAwards(year: number, records: SeasonTitleRecord[]): NarrativeArticle {
+export function articleFromSeasonAwards(
+  year: number,
+  records: SeasonTitleRecord[],
+): NarrativeArticle {
   const sorted = records
     .slice()
     .sort((first, second) =>
@@ -282,21 +286,28 @@ export function articleFromSeasonAwards(year: number, records: SeasonTitleRecord
   const refs = sorted.map((record) =>
     ref('SEASON_TITLE', `${record.year}:${record.league}:${record.titleId}:${record.playerId}`),
   );
-  const leagueText = (league: SeasonTitleRecord['league'], label: string): NarrativeSegment | null => {
+  const leagueText = (
+    league: SeasonTitleRecord['league'],
+    label: string,
+  ): NarrativeSegment | null => {
     const rows = sorted.filter((record) => record.league === league);
     if (!rows.length) return null;
     return factual(
       `${label}：${rows
-        .map((record) => `${record.titleLabel} ${record.playerName}（${TINFO[record.teamKey].ab}、${record.displayValue}）`)
+        .map(
+          (record) =>
+            `${record.titleLabel} ${record.playerName}（${TINFO[record.teamKey].ab}、${record.displayValue}）`,
+        )
         .join(' / ')}`,
       rows.map((record) =>
         ref('SEASON_TITLE', `${record.year}:${record.league}:${record.titleId}:${record.playerId}`),
       ),
     );
   };
-  const segments = [leagueText('central', 'セ・リーグ'), leagueText('pacific', 'パ・リーグ')].filter(
-    (segment): segment is NarrativeSegment => segment !== null,
-  );
+  const segments = [
+    leagueText('central', 'セ・リーグ'),
+    leagueText('pacific', 'パ・リーグ'),
+  ].filter((segment): segment is NarrativeSegment => segment !== null);
 
   return makeArticle({
     id: `season-awards:${year}`,
@@ -334,10 +345,22 @@ function articleFromTransaction(event: TransactionNarrativeEvent): NarrativeArti
     sentence = `${event.playerName}が現役を引退した。`;
   }
   const eventRef = ref('TRANSACTION', event.id);
+  if (event.movements?.length) {
+    headline = `${unique(event.movements.map((m) => TINFO[m.fromTeamKey].n)).join('と')}のトレードが成立`;
+    sentence = event.movements
+      .map(
+        (m) => `${m.playerName}が${TINFO[m.fromTeamKey].n}から${TINFO[m.toTeamKey].n}へ移籍した。`,
+      )
+      .join('');
+  }
   const segments = [factual(sentence, [eventRef])];
+  if (event.cashAmountManYen)
+    segments.push(factual(`金銭${event.cashAmountManYen}万円を含むトレードとなった。`, [eventRef]));
+  if (event.exitReason === 'mlbTransfer')
+    segments.push(factual('MLBへの移籍に伴い退団した。', [eventRef]));
   if (event.terms) segments.push(factual(event.terms, [eventRef]));
   return makeArticle({
-    id: `transaction:${event.id}`,
+    id: narrativeEventArticleId(event),
     kind: 'transaction',
     year: event.year,
     publishedAt: event.date,
@@ -345,9 +368,13 @@ function articleFromTransaction(event: TransactionNarrativeEvent): NarrativeArti
     viewMode: 'archival',
     headline,
     teamKeys: unique(
-      [event.fromTeamKey, event.toTeamKey].filter((key): key is TeamKey => Boolean(key)),
+      [
+        event.fromTeamKey,
+        event.toTeamKey,
+        ...(event.movements ?? []).flatMap((m) => [m.fromTeamKey, m.toTeamKey]),
+      ].filter((key): key is TeamKey => Boolean(key)),
     ),
-    playerIds: [event.playerId],
+    playerIds: unique([event.playerId, ...(event.movements ?? []).map((m) => m.playerId)]),
     segments,
   });
 }
@@ -358,7 +385,7 @@ function articleFromDraft(event: DraftNarrativeEvent): NarrativeArticle {
   const origin = event.origin ? `、${event.origin}` : '';
   const eventRef = ref('DRAFT_SELECTION', event.id);
   return makeArticle({
-    id: `draft:${event.id}`,
+    id: narrativeEventArticleId(event),
     kind: 'draft',
     year: event.year,
     publishedAt: event.date,
@@ -386,7 +413,7 @@ function articleFromCareer(event: CareerNarrativeEvent): NarrativeArticle {
     retirement: '引退',
   };
   return makeArticle({
-    id: `career:${event.id}`,
+    id: narrativeEventArticleId(event),
     kind: 'career',
     year: event.year,
     publishedAt: event.date,
@@ -395,13 +422,18 @@ function articleFromCareer(event: CareerNarrativeEvent): NarrativeArticle {
     headline: `${event.playerName} ― ${label[event.careerKind]}`,
     teamKeys: [event.teamKey],
     playerIds: [event.playerId],
-    segments: [factual(event.detail, [eventRef])],
+    segments: [
+      factual(
+        event.detail ?? `${event.playerName}の故障による離脱期間が終了し、出場可能になった。`,
+        [eventRef],
+      ),
+    ],
   });
 }
 
 function articleFromSeasonReview(event: SeasonReviewNarrativeEvent): NarrativeArticle {
   const team = TINFO[event.teamKey];
-  const standingRef = ref('SEASON_STANDING', `${event.year}:${event.teamKey}`);
+  const standingRef = ref('SEASON_STANDING', event.id);
   const segments: NarrativeSegment[] = [
     factual(
       `${team.n}は${event.year}年を${event.rank}位、${event.wins}勝${event.losses}敗${event.draws}分で終えた。`,
@@ -409,7 +441,7 @@ function articleFromSeasonReview(event: SeasonReviewNarrativeEvent): NarrativeAr
     ),
   ];
   if (event.champion) {
-    segments.push(factual('日本シリーズを制し、日本一となった。', [ref('CHAMPIONSHIP', String(event.year))]));
+    segments.push(factual('日本シリーズを制し、日本一となった。', [standingRef]));
   }
   if (event.titleHolders?.length) {
     segments.push(
@@ -417,15 +449,13 @@ function articleFromSeasonReview(event: SeasonReviewNarrativeEvent): NarrativeAr
         `個人タイトル：${event.titleHolders
           .map((entry) => `${entry.titleLabel} ${entry.playerName}`)
           .join('、')}。`,
-        event.titleHolders.map((entry) =>
-          ref('SEASON_TITLE', `${event.year}:${entry.titleLabel}:${entry.playerId}`),
-        ),
+        [standingRef],
       ),
     );
   }
   segments.push(color('ひとつのシーズンが、球団史の一頁になった。'));
   return makeArticle({
-    id: `season-review:${event.id}`,
+    id: narrativeEventArticleId(event),
     kind: 'seasonReview',
     year: event.year,
     publishedAt: event.date,
@@ -442,7 +472,7 @@ function articleFromInjury(event: InjuryNarrativeEvent): NarrativeArticle {
   const severityLabel = { light: '軽傷', mid: '中程度', heavy: '重傷' }[event.severity];
   const eventRef = ref('INJURY', event.id);
   return makeArticle({
-    id: `injury:${event.id}`,
+    id: narrativeEventArticleId(event),
     kind: 'injury',
     year: event.year,
     publishedAt: event.date,
@@ -451,23 +481,39 @@ function articleFromInjury(event: InjuryNarrativeEvent): NarrativeArticle {
     headline: `${event.playerName}が離脱、${severityLabel}`,
     teamKeys: [event.teamKey],
     playerIds: [event.playerId],
-    segments: [factual(`${event.playerName}は${severityLabel}で、離脱見込みは${event.days}日。`, [eventRef])],
+    segments: [
+      factual(`${event.playerName}は${severityLabel}で、離脱見込みは${event.days}日。`, [eventRef]),
+    ],
   });
 }
 
 function articleFromDevelopment(event: DevelopmentNarrativeEvent): NarrativeArticle {
   const eventRef = ref('DEVELOPMENT', event.id);
   return makeArticle({
-    id: `development:${event.id}`,
+    id: narrativeEventArticleId(event),
     kind: 'development',
     year: event.year,
     publishedAt: event.date,
     asOfDate: normalizeAsOfDate(event.date, event.year),
     viewMode: 'archival',
-    headline: `${event.playerName}に成長の兆し`,
+    headline:
+      event.developmentKind === 'awakening'
+        ? `${event.playerName}が${event.isBreakthrough ? '大覚醒' : '覚醒'}`
+        : event.developmentKind === 'growth'
+          ? `${event.playerName}の能力が変化`
+          : `${event.playerName}に成長の兆し`,
     teamKeys: [event.teamKey],
     playerIds: [event.playerId],
-    segments: [factual(event.detail, [eventRef])],
+    segments: [
+      factual(
+        event.developmentKind === 'growth'
+          ? `${event.playerName}のOVRは${event.ovrBefore}から${event.ovrAfter}になった。`
+          : event.developmentKind === 'awakening'
+            ? `${event.playerName}に${event.isBreakthrough ? '大覚醒' : '覚醒'}が発生した。${event.newSpecial ? `特殊能力「${event.newSpecial}」を獲得した。` : ''}`
+            : (event.detail ?? ''),
+        [eventRef],
+      ),
+    ],
   });
 }
 
@@ -545,7 +591,34 @@ function awardCandidates(records: SeasonTitleRecord[]): ArticleCandidate[] {
   }));
 }
 
+function eventCandidate(event: FutureNarrativeEvent): ArticleCandidate {
+  const playerIds =
+    event.type === 'seasonReview'
+      ? (event.titleHolders ?? []).map((p) => p.playerId)
+      : event.type === 'transaction'
+        ? [event.playerId, ...(event.movements ?? []).map((m) => m.playerId)]
+        : [event.playerId];
+  const teamKeys =
+    event.type === 'transaction'
+      ? [
+          event.fromTeamKey,
+          event.toTeamKey,
+          ...(event.movements ?? []).flatMap((m) => [m.fromTeamKey, m.toTeamKey]),
+        ].filter((key): key is TeamKey => Boolean(key))
+      : [event.teamKey];
+  return {
+    id: narrativeEventArticleId(event),
+    kind: event.type,
+    year: event.year,
+    asOfDate: normalizeAsOfDate(event.date, event.year),
+    teamKeys: unique(teamKeys),
+    playerIds: unique(playerIds),
+    create: () => articleFromFutureEvent(event),
+  };
+}
+
 function candidateMatches(candidate: ArticleCandidate, filter: NarrativeFeedFilter): boolean {
+  if (filter.asOfDate && candidate.asOfDate > filter.asOfDate) return false;
   if (filter.kinds?.length && !filter.kinds.includes(candidate.kind)) return false;
   if (filter.teamKey && !candidate.teamKeys.includes(filter.teamKey)) return false;
   if (filter.playerId && !candidate.playerIds.includes(filter.playerId)) return false;
@@ -562,13 +635,19 @@ export function buildNarrativeFeed(
   source: NarrativeSource,
   filter: NarrativeFeedFilter = {},
 ): NarrativeFeedResult {
+  const uniqueIds = new Set<string>();
   const candidates: ArticleCandidate[] = [
     ...Object.values(source.gameBoxScores).map(gameCandidate),
     ...source.achievementHistory.map(achievementCandidate),
     ...source.championHistory.map(championshipCandidate),
     ...awardCandidates(source.awardHistory),
+    ...Object.values(source.narrativeEvents ?? {}).flatMap((events) => events.map(eventCandidate)),
   ]
-    .filter((candidate) => candidateMatches(candidate, filter))
+    .filter((candidate) => {
+      if (uniqueIds.has(candidate.id) || !candidateMatches(candidate, filter)) return false;
+      uniqueIds.add(candidate.id);
+      return true;
+    })
     .sort((first, second) => {
       const dateOrder = second.asOfDate.localeCompare(first.asOfDate);
       return dateOrder || second.id.localeCompare(first.id);

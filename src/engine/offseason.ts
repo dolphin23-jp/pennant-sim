@@ -1,3 +1,5 @@
+import { emitRosterExits } from './narrativeEvents';
+import type { NarrativeEvent, NarrativeEventContext } from '../narrative/types';
 import { CENTRAL, FOREIGN_PLAYER_BALANCE, MATURITY_PEAK_AGE, PACIFIC } from '../data';
 import { runCpuDraft, type DraftPick } from './draft';
 import { foreignPerformanceMultiplier, isForeignPlayer } from './foreign';
@@ -69,6 +71,7 @@ export interface AutomatedOffseasonResult {
   foreignRenewals: number;
   foreignReleases: number;
   mlbTransfers: number;
+  narrativeEvents: NarrativeEvent[];
 }
 
 const DEFAULTS = {
@@ -136,6 +139,7 @@ export function reviewForeignPlayers(
   teams: Teams,
   seasonStats: AccumulatedStats = {},
   year = 2026,
+  context?: NarrativeEventContext,
 ): {
   teams: Teams;
   exits: RosterExit[];
@@ -242,6 +246,7 @@ export function reviewForeignPlayers(
       fielders: team.fielders.map(review).filter((player): player is Player => player !== null),
     };
   }
+  emitRosterExits(context, exits);
   return { teams: next, exits, events };
 }
 
@@ -344,6 +349,7 @@ function resolvedOptions(options: CpuRosterOptions): Required<
 export function prepareCpuRostersForDraft(
   teams: Teams,
   options: CpuRosterOptions = {},
+  context?: NarrativeEventContext,
 ): { teams: Teams; exits: RosterExit[] } {
   const resolved = resolvedOptions(options);
   const next = { ...teams };
@@ -374,12 +380,14 @@ export function prepareCpuRostersForDraft(
     next[teamKey] = result.team;
     exits.push(...result.exits);
   }
+  emitRosterExits(context, exits);
   return { teams: next, exits };
 }
 
 export function finalizeCpuRosters(
   teams: Teams,
   options: CpuRosterOptions = {},
+  context?: NarrativeEventContext,
 ): { teams: Teams; exits: RosterExit[] } {
   const resolved = resolvedOptions(options);
   const next = { ...teams };
@@ -398,6 +406,7 @@ export function finalizeCpuRosters(
     next[teamKey] = result.team;
     exits.push(...result.exits);
   }
+  emitRosterExits(context, exits);
   return { teams: next, exits };
 }
 
@@ -406,9 +415,15 @@ export function runAutomatedOffseason(
   options: CpuRosterOptions = {},
 ): AutomatedOffseasonResult {
   const resolved = resolvedOptions(options);
-  const foreignReview = reviewForeignPlayers(teams, resolved.seasonStats, resolved.year);
-  const growth = growthPhase(foreignReview.teams);
-  const prepared = prepareCpuRostersForDraft(growth.teams, resolved);
+  const narrativeEvents: NarrativeEvent[] = [];
+  const context: NarrativeEventContext = {
+    year: resolved.year,
+    date: `${resolved.year}年オフ`,
+    emit: (e) => narrativeEvents.push(e),
+  };
+  const foreignReview = reviewForeignPlayers(teams, resolved.seasonStats, resolved.year, context);
+  const growth = growthPhase(foreignReview.teams, context);
+  const prepared = prepareCpuRostersForDraft(growth.teams, resolved, context);
   const freeAgents = genFreeAgentMarket();
   const foreignPlayers = genForeignMarket(resolved.year + 1);
   const afterFreeAgents = cpuAutoSignMarketRounds(
@@ -417,6 +432,7 @@ export function runAutomatedOffseason(
     'fa',
     4,
     resolved.excludedTeam,
+    context,
   );
   const afterForeign = cpuAutoSignMarketRounds(
     afterFreeAgents.teams,
@@ -424,10 +440,12 @@ export function runAutomatedOffseason(
     'foreign',
     4,
     resolved.excludedTeam,
+    context,
   );
-  const draft = runCpuDraft(afterForeign.teams, resolved.draftRounds);
-  const finalized = finalizeCpuRosters(draft.teams, resolved);
+  const draft = runCpuDraft(afterForeign.teams, resolved.draftRounds, context);
+  const finalized = finalizeCpuRosters(draft.teams, resolved, context);
   return {
+    narrativeEvents,
     teams: finalized.teams,
     growthTeams: growth.teams,
     awakeningEvents: growth.awakeEvents,
@@ -439,5 +457,40 @@ export function runAutomatedOffseason(
     foreignRenewals: foreignReview.events.filter((event) => event.type === 'renewed').length,
     foreignReleases: foreignReview.events.filter((event) => event.type === 'released').length,
     mlbTransfers: foreignReview.events.filter((event) => event.type === 'mlbTransfer').length,
+  };
+}
+
+/** Called by the user-retirement command, before removing the explicitly selected players. */
+export function retirePlayers(
+  teams: Teams,
+  teamKey: TeamKey,
+  ids: readonly string[],
+  context?: NarrativeEventContext,
+) {
+  const selected = new Set(ids);
+  const team = teams[teamKey];
+  const removed = [...team.pitchers, ...team.fielders].filter((p) => selected.has(p.id));
+  for (const player of removed)
+    context?.emit({
+      type: 'transaction',
+      id: `transaction:retirement:${context.year}:${teamKey}:${player.id}`,
+      year: context.year,
+      date: context.date,
+      transactionKind: 'retirement',
+      playerId: player.id,
+      playerName: player.name,
+      fromTeamKey: teamKey,
+      exitReason: 'userRetirement',
+    });
+  return {
+    teams: {
+      ...teams,
+      [teamKey]: {
+        ...team,
+        pitchers: team.pitchers.filter((p) => !selected.has(p.id)),
+        fielders: team.fielders.filter((p) => !selected.has(p.id)),
+      },
+    },
+    retiredPlayers: removed,
   };
 }

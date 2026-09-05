@@ -300,6 +300,7 @@ export interface InSeasonAwakeningEvent {
 export interface PostGameEvents {
   awakenings: InSeasonAwakeningEvent[];
   injuries: InjuryEvent[];
+  recoveries?: Array<{ teamKey: TeamKey; playerId: string; name: string }>;
 }
 export interface DatedPostGameEvents {
   date: string;

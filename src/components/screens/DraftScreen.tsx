@@ -1,3 +1,4 @@
+import type { NarrativeEvent, NarrativeEventContext } from '../../narrative/types';
 import { useState } from 'react';
 
 import { TINFO } from '../../data';
@@ -58,24 +59,33 @@ export function DraftScreen({
   playerTeam,
   order,
   onComplete,
+  narrativeYear,
 }: {
   teams: Teams;
   playerTeam: TeamKey;
   order: TeamKey[];
-  onComplete(teams: Teams, picks: DraftPick[]): void;
+  onComplete(teams: Teams, picks: DraftPick[], events: NarrativeEvent[]): void;
+  narrativeYear?: number;
 }) {
   const [round, setRound] = useState(1);
   const [prospects, setProspects] = useState<Player[]>(() => generateDraftProspects());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [picks, setPicks] = useState<DraftPick[]>([]);
-  const [pendingFirstRoundTeams, setPendingFirstRoundTeams] = useState<TeamKey[]>(() => [
-    ...order,
-  ]);
+  const [pendingFirstRoundTeams, setPendingFirstRoundTeams] = useState<TeamKey[]>(() => [...order]);
   const [firstRoundMessage, setFirstRoundMessage] = useState('');
   const selected = prospects.find((player) => player.id === selectedId) ?? null;
 
   const complete = (finalPicks: DraftPick[]) => {
-    onComplete(applyDraftPicks(teams, finalPicks), finalPicks);
+    const events: NarrativeEvent[] = [];
+    const context: NarrativeEventContext | undefined =
+      narrativeYear == null
+        ? undefined
+        : {
+            year: narrativeYear,
+            date: `${narrativeYear}年オフ`,
+            emit: (event) => events.push(event),
+          };
+    onComplete(applyDraftPicks(teams, finalPicks, context), finalPicks, events);
   };
 
   const makePick = () => {

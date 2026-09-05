@@ -1,6 +1,6 @@
-import type { TeamKey } from '../engine';
+import type { GrowthChange, PlayerParams, TeamKey } from '../engine/types';
 
-export const NARRATIVE_GENERATOR_VERSION = 1 as const;
+export const NARRATIVE_GENERATOR_VERSION = 2 as const;
 
 /**
  * Every sentence belongs to one of three editorial classes.
@@ -77,14 +77,11 @@ export interface NarrativeFeedFilter {
   year?: number;
   limit?: number;
   offset?: number;
+  asOfDate?: string;
 }
 
 export type TransactionNarrativeKind =
-  | 'trade'
-  | 'faSigning'
-  | 'foreignSigning'
-  | 'release'
-  | 'retirement';
+  'trade' | 'faSigning' | 'foreignSigning' | 'release' | 'retirement';
 
 export interface TransactionNarrativeEvent {
   type: 'transaction';
@@ -98,6 +95,15 @@ export interface TransactionNarrativeEvent {
   toTeamKey?: TeamKey | null;
   /** Optional already-resolved factual terms. Never inferred by the writer. */
   terms?: string | null;
+  /** One trade is one event, including every player on both sides. */
+  movements?: Array<{
+    playerId: string;
+    playerName: string;
+    fromTeamKey: TeamKey;
+    toTeamKey: TeamKey;
+  }>;
+  cashAmountManYen?: number;
+  exitReason?: string;
 }
 
 export interface DraftNarrativeEvent {
@@ -114,13 +120,9 @@ export interface DraftNarrativeEvent {
 }
 
 export type CareerNarrativeKind =
-  | 'debut'
-  | 'roleChange'
-  | 'returnFromInjury'
-  | 'breakthrough'
-  | 'retirement';
+  'debut' | 'roleChange' | 'returnFromInjury' | 'breakthrough' | 'retirement';
 
-export interface CareerNarrativeEvent {
+interface CareerNarrativeBase {
   type: 'career';
   id: string;
   year: number;
@@ -130,8 +132,13 @@ export interface CareerNarrativeEvent {
   playerId: string;
   playerName: string;
   /** A factual description produced by the subsystem that owns the event. */
-  detail: string;
+  detail?: string;
+  /** Recovery means injury eligibility cleared, not an appearance in a game. */
+  injuryDaysBefore?: number;
 }
+
+export type CareerNarrativeEvent = CareerNarrativeBase &
+  ({ detail: string } | { careerKind: 'returnFromInjury'; injuryDaysBefore: 1; detail?: never });
 
 export interface SeasonReviewNarrativeEvent {
   type: 'seasonReview';
@@ -159,7 +166,7 @@ export interface InjuryNarrativeEvent {
   severity: 'light' | 'mid' | 'heavy';
 }
 
-export interface DevelopmentNarrativeEvent {
+interface DevelopmentNarrativeBase {
   type: 'development';
   id: string;
   year: number;
@@ -167,8 +174,34 @@ export interface DevelopmentNarrativeEvent {
   teamKey: TeamKey;
   playerId: string;
   playerName: string;
-  detail: string;
+  /** Legacy explicitly supplied fact description; new emitters use numeric facts. */
+  detail?: string;
+  developmentKind?: 'growth' | 'awakening';
+  ovrBefore?: number;
+  ovrAfter?: number;
+  changes?: GrowthChange[];
+  boosts?: Array<{ param: keyof PlayerParams; boost: number }>;
+  isBreakthrough?: boolean;
+  newSpecial?: string | null;
 }
+
+export type DevelopmentNarrativeEvent = DevelopmentNarrativeBase &
+  (
+    | { developmentKind?: undefined; detail: string }
+    | {
+        developmentKind: 'growth';
+        ovrBefore: number;
+        ovrAfter: number;
+        changes: GrowthChange[];
+        detail?: never;
+      }
+    | {
+        developmentKind: 'awakening';
+        boosts: Array<{ param: keyof PlayerParams; boost: number }>;
+        isBreakthrough: boolean;
+        detail?: never;
+      }
+  );
 
 export type FutureNarrativeEvent =
   | TransactionNarrativeEvent
@@ -177,3 +210,16 @@ export type FutureNarrativeEvent =
   | SeasonReviewNarrativeEvent
   | InjuryNarrativeEvent
   | DevelopmentNarrativeEvent;
+
+export type NarrativeEvent = FutureNarrativeEvent;
+/** In memory and portable exports are year keyed; v4 stores each year in its chunk. */
+export type NarrativeEventLedger = Record<string, NarrativeEvent[]>;
+
+/** Optional observation channel. Emitters must never consume simulation randomness. */
+export interface NarrativeEventContext {
+  year: number;
+  date: string;
+  /** Stable command/batch key when a subsystem can run more than once per year. */
+  scope?: string;
+  emit(event: NarrativeEvent): void;
+}

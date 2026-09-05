@@ -23,5 +23,7 @@ jobs:
         run: npm run lint
       - name: Test
         run: npm test
+      - name: Narrative ledger 30/100-year audit
+        run: npm run test:narrative:long
       - name: Build
         run: npm run build

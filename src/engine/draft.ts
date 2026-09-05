@@ -1,3 +1,4 @@
+import type { NarrativeEventContext } from '../narrative/types';
 import { CENTRAL, FIELD_POSITIONS, PACIFIC, PLAYER_DEVELOPMENT_BALANCE } from '../data';
 import { generateBatter, generatePitcher } from './players';
 import { gaussian, random, randomChoice, randomInt } from './random';
@@ -323,19 +324,43 @@ export function cpuDraftPick(team: Team, prospects: Player[]): Player | undefine
   )[0];
 }
 
-export function applyDraftPicks(teams: Teams, picks: DraftPick[]): Teams {
+export function applyDraftPicks(
+  teams: Teams,
+  picks: DraftPick[],
+  context?: NarrativeEventContext,
+): Teams {
   const next = { ...teams };
   for (const pick of picks) {
+    if (
+      Object.values(next).some((t) => [...t.pitchers, ...t.fielders].some((p) => p.id === pick.id))
+    )
+      continue;
     const team = { ...next[pick.teamKey] };
     const signed = { ...pick, tk: pick.teamKey, rookieSeason: true };
     if (signed.isP) team.pitchers = [...team.pitchers, signed];
     else team.fielders = [...team.fielders, signed];
     next[pick.teamKey] = team;
+    if (context)
+      context.emit({
+        type: 'draft',
+        id: `draft:${context.year}:${pick.teamKey}:${pick.round}:${pick.id}`,
+        year: context.year,
+        date: context.date,
+        teamKey: pick.teamKey,
+        playerId: pick.id,
+        playerName: pick.name,
+        round: pick.round,
+        origin: pick.draftOrigin,
+      });
   }
   return next;
 }
 
-export function runCpuDraft(teams: Teams, rounds = 6): { teams: Teams; picks: DraftPick[] } {
+export function runCpuDraft(
+  teams: Teams,
+  rounds = 6,
+  context?: NarrativeEventContext,
+): { teams: Teams; picks: DraftPick[] } {
   const order = draftOrder(teams);
   let prospects = generateDraftProspects();
   let nextTeams = teams;
@@ -345,7 +370,7 @@ export function runCpuDraft(teams: Teams, rounds = 6): { teams: Teams; picks: Dr
     const wave = resolveFirstRoundWave(nextTeams, prospects, unresolved);
     if (!wave.picks.length) throw new Error('Draft first-round bidding could not resolve.');
     picks.push(...wave.picks);
-    nextTeams = applyDraftPicks(nextTeams, wave.picks);
+    nextTeams = applyDraftPicks(nextTeams, wave.picks, context);
     const wonIds = new Set(wave.picks.map((pick) => pick.id));
     prospects = prospects.filter((prospect) => !wonIds.has(prospect.id));
     unresolved = wave.unresolvedTeams;
@@ -356,7 +381,7 @@ export function runCpuDraft(teams: Teams, rounds = 6): { teams: Teams; picks: Dr
       if (!selected) throw new Error(`Draft pool exhausted in round ${round}.`);
       const pick = { ...selected, teamKey, round };
       picks.push(pick);
-      nextTeams = applyDraftPicks(nextTeams, [pick]);
+      nextTeams = applyDraftPicks(nextTeams, [pick], context);
       prospects = prospects.filter((prospect) => prospect.id !== selected.id);
     }
   }

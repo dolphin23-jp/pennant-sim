@@ -1,3 +1,7 @@
+import { appendNarrativeEvents } from '../narrative/ledger';
+import { resumeSeasonScreen } from './seasonProgress';
+import type { NarrativeEvent, NarrativeEventLedger } from '../narrative/types';
+import { narrativeEventsFromPostGame, seasonReviewEvents } from '../engine/narrativeEvents';
 import {
   createContext,
   useCallback,
@@ -85,6 +89,7 @@ interface RuntimeState {
   championHistory: ChampionRecord[];
   awardHistory: SeasonTitleRecord[];
   achievementHistory: AchievementEvent[];
+  narrativeEvents: NarrativeEventLedger;
   lastGame: GameState | null;
   selectedPlayer: Player | null;
   gameSummaries: Record<string, GameSummary>;
@@ -113,8 +118,13 @@ interface GameContextValue extends RuntimeState {
    * selected player in sync so an open detail modal reflects the edit immediately. */
   updatePlayer(player: Player): void;
   toggleDebugMode(): void;
-  completeOffseason(teams: Teams, developmentNotices?: Notice[]): void;
-  recordChampionship(champion: TeamKey, runnerUp: TeamKey): void;
+  completeOffseason(
+    teams: Teams,
+    developmentNotices?: Notice[],
+    events?: NarrativeEvent[],
+    retired?: Player[],
+  ): void;
+  recordChampionship(champion: TeamKey, runnerUp: TeamKey, events?: NarrativeEvent[]): void;
 }
 
 const DEBUG_MODE_KEY = 'pennant-sim:debugMode';
@@ -141,6 +151,7 @@ const initialState: RuntimeState = {
   championHistory: [],
   awardHistory: [],
   achievementHistory: [],
+  narrativeEvents: {},
   lastGame: null,
   selectedPlayer: null,
   gameSummaries: {},
@@ -189,6 +200,7 @@ function snapshotFromState(state: RuntimeState): GameSaveData | null {
     championHistory: state.championHistory,
     awardHistory: state.awardHistory,
     achievementHistory: state.achievementHistory,
+    narrativeEvents: state.narrativeEvents,
     gameSummaries: state.gameSummaries,
     gameBoxScores: state.gameBoxScores,
     uiVersion: 1,
@@ -255,14 +267,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
           saved.lineup.length || !saved.playerTeam
             ? saved.lineup
             : bestLineup(saved.teams[saved.playerTeam]);
-        const seasonOver =
-          saved.season.schedule.length > 0 && saved.season.schedule.every((game) => game.played);
         setState({
           ...initialState,
           ...saved,
+          narrativeEvents: saved.narrativeEvents ?? {},
           lineup,
           loading: false,
-          screen: seasonOver ? 'postseason' : saved.playerTeam ? 'season' : 'teamSelect',
+          screen: resumeSeasonScreen(saved),
           lastGame: null,
           selectedPlayer: null,
           selectedGameId: null,
@@ -322,6 +333,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         championHistory: history.championHistory,
         gameSummaries: prepared.gameSummaries,
         gameBoxScores: prepared.gameBoxScores,
+        narrativeEvents: appendNarrativeEvents({}, prepared.narrativeEvents),
         notices: [
           {
             id: `system:2026:start:${teamKey}`,
@@ -425,6 +437,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
         careerAccumulated,
         leagueCareerAccumulated: finalCareerLeagueStats,
         achievementHistory: [...current.achievementHistory, ...achievements],
+        narrativeEvents: appendNarrativeEvents(current.narrativeEvents, [
+          ...narrativeEventsFromPostGame(nextGame.id, nextGame.date, result.postGameEvents),
+          ...prepared.narrativeEvents,
+        ]),
         gameSummaries: {
           ...current.gameSummaries,
           [nextGame.id]: toSummary(playerGameBox),
@@ -502,6 +518,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         careerAccumulated: mergeStats(current.careerAccumulated, result.distStats),
         leagueCareerAccumulated,
         achievementHistory: [...current.achievementHistory, ...achievements],
+        narrativeEvents: appendNarrativeEvents(current.narrativeEvents, result.narrativeEvents),
         gameSummaries: { ...current.gameSummaries, ...result.gameSummaries },
         gameBoxScores: { ...current.gameBoxScores, ...result.gameBoxScores },
         notices: mergeNotices(current.notices, [
@@ -539,107 +556,137 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return {
         ...current,
         teams,
-        selectedPlayer: current.selectedPlayer?.id === updated.id ? updated : current.selectedPlayer,
+        selectedPlayer:
+          current.selectedPlayer?.id === updated.id ? updated : current.selectedPlayer,
       };
     });
   }, []);
 
-  const completeOffseason = useCallback((teams: Teams, developmentNotices: Notice[] = []) => {
-    setState((current) => {
-      if (!current.playerTeam) return current;
-      const completedYear = current.season.year;
-      const seasonRecords = current.teams
-        ? createPlayerSeasonRecords(completedYear, current.teams, current.leagueAccumulated)
-        : [];
-      const seasonTitles = current.teams
-        ? selectSeasonTitles(
-            completedYear,
-            current.teams,
-            current.leagueAccumulated,
-            Object.fromEntries(
-              Object.entries(current.standings).map(([teamKey, standing]) => [teamKey, standing.g]),
+  const completeOffseason = useCallback(
+    (
+      teams: Teams,
+      developmentNotices: Notice[] = [],
+      events: NarrativeEvent[] = [],
+      retired: Player[] = [],
+    ) => {
+      setState((current) => {
+        if (!current.playerTeam) return current;
+        // A duplicate completion callback belongs to the already committed old year.
+        if (events.some((event) => event.year !== current.season.year)) return current;
+        const completedYear = current.season.year;
+        const seasonRecords = current.teams
+          ? createPlayerSeasonRecords(completedYear, current.teams, current.leagueAccumulated)
+          : [];
+        const seasonTitles = current.teams
+          ? selectSeasonTitles(
+              completedYear,
+              current.teams,
+              current.leagueAccumulated,
+              Object.fromEntries(
+                Object.entries(current.standings).map(([teamKey, standing]) => [
+                  teamKey,
+                  standing.g,
+                ]),
+              ),
+            )
+          : [];
+        const year = completedYear + 1;
+        const schedule = generateSchedule(year);
+        const prepared = simCpuUntilNext(
+          schedule,
+          teams,
+          createEmptyRotations(),
+          current.playerTeam,
+          {},
+          {},
+        );
+        const next: RuntimeState = {
+          ...current,
+          teams,
+          narrativeEvents: appendNarrativeEvents(current.narrativeEvents, [
+            ...events,
+            ...seasonReviewEvents(
+              completedYear,
+              current.standings,
+              current.championHistory.find((c) => c.year === completedYear)?.champion,
             ),
-          )
-        : [];
-      const year = completedYear + 1;
-      const schedule = generateSchedule(year);
-      const prepared = simCpuUntilNext(
-        schedule,
-        teams,
-        createEmptyRotations(),
-        current.playerTeam,
-        {},
-        {},
-      );
-      const next: RuntimeState = {
-        ...current,
-        teams,
-        screen: 'season',
-        season: { year, schedule: prepared.sched },
-        rotN: prepared.rotN,
-        lineup: bestLineup(teams[current.playerTeam]),
-        standings: calcStandings(prepared.sched),
-        accumulated: {},
-        leagueAccumulated: prepared.leagueDistStats,
-        yearlyStats: {
-          ...current.yearlyStats,
-          [String(completedYear)]: seasonRecords,
-        },
-        awardHistory: [
-          ...current.awardHistory.filter((record) => record.year !== completedYear),
-          ...seasonTitles,
-        ],
-        gameSummaries: { ...current.gameSummaries, ...prepared.gameSummaries },
-        gameBoxScores: { ...current.gameBoxScores, ...prepared.gameBoxScores },
-        notices: mergeNotices(current.notices, developmentNotices),
-        lastGame: null,
-      };
-      autosave(next);
-      return next;
-    });
-  }, []);
+            ...prepared.narrativeEvents,
+          ]),
+          retiredPlayers: [
+            ...new Map([...current.retiredPlayers, ...retired].map((p) => [p.id, p])).values(),
+          ],
+          screen: 'season',
+          season: { year, schedule: prepared.sched },
+          rotN: prepared.rotN,
+          lineup: bestLineup(teams[current.playerTeam]),
+          standings: calcStandings(prepared.sched),
+          accumulated: {},
+          leagueAccumulated: prepared.leagueDistStats,
+          yearlyStats: {
+            ...current.yearlyStats,
+            [String(completedYear)]: seasonRecords,
+          },
+          awardHistory: [
+            ...current.awardHistory.filter((record) => record.year !== completedYear),
+            ...seasonTitles,
+          ],
+          gameSummaries: { ...current.gameSummaries, ...prepared.gameSummaries },
+          gameBoxScores: { ...current.gameBoxScores, ...prepared.gameBoxScores },
+          notices: mergeNotices(current.notices, developmentNotices),
+          lastGame: null,
+        };
+        autosave(next);
+        return next;
+      });
+    },
+    [],
+  );
 
-  const recordChampionship = useCallback((champion: TeamKey, runnerUp: TeamKey) => {
-    setState((current) => {
-      if (!current.teams) return current;
-      const team = current.teams[champion];
-      const lineup = bestLineup(team).map((player) => ({
-        playerId: player.id,
-        playerName: player.name,
-        pos: player._assignedPos ?? player.pos ?? '',
-        isPitcher: player.isP,
-      }));
-      const teamStats = aggregateTeamStats(team, current.leagueAccumulated);
-      const standing = current.standings[champion];
-      const record: ChampionRecord = {
-        year: current.season.year,
-        champion,
-        runnerUp,
-        keyBatters: team.fielders
-          .slice()
-          .sort((first, second) => calcOVR(second, second.pos) - calcOVR(first, first.pos))
-          .slice(0, 2)
-          .map((player) => player.name),
-        keyPitchers: team.pitchers
-          .slice()
-          .sort((first, second) => calcOVR(second, second.pos) - calcOVR(first, first.pos))
-          .slice(0, 2)
-          .map((player) => player.name),
-        lineup,
-        teamStats,
-        record: standing ? { w: standing.w, l: standing.l, d: standing.d } : undefined,
-      };
-      const next: RuntimeState = {
-        ...current,
-        championHistory: [
-          ...current.championHistory.filter((entry) => entry.year !== current.season.year),
-          record,
-        ],
-      };
-      autosave(next);
-      return next;
-    });
-  }, []);
+  const recordChampionship = useCallback(
+    (champion: TeamKey, runnerUp: TeamKey, events: NarrativeEvent[] = []) => {
+      setState((current) => {
+        if (!current.teams) return current;
+        const team = current.teams[champion];
+        const lineup = bestLineup(team).map((player) => ({
+          playerId: player.id,
+          playerName: player.name,
+          pos: player._assignedPos ?? player.pos ?? '',
+          isPitcher: player.isP,
+        }));
+        const teamStats = aggregateTeamStats(team, current.leagueAccumulated);
+        const standing = current.standings[champion];
+        const record: ChampionRecord = {
+          year: current.season.year,
+          champion,
+          runnerUp,
+          keyBatters: team.fielders
+            .slice()
+            .sort((first, second) => calcOVR(second, second.pos) - calcOVR(first, first.pos))
+            .slice(0, 2)
+            .map((player) => player.name),
+          keyPitchers: team.pitchers
+            .slice()
+            .sort((first, second) => calcOVR(second, second.pos) - calcOVR(first, first.pos))
+            .slice(0, 2)
+            .map((player) => player.name),
+          lineup,
+          teamStats,
+          record: standing ? { w: standing.w, l: standing.l, d: standing.d } : undefined,
+        };
+        const next: RuntimeState = {
+          ...current,
+          narrativeEvents: appendNarrativeEvents(current.narrativeEvents, events),
+          championHistory: [
+            ...current.championHistory.filter((entry) => entry.year !== current.season.year),
+            record,
+          ],
+        };
+        autosave(next);
+        return next;
+      });
+    },
+    [],
+  );
 
   const value = useMemo<GameContextValue>(
     () => ({

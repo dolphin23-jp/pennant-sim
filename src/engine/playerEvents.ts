@@ -1,14 +1,7 @@
 import { PLAYER_DEVELOPMENT_BALANCE } from '../data';
 import { applyInSeasonAwakening, growthParameters as developmentParameters } from './growth';
 import { clamp, random, randomChoice, randomInt } from './random';
-import type {
-  GrowthChange,
-  InjuryEvent,
-  Player,
-  PostGameEvents,
-  Team,
-  TeamKey,
-} from './types';
+import type { GrowthChange, InjuryEvent, Player, PostGameEvents, Team, TeamKey } from './types';
 
 function recoverPlayer(player: Player): Player {
   const remaining = player.injuryDays ?? 0;
@@ -92,14 +85,18 @@ export function applyPostGamePlayerEvents(
   team: Team,
   participantIds: ReadonlySet<string>,
 ): { team: Team; events: PostGameEvents } {
+  const recoveries: NonNullable<PostGameEvents['recoveries']> = [];
+  const recover = (player: Player): Player => {
+    if (participantIds.has(player.id)) return player;
+    const recovered = recoverPlayer(player);
+    if ((player.injuryDays ?? 0) > 0 && recovered.injuryDays === 0)
+      recoveries.push({ teamKey: team.key, playerId: player.id, name: player.name });
+    return recovered;
+  };
   const recoveredTeam: Team = {
       ...team,
-      pitchers: team.pitchers.map((player) =>
-        participantIds.has(player.id) ? player : recoverPlayer(player),
-      ),
-      fielders: team.fielders.map((player) =>
-        participantIds.has(player.id) ? player : recoverPlayer(player),
-      ),
+      pitchers: team.pitchers.map((player) => recover(player)),
+      fielders: team.fielders.map((player) => recover(player)),
     },
     awakening = applyInSeasonAwakening(recoveredTeam, participantIds),
     injuries: InjuryEvent[] = [];
@@ -126,6 +123,7 @@ export function applyPostGamePlayerEvents(
         changes: event.events.map((change) => ({ param: change.param, boost: change.boost })),
       })),
       injuries,
+      recoveries,
     },
   };
 }

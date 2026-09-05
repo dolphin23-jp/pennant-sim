@@ -22,12 +22,36 @@ const KIND_LABEL: Record<NarrativeArticleKind, string> = {
   development: '成長',
 };
 
-type FeedCategory = 'all' | 'games' | 'records' | 'history';
+type FeedCategory =
+  | 'all'
+  | 'games'
+  | 'records'
+  | 'history'
+  | 'transaction'
+  | 'draft'
+  | 'career'
+  | 'injury'
+  | 'development'
+  | 'seasonReview';
 
 const CATEGORY_KINDS: Record<Exclude<FeedCategory, 'all'>, NarrativeArticleKind[]> = {
+  transaction: ['transaction'],
+  draft: ['draft'],
+  career: ['career'],
+  injury: ['injury'],
+  development: ['development'],
+  seasonReview: ['seasonReview'],
   games: ['gameRecap'],
   records: ['achievement', 'seasonAwards'],
-  history: ['championship', 'seasonReview', 'transaction', 'draft', 'career', 'injury', 'development'],
+  history: [
+    'championship',
+    'seasonReview',
+    'transaction',
+    'draft',
+    'career',
+    'injury',
+    'development',
+  ],
 };
 
 function ArticleCard({ article }: { article: NarrativeArticle }) {
@@ -66,12 +90,17 @@ function ArticleCard({ article }: { article: NarrativeArticle }) {
             {KIND_LABEL[article.kind]}
           </span>
           {article.teamKeys.slice(0, 2).map((teamKey) => (
-            <span key={teamKey} style={{ color: teamTextColor(TINFO[teamKey].c), fontSize: 11, fontWeight: 800 }}>
+            <span
+              key={teamKey}
+              style={{ color: teamTextColor(TINFO[teamKey].c), fontSize: 11, fontWeight: 800 }}
+            >
               {TINFO[teamKey].ab}
             </span>
           ))}
         </div>
-        <time style={{ color: 'var(--color-text-faint)', fontSize: 11 }}>{article.publishedAt}</time>
+        <time style={{ color: 'var(--color-text-faint)', fontSize: 11 }}>
+          {article.publishedAt}
+        </time>
       </div>
 
       <h3 style={{ margin: 0, fontSize: 18, lineHeight: 1.35 }}>{article.headline}</h3>
@@ -86,8 +115,7 @@ function ArticleCard({ article }: { article: NarrativeArticle }) {
             key={`${article.id}:${index}`}
             style={{
               margin: 0,
-              color:
-                segment.class === 'COLOR' ? 'var(--color-text-muted)' : 'var(--color-text)',
+              color: segment.class === 'COLOR' ? 'var(--color-text-muted)' : 'var(--color-text)',
               fontStyle: segment.class === 'COLOR' ? 'italic' : undefined,
             }}
           >
@@ -117,6 +145,7 @@ export function NarrativeTab() {
           achievementHistory: game.achievementHistory,
           championHistory: game.championHistory,
           awardHistory: game.awardHistory,
+          narrativeEvents: game.narrativeEvents,
         },
         {
           kinds: filterKinds,
@@ -130,6 +159,7 @@ export function NarrativeTab() {
       game.awardHistory,
       game.championHistory,
       game.gameBoxScores,
+      game.narrativeEvents,
       game.playerTeam,
       myTeamOnly,
       visibleCount,
@@ -146,7 +176,7 @@ export function NarrativeTab() {
       <div>
         <SectionTitle>ニュース / アーカイブ</SectionTitle>
         <div style={{ color: 'var(--color-text-muted)', fontSize: 12, lineHeight: 1.6 }}>
-          試合・記録・優勝・表彰の確定データから生成された記事です。同じ出来事は同じ記事IDで参照され、過去の記事はその時点の事実だけを使います。
+          試合、移籍、ドラフト、選手の成長。積み重なる球界の歴史を振り返ります。
         </div>
       </div>
 
@@ -160,6 +190,12 @@ export function NarrativeTab() {
             ['games', '試合'],
             ['records', '記録・表彰'],
             ['history', '球界史'],
+            ['transaction', '移籍・引退'],
+            ['draft', 'ドラフト'],
+            ['career', 'キャリア'],
+            ['injury', '故障'],
+            ['development', '成長'],
+            ['seasonReview', '総括'],
           ] as const
         ).map(([id, label]) => (
           <Button
@@ -181,13 +217,13 @@ export function NarrativeTab() {
         >
           {myTeamOnly ? '自球団のみ ✓' : '自球団のみ'}
         </Button>
-        <span style={{ color: 'var(--color-text-faint)', fontSize: 11 }}>
-          {feed.total}件
-        </span>
+        <span style={{ color: 'var(--color-text-faint)', fontSize: 11 }}>{feed.total}件</span>
       </div>
 
       {feed.articles.length === 0 ? (
-        <EmptyState>条件に一致する記事はまだありません。シーズンを進めると記事が蓄積されます。</EmptyState>
+        <EmptyState>
+          条件に一致する記事はまだありません。シーズンを進めると記事が蓄積されます。
+        </EmptyState>
       ) : (
         <div style={{ display: 'grid', gap: 10 }}>
           {feed.articles.map((article) => (

@@ -71,7 +71,10 @@ function normalizeDesignatedHitter(lineup: Player[]): Player[] {
       byPosition.set(position, player);
       continue;
     }
-    dhId = effectiveOVR(incumbent, position) >= effectiveOVR(player, position) ? player.id : incumbent.id;
+    dhId =
+      effectiveOVR(incumbent, position) >= effectiveOVR(player, position)
+        ? player.id
+        : incumbent.id;
     break;
   }
   const resolvedDhId = dhId ?? selected[selected.length - 1]?.id ?? null;
@@ -661,7 +664,12 @@ export function simHalf(
     });
     const scoredIds = runsScored.map((run) => run.runnerId);
     const runsBeforePlay = runs - runsScored.length;
-    const scoringEvents = progressiveScoringEvents(gameState.score, battingSide, runsBeforePlay, runsScored);
+    const scoringEvents = progressiveScoringEvents(
+      gameState.score,
+      battingSide,
+      runsBeforePlay,
+      runsScored,
+    );
     scoringEvents.forEach((event, index) => {
       (gameState.scoringSequence ??= []).push(event);
       const run = runsScored[index] as ScoredRun;
@@ -862,6 +870,10 @@ function finalizeGame(
   gameState.postGameEvents = {
     awakenings: [...homePostGame.events.awakenings, ...awayPostGame.events.awakenings],
     injuries: [...homePostGame.events.injuries, ...awayPostGame.events.injuries],
+    recoveries: [
+      ...(homePostGame.events.recoveries ?? []),
+      ...(awayPostGame.events.recoveries ?? []),
+    ],
   };
   // Deliberately persist post-game roster state for every caller, including CPU skips and diagnostics.
   teams[homeKey] = homeAfterWorkload;
