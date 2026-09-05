@@ -8,13 +8,23 @@ import {
   articleFromSeasonAwards,
   type NarrativeSource,
 } from './generate';
-import type { NarrativeArticle } from './types';
+import {
+  buildNarrativeStoryContext,
+  planNarrativeStory,
+  type NarrativeStoryDepth,
+} from './story';
+import type { NarrativeArticle, NarrativeFactRef } from './types';
 import { canonicalJson, validPacket, type FactPacket } from './protocol';
+
+function refKey(ref: NarrativeFactRef): string {
+  return canonicalJson(ref);
+}
 
 /** Projection over the exact archived source. Never consult current players or later articles. */
 export function buildFactPacket(
   article: NarrativeArticle,
   source: NarrativeSource,
+  depthOverride?: Exclude<NarrativeStoryDepth, 'brief'>,
 ): FactPacket | null {
   let value: unknown;
   let canonical: NarrativeArticle | undefined;
@@ -59,6 +69,7 @@ export function buildFactPacket(
     !article.factRefs.length
   )
     return null;
+
   const names = new Set<string>();
   function visit(v: unknown): void {
     if (!v || typeof v !== 'object') return;
@@ -73,26 +84,95 @@ export function buildFactPacket(
   }
   visit(value);
   for (const team of Object.values(TINFO)) for (const name of [team.n, team.ab]) names.add(name);
-  // Preserve exact high-risk relations. Other wording is checked per claim; semantic review remains necessary.
+
+  const basePlan = planNarrativeStory(article, source);
+  const story =
+    depthOverride && basePlan.depth === 'brief'
+      ? {
+          ...basePlan,
+          depth: depthOverride,
+          autoGenerate: true,
+          reasons: [...basePlan.reasons, 'manual-expansion'],
+          targetParagraphs: depthOverride === 'cover' ? { min: 5, max: 8 } : { min: 3, max: 5 },
+        }
+      : basePlan;
+  const context = buildNarrativeStoryContext(article, source, story.depth === 'cover' ? 16 : 10);
+
+  // Preserve exact high-risk relations in the primary event. Context is supplementary and may be
+  // paraphrased, but every sentence still has to cite it and pass both validators.
   const locked = ['transaction', 'draft', 'injury', 'development', 'career'].includes(article.kind);
+  const primaryClaims: FactPacket['claims'] = [
+    {
+      id: 'headline',
+      role: 'primary',
+      text: article.headline,
+      factRefs: article.factRefs,
+      locked,
+    },
+    ...article.segments
+      .filter((s) => s.class === 'FACTUAL')
+      .map((s, i) => ({
+        id: `c${i}`,
+        role: 'primary' as const,
+        text: s.text,
+        factRefs: s.factRefs,
+        locked,
+      })),
+  ];
+  const contextClaims: FactPacket['claims'] = context.map((claim) => ({
+    id: claim.id,
+    role: 'context' as const,
+    text: claim.text,
+    factRefs: claim.factRefs,
+    locked: false,
+  }));
+
+  const facts: FactPacket['facts'] = [];
+  const seenFacts = new Set<string>();
+  for (const [index, ref] of article.factRefs.entries()) {
+    const key = refKey(ref);
+    if (seenFacts.has(key)) continue;
+    seenFacts.add(key);
+    facts.push({
+      ref,
+      value: index === 0 ? structuredClone(value) : { sameArchivedSourceAs: article.factRefs[0] },
+    });
+  }
+  for (const claim of context) {
+    for (const ref of claim.factRefs) {
+      const key = refKey(ref);
+      if (seenFacts.has(key)) continue;
+      seenFacts.add(key);
+      facts.push({
+        ref,
+        value: {
+          sourceArticleId: claim.sourceArticleId,
+          sourceKind: claim.sourceKind,
+          asOfDate: claim.asOfDate,
+          canonicalText: claim.text,
+        },
+      });
+    }
+  }
+
   const packet: FactPacket = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     articleId: article.id,
     kind: article.kind,
     year: article.year,
     asOfDate: article.asOfDate,
     publishedAt: article.publishedAt,
-    facts: article.factRefs.map((ref, index) => ({
-      ref,
-      value: index === 0 ? structuredClone(value) : { sameArchivedSourceAs: article.factRefs[0] },
-    })),
-    claims: [
-      { id: 'headline', text: article.headline, factRefs: article.factRefs, locked },
-      ...article.segments
-        .filter((s) => s.class === 'FACTUAL')
-        .map((s, i) => ({ id: `c${i}`, text: s.text, factRefs: s.factRefs, locked })),
-    ],
+    facts,
+    claims: [...primaryClaims, ...contextClaims],
     entities: [...names].sort(),
+    story: {
+      depth: story.depth,
+      score: story.score,
+      reasons: story.reasons,
+      targetParagraphs: story.targetParagraphs,
+      primaryClaimIds: primaryClaims.map((claim) => claim.id),
+      contextArticleIds: [...new Set(context.map((claim) => claim.sourceArticleId))],
+    },
   };
   return validPacket(packet) ? packet : null;
 }

@@ -118,6 +118,36 @@ resumes at the offseason. This prevents rerolling an event that already has a
 canonical article. Repeated offseason completion callbacks from the previous year
 are ignored. These guards do not alter simulation outcomes or random draws.
 
+## Narrative Director and story context
+
+The renderer does not spend model tokens on every ledger row. A deterministic
+Narrative Director scores each canonical article and classifies it as `brief`,
+`feature`, or `cover`. Routine games, light injuries, ordinary growth, releases
+and later-round draft notices remain template-only by default. Championships,
+major records, first-round draft stories, retirements, major trades, awakenings
+and dramatic games can auto-generate. Any brief can still be explicitly expanded
+by the user.
+
+Before a feature is generated, the packet builder collects a sparse set of prior
+canonical articles sharing the same players or clubs. Context is strictly older
+than the target article's `asOfDate`; same-day offseason items are deliberately
+excluded because the simulation does not model their exact order. Context claims
+carry their original FactRefs and never become a new source of truth.
+
+Fact Packet v2 separates `primary` claims from optional historical `context`
+claims. The writer may combine several cited claims into a natural paragraph
+instead of preserving the old one-claim/one-sentence structure. High-risk
+transaction, draft, injury, development and career relations remain locked and
+must appear verbatim when cited.
+
+Freer prose is accepted only after two gates: deterministic entity/number/locked
+claim validation, then an independent second Responses API pass acting as a
+fact checker over the exact packet and generated prose. The verifier rejects
+unsupported causality, psychology, quotes, future knowledge and relation swaps.
+Both calls are charged to the same D1 request budget. Generated prose remains
+optional presentation data; failure at either gate falls back to the deterministic
+article.
+
 ## Optional OpenAI rendering
 
 The synchronous feed and canonical ledgers remain unchanged. `packet.ts` resolves

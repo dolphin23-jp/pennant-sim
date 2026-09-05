@@ -206,7 +206,7 @@ export function NarrativeTab() {
         <summary>AI記事の設定</summary>
         <div style={{ display: 'grid', gap: 8, padding: 12 }}>
           <p>
-            保存された試合・選手の事実をOpenAIへ送信し、記事の表現を整えます。接続できない場合は標準記事を表示します。
+            日本一、大記録、劇的試合など物語性の高い出来事だけを自動でOpenAI記事化します。通常の速報はトークンを使わず、必要なら個別に特集化できます。
           </p>
           <label>
             <input

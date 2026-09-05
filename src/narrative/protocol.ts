@@ -1,26 +1,22 @@
 import type { NarrativeArticle, NarrativeFactRef, NarrativeStatementClass } from './types';
 
-export const RENDERER_VERSION = 1;
-export const PROMPT_VERSION = 1;
-export const VALIDATOR_VERSION = 1;
-export const STYLE_VERSION = 1;
+export const RENDERER_VERSION = 2;
+export const PROMPT_VERSION = 2;
+export const VALIDATOR_VERSION = 2;
+export const STYLE_VERSION = 2;
 export const MODELS = { standard: 'gpt-5.4-mini', premium: 'gpt-5.4' } as const;
 export type Quality = keyof typeof MODELS;
-export const COLORS = [
-  '球界の新たな一頁となった。',
-  'ペナントの物語は続いていく。',
-  'ひとつの節目を刻んだ。',
-] as const;
 
 export interface FactClaim {
   id: string;
+  role: 'primary' | 'context';
   text: string;
   factRefs: NarrativeFactRef[];
-  /** Exact phrases for high-risk relations that a lexical check cannot prove. */
+  /** High-risk relations are preserved verbatim inside any generated paragraph that cites them. */
   locked: boolean;
 }
 export interface FactPacket {
-  schemaVersion: 1;
+  schemaVersion: 2;
   articleId: string;
   kind: NarrativeArticle['kind'];
   year: number;
@@ -29,14 +25,23 @@ export interface FactPacket {
   facts: Array<{ ref: NarrativeFactRef; value: unknown }>;
   claims: FactClaim[];
   entities: string[];
+  story: {
+    depth: 'brief' | 'feature' | 'cover';
+    score: number;
+    reasons: string[];
+    targetParagraphs: { min: number; max: number };
+    primaryClaimIds: string[];
+    contextArticleIds: string[];
+  };
 }
 export interface ProseUnit {
   class: NarrativeStatementClass;
   text: string;
-  claimId: string | null;
+  claimIds: string[];
 }
 export interface Prose {
   headline: ProseUnit;
+  dek: ProseUnit | null;
   segments: ProseUnit[];
 }
 export interface ArticleSnapshot {
@@ -91,6 +96,7 @@ export async function snapshotKey(
     ]),
   );
 }
+
 const record = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === 'object' && !Array.isArray(v);
 const short = (v: unknown, max = 4096): v is string =>
@@ -103,7 +109,7 @@ const refsValid = (v: unknown): v is NarrativeFactRef[] =>
 export function validPacket(v: unknown): v is FactPacket {
   if (
     !record(v) ||
-    v.schemaVersion !== 1 ||
+    v.schemaVersion !== 2 ||
     !short(v.articleId, 512) ||
     !short(v.kind, 40) ||
     !Number.isSafeInteger(v.year) ||
@@ -113,13 +119,14 @@ export function validPacket(v: unknown): v is FactPacket {
     !short(v.publishedAt, 80) ||
     !Array.isArray(v.facts) ||
     !v.facts.length ||
-    v.facts.length > 64 ||
+    v.facts.length > 128 ||
     !Array.isArray(v.claims) ||
     !v.claims.length ||
-    v.claims.length > 64 ||
+    v.claims.length > 96 ||
     !Array.isArray(v.entities) ||
-    v.entities.length > 200 ||
-    !v.entities.every((e) => short(e, 100))
+    v.entities.length > 300 ||
+    !v.entities.every((e) => short(e, 100)) ||
+    !record(v.story)
   )
     return false;
   const date = new Date(`${v.asOfDate}T00:00:00Z`);
@@ -140,6 +147,32 @@ export function validPacket(v: unknown): v is FactPacket {
     ].includes(v.kind)
   )
     return false;
+
+  const story = v.story;
+  if (
+    !['brief', 'feature', 'cover'].includes(String(story.depth)) ||
+    typeof story.score !== 'number' ||
+    !Number.isFinite(story.score) ||
+    story.score < 0 ||
+    story.score > 500 ||
+    !Array.isArray(story.reasons) ||
+    story.reasons.length > 32 ||
+    !story.reasons.every((reason) => short(reason, 80)) ||
+    !record(story.targetParagraphs) ||
+    !Number.isSafeInteger(story.targetParagraphs.min) ||
+    !Number.isSafeInteger(story.targetParagraphs.max) ||
+    Number(story.targetParagraphs.min) < 1 ||
+    Number(story.targetParagraphs.max) < Number(story.targetParagraphs.min) ||
+    Number(story.targetParagraphs.max) > 12 ||
+    !Array.isArray(story.primaryClaimIds) ||
+    !story.primaryClaimIds.length ||
+    !story.primaryClaimIds.every((id) => short(id, 30)) ||
+    !Array.isArray(story.contextArticleIds) ||
+    story.contextArticleIds.length > 32 ||
+    !story.contextArticleIds.every((id) => short(id, 512))
+  )
+    return false;
+
   const ids = new Set<string>();
   const supplied = new Set<string>();
   for (const f of v.facts) {
@@ -151,6 +184,7 @@ export function validPacket(v: unknown): v is FactPacket {
       !record(c) ||
       !short(c.id, 30) ||
       ids.has(c.id) ||
+      !['primary', 'context'].includes(String(c.role)) ||
       !short(c.text) ||
       typeof c.locked !== 'boolean' ||
       !refsValid(c.factRefs) ||
@@ -160,22 +194,39 @@ export function validPacket(v: unknown): v is FactPacket {
       return false;
     ids.add(c.id);
   }
-  return ids.has('headline') && canonicalJson(v).length <= 60000;
+  if (!ids.has('headline')) return false;
+  const primaryClaimIds = story.primaryClaimIds as string[];
+  if (
+    primaryClaimIds.some((id) => !ids.has(id)) ||
+    v.claims
+      .filter((claim) => claim.role === 'primary')
+      .some((claim) => !primaryClaimIds.includes(claim.id))
+  )
+    return false;
+  return canonicalJson(v).length <= 100000;
 }
 
-// These are defense in depth, not a proof of unrestricted natural-language entailment.
+// These lexical checks are defense in depth. The Worker also runs an independent grounded
+// verification pass before accepting freer prose.
 const prohibited =
-  /[「」『』<>]|語った|コメント|明かした|監督|契約金|年俸|出身校|診断|骨折|靭帯|悔し|信頼|因縁|移籍理由|ファン|観客|球場|歓声|初めて|史上初|連勝|連敗/;
-const numbers = (s: string) => (s.normalize('NFKC').match(/\d+(?:\.\d+)?/g) ?? []).join('|');
-/** A deliberately small, audited surface grammar. Unknown factual paraphrases fall back.
- * This prevents lexical whitelist checks from accepting "won" -> "lost", invented names,
- * or a correct citation attached to an unsupported causal claim. Expand only with evals.
- */
+  /[「」『』<>]|語った|コメント|明かした|監督は|契約金|年俸|出身校|診断|骨折|靭帯|悔し|信頼|移籍理由|ファン|観客|歓声|秘密の|特訓|悲願|執念|覚悟|意地|因縁/;
+const colorFactual =
+  /\d|勝|敗|優勝|日本一|移籍|加入|退団|引退|故障|復帰|記録|達成|本塁打|安打|奪三振|盗塁|首位|順位|ドラフト|指名|選手|球団|シリーズ|試合/;
+const numberList = (s: string) => s.normalize('NFKC').match(/\d+(?:\.\d+)?/g) ?? [];
+
+function isNumberSubset(output: string[], evidence: string[]): boolean {
+  let index = 0;
+  for (const value of evidence) {
+    if (value === output[index]) index++;
+    if (index === output.length) return true;
+  }
+  return output.length === 0;
+}
+
 export function normalizeFactualWording(text: string): string {
   return text
     .normalize('NFKC')
-    .replace(/白星を挙げた|勝った/g, '勝利した')
-    .replace(/勝利を収めた/g, '勝利した')
+    .replace(/白星を挙げた|勝った|勝利を収めた/g, '勝利した')
     .replace(/制した/g, '下した')
     .replace(/幕を閉じた/g, '終えた')
     .replace(/記録に到達した/g, '記録を達成した')
@@ -183,76 +234,110 @@ export function normalizeFactualWording(text: string): string {
     .replace(/新たな所属先となった/g, '移籍先となった')
     .replace(/[\s。、]/g, '');
 }
+
 export function validateProse(raw: unknown, packet: FactPacket): Prose | null {
   if (
     !record(raw) ||
-    Object.keys(raw).some((k) => !['headline', 'segments'].includes(k)) ||
+    Object.keys(raw).some((k) => !['headline', 'dek', 'segments'].includes(k)) ||
     !Array.isArray(raw.segments) ||
-    raw.segments.length > 66
+    raw.segments.length > 14 ||
+    !(raw.dek === null || record(raw.dek))
   )
     return null;
-  const seen = new Set<string>();
-  function unit(v: unknown, headline: boolean): v is ProseUnit {
+
+  const claims = new Map(packet.claims.map((claim) => [claim.id, claim]));
+  const coveredPrimary = new Set<string>();
+  let colorCount = 0;
+
+  function unit(
+    value: unknown,
+    placement: 'headline' | 'dek' | 'segment',
+  ): value is ProseUnit {
     if (
-      !record(v) ||
-      Object.keys(v).some((k) => !['class', 'text', 'claimId'].includes(k)) ||
-      !short(v.text, headline ? 180 : 4096)
+      !record(value) ||
+      Object.keys(value).some((k) => !['class', 'text', 'claimIds'].includes(k)) ||
+      !short(value.text, placement === 'headline' ? 180 : placement === 'dek' ? 500 : 4096) ||
+      !Array.isArray(value.claimIds) ||
+      value.claimIds.length > 12 ||
+      !value.claimIds.every((id) => short(id, 30))
     )
       return false;
-    if (v.class === 'COLOR')
-      return !headline && v.claimId === null && (COLORS as readonly string[]).includes(v.text);
-    // No analytical claims are currently derived by the packet builder.
-    if (v.class !== 'FACTUAL' || !short(v.claimId, 30) || headline !== (v.claimId === 'headline'))
-      return false;
-    const claim = packet.claims.find((c) => c.id === v.claimId);
-    if (!claim || seen.has(claim.id)) return false;
-    if (claim.locked && v.text !== claim.text) return false;
-    if (normalizeFactualWording(v.text) !== normalizeFactualWording(claim.text)) return false;
-    if (
-      v.text !== claim.text &&
-      (prohibited.test(v.text) || numbers(v.text) !== numbers(claim.text))
-    )
-      return false;
-    for (const name of packet.entities) {
-      if (claim.text.includes(name) !== v.text.includes(name)) return false;
+
+    const text = value.text as string;
+    const claimIds = value.claimIds as string[];
+    if (value.class === 'COLOR') {
+      colorCount++;
+      return (
+        placement === 'segment' &&
+        claimIds.length === 0 &&
+        colorCount <= 1 &&
+        !colorFactual.test(text) &&
+        !packet.entities.some((name) => text.includes(name)) &&
+        !prohibited.test(text)
+      );
     }
-    const entityOrder = (text: string) =>
-      packet.entities
-        .filter((n) => text.includes(n))
-        .sort((a, b) => text.indexOf(a) - text.indexOf(b))
-        .join('|');
-    if (entityOrder(v.text) !== entityOrder(claim.text)) return false;
-    seen.add(claim.id);
+    if (value.class !== 'FACTUAL' || !claimIds.length) return false;
+
+    const cited = claimIds.map((id) => claims.get(id));
+    if (cited.some((claim) => !claim)) return false;
+    const validClaims = cited as FactClaim[];
+    if (placement === 'headline' && !claimIds.includes('headline')) return false;
+
+    const evidence = validClaims.map((claim) => claim.text).join(' ');
+    // Canonical template wording is already an audited game projection. The lexical banlist
+    // applies to freer prose, not to an exact one-claim fallback (which may legitimately contain
+    // terms such as an archived origin/exit label).
+    const exactCanonical =
+      validClaims.length === 1 && text === validClaims[0].text;
+    if (!exactCanonical && prohibited.test(text)) return false;
+    if (!isNumberSubset(numberList(text), numberList(evidence))) return false;
+
+    for (const name of packet.entities) {
+      if (text.includes(name) && !evidence.includes(name)) return false;
+    }
+    for (const claim of validClaims) {
+      if (claim.locked && !text.includes(claim.text)) return false;
+      if (claim.role === 'primary') coveredPrimary.add(claim.id);
+    }
     return true;
   }
+
   if (
-    !unit(raw.headline, true) ||
-    !raw.segments.every((s) => unit(s, false)) ||
-    packet.claims.some((c) => !seen.has(c.id)) ||
-    raw.segments.filter((s) => s.class === 'COLOR').length > 1
+    !unit(raw.headline, 'headline') ||
+    (raw.dek !== null && !unit(raw.dek, 'dek')) ||
+    !raw.segments.every((segment) => unit(segment, 'segment')) ||
+    packet.story.primaryClaimIds.some((id) => !coveredPrimary.has(id))
   )
     return null;
+
   return structuredClone(raw) as unknown as Prose;
 }
 
 export function outputSchema(packet: FactPacket) {
+  const claimIds = packet.claims.map((claim) => claim.id);
   const unit = {
     type: 'object',
     additionalProperties: false,
     properties: {
       class: { type: 'string', enum: ['FACTUAL', 'COLOR'] },
       text: { type: 'string' },
-      claimId: {
-        anyOf: [{ type: 'string', enum: packet.claims.map((c) => c.id) }, { type: 'null' }],
+      claimIds: {
+        type: 'array',
+        items: { type: 'string', enum: claimIds },
+        maxItems: 12,
       },
     },
-    required: ['class', 'text', 'claimId'],
+    required: ['class', 'text', 'claimIds'],
   };
   return {
     type: 'object',
     additionalProperties: false,
-    properties: { headline: unit, segments: { type: 'array', items: unit } },
-    required: ['headline', 'segments'],
+    properties: {
+      headline: unit,
+      dek: { anyOf: [unit, { type: 'null' }] },
+      segments: { type: 'array', items: unit, maxItems: 14 },
+    },
+    required: ['headline', 'dek', 'segments'],
   };
 }
 
@@ -277,9 +362,10 @@ export function validSnapshot(v: unknown): v is ArticleSnapshot {
       (n) => typeof n === 'number' && Number.isSafeInteger(n) && n >= 0,
     ) &&
     record(v.prose) &&
-    canonicalJson(v.prose).length <= 40000
+    canonicalJson(v.prose).length <= 50000
   );
 }
+
 /** Optional presentation data cannot make the factual save unreadable. Validate again before display. */
 export function migrateArticleArchive(raw: unknown): ArticleArchive {
   const result: ArticleArchive = {};
@@ -296,15 +382,38 @@ export function migrateArticleArchive(raw: unknown): ArticleArchive {
   return result;
 }
 
+function uniqueRefs(refs: NarrativeFactRef[]): NarrativeFactRef[] {
+  const seen = new Set<string>();
+  return refs.filter((ref) => {
+    const key = canonicalJson(ref);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export function applyProse(
   template: NarrativeArticle,
   prose: Prose,
   packet: FactPacket,
 ): NarrativeArticle {
-  const segments = prose.segments.map((s) => ({
-    class: s.class,
-    text: s.text,
-    factRefs: s.claimId ? packet.claims.find((c) => c.id === s.claimId)!.factRefs : [],
+  const claims = new Map(packet.claims.map((claim) => [claim.id, claim]));
+  const refsFor = (ids: string[]) =>
+    uniqueRefs(ids.flatMap((id) => claims.get(id)?.factRefs ?? []));
+  const segments = prose.segments.map((segment) => ({
+    class: segment.class,
+    text: segment.text,
+    factRefs: segment.class === 'FACTUAL' ? refsFor(segment.claimIds) : [],
   }));
-  return { ...template, headline: prose.headline.text, dek: undefined, segments };
+  return {
+    ...template,
+    headline: prose.headline.text,
+    dek: prose.dek?.text,
+    segments,
+    factRefs: uniqueRefs([
+      ...refsFor(prose.headline.claimIds),
+      ...(prose.dek ? refsFor(prose.dek.claimIds) : []),
+      ...segments.flatMap((segment) => segment.factRefs),
+    ]),
+  };
 }
