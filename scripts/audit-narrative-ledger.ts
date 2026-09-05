@@ -156,14 +156,18 @@ try {
       narrativeEvents: ledger,
     })!;
     assert.ok(packet);
-    const makeUnit = (c: (typeof packet.claims)[number]) => ({
+    const headlineClaim = packet.claims.find((claim) => claim.id === 'headline')!;
+    const makeUnit = (claim: (typeof packet.claims)[number]) => ({
       class: 'FACTUAL' as const,
-      text: c.text,
-      claimId: c.id,
+      text: claim.text,
+      claimIds: [claim.id],
     });
     const prose: Prose = {
-      headline: makeUnit(packet.claims[0]),
-      segments: packet.claims.slice(1).map(makeUnit),
+      headline: makeUnit(headlineClaim),
+      dek: null,
+      segments: packet.claims
+        .filter((claim) => claim.id !== 'headline')
+        .map(makeUnit),
     };
     assert.ok(validateProse(prose, packet));
     const factsHash = await packetFactsHash(packet);

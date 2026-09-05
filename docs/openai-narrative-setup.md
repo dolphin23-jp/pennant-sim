@@ -65,9 +65,13 @@ margin and maximum output fit the cap. Successful usage replaces the reservation
 Unknown completion keeps its reserved charge; failed keys do not auto-retry.
 These controls limit this proxy, not your entire OpenAI organization. They are
 not a guarantee of zero OpenAI charges. Set either cap to `0` to stop new calls.
-No automatic paid overage or model upgrade exists. Standard requests use no
-reasoning, at most 6,000 output tokens, no tools, and `store:false`. That flag
-does not disable your organization data-sharing choice.
+No automatic paid overage or model upgrade exists. The Narrative Director leaves
+routine briefs on deterministic templates and spends API tokens on feature/cover
+stories (or explicit user expansion). Accepted feature stories use two Responses
+calls: a writer and an independent grounded verifier. Both are counted in the same
+D1 reservation. Writer output is capped by story depth (up to 7,000 tokens for a
+cover); the verifier has a smaller cap. Calls use no tools, no reasoning effort,
+and `store:false`. That flag does not disable your organization data-sharing choice.
 
 `GET /status` with the same Bearer proxy token reports accounted (including
 reserved) tokens and configuration availability. `/render` is the sole generation
@@ -85,19 +89,19 @@ never credentials. This is intentionally excluded from CI.
 
 ## Editorial scope and expansion
 
-This first release is a **constrained prose renderer**, not unrestricted rewriting.
-The LLM may order factual paragraphs, choose approved equivalent wording, and
-select one approved COLOR sentence. High-risk transaction/draft/injury/development/
-career claims remain verbatim. Unsupported wording falls back to the template.
-ANALYTICAL output is rejected until typed derived claims and rules are introduced.
+The current renderer is a grounded feature writer, not an unrestricted fiction
+writer. Fact Packet v2 supplies primary facts plus sparse older context from the
+same players/clubs. The writer may combine multiple cited claims into newspaper
+paragraphs and use that history for continuity. High-risk transaction/draft/
+injury/development/career relations still remain verbatim when cited.
 
-Why: numeric/name whitelists plus valid FactRefs cannot prove the meaning of a
-free sentence; "won" could become "lost" with identical names/numbers. The
-validator uses an audited surface grammar as well as per-claim refs, entity order,
-numeric order and protected phrases. This prioritizes the existing factual
-invariant over accepting a wider variety of unverified prose. Expand the grammar
-and prompt together using saved-fact fixtures and explicit live quality evals.
-Structured Outputs alone is never treated as a fact checker.
+Structured Outputs alone is never treated as a fact checker. The browser-side
+validator first rejects unsupported names/numbers, protected-claim changes and
+forbidden pseudo-quotes/psychology. The Worker then sends the candidate article
+and exact packet through a second independent verification call. Any unsupported
+claim, causal leap, relation swap or future knowledge rejects the generated prose
+and falls back to the template. ANALYTICAL output remains disabled until typed
+derived claims and rules are introduced.
 
 ## Operations and limits
 
