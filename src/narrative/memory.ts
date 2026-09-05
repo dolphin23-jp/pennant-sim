@@ -37,6 +37,11 @@ export interface NarrativeMemoryContext {
   factValue: PlayerSeasonRecord;
 }
 
+export type NarrativeMemorySource = Pick<
+  NarrativeSource,
+  'yearlyStats' | 'narrativeEvents' | 'championHistory'
+>;
+
 export interface NarrativeMemoryIndex {
   seasonRecordsByPlayer: Map<string, PlayerSeasonRecord[]>;
   eventsByPlayer: Map<string, NarrativeEvent[]>;
@@ -63,7 +68,7 @@ function transactionTeams(event: TransactionNarrativeEvent): TeamKey[] {
   ].filter((team): team is TeamKey => Boolean(team));
 }
 
-export function buildNarrativeMemoryIndex(source: NarrativeSource): NarrativeMemoryIndex {
+export function buildNarrativeMemoryIndex(source: NarrativeMemorySource): NarrativeMemoryIndex {
   const seasonRecordsByPlayer = new Map<string, PlayerSeasonRecord[]>();
   for (const records of Object.values(source.yearlyStats ?? ({} as YearlyPlayerRecords))) {
     for (const record of records) {

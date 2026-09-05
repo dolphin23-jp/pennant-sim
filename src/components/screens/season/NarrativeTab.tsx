@@ -157,7 +157,15 @@ export function NarrativeTab() {
       game.yearlyStats,
     ],
   );
-  const memory = useMemo(() => buildNarrativeMemoryIndex(source), [source]);
+  const memory = useMemo(
+    () =>
+      buildNarrativeMemoryIndex({
+        yearlyStats: game.yearlyStats,
+        narrativeEvents: game.narrativeEvents,
+        championHistory: game.championHistory,
+      }),
+    [game.yearlyStats, game.narrativeEvents, game.championHistory],
+  );
   const [category, setCategory] = useState<FeedCategory>('all');
   const [myTeamOnly, setMyTeamOnly] = useState(false);
   const [visibleCount, setVisibleCount] = useState(40);
