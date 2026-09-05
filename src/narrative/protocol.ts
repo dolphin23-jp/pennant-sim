@@ -281,7 +281,12 @@ export function validateProse(raw: unknown, packet: FactPacket): Prose | null {
     if (placement === 'headline' && !value.claimIds.includes('headline')) return false;
 
     const evidence = validClaims.map((claim) => claim.text).join(' ');
-    if (prohibited.test(value.text)) return false;
+    // Canonical template wording is already an audited game projection. The lexical banlist
+    // applies to freer prose, not to an exact one-claim fallback (which may legitimately contain
+    // terms such as an archived origin/exit label).
+    const exactCanonical =
+      validClaims.length === 1 && value.text === validClaims[0].text;
+    if (!exactCanonical && prohibited.test(value.text)) return false;
     if (!isNumberSubset(numberList(value.text), numberList(evidence))) return false;
 
     for (const name of packet.entities) {
