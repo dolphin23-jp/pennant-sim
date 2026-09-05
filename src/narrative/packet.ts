@@ -1,5 +1,6 @@
 import { TINFO } from '../data';
 import { narrativeEventArticleId } from './ledger';
+import type { NarrativeMemoryIndex } from './memory';
 import {
   articleFromAchievement,
   articleFromChampionship,
@@ -25,6 +26,7 @@ export function buildFactPacket(
   article: NarrativeArticle,
   source: NarrativeSource,
   depthOverride?: Exclude<NarrativeStoryDepth, 'brief'>,
+  memory?: NarrativeMemoryIndex,
 ): FactPacket | null {
   let value: unknown;
   let canonical: NarrativeArticle | undefined;
@@ -85,7 +87,7 @@ export function buildFactPacket(
   visit(value);
   for (const team of Object.values(TINFO)) for (const name of [team.n, team.ab]) names.add(name);
 
-  const basePlan = planNarrativeStory(article, source);
+  const basePlan = planNarrativeStory(article, source, memory);
   const story =
     depthOverride && basePlan.depth === 'brief'
       ? {
@@ -96,7 +98,14 @@ export function buildFactPacket(
           targetParagraphs: depthOverride === 'cover' ? { min: 5, max: 8 } : { min: 3, max: 5 },
         }
       : basePlan;
-  const context = buildNarrativeStoryContext(article, source, story.depth === 'cover' ? 16 : 10);
+  const context = buildNarrativeStoryContext(
+    article,
+    source,
+    story.depth === 'cover' ? 16 : 10,
+    memory,
+  );
+  for (const claim of context)
+    if (claim.factValue !== undefined) visit(claim.factValue);
 
   // Preserve exact high-risk relations in the primary event. Context is supplementary and may be
   // paraphrased, but every sentence still has to cite it and pass both validators.
@@ -145,12 +154,15 @@ export function buildFactPacket(
       seenFacts.add(key);
       facts.push({
         ref,
-        value: {
-          sourceArticleId: claim.sourceArticleId,
-          sourceKind: claim.sourceKind,
-          asOfDate: claim.asOfDate,
-          canonicalText: claim.text,
-        },
+        value:
+          claim.factValue !== undefined
+            ? structuredClone(claim.factValue)
+            : {
+                sourceArticleId: claim.sourceArticleId,
+                sourceKind: claim.sourceKind,
+                asOfDate: claim.asOfDate,
+                canonicalText: claim.text,
+              },
       });
     }
   }

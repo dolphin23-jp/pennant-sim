@@ -33,6 +33,7 @@ export type NarrativeFactKind =
   | 'CHAMPIONSHIP'
   | 'SEASON_TITLE'
   | 'SEASON_STANDING'
+  | 'PLAYER_SEASON'
   | 'TRANSACTION'
   | 'DRAFT_SELECTION'
   | 'CAREER_EVENT'

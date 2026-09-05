@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { NarrativeArticle } from '../../../narrative/types';
 import type { NarrativeSource } from '../../../narrative/generate';
 import { buildFactPacket } from '../../../narrative/packet';
+import type { NarrativeMemoryIndex } from '../../../narrative/memory';
 import { planNarrativeStory } from '../../../narrative/story';
 import type { ArticleSnapshot, Quality } from '../../../narrative/protocol';
 import { narrativeArticleService, type NarrativeConnection } from '../../../narrative/service';
@@ -14,11 +15,13 @@ import { useGameState } from '../../../state/gameState';
 export function AiArticle({
   template,
   source,
+  memory,
   connection,
   children,
 }: {
   template: NarrativeArticle;
   source: NarrativeSource;
+  memory: NarrativeMemoryIndex;
   connection: NarrativeConnection;
   children(article: NarrativeArticle): React.ReactNode;
 }) {
@@ -34,8 +37,8 @@ export function AiArticle({
   });
   const [busy, setBusy] = useState(false);
   const stored = game.narrativeArticles[String(template.year)] ?? [];
-  const input = useRef({ source, stored, record: game.recordNarrativeArticle });
-  input.current = { source, stored, record: game.recordNarrativeArticle };
+  const input = useRef({ source, memory, stored, record: game.recordNarrativeArticle });
+  input.current = { source, memory, stored, record: game.recordNarrativeArticle };
 
   useEffect(() => {
     if (!ref.current || typeof IntersectionObserver === 'undefined') return;
@@ -49,7 +52,7 @@ export function AiArticle({
     return () => observer.disconnect();
   }, []);
 
-  const storyPlan = planNarrativeStory(template, source);
+  const storyPlan = planNarrativeStory(template, source, memory);
 
   useEffect(() => {
     if (!visible || !connection.enabled) {
@@ -59,7 +62,7 @@ export function AiArticle({
       return;
     }
 
-    const currentPlan = planNarrativeStory(template, input.current.source);
+    const currentPlan = planNarrativeStory(template, input.current.source, input.current.memory);
     if (!currentPlan.autoGenerate && !request.force) {
       setRendered(template);
       setStatus('速報・AI未使用');
@@ -72,6 +75,7 @@ export function AiArticle({
       template,
       input.current.source,
       request.force && currentPlan.depth === 'brief' ? 'feature' : undefined,
+      input.current.memory,
     );
     if (!packet) return;
     setBusy(true);
@@ -104,7 +108,7 @@ export function AiArticle({
     return () => {
       active = false;
     };
-  }, [visible, connection, template, game.worldId, request]);
+  }, [visible, connection, template, memory, game.worldId, request]);
 
   function regenerate(quality: Quality) {
     const max = Math.max(

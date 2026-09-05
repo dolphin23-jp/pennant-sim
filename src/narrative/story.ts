@@ -1,6 +1,16 @@
 import { buildNarrativeFeed, type NarrativeSource } from './generate';
 import { narrativeEventArticleId } from './ledger';
-import type { NarrativeArticle, NarrativeFactRef } from './types';
+import {
+  buildCareerMemoryContext,
+  buildNarrativeMemoryIndex,
+  buildNarrativeStoryArcs,
+  type NarrativeMemoryIndex,
+} from './memory';
+import type {
+  NarrativeArticle,
+  NarrativeArticleKind,
+  NarrativeFactRef,
+} from './types';
 
 export type NarrativeStoryDepth = 'brief' | 'feature' | 'cover';
 
@@ -15,10 +25,12 @@ export interface NarrativeStoryPlan {
 export interface NarrativeContextClaim {
   id: string;
   sourceArticleId: string;
-  sourceKind: NarrativeArticle['kind'];
+  sourceKind: NarrativeArticleKind | 'playerSeason';
   asOfDate: string;
   text: string;
   factRefs: NarrativeFactRef[];
+  /** Exact archived value for non-article context such as a PlayerSeasonRecord. */
+  factValue?: unknown;
 }
 
 /**
@@ -28,6 +40,7 @@ export interface NarrativeContextClaim {
 export function planNarrativeStory(
   article: NarrativeArticle,
   source: NarrativeSource,
+  memory: NarrativeMemoryIndex = buildNarrativeMemoryIndex(source),
 ): NarrativeStoryPlan {
   let score = 10;
   const reasons: string[] = [];
@@ -92,19 +105,41 @@ export function planNarrativeStory(
     }
   }
 
-  // A story that already has several grounded facts is more worth expanding than a one-line notice.
   const factualSegments = article.segments.filter((s) => s.class === 'FACTUAL').length;
   if (factualSegments >= 3) add(12, 'rich-primary-facts');
   else if (factualSegments >= 2) add(5, 'multiple-primary-facts');
+
+  // Existing history can turn an otherwise thin event into a worthwhile feature, but never enough
+  // to make a routine game expensive on its own.
+  const arcs = buildNarrativeStoryArcs(article, source, memory);
+  let arcBoost = 0;
+  for (const storyArc of arcs) {
+    if (
+      storyArc.type === 'repeat-final' ||
+      (storyArc.type === 'long-career' && article.kind === 'career') ||
+      (storyArc.type === 'title-history' &&
+        ['career', 'achievement', 'transaction'].includes(article.kind)) ||
+      (storyArc.type === 'club-journey' &&
+        ['gameRecap', 'achievement', 'career', 'transaction'].includes(article.kind)) ||
+      (storyArc.type === 'career-origin' &&
+        ['achievement', 'career', 'transaction'].includes(article.kind))
+    )
+      arcBoost += storyArc.weight;
+  }
+  if (arcBoost > 0) add(Math.min(18, arcBoost), 'story-arc-context');
 
   const depth: NarrativeStoryDepth = score >= 100 ? 'cover' : score >= 50 ? 'feature' : 'brief';
   return {
     depth,
     score,
     autoGenerate: depth !== 'brief',
-    reasons,
+    reasons: [...reasons, ...arcs.slice(0, 6).map((storyArc) => `arc:${storyArc.type}`)],
     targetParagraphs:
-      depth === 'cover' ? { min: 5, max: 8 } : depth === 'feature' ? { min: 3, max: 5 } : { min: 1, max: 2 },
+      depth === 'cover'
+        ? { min: 5, max: 8 }
+        : depth === 'feature'
+          ? { min: 3, max: 5 }
+          : { min: 1, max: 2 },
   };
 }
 
@@ -123,15 +158,19 @@ function relatedness(target: NarrativeArticle, candidate: NarrativeArticle): num
 }
 
 /**
- * Build sparse, historical context from other canonical articles. Same-day items are excluded:
- * many offseason events only have year-level dates, and strict exclusion is safer than leaking a
- * later action into an earlier article.
+ * Build sparse historical context. CareerMemory gets a reserved slice of the packet so a feature
+ * can say what the player actually did in prior seasons, while article context preserves
+ * transactions, records, championships and other dated events.
  */
 export function buildNarrativeStoryContext(
   article: NarrativeArticle,
   source: NarrativeSource,
   limit = 12,
+  memory: NarrativeMemoryIndex = buildNarrativeMemoryIndex(source),
 ): NarrativeContextClaim[] {
+  const memoryLimit = article.playerIds.length ? Math.min(6, Math.max(2, Math.floor(limit * 0.45))) : 0;
+  const career = buildCareerMemoryContext(article, source, memory, memoryLimit);
+
   const candidates = new Map<string, NarrativeArticle>();
   for (const teamKey of article.teamKeys.slice(0, 2)) {
     for (const candidate of buildNarrativeFeed(source, {
@@ -161,24 +200,31 @@ export function buildNarrativeStoryContext(
     .sort((a, b) => {
       const relation = relatedness(article, b) - relatedness(article, a);
       return relation || b.asOfDate.localeCompare(a.asOfDate) || b.id.localeCompare(a.id);
-    })
-    .slice(0, limit);
+    });
 
-  const result: NarrativeContextClaim[] = [];
-  let index = 0;
+  const raw: Omit<NarrativeContextClaim, 'id'>[] = career.map((claim) => ({
+    sourceArticleId: claim.sourceArticleId,
+    sourceKind: claim.sourceKind,
+    asOfDate: claim.asOfDate,
+    text: claim.text,
+    factRefs: claim.factRefs,
+    factValue: claim.factValue,
+  }));
+
   for (const candidate of ranked) {
+    if (raw.length >= limit) break;
     for (const segment of candidate.segments) {
       if (segment.class !== 'FACTUAL' || !segment.factRefs.length) continue;
-      result.push({
-        id: `ctx${index++}`,
+      raw.push({
         sourceArticleId: candidate.id,
         sourceKind: candidate.kind,
         asOfDate: candidate.asOfDate,
         text: segment.text,
         factRefs: segment.factRefs,
       });
-      if (result.length >= limit) return result;
+      if (raw.length >= limit) break;
     }
   }
-  return result;
+
+  return raw.slice(0, limit).map((claim, index) => ({ ...claim, id: `ctx${index}` }));
 }

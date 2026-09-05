@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react';
 import { TINFO } from '../../../data';
 import {
   buildNarrativeFeed,
+  buildNarrativeMemoryIndex,
   type NarrativeArticle,
   type NarrativeArticleKind,
 } from '../../../narrative';
@@ -145,6 +146,7 @@ export function NarrativeTab() {
       championHistory: game.championHistory,
       awardHistory: game.awardHistory,
       narrativeEvents: game.narrativeEvents,
+      yearlyStats: game.yearlyStats,
     }),
     [
       game.gameBoxScores,
@@ -152,8 +154,10 @@ export function NarrativeTab() {
       game.championHistory,
       game.awardHistory,
       game.narrativeEvents,
+      game.yearlyStats,
     ],
   );
+  const memory = useMemo(() => buildNarrativeMemoryIndex(source), [source]);
   const [category, setCategory] = useState<FeedCategory>('all');
   const [myTeamOnly, setMyTeamOnly] = useState(false);
   const [visibleCount, setVisibleCount] = useState(40);
@@ -318,6 +322,7 @@ export function NarrativeTab() {
               key={`${game.worldId}:${article.id}`}
               template={article}
               source={source}
+              memory={memory}
               connection={connection}
             >
               {(rendered) => <ArticleCard article={rendered} />}
