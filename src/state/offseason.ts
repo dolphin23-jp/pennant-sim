@@ -1,3 +1,4 @@
+import { emitTrade } from '../engine/narrativeEvents';
 import { CENTRAL, PACIFIC, TINFO } from '../data';
 import {
   bestLineup,
@@ -54,7 +55,11 @@ function gapCash(gap: number): number {
   return clamp(Math.round(gap) * 60, 0, 2400);
 }
 
-export function generateTradeOffers(teams: Teams, playerTeam: TeamKey): TradeOffer[] {
+export function generateTradeOffers(
+  teams: Teams,
+  playerTeam: TeamKey,
+  batchId = 'initial',
+): TradeOffer[] {
   const userTeam = teams[playerTeam];
   const userChips = tradeableChips(userTeam);
   if (!userChips.length) return [];
@@ -102,7 +107,7 @@ export function generateTradeOffers(teams: Teams, playerTeam: TeamKey): TradeOff
       const receiveNames = receive.map((player) => player.name).join('・');
       const cashNote = cash > 0 ? `＋金銭${cash}万円` : '';
       return {
-        id: `${teamKey}-${primaryChip.id}-${primaryTarget.id}-${index}`,
+        id: `${batchId}:${teamKey}-${primaryChip.id}-${primaryTarget.id}-${index}`,
         fromTeam: teamKey,
         give,
         receive,
@@ -114,7 +119,12 @@ export function generateTradeOffers(teams: Teams, playerTeam: TeamKey): TradeOff
     .slice(0, 3);
 }
 
-export function applyTrade(teams: Teams, playerTeam: TeamKey, offer: TradeOffer): Teams {
+export function applyTrade(
+  teams: Teams,
+  playerTeam: TeamKey,
+  offer: TradeOffer,
+  context?: import('../narrative/types').NarrativeEventContext,
+): Teams {
   const next = { ...teams };
   const user = { ...next[playerTeam] };
   const opponent = { ...next[offer.fromTeam] };
@@ -153,5 +163,24 @@ export function applyTrade(teams: Teams, playerTeam: TeamKey, offer: TradeOffer)
 
   next[playerTeam] = { ...user, pitchers: userPitchers, fielders: userFielders };
   next[offer.fromTeam] = { ...opponent, pitchers: opponentPitchers, fielders: opponentFielders };
+  emitTrade(
+    context,
+    offer.id,
+    [
+      ...offer.give.map((player) => ({
+        playerId: player.id,
+        playerName: player.name,
+        fromTeamKey: offer.fromTeam,
+        toTeamKey: playerTeam,
+      })),
+      ...offer.receive.map((player) => ({
+        playerId: player.id,
+        playerName: player.name,
+        fromTeamKey: playerTeam,
+        toTeamKey: offer.fromTeam,
+      })),
+    ],
+    offer.cash,
+  );
   return next;
 }

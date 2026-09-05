@@ -1,3 +1,6 @@
+import { emitTrade } from './narrativeEvents';
+import type { NarrativeEventContext } from '../narrative/types';
+
 import { CENTRAL, FIELD_POSITIONS, FOREIGN_PLAYER_BALANCE, PACIFIC, TINFO } from '../data';
 import {
   canRegisterForeignPlayer,
@@ -163,12 +166,34 @@ export function genForeignMarket(arrivalYear = 2026): Player[] {
       (first.isP ? calcOVR(first) : effectiveOVR(first, first.pos)),
   );
 }
-export function signPlayerToTeam(teams: Teams, teamKey: TeamKey, player: Player): Teams {
+export function signPlayerToTeam(
+  teams: Teams,
+  teamKey: TeamKey,
+  player: Player,
+  context?: NarrativeEventContext,
+): Teams {
+  if (
+    Object.values(teams).some((t) => [...t.pitchers, ...t.fielders].some((p) => p.id === player.id))
+  )
+    return teams;
   if (isForeignPlayer(player) && !canRegisterForeignPlayer(teams[teamKey])) return teams;
   const team = { ...teams[teamKey] },
     signedPlayer = { ...player, tk: teamKey, signedVia: player.note || '市場' };
   if (signedPlayer.isP) team.pitchers = [...team.pitchers, signedPlayer];
   else team.fielders = [...team.fielders, signedPlayer];
+  if (context) {
+    const kind = isForeignPlayer(player) ? 'foreignSigning' : 'faSigning';
+    context.emit({
+      type: 'transaction',
+      id: `transaction:${kind}:${context.year}:${teamKey}:${player.id}`,
+      year: context.year,
+      date: context.date,
+      transactionKind: kind,
+      playerId: player.id,
+      playerName: player.name,
+      toTeamKey: teamKey,
+    });
+  }
   return { ...teams, [teamKey]: team };
 }
 export function cpuAutoSignMarket(
@@ -176,6 +201,7 @@ export function cpuAutoSignMarket(
   market: Player[],
   type: 'fa' | 'foreign' = 'fa',
   excludedTeam: TeamKey | null = null,
+  context?: NarrativeEventContext,
 ): { teams: Teams; remaining: Player[] } {
   let nextTeams = { ...teams },
     remaining = [...market];
@@ -210,7 +236,7 @@ export function cpuAutoSignMarket(
         .sort((first, second) => second.score - first.score),
       winner = bids[0];
     if (!winner || winner.score < -1.5) continue;
-    nextTeams = signPlayerToTeam(nextTeams, winner.teamKey, pick);
+    nextTeams = signPlayerToTeam(nextTeams, winner.teamKey, pick, context);
     signedClubs.add(winner.teamKey);
     remaining = remaining.filter((player) => player.id !== pick.id);
   }
@@ -222,11 +248,12 @@ export function cpuAutoSignMarketRounds(
   type: 'fa' | 'foreign' = 'fa',
   rounds = 2,
   excludedTeam: TeamKey | null = null,
+  context?: NarrativeEventContext,
 ): { teams: Teams; remaining: Player[] } {
   let nextTeams = { ...teams },
     remaining = [...market];
   for (let round = 0; round < rounds && remaining.length; round += 1) {
-    const result = cpuAutoSignMarket(nextTeams, remaining, type, excludedTeam);
+    const result = cpuAutoSignMarket(nextTeams, remaining, type, excludedTeam, context);
     nextTeams = result.teams;
     remaining = result.remaining;
   }
@@ -255,7 +282,12 @@ function rosterCoreValue(team: Team): number {
   return batting * 0.45 + starting * 0.3 + relief * 0.25;
 }
 
-export function cpuAutoTradeBetweenTeams(teams: Teams, playerTeam: TeamKey, rounds = 4): Teams {
+export function cpuAutoTradeBetweenTeams(
+  teams: Teams,
+  playerTeam: TeamKey,
+  rounds = 4,
+  context?: NarrativeEventContext,
+): Teams {
   const nextTeams = { ...teams };
   const clubs = [...CENTRAL, ...PACIFIC]
       .filter((teamKey) => teamKey !== playerTeam)
@@ -301,19 +333,26 @@ export function cpuAutoTradeBetweenTeams(teams: Teams, playerTeam: TeamKey, roun
     const secondPool = tradeable(secondTeam);
     const firstBefore = rosterCoreValue(firstTeam);
     const secondBefore = rosterCoreValue(secondTeam);
-    let best:
-      | { firstOut: Player; secondOut: Player; score: number; firstAfter: Team; secondAfter: Team }
-      | null = null;
+    let best: {
+      firstOut: Player;
+      secondOut: Player;
+      score: number;
+      firstAfter: Team;
+      secondAfter: Team;
+    } | null = null;
     for (const firstOut of firstPool) {
       for (const secondOut of secondPool) {
         const firstValue = firstOut.isP ? calcOVR(firstOut) : effectiveOVR(firstOut, firstOut.pos);
-        const secondValue = secondOut.isP ? calcOVR(secondOut) : effectiveOVR(secondOut, secondOut.pos);
+        const secondValue = secondOut.isP
+          ? calcOVR(secondOut)
+          : effectiveOVR(secondOut, secondOut.pos);
         const valueGap = Math.abs(firstValue - secondValue);
         if (valueGap > 12) continue;
         const firstAfter = move(firstTeam, firstOut, secondOut, firstTeamKey);
         const secondAfter = move(secondTeam, secondOut, firstOut, secondTeamKey);
         const firstFit = teamNeedsScore(firstTeam, secondOut) - teamNeedsScore(firstTeam, firstOut);
-        const secondFit = teamNeedsScore(secondTeam, firstOut) - teamNeedsScore(secondTeam, secondOut);
+        const secondFit =
+          teamNeedsScore(secondTeam, firstOut) - teamNeedsScore(secondTeam, secondOut);
         const firstGain = (rosterCoreValue(firstAfter) - firstBefore) * 1.5 + firstFit * 0.35;
         const secondGain = (rosterCoreValue(secondAfter) - secondBefore) * 1.5 + secondFit * 0.35;
         if (firstGain < 0.5 || secondGain < 0.5) continue;
@@ -325,6 +364,24 @@ export function cpuAutoTradeBetweenTeams(teams: Teams, playerTeam: TeamKey, roun
     if (!best || best.score < 5) continue;
     nextTeams[firstTeamKey] = best.firstAfter;
     nextTeams[secondTeamKey] = best.secondAfter;
+    emitTrade(
+      context,
+      `cpu:${context?.scope ?? 'default'}:${round}:${firstTeamKey}:${best.firstOut.id}:${secondTeamKey}:${best.secondOut.id}`,
+      [
+        {
+          playerId: best.firstOut.id,
+          playerName: best.firstOut.name,
+          fromTeamKey: firstTeamKey,
+          toTeamKey: secondTeamKey,
+        },
+        {
+          playerId: best.secondOut.id,
+          playerName: best.secondOut.name,
+          fromTeamKey: secondTeamKey,
+          toTeamKey: firstTeamKey,
+        },
+      ],
+    );
   }
   return nextTeams;
 }

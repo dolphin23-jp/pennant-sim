@@ -44,3 +44,76 @@ The event pipeline is already typed for transactions, draft selections, career e
 ## Live vs archival
 
 `NarrativeArticle.viewMode` and `asOfDate` are explicit. Current foundation articles are archival snapshots of completed events. Future live previews (race analysis, current standings, pending FA market coverage) must be rendered separately and must never leak facts later than their `asOfDate` into archival views.
+
+## Event ledger (generator v2)
+
+`narrativeEvents: Record<string, NarrativeEvent[]>` is the canonical year-keyed
+ledger. It holds facts only: names and affiliations at the event, draft origin and
+round, complete trade movements, committed exit reasons, injury severity/duration,
+and numeric growth/awakening facts. It contains neither generated articles nor a
+second copy of game boxes. `FutureNarrativeEvent` and `articleFromFutureEvent` remain
+compatible aliases/entry points for callers of the foundation API.
+
+Owners emit through an optional `NarrativeEventContext` when an operation becomes
+final. This observation channel uses no random draws and does not decide outcomes.
+
+| Owner / commit | Facts emitted |
+| --- | --- |
+| `applyTrade` / `cpuAutoTradeBetweenTeams` | One trade with every movement, plus existing cash terms |
+| `signPlayerToTeam` | User and CPU FA / foreign signings; refused or duplicate applications emit nothing |
+| `applyDraftPicks` | Confirmed picks only; previews and losing bids emit nothing |
+| `retirePlayers`, CPU roster preparation/finalization, foreign review | User retirement, CPU retirement or release according to the explicit exit reason, foreign release / MLB departure |
+| `applyPostGamePlayerEvents` and scheduled-game commit | Injuries, awakenings, and the exact transition to injury eligibility; includes CPU games without retained boxes |
+| `growthPhase` | Annual OVR change of at least 3 in either direction, and every awakening |
+| `completeOffseason` | Twelve frozen regular-season standings reviews, with the known Japan Series champion |
+
+The UI stages offseason rosters and events together and saves them at
+`completeOffseason`, matching its existing all-or-nothing offseason behavior.
+Closing/reloading midway still discards the staged offseason, including its events.
+Draft reconstruction for previews does not emit: the final draft application does.
+Postseason events are committed with the championship. Regular-season play, CPU
+catch-up, skips, and new-season CPU preparation all append their committed batches.
+An injury recovery means **eligible to play**, not an actual appearance or comeback
+performance. The existing injury countdown is unchanged.
+
+### Identity and integrity
+
+- IDs include the event year and the owner's stable key. Trade offers carry a
+  proposal-batch ordinal; CPU trades use their caller's batch scope and round.
+- A multi-player trade is one event/article and includes all `playerIds` and both
+  clubs in `teamKeys`. Exact replay is a no-op; conflicting facts for an existing
+  canonical ID fail validation rather than overwrite history.
+- Already-prefixed event IDs are also the article IDs; legacy unprefixed subsystem
+  IDs keep the foundation's prefix mapping. The renderer version is not part of
+  identity. Ledger FactRefs point at the saved event ID, including season reviews.
+- Migration validates discriminants, teams, years/dates, numeric fields and nested
+  facts. Missing legacy ledgers mean empty history; malformed present data is
+  reported as corruption. Existing data is never retrospectively inferred from
+  rosters, notices or bounded growth logs.
+- Feed candidates include metadata only; text is generated for the requested page.
+  Team/player/year/category and `asOfDate` filters share the same pipeline. A
+  historical rendering cannot consult a mutable player object.
+
+### Dates and limits
+
+Scheduled events use the real simulation date and game ID. The offseason has no
+calendar-day model: its publication label is `<year>年オフ` and its `asOfDate` is the
+year-end boundary, as with the existing awards/championship articles. This does
+not claim a precise real-world signing date or order within that offseason.
+
+The FA market currently generates candidates; it does not release named players
+from existing clubs. FA articles therefore record joining a club without inventing
+a prior employer, contract payment, or human motives. First appearances, first
+hits/wins, origin schools, full CareerMemory/StoryArc, foreign renewal/adaptation
+news, and LLM rendering remain future work. Historic synthetic league years are
+not backfilled with guessed transactions.
+
+`npm run test:narrative:long` plays 100 full scheduled seasons with roster turnover,
+checks every year's counts and replay behavior, verifies old chunk reuse, and
+checks full rehydration/export and article identity at both 30 and 100 years. CI
+runs this audit alongside the existing unit tests and unchanged balance baseline.
+
+Reload uses an already-saved championship as the postseason commit marker and
+resumes at the offseason. This prevents rerolling an event that already has a
+canonical article. Repeated offseason completion callbacks from the previous year
+are ignored. These guards do not alter simulation outcomes or random draws.

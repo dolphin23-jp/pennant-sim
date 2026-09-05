@@ -1,3 +1,5 @@
+import { narrativeEventsFromPostGame } from '../../engine/narrativeEvents';
+import type { NarrativeEvent } from '../../narrative/types';
 import { useMemo, useState } from 'react';
 
 import { CENTRAL, PACIFIC, TINFO } from '../../data';
@@ -34,6 +36,7 @@ interface SeriesGame {
 }
 
 interface SeriesResult {
+  narrativeEvents: NarrativeEvent[];
   first: TeamKey;
   second: TeamKey;
   firstWins: number;
@@ -168,6 +171,7 @@ function simulateSeries(
   let firstRotation = 0;
   let secondRotation = 0;
   let gameNumber = 1;
+  const narrativeEvents: NarrativeEvent[] = [];
   const games: SeriesGame[] = [],
     // Sized to the defensive game-count cap below, so even a rare tie-heavy series that
     // runs past a "normal" bestOf length still has a real date for every game it plays.
@@ -185,6 +189,13 @@ function simulateSeries(
       home === first ? firstRotation : secondRotation,
       away === first ? firstRotation : secondRotation,
       accumulated,
+    );
+    narrativeEvents.push(
+      ...narrativeEventsFromPostGame(
+        `postseason:${startDate}:${first}:${second}:${gameNumber}`,
+        dates[gameNumber - 1] as string,
+        result.postGameEvents,
+      ),
     );
     firstRotation += 1;
     secondRotation += 1;
@@ -213,6 +224,7 @@ function simulateSeries(
     second,
     firstWins,
     secondWins,
+    narrativeEvents,
     winner: firstWins >= secondWins ? first : second,
     games,
   };
@@ -575,7 +587,11 @@ export function PostseasonScreen() {
                   results.japanSeries.winner === results.japanSeries.first
                     ? results.japanSeries.second
                     : results.japanSeries.first;
-                game.recordChampionship(results.japanSeries.winner, runnerUp);
+                game.recordChampionship(
+                  results.japanSeries.winner,
+                  runnerUp,
+                  Object.values(results).flatMap((series) => series.narrativeEvents),
+                );
                 game.setScreen('offseason');
               }}
             >

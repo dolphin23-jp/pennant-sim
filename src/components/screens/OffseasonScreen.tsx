@@ -1,3 +1,5 @@
+import { retirePlayers } from '../../engine/offseason';
+import type { NarrativeEvent, NarrativeEventContext } from '../../narrative/types';
 import { useEffect, useMemo, useState } from 'react';
 
 import { FOREIGN_PLAYER_BALANCE, TINFO } from '../../data';
@@ -144,9 +146,42 @@ function OffseasonContent({
   playerTeam: TeamKey;
 }) {
   const [phase, setPhase] = useState<OffseasonPhase>('growth');
-  const [foreignReview] = useState(() =>
-    reviewForeignPlayers(initialTeams, game.leagueAccumulated, game.season.year),
-  );
+  const [preparation] = useState(() => {
+    const events: NarrativeEvent[] = [];
+    const context: NarrativeEventContext = {
+      year: game.season.year,
+      date: `${game.season.year}年オフ`,
+      emit: (e) => events.push(e),
+    };
+    const foreignReview = reviewForeignPlayers(
+      initialTeams,
+      game.leagueAccumulated,
+      game.season.year,
+      context,
+    );
+    const growthResult = growthPhase(foreignReview.teams, context);
+    const cpuPreparation = prepareCpuRostersForDraft(
+      growthResult.teams,
+      { excludedTeam: playerTeam },
+      context,
+    );
+    return { foreignReview, growthResult, cpuPreparation, events };
+  });
+  const { foreignReview, growthResult, cpuPreparation } = preparation;
+  const [pendingEvents, setPendingEvents] = useState<NarrativeEvent[]>(preparation.events);
+  const [retired, setRetired] = useState<Player[]>([]);
+  // Collect facts alongside the staged roster; publish only at offseason completion.
+  const capture = <T,>(operation: (context: NarrativeEventContext) => T, scope?: string): T => {
+    const events: NarrativeEvent[] = [];
+    const value = operation({
+      year: game.season.year,
+      date: `${game.season.year}年オフ`,
+      scope,
+      emit: (e) => events.push(e),
+    });
+    setPendingEvents((current) => [...current, ...events]);
+    return value;
+  };
   const [foreignNotices] = useState<Notice[]>(() =>
     foreignReview.events
       .filter((event) => event.teamKey === playerTeam)
@@ -176,10 +211,6 @@ function OffseasonContent({
         teamKey: playerTeam,
       })),
   );
-  const [growthResult] = useState(() => growthPhase(foreignReview.teams));
-  const [cpuPreparation] = useState(() =>
-    prepareCpuRostersForDraft(growthResult.teams, { excludedTeam: playerTeam }),
-  );
   const [developmentNotices] = useState(() => [
     ...createOffseasonDevelopmentNotices(
       foreignReview.teams[playerTeam],
@@ -196,6 +227,7 @@ function OffseasonContent({
     genForeignMarket(game.season.year + 1),
   );
   const [retireIds, setRetireIds] = useState<string[]>([]);
+  const [tradeBatch, setTradeBatch] = useState(0);
   const [tradeOffers, setTradeOffers] = useState(() =>
     generateTradeOffers(growthResult.teams, playerTeam),
   );
@@ -239,27 +271,20 @@ function OffseasonContent({
   );
 
   const completeRetirements = () => {
-    const selected = new Set(retireIds);
-    const team = workTeams[playerTeam];
-    setWorkTeams({
-      ...workTeams,
-      [playerTeam]: {
-        ...team,
-        pitchers: team.pitchers.filter((player) => !selected.has(player.id)),
-        fielders: team.fielders.filter((player) => !selected.has(player.id)),
-      },
-    });
+    const result = capture((context) => retirePlayers(workTeams, playerTeam, retireIds, context));
+    setWorkTeams(result.teams);
+    setRetired((current) => [...current, ...result.retiredPlayers]);
     setPhase('fa');
   };
 
   const signFreeAgent = (player: Player) => {
-    setWorkTeams((teams) => signPlayerToTeam(teams, playerTeam, player));
+    setWorkTeams(capture((context) => signPlayerToTeam(workTeams, playerTeam, player, context)));
     setFaMarket((market) => market.filter((candidate) => candidate.id !== player.id));
   };
   const signForeignPlayer = (player: Player) => {
     if (countForeignPlayers(workTeams[playerTeam]) >= FOREIGN_PLAYER_BALANCE.registeredLimit)
       return;
-    setWorkTeams((teams) => signPlayerToTeam(teams, playerTeam, player));
+    setWorkTeams(capture((context) => signPlayerToTeam(workTeams, playerTeam, player, context)));
     setForeignMarket((market) => market.filter((candidate) => candidate.id !== player.id));
   };
 
@@ -459,7 +484,9 @@ function OffseasonContent({
           accent={teamInfo.c}
           onSign={signFreeAgent}
           onNext={() => {
-            const result = cpuAutoSignMarketRounds(workTeams, faMarket, 'fa', 4, playerTeam);
+            const result = capture((context) =>
+              cpuAutoSignMarketRounds(workTeams, faMarket, 'fa', 4, playerTeam, context),
+            );
             setWorkTeams(result.teams);
             setFaMarket(result.remaining);
             setPhase('foreign');
@@ -479,14 +506,13 @@ function OffseasonContent({
           }
           signDisabledReason={`外国人登録枠（${FOREIGN_PLAYER_BALANCE.registeredLimit}人）が満員です`}
           onNext={() => {
-            const result = cpuAutoSignMarketRounds(
-              workTeams,
-              foreignMarket,
-              'foreign',
-              4,
-              playerTeam,
+            const result = capture((context) =>
+              cpuAutoSignMarketRounds(workTeams, foreignMarket, 'foreign', 4, playerTeam, context),
             );
-            const traded = cpuAutoTradeBetweenTeams(result.teams, playerTeam, 8);
+            const traded = capture(
+              (context) => cpuAutoTradeBetweenTeams(result.teams, playerTeam, 8, context),
+              'before-user-trades',
+            );
             setWorkTeams(traded);
             setForeignMarket(result.remaining);
             setTradeOffers(generateTradeOffers(traded, playerTeam));
@@ -500,12 +526,18 @@ function OffseasonContent({
           offers={tradeOffers}
           playerTeam={playerTeam}
           onAccept={(offer) => {
-            const next = applyTrade(workTeams, playerTeam, offer);
+            const next = capture((context) => applyTrade(workTeams, playerTeam, offer, context));
             setWorkTeams(next);
-            setTradeOffers(generateTradeOffers(next, playerTeam));
+            setTradeBatch(tradeBatch + 1);
+            setTradeOffers(generateTradeOffers(next, playerTeam, `accepted-${tradeBatch + 1}`));
           }}
           onSkip={() => {
-            setWorkTeams(cpuAutoTradeBetweenTeams(workTeams, playerTeam, 3));
+            setWorkTeams(
+              capture(
+                (context) => cpuAutoTradeBetweenTeams(workTeams, playerTeam, 3, context),
+                'after-user-trades',
+              ),
+            );
             setPhase('draft');
           }}
         />
@@ -519,9 +551,19 @@ function OffseasonContent({
             game.standings,
             calcInterleagueStandings(game.season.schedule),
           )}
-          onComplete={(draftedTeams) => {
-            const finalized = finalizeCpuRosters(draftedTeams, { excludedTeam: playerTeam });
-            game.completeOffseason(finalized.teams, developmentNotices);
+          narrativeYear={game.season.year}
+          onComplete={(draftedTeams, _picks, draftEvents) => {
+            const events = [...pendingEvents, ...draftEvents];
+            const finalized = finalizeCpuRosters(
+              draftedTeams,
+              { excludedTeam: playerTeam },
+              {
+                year: game.season.year,
+                date: `${game.season.year}年オフ`,
+                emit: (e) => events.push(e),
+              },
+            );
+            game.completeOffseason(finalized.teams, developmentNotices, events, retired);
           }}
         />
       )}

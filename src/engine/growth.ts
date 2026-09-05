@@ -1,3 +1,5 @@
+import { emitGrowth } from './narrativeEvents';
+import type { NarrativeEventContext } from '../narrative/types';
 import {
   BS,
   CATCH_SP,
@@ -363,7 +365,10 @@ export function checkAwakening(player: Player, inSeason: boolean): AwakeningResu
     newSpecial,
   };
 }
-export function growthPhase(teams: Teams): {
+export function growthPhase(
+  teams: Teams,
+  context?: NarrativeEventContext,
+): {
   teams: Teams;
   awakeEvents: Array<AwakeningResult & { tk: string; name: string }>;
 } {
@@ -373,10 +378,25 @@ export function growthPhase(teams: Teams): {
     const team = { ...nextTeams[teamKey] };
     team.pitchers = team.pitchers.map((pitcher) => {
       const grown = growPlayer(pitcher);
+      emitGrowth(context, teamKey, grown);
       grown.seasonAwakenDone = false;
       const awakening = checkAwakening(grown, false);
       if (awakening) {
         awakeEvents.push({ ...awakening, tk: teamKey, name: awakening.player.name });
+        if (context)
+          context.emit({
+            type: 'development',
+            id: `development:${context.year}:offseason:${awakening.player.id}:awakening`,
+            year: context.year,
+            date: context.date,
+            teamKey,
+            playerId: awakening.player.id,
+            playerName: awakening.player.name,
+            developmentKind: 'awakening',
+            boosts: awakening.events.map((e) => ({ param: e.param, boost: e.boost })),
+            isBreakthrough: awakening.isBreakthrough,
+            newSpecial: awakening.newSpecial?.n ?? null,
+          });
         return awakening.player;
       }
       return grown;
@@ -388,10 +408,25 @@ export function growthPhase(teams: Teams): {
       // and leave that non-zero-but-broken value behind for ensureCatcherAttributes'
       // "already set" check to wrongly treat as already backfilled.
       const grown = advancePositionConversion(growPlayer(ensureCatcherAttributes(fielder)));
+      emitGrowth(context, teamKey, grown);
       grown.seasonAwakenDone = false;
       const awakening = checkAwakening(grown, false);
       if (awakening) {
         awakeEvents.push({ ...awakening, tk: teamKey, name: awakening.player.name });
+        if (context)
+          context.emit({
+            type: 'development',
+            id: `development:${context.year}:offseason:${awakening.player.id}:awakening`,
+            year: context.year,
+            date: context.date,
+            teamKey,
+            playerId: awakening.player.id,
+            playerName: awakening.player.name,
+            developmentKind: 'awakening',
+            boosts: awakening.events.map((e) => ({ param: e.param, boost: e.boost })),
+            isBreakthrough: awakening.isBreakthrough,
+            newSpecial: awakening.newSpecial?.n ?? null,
+          });
         return awakening.player;
       }
       return grown;

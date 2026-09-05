@@ -73,3 +73,24 @@ Missing or modified chunks are reported as corruption rather than silently dropp
 IndexedDB remains the primary browser backend. On normal browser-backed saves the app makes a best-effort `navigator.storage.persist()` request so the browser is less likely to evict a long-running world. This does not create literal unlimited storage: available capacity still depends on the browser and device.
 
 The architecture is designed so that storage growth is append-oriented and normal save cost does not scale with the total age of the world. Future work can add storage-usage diagnostics, archive export packaging/compression, or optional pruning of very old play-by-play data without changing the current-state contract.
+
+## Narrative ledger extension
+
+The optional `narrativeEvents` field on a season chunk stores that year's factual
+events. The active year's ledger also lives in its season chunk, receiving new
+content revisions as events arrive; completed years reuse their immutable chunks.
+The root's `current.narrativeEvents` is empty. Fully rehydrated in-memory state and
+portable JSON exports use a year-keyed map, matching other v4 archive projections.
+
+This is an additive schema-1 / storage-v4 extension. A missing field in pre-ledger
+v3 saves or v4 chunks initializes an empty ledger, without fabricated backfill.
+Empty old chunks omit the new field so their existing content revision is reused.
+Event shape/year validation runs after the chunk revision check. Invalid present
+facts fail the load/import rather than silently dropping history. Dedupe and
+conflict detection run on save and rehydration. The archive-first, root-last commit
+protocol and failed-save recovery are unchanged.
+
+As with other existing v4 fields, loading rehydrates the world and saving currently
+validates/serializes its history to compare content revisions. Old chunks are not
+rewritten, but CPU serialization and in-memory history still grow with world age;
+this extension does not introduce lazy loading or dirty-year tracking.

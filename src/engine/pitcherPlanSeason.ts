@@ -19,6 +19,7 @@ export function skipGamesWithPitcherPlan(
   leagueDistStats: AccumulatedStats;
   gameSummaries: Record<string, GameSummary>;
   gameBoxScores: Record<string, GameBoxScore>;
+  narrativeEvents: import('../narrative/types').NarrativeEvent[];
 } {
   const hasPlan = pitcherPlan.rotationOrder.length > 0 || pitcherPlan.closerPriority.length > 0;
   return skipGames(

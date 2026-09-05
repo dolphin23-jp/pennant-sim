@@ -1,3 +1,5 @@
+import { narrativeEventsFromPostGame } from './narrativeEvents';
+import type { NarrativeEvent } from '../narrative/types';
 import { CENTRAL, PACIFIC, TINFO } from '../data';
 import { buildGameBoxScore, isNotableGame, toSummary } from './boxScore';
 import type { GameBoxScore, GameSummary } from './boxScore';
@@ -317,10 +319,15 @@ export function generateSchedule(
     // Do not leak interleague games into the regular league calendar (or vice versa).
     // Once the interleague block starts it owns the calendar until every already-started
     // series has finished; rainouts may still move individual games later afterwards.
-    if (inInterleaguePhase) fillDayFromPool(interleagueSeries, day, start, freeToday, busyUntil, schedule);
+    if (inInterleaguePhase)
+      fillDayFromPool(interleagueSeries, day, start, freeToday, busyUntil, schedule);
     else fillDayFromPool(leagueSeries, day, start, freeToday, busyUntil, schedule);
 
-    if (day >= INTERLEAGUE_WINDOW_START && interleagueFinishedDay === null && interleagueSeries.length === 0) {
+    if (
+      day >= INTERLEAGUE_WINDOW_START &&
+      interleagueFinishedDay === null &&
+      interleagueSeries.length === 0
+    ) {
       interleagueFinishedDay = Math.max(
         day + 1,
         ...teamKeys.map((teamKey) => busyUntil[teamKey] ?? day + 1),
@@ -418,9 +425,10 @@ export function buildHeadToHeadMatrix(
   const matrix = Object.fromEntries(
     teamKeys.map((key) => [
       key,
-      Object.fromEntries(
-        teamKeys.map((opponent) => [opponent, { w: 0, l: 0, d: 0 }]),
-      ) as Record<TeamKey, HeadToHeadRecord>,
+      Object.fromEntries(teamKeys.map((opponent) => [opponent, { w: 0, l: 0, d: 0 }])) as Record<
+        TeamKey,
+        HeadToHeadRecord
+      >,
     ]),
   ) as Record<TeamKey, Record<TeamKey, HeadToHeadRecord>>;
   for (const game of schedule) {
@@ -531,12 +539,14 @@ export function simCpuUntilNext(
   leagueDistStats: AccumulatedStats;
   gameSummaries: Record<string, GameSummary>;
   gameBoxScores: Record<string, GameBoxScore>;
+  narrativeEvents: NarrativeEvent[];
 } {
   const nextSchedule = [...schedule],
     nextRotations = { ...rotationNumbers };
   let leagueStats: AccumulatedStats = {};
   const gameSummaries: Record<string, GameSummary> = {};
   const gameBoxScores: Record<string, GameBoxScore> = {};
+  const narrativeEvents: NarrativeEvent[] = [];
   const nextPlayerGame = nextSchedule.find(
     (game) => !game.played && (game.homeKey === playerTeam || game.awayKey === playerTeam),
   );
@@ -559,6 +569,7 @@ export function simCpuUntilNext(
       game.date,
     );
     nextSchedule[index] = { ...game, played: true, hs: result.score.home, as: result.score.away };
+    narrativeEvents.push(...narrativeEventsFromPostGame(game.id, game.date, result.postGameEvents));
     leagueStats = accumulateStatsAll(result, leagueStats);
     const box = buildGameBoxScore(
       result,
@@ -579,6 +590,7 @@ export function simCpuUntilNext(
     leagueDistStats: leagueStats,
     gameSummaries,
     gameBoxScores,
+    narrativeEvents,
   };
 }
 
@@ -598,6 +610,7 @@ export function skipGames(
   leagueDistStats: AccumulatedStats;
   gameSummaries: Record<string, GameSummary>;
   gameBoxScores: Record<string, GameBoxScore>;
+  narrativeEvents: NarrativeEvent[];
 } {
   const nextSchedule = [...schedule],
     nextRotations = { ...rotationNumbers };
@@ -605,6 +618,7 @@ export function skipGames(
     leagueStats: AccumulatedStats = {};
   const gameSummaries: Record<string, GameSummary> = {};
   const gameBoxScores: Record<string, GameBoxScore> = {};
+  const narrativeEvents: NarrativeEvent[] = [];
   const remaining = nextSchedule.filter(
       (game) => !game.played && (game.homeKey === playerTeam || game.awayKey === playerTeam),
     ),
@@ -638,6 +652,7 @@ export function skipGames(
         game.date,
       );
     nextSchedule[index] = { ...game, played: true, hs: result.score.home, as: result.score.away };
+    narrativeEvents.push(...narrativeEventsFromPostGame(game.id, game.date, result.postGameEvents));
     leagueStats = accumulateStatsAll(result, leagueStats);
     const box = buildGameBoxScore(
       result,
@@ -662,5 +677,6 @@ export function skipGames(
     leagueDistStats: leagueStats,
     gameSummaries,
     gameBoxScores,
+    narrativeEvents,
   };
 }
