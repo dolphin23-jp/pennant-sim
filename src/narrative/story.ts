@@ -42,7 +42,7 @@ export function planNarrativeStory(
   else if (article.kind === 'achievement') {
     add(65, 'record-or-milestone');
     const event = source.achievementHistory.find((e) => `achievement:${e.id}` === article.id);
-    if (event?.kind === 'seasonRecord' || event?.kind === 'franchiseRecord')
+    if (event?.kind === 'seasonRecord' || event?.kind === 'careerRecord')
       add(15, 'record-history');
   } else if (article.kind === 'gameRecap') {
     const box = source.gameBoxScores[article.id.slice('game:'.length)];

@@ -195,11 +195,12 @@ export function validPacket(v: unknown): v is FactPacket {
     ids.add(c.id);
   }
   if (!ids.has('headline')) return false;
+  const primaryClaimIds = story.primaryClaimIds as string[];
   if (
-    story.primaryClaimIds.some((id) => !ids.has(id)) ||
+    primaryClaimIds.some((id) => !ids.has(id)) ||
     v.claims
       .filter((claim) => claim.role === 'primary')
-      .some((claim) => !story.primaryClaimIds.includes(claim.id))
+      .some((claim) => !primaryClaimIds.includes(claim.id))
   )
     return false;
   return canonicalJson(v).length <= 100000;
@@ -262,38 +263,40 @@ export function validateProse(raw: unknown, packet: FactPacket): Prose | null {
     )
       return false;
 
+    const text = text as string;
+    const claimIds = claimIds as string[];
     if (value.class === 'COLOR') {
       colorCount++;
       return (
         placement === 'segment' &&
-        value.claimIds.length === 0 &&
+        claimIds.length === 0 &&
         colorCount <= 1 &&
-        !colorFactual.test(value.text) &&
-        !packet.entities.some((name) => value.text.includes(name)) &&
-        !prohibited.test(value.text)
+        !colorFactual.test(text) &&
+        !packet.entities.some((name) => text.includes(name)) &&
+        !prohibited.test(text)
       );
     }
-    if (value.class !== 'FACTUAL' || !value.claimIds.length) return false;
+    if (value.class !== 'FACTUAL' || !claimIds.length) return false;
 
-    const cited = value.claimIds.map((id) => claims.get(id));
+    const cited = claimIds.map((id) => claims.get(id));
     if (cited.some((claim) => !claim)) return false;
     const validClaims = cited as FactClaim[];
-    if (placement === 'headline' && !value.claimIds.includes('headline')) return false;
+    if (placement === 'headline' && !claimIds.includes('headline')) return false;
 
     const evidence = validClaims.map((claim) => claim.text).join(' ');
     // Canonical template wording is already an audited game projection. The lexical banlist
     // applies to freer prose, not to an exact one-claim fallback (which may legitimately contain
     // terms such as an archived origin/exit label).
     const exactCanonical =
-      validClaims.length === 1 && value.text === validClaims[0].text;
-    if (!exactCanonical && prohibited.test(value.text)) return false;
-    if (!isNumberSubset(numberList(value.text), numberList(evidence))) return false;
+      validClaims.length === 1 && text === validClaims[0].text;
+    if (!exactCanonical && prohibited.test(text)) return false;
+    if (!isNumberSubset(numberList(text), numberList(evidence))) return false;
 
     for (const name of packet.entities) {
-      if (value.text.includes(name) && !evidence.includes(name)) return false;
+      if (text.includes(name) && !evidence.includes(name)) return false;
     }
     for (const claim of validClaims) {
-      if (claim.locked && !value.text.includes(claim.text)) return false;
+      if (claim.locked && !text.includes(claim.text)) return false;
       if (claim.role === 'primary') coveredPrimary.add(claim.id);
     }
     return true;
