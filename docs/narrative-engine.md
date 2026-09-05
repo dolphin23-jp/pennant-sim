@@ -57,15 +57,15 @@ compatible aliases/entry points for callers of the foundation API.
 Owners emit through an optional `NarrativeEventContext` when an operation becomes
 final. This observation channel uses no random draws and does not decide outcomes.
 
-| Owner / commit | Facts emitted |
-| --- | --- |
-| `applyTrade` / `cpuAutoTradeBetweenTeams` | One trade with every movement, plus existing cash terms |
-| `signPlayerToTeam` | User and CPU FA / foreign signings; refused or duplicate applications emit nothing |
-| `applyDraftPicks` | Confirmed picks only; previews and losing bids emit nothing |
+| Owner / commit                                                       | Facts emitted                                                                                                     |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `applyTrade` / `cpuAutoTradeBetweenTeams`                            | One trade with every movement, plus existing cash terms                                                           |
+| `signPlayerToTeam`                                                   | User and CPU FA / foreign signings; refused or duplicate applications emit nothing                                |
+| `applyDraftPicks`                                                    | Confirmed picks only; previews and losing bids emit nothing                                                       |
 | `retirePlayers`, CPU roster preparation/finalization, foreign review | User retirement, CPU retirement or release according to the explicit exit reason, foreign release / MLB departure |
-| `applyPostGamePlayerEvents` and scheduled-game commit | Injuries, awakenings, and the exact transition to injury eligibility; includes CPU games without retained boxes |
-| `growthPhase` | Annual OVR change of at least 3 in either direction, and every awakening |
-| `completeOffseason` | Twelve frozen regular-season standings reviews, with the known Japan Series champion |
+| `applyPostGamePlayerEvents` and scheduled-game commit                | Injuries, awakenings, and the exact transition to injury eligibility; includes CPU games without retained boxes   |
+| `growthPhase`                                                        | Annual OVR change of at least 3 in either direction, and every awakening                                          |
+| `completeOffseason`                                                  | Twelve frozen regular-season standings reviews, with the known Japan Series champion                              |
 
 The UI stages offseason rosters and events together and saves them at
 `completeOffseason`, matching its existing all-or-nothing offseason behavior.
@@ -105,7 +105,7 @@ The FA market currently generates candidates; it does not release named players
 from existing clubs. FA articles therefore record joining a club without inventing
 a prior employer, contract payment, or human motives. First appearances, first
 hits/wins, origin schools, full CareerMemory/StoryArc, foreign renewal/adaptation
-news, and LLM rendering remain future work. Historic synthetic league years are
+news remain future work. Optional OpenAI prose rendering is described below. Historic synthetic league years are
 not backfilled with guessed transactions.
 
 `npm run test:narrative:long` plays 100 full scheduled seasons with roster turnover,
@@ -117,3 +117,28 @@ Reload uses an already-saved championship as the postseason commit marker and
 resumes at the offseason. This prevents rerolling an event that already has a
 canonical article. Repeated offseason completion callbacks from the previous year
 are ignored. These guards do not alter simulation outcomes or random draws.
+
+## Optional OpenAI rendering
+
+The synchronous feed and canonical ledgers remain unchanged. `packet.ts` resolves
+the exact archived source and checks that it matches the template; `protocol.ts`
+provides the versioned packet, strict output schema and conservative prose validator.
+`NarrativeArticleService` serializes visible requests, coalesces duplicate calls,
+validates both cache and network results, and always retains the template fallback.
+No engine operations or random draws are performed by this layer.
+
+The independent Worker authenticates a personal proxy token, reserves a durable
+model-group daily budget in D1 and calls Responses Structured Outputs. It accepts
+no arbitrary model, prompt, tools or upstream URL. An API key exists only in Worker
+Secrets. Server publication and live evaluation require external owner setup.
+
+Generated prose is optional year-indexed presentation data, not canonical fact.
+World identity and SHA-256 packet fact hashes prevent cross-save collisions.
+The existing generator version and canonical article IDs remain intact; snapshots
+separately carry renderer, prompt, model, style and validator metadata. Compatible
+old snapshots survive renderer upgrades. Manual rewrites create explicit revisions.
+
+This first implementation constrains factual wording to audited equivalents and
+locks high-risk statements. It does not claim unrestricted language can be proven
+true by a JSON schema or valid FactRefs. See [deployment and editorial scope](openai-narrative-setup.md)
+for the exact boundary, setup, usage controls and an opt-in live evaluation.

@@ -94,3 +94,20 @@ As with other existing v4 fields, loading rehydrates the world and saving curren
 validates/serializes its history to compare content revisions. Old chunks are not
 rewritten, but CPU serialization and in-memory history still grow with world age;
 this extension does not introduce lazy loading or dirty-year tracking.
+
+## Optional generated article sidecars
+
+`GameSaveData.worldId` carries the existing envelope identity through runtime and
+portable exports. Legacy v4 loads recover it from the envelope; a newly started
+world uses `crypto.randomUUID()` independently of the simulation RNG. Legacy
+portable saves receive their identity when opened in the game.
+
+`narrativeArticles` is a year-keyed portable/runtime projection. Its snapshots live
+in separate `archive.articleYears` chunks, leaving factual season chunk revisions
+unchanged when prose arrives. The current root holds an empty projection. Absent
+fields migrate to empty, and malformed/missing prose is discarded independently
+of the strict canonical-fact integrity checks. Each displayed snapshot must also
+pass current packet/hash/prose validation. Article writes are best effort; a failed
+optional write retains the previous article ref and never blocks the factual save.
+Per-slot save operations are serialized to avoid late prose completion overwriting
+newer game-state commits. Explicit clear includes article sidecars.

@@ -1,3 +1,4 @@
+import { migrateArticleArchive, type ArticleArchive } from '../narrative/protocol';
 import { migrateNarrativeEvents } from '../narrative/ledger';
 import type { NarrativeEvent, NarrativeEventLedger } from '../narrative/types';
 import { CENTRAL, PACIFIC, TINFO } from '../data';
@@ -94,6 +95,8 @@ export const createEmptyPitcherPlan = (): PitcherPlan => ({
 });
 
 export interface GameSaveData {
+  worldId?: string;
+  narrativeArticles?: ArticleArchive;
   teams: Teams;
   playerTeam: TeamKey | null;
   viewTeam: TeamKey | null;
@@ -727,6 +730,11 @@ export function migrateSaveData(raw: unknown): GameSaveData | null {
   const viewTeam = isValidTeamKey(legacy.viewTeam) ? legacy.viewTeam : playerTeam;
 
   return {
+    worldId:
+      typeof legacy.worldId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(legacy.worldId)
+        ? legacy.worldId
+        : undefined,
+    narrativeArticles: migrateArticleArchive(legacy.narrativeArticles),
     teams,
     playerTeam,
     viewTeam,
@@ -850,6 +858,7 @@ function currentStateWithoutArchive(data: GameSaveData, timestamp: number): Game
     gameSummaries: {},
     gameBoxScores: {},
     narrativeEvents: {},
+    narrativeArticles: {},
     ts: timestamp,
     uiVersion: 2,
   };
@@ -888,6 +897,7 @@ function parsePersistedSaveV4(value: unknown): PersistedSaveV4 | null {
   }
   const seasons = parseArchiveRefMap(raw.archive.seasons);
   const retiredPlayerBuckets = parseArchiveRefMap(raw.archive.retiredPlayerBuckets);
+  const articleYears = parseArchiveRefMap(raw.archive.articleYears ?? {}) ?? {};
   if (!seasons || !retiredPlayerBuckets) return null;
   return {
     storageVersion: WORLD_STORAGE_VERSION,
@@ -898,6 +908,7 @@ function parsePersistedSaveV4(value: unknown): PersistedSaveV4 | null {
       schemaVersion: WORLD_ARCHIVE_SCHEMA_VERSION,
       seasons,
       retiredPlayerBuckets,
+      ...(Object.keys(articleYears).length ? { articleYears } : {}),
     },
     ts: raw.ts,
   };
@@ -1037,8 +1048,9 @@ async function persistGameV4(
     }
   }
 
-  const worldId = previous?.worldId ?? createWorldId();
-  const previousArchive = previous?.archive ?? createEmptyWorldArchiveIndex();
+  const worldId = migrated.worldId ?? previous?.worldId ?? createWorldId();
+  const previousArchive =
+    previous?.worldId === worldId ? previous.archive : createEmptyWorldArchiveIndex();
   const seasons = await writeSeasonArchives(
     migrated,
     slot,
@@ -1053,16 +1065,31 @@ async function persistGameV4(
     previousArchive.retiredPlayerBuckets,
     backend,
   );
+  const articleYears = { ...(previousArchive.articleYears ?? {}) };
+  for (const [year, entries] of Object.entries(migrated.narrativeArticles ?? {})) {
+    const serialized = JSON.stringify({ schemaVersion: 1, year: Number(year), entries });
+    const revision = contentRevision(serialized);
+    const key = `npb_sim_v4_slot_${slot}_world_${worldId}_articles_${year}_${revision}`;
+    try {
+      if (articleYears[year]?.revision === revision && (await backend.get(key)) === serialized)
+        continue;
+      await backend.set(key, serialized);
+      articleYears[year] = { key, revision };
+    } catch {
+      /* Presentation storage failure must not prevent a factual save. */
+    }
+  }
   const archive: WorldArchiveIndex = {
     schemaVersion: WORLD_ARCHIVE_SCHEMA_VERSION,
     seasons,
     retiredPlayerBuckets,
+    ...(Object.keys(articleYears).length ? { articleYears } : {}),
   };
   const envelope: PersistedSaveV4 = {
     storageVersion: WORLD_STORAGE_VERSION,
     uiVersion: 2,
     worldId,
-    current: currentStateWithoutArchive(migrated, timestamp),
+    current: currentStateWithoutArchive({ ...migrated, worldId }, timestamp),
     archive,
     ts: timestamp,
   };
@@ -1074,6 +1101,7 @@ async function persistGameV4(
   const stale = [
     ...changedArchiveRefs(previousArchive.seasons, seasons),
     ...changedArchiveRefs(previousArchive.retiredPlayerBuckets, retiredPlayerBuckets),
+    ...changedArchiveRefs(previousArchive.articleYears ?? {}, articleYears),
   ];
   for (const ref of stale) {
     try {
@@ -1092,6 +1120,20 @@ async function loadPersistedSaveV4(
   if (!current) throw new Error('Current-state portion of the save is unreadable.');
 
   const narrativeEvents: NarrativeEventLedger = { ...current.narrativeEvents };
+  const narrativeArticles: ArticleArchive = { ...current.narrativeArticles };
+  for (const [year, ref] of Object.entries(persisted.archive.articleYears ?? {})) {
+    try {
+      const chunk = JSON.parse(await readArchiveChunk(backend, ref)) as {
+        schemaVersion: number;
+        year: number;
+        entries: unknown;
+      };
+      if (chunk.schemaVersion === 1 && String(chunk.year) === year)
+        Object.assign(narrativeArticles, migrateArticleArchive({ [year]: chunk.entries }));
+    } catch {
+      /* Lost optional prose falls back to canonical facts. */
+    }
+  }
   const yearlyStats: YearlyPlayerRecords = {};
   const championHistory: ChampionRecord[] = [];
   const awardHistory: SeasonTitleRecord[] = [];
@@ -1138,6 +1180,8 @@ async function loadPersistedSaveV4(
 
   return {
     ...current,
+    worldId: current.worldId ?? persisted.worldId,
+    narrativeArticles,
     careerAccumulated,
     leagueCareerAccumulated,
     yearlyStats,
@@ -1180,6 +1224,23 @@ export async function migrateLegacySaveToSlotOne(
   return true;
 }
 
+const saveQueues = new WeakMap<StorageBackend, Map<SaveSlot, Promise<unknown>>>();
+async function queueSlotWrite<T>(
+  backend: StorageBackend,
+  slot: SaveSlot,
+  write: () => Promise<T>,
+): Promise<T> {
+  const queues = saveQueues.get(backend) ?? new Map<SaveSlot, Promise<unknown>>();
+  saveQueues.set(backend, queues);
+  const pending = (queues.get(slot) ?? Promise.resolve()).catch(() => {}).then(write);
+  queues.set(slot, pending);
+  try {
+    return await pending;
+  } finally {
+    if (queues.get(slot) === pending) queues.delete(slot);
+  }
+}
+
 export async function saveGameToSlot(
   data: GameSaveData,
   slot: SaveSlot,
@@ -1187,7 +1248,7 @@ export async function saveGameToSlot(
 ): Promise<boolean> {
   try {
     if (backend === browserStorage) requestPersistenceOnce();
-    await persistGameV4(data, slot, backend);
+    await queueSlotWrite(backend, slot, () => persistGameV4(data, slot, backend));
     return true;
   } catch (error) {
     console.error(error);
@@ -1199,33 +1260,36 @@ export async function clearSaveSlot(
   slot: SaveSlot,
   backend: StorageBackend = browserStorage,
 ): Promise<boolean> {
-  try {
-    const raw = await backend.get(SAVE_KEY(slot));
-    if (raw) {
-      try {
-        const persisted = parsePersistedSaveV4(parseJson(raw));
-        if (persisted) {
-          for (const ref of [
-            ...Object.values(persisted.archive.seasons),
-            ...Object.values(persisted.archive.retiredPlayerBuckets),
-          ]) {
-            try {
-              await tombstoneArchiveChunk(backend, ref);
-            } catch {
-              // The slot itself is still cleared even if an unreachable chunk remains.
+  return queueSlotWrite(backend, slot, async () => {
+    try {
+      const raw = await backend.get(SAVE_KEY(slot));
+      if (raw) {
+        try {
+          const persisted = parsePersistedSaveV4(parseJson(raw));
+          if (persisted) {
+            for (const ref of [
+              ...Object.values(persisted.archive.seasons),
+              ...Object.values(persisted.archive.retiredPlayerBuckets),
+              ...Object.values(persisted.archive.articleYears ?? {}),
+            ]) {
+              try {
+                await tombstoneArchiveChunk(backend, ref);
+              } catch {
+                // The slot itself is still cleared even if an unreachable chunk remains.
+              }
             }
           }
+        } catch {
+          // Corrupted roots can still be cleared deliberately.
         }
-      } catch {
-        // Corrupted roots can still be cleared deliberately.
       }
+      await backend.set(SAVE_KEY(slot), '');
+      return true;
+    } catch (error) {
+      console.error(error);
+      return false;
     }
-    await backend.set(SAVE_KEY(slot), '');
-    return true;
-  } catch (error) {
-    console.error(error);
-    return false;
-  }
+  });
 }
 
 /** Empty slots return null; corrupted roots or archive chunks throw instead of being overwritten silently. */

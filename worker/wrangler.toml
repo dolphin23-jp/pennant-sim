@@ -1,0 +1,15 @@
+name = "pennant-narrative"
+main = "index.ts"
+compatibility_date = "2026-09-05"
+
+[vars]
+ALLOWED_ORIGIN = "https://dolphin23-jp.github.io"
+STANDARD_DAILY_TOKENS = "2000000"
+PREMIUM_DAILY_TOKENS = "200000"
+ENABLE_PREMIUM = "false"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pennant-narrative"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+migrations_dir = "migrations"

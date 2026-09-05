@@ -1,3 +1,4 @@
+import { type ArticleArchive, type ArticleSnapshot, validSnapshot } from '../narrative/protocol';
 import { appendNarrativeEvents } from '../narrative/ledger';
 import { resumeSeasonScreen } from './seasonProgress';
 import type { NarrativeEvent, NarrativeEventLedger } from '../narrative/types';
@@ -68,6 +69,8 @@ import {
 export type GameScreen = 'welcome' | 'teamSelect' | 'season' | 'postseason' | 'offseason';
 
 interface RuntimeState {
+  worldId: string;
+  narrativeArticles: ArticleArchive;
   loading: boolean;
   loadError: string | null;
   screen: GameScreen;
@@ -98,6 +101,7 @@ interface RuntimeState {
 }
 
 interface GameContextValue extends RuntimeState {
+  recordNarrativeArticle(world: string, snapshot: ArticleSnapshot): void;
   isSeasonOver: boolean;
   debugMode: boolean;
   startNewGame(): void;
@@ -130,6 +134,8 @@ interface GameContextValue extends RuntimeState {
 const DEBUG_MODE_KEY = 'pennant-sim:debugMode';
 
 const initialState: RuntimeState = {
+  worldId: '',
+  narrativeArticles: {},
   loading: true,
   loadError: null,
   screen: 'welcome',
@@ -182,6 +188,8 @@ function mergeStats(base: AccumulatedStats, addition: AccumulatedStats): Accumul
 function snapshotFromState(state: RuntimeState): GameSaveData | null {
   if (!state.teams) return null;
   return {
+    worldId: state.worldId,
+    narrativeArticles: state.narrativeArticles,
     teams: state.teams,
     playerTeam: state.playerTeam,
     viewTeam: state.viewTeam,
@@ -270,6 +278,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setState({
           ...initialState,
           ...saved,
+          worldId: saved.worldId ?? crypto.randomUUID(),
+          narrativeArticles: saved.narrativeArticles ?? {},
           narrativeEvents: saved.narrativeEvents ?? {},
           lineup,
           loading: false,
@@ -295,7 +305,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const startNewGame = useCallback(() => {
-    setState({ ...initialState, loading: false, screen: 'teamSelect', teams: initTeams() });
+    setState({
+      ...initialState,
+      worldId: crypto.randomUUID(),
+      loading: false,
+      screen: 'teamSelect',
+      teams: initTeams(),
+    });
   }, []);
 
   const chooseTeam = useCallback((teamKey: TeamKey) => {
@@ -688,9 +704,29 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const recordNarrativeArticle = useCallback((world: string, snapshot: ArticleSnapshot) => {
+    if (!validSnapshot(snapshot)) return;
+    setState((current) => {
+      if (current.worldId !== world || !current.teams) return current;
+      const year = String(snapshot.year);
+      const entries = current.narrativeArticles[year] ?? [];
+      if (entries.some((s) => s.key === snapshot.key)) return current;
+      const next = {
+        ...current,
+        narrativeArticles: {
+          ...current.narrativeArticles,
+          [year]: [...entries, structuredClone(snapshot)],
+        },
+      };
+      autosave(next);
+      return next;
+    });
+  }, []);
+
   const value = useMemo<GameContextValue>(
     () => ({
       ...state,
+      recordNarrativeArticle,
       isSeasonOver:
         state.season.schedule.length > 0 && state.season.schedule.every((game) => game.played),
       debugMode,
@@ -719,6 +755,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }),
     [
       state,
+      recordNarrativeArticle,
       debugMode,
       startNewGame,
       chooseTeam,

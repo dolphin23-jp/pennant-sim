@@ -14,6 +14,8 @@ export interface ArchiveChunkRef {
 export interface WorldArchiveIndex {
   schemaVersion: typeof WORLD_ARCHIVE_SCHEMA_VERSION;
   seasons: Record<string, ArchiveChunkRef>;
+  /** Optional, independently recoverable generated prose; never factual history. */
+  articleYears?: Record<string, ArchiveChunkRef>;
   retiredPlayerBuckets: Record<string, ArchiveChunkRef>;
 }
 
