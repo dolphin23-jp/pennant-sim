@@ -14,63 +14,30 @@ export interface NarrativeHistoryFact {
 const ref = (kind: NarrativeFactRef['kind'], key: string): NarrativeFactRef => ({ kind, key });
 
 function seasonAvailable(article: NarrativeArticle, record: PlayerSeasonRecord): boolean {
-  if (record.year < article.year) return true;
-  return record.year === article.year && article.asOfDate === `${article.year}-12-31`;
+  return (
+    record.year < article.year ||
+    (record.year === article.year && article.asOfDate === `${article.year}-12-31`)
+  );
 }
 
 function eventDate(year: number, date: string): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : `${year}-12-31`;
 }
 
-function active(record: PlayerSeasonRecord): boolean {
-  return record.stats.g > 0;
-}
-
-function careerSummary(
+function playerCareerFacts(
   playerId: string,
   article: NarrativeArticle,
+  source: NarrativeSource,
   index: NarrativeMemoryIndex,
 ): NarrativeHistoryFact[] {
   const records = (index.seasonRecordsByPlayer.get(playerId) ?? []).filter(
-    (record) => seasonAvailable(article, record) && active(record),
+    (record) => seasonAvailable(article, record) && record.stats.g > 0,
   );
   if (!records.length) return [];
   const first = records[0];
   const last = records.at(-1)!;
-  const factRef = ref('CAREER_SUMMARY', `${article.asOfDate}:${playerId}`);
-  const facts: NarrativeHistoryFact[] = [];
-  const seasons = records.length;
   const teamKeys = [...new Set(records.map((record) => record.teamKey))];
-
-  facts.push({
-    id: `history:career:${playerId}:span`,
-    text:
-      seasons === 1
-        ? `${first.playerName}は${first.year}年に${first.teamName}で一軍公式戦に初出場した。`
-        : `${last.year}年終了時点で、${first.playerName}は${first.year}年の一軍初出場から${seasons}シーズンに出場している。`,
-    factRefs: [factRef],
-    value: {
-      playerId,
-      playerName: first.playerName,
-      firstActiveYear: first.year,
-      latestCompletedYear: last.year,
-      activeSeasons: seasons,
-      teamKeys,
-    },
-  });
-
-  if (teamKeys.length > 1) {
-    facts.push({
-      id: `history:career:${playerId}:clubs`,
-      text: `${first.playerName}は一軍キャリアで${teamKeys.length}球団に所属し、最初の所属は${first.teamName}、直近は${last.teamName}だった。`,
-      factRefs: [factRef],
-      value: {
-        playerId,
-        playerName: first.playerName,
-        teams: teamKeys.map((teamKey) => ({ teamKey, teamName: TINFO[teamKey].n })),
-      },
-    });
-  }
+  const facts: NarrativeHistoryFact[] = [];
 
   if (last.stats.type === 'bat') {
     const batting = records.filter((record) => record.stats.type === 'bat');
@@ -86,7 +53,7 @@ function careerSummary(
       },
       { games: 0, hits: 0, homeRuns: 0, rbi: 0, stolenBases: 0 },
     );
-    const bestHr = batting
+    const best = batting
       .slice()
       .sort((a, b) =>
         a.stats.type === 'bat' && b.stats.type === 'bat'
@@ -94,22 +61,30 @@ function careerSummary(
           : 0,
       )[0];
     facts.push({
-      id: `history:career:${playerId}:totals`,
-      text: `${last.year}年終了時点の通算成績は${totals.games}試合、${totals.hits}安打、${totals.homeRuns}本塁打、${totals.rbi}打点、${totals.stolenBases}盗塁。`,
-      factRefs: [factRef],
-      value: { playerId, playerName: first.playerName, throughYear: last.year, ...totals },
+      id: `history:career:${playerId}:summary`,
+      text: `${last.year}年終了時点で、${first.playerName}は${first.year}年の一軍初出場から${records.length}シーズンに出場。通算${totals.games}試合、${totals.hits}安打、${totals.homeRuns}本塁打、${totals.rbi}打点、${totals.stolenBases}盗塁を記録している${teamKeys.length > 1 ? `。一軍キャリアでは${teamKeys.length}球団に所属した` : ''}。`,
+      factRefs: [ref('CAREER_SUMMARY', `${article.asOfDate}:${playerId}:summary`)],
+      value: {
+        playerId,
+        playerName: first.playerName,
+        firstActiveYear: first.year,
+        throughYear: last.year,
+        activeSeasons: records.length,
+        teamKeys,
+        totals,
+      },
     });
-    if (bestHr?.stats.type === 'bat' && records.length >= 2) {
+    if (best?.stats.type === 'bat' && records.length >= 2) {
       facts.push({
         id: `history:career:${playerId}:best`,
-        text: `${first.playerName}のシーズン最多本塁打は${bestHr.year}年の${bestHr.stats.hr}本。`,
-        factRefs: [factRef],
+        text: `${first.playerName}のシーズン最多本塁打は${best.year}年の${best.stats.hr}本。`,
+        factRefs: [ref('CAREER_SUMMARY', `${article.asOfDate}:${playerId}:best-home-runs`)],
         value: {
           playerId,
           playerName: first.playerName,
           metric: 'homeRuns',
-          bestYear: bestHr.year,
-          value: bestHr.stats.hr,
+          bestYear: best.year,
+          value: best.stats.hr,
         },
       });
     }
@@ -127,7 +102,7 @@ function careerSummary(
       },
       { games: 0, wins: 0, strikeouts: 0, saves: 0, holds: 0 },
     );
-    const bestWins = pitching
+    const best = pitching
       .slice()
       .sort((a, b) =>
         a.stats.type === 'pit' && b.stats.type === 'pit'
@@ -135,61 +110,63 @@ function careerSummary(
           : 0,
       )[0];
     facts.push({
-      id: `history:career:${playerId}:totals`,
-      text: `${last.year}年終了時点の通算成績は${totals.games}登板、${totals.wins}勝、${totals.strikeouts}奪三振、${totals.saves}セーブ、${totals.holds}ホールド。`,
-      factRefs: [factRef],
-      value: { playerId, playerName: first.playerName, throughYear: last.year, ...totals },
+      id: `history:career:${playerId}:summary`,
+      text: `${last.year}年終了時点で、${first.playerName}は${first.year}年の一軍初登板から${records.length}シーズンに登板。通算${totals.games}登板、${totals.wins}勝、${totals.strikeouts}奪三振、${totals.saves}セーブ、${totals.holds}ホールドを記録している${teamKeys.length > 1 ? `。一軍キャリアでは${teamKeys.length}球団に所属した` : ''}。`,
+      factRefs: [ref('CAREER_SUMMARY', `${article.asOfDate}:${playerId}:summary`)],
+      value: {
+        playerId,
+        playerName: first.playerName,
+        firstActiveYear: first.year,
+        throughYear: last.year,
+        activeSeasons: records.length,
+        teamKeys,
+        totals,
+      },
     });
-    if (bestWins?.stats.type === 'pit' && records.length >= 2) {
+    if (best?.stats.type === 'pit' && records.length >= 2) {
       facts.push({
         id: `history:career:${playerId}:best`,
-        text: `${first.playerName}のシーズン最多勝利は${bestWins.year}年の${bestWins.stats.w}勝。`,
-        factRefs: [factRef],
+        text: `${first.playerName}のシーズン最多勝利は${best.year}年の${best.stats.w}勝。`,
+        factRefs: [ref('CAREER_SUMMARY', `${article.asOfDate}:${playerId}:best-wins`)],
         value: {
           playerId,
           playerName: first.playerName,
           metric: 'wins',
-          bestYear: bestWins.year,
-          value: bestWins.stats.w,
+          bestYear: best.year,
+          value: best.stats.w,
         },
       });
     }
   }
-  return facts;
-}
 
-function titleHistory(
-  playerId: string,
-  article: NarrativeArticle,
-  source: NarrativeSource,
-): NarrativeHistoryFact | null {
   const titles = source.awardHistory.filter(
     (award) =>
       award.playerId === playerId &&
       (award.year < article.year ||
         (award.year === article.year && article.asOfDate === `${article.year}-12-31`)),
   );
-  if (!titles.length) return null;
-  const counts = new Map<string, number>();
-  for (const title of titles) counts.set(title.titleLabel, (counts.get(title.titleLabel) ?? 0) + 1);
-  const latest = titles.slice().sort((a, b) => b.year - a.year)[0];
-  return {
-    id: `history:titles:${playerId}`,
-    text: `${latest.playerName}は${latest.year}年までに個人タイトルを延べ${titles.length}回獲得している（${[...counts.entries()]
-      .map(([label, count]) => `${label}${count}回`)
-      .join('、')}）。`,
-    factRefs: [ref('CAREER_SUMMARY', `${article.asOfDate}:${playerId}:titles`)],
-    value: {
-      playerId,
-      playerName: latest.playerName,
-      throughYear: latest.year,
-      totalTitles: titles.length,
-      titles: [...counts.entries()].map(([label, count]) => ({ label, count })),
-    },
-  };
+  if (titles.length) {
+    const counts = new Map<string, number>();
+    for (const title of titles)
+      counts.set(title.titleLabel, (counts.get(title.titleLabel) ?? 0) + 1);
+    facts.push({
+      id: `history:career:${playerId}:titles`,
+      text: `${first.playerName}は個人タイトルを延べ${titles.length}回獲得している（${[...counts.entries()]
+        .map(([label, count]) => `${label}${count}回`)
+        .join('、')}）。`,
+      factRefs: [ref('CAREER_SUMMARY', `${article.asOfDate}:${playerId}:titles`)],
+      value: {
+        playerId,
+        playerName: first.playerName,
+        totalTitles: titles.length,
+        titles: [...counts.entries()].map(([label, count]) => ({ label, count })),
+      },
+    });
+  }
+  return facts;
 }
 
-function championshipHistory(
+function teamChampionshipFacts(
   teamKey: TeamKey,
   article: NarrativeArticle,
   source: NarrativeSource,
@@ -202,21 +179,18 @@ function championshipHistory(
           (record.year === article.year && article.asOfDate === `${article.year}-12-31`)),
     )
     .sort((a, b) => a.year - b.year);
-  if (!records.length) return [];
-  const facts: NarrativeHistoryFact[] = [];
+  if (records.length < 2) return [];
   const current = records.at(-1)!;
-  const previous = records.at(-2);
-  const factRef = ref('TEAM_HISTORY', `${article.asOfDate}:${teamKey}`);
-
-  if (previous) {
-    const gap = current.year - previous.year;
-    facts.push({
-      id: `history:team:${teamKey}:titles`,
+  const previous = records.at(-2)!;
+  const gap = current.year - previous.year;
+  const facts: NarrativeHistoryFact[] = [
+    {
+      id: `history:team:${teamKey}:championship-gap`,
       text:
         gap === 1
           ? `${TINFO[teamKey].n}は${current.year}年に2年連続で日本一となった。`
           : `${TINFO[teamKey].n}の${current.year}年日本一は、${previous.year}年以来${gap}年ぶりだった。`,
-      factRefs: [factRef],
+      factRefs: [ref('TEAM_HISTORY', `${current.year}:${teamKey}:championship-gap`)],
       value: {
         teamKey,
         currentChampionshipYear: current.year,
@@ -224,8 +198,8 @@ function championshipHistory(
         yearsSincePrevious: gap,
         consecutive: gap === 1,
       },
-    });
-  }
+    },
+  ];
 
   let streak = 1;
   for (let index = records.length - 2; index >= 0; index--) {
@@ -236,7 +210,7 @@ function championshipHistory(
     facts.push({
       id: `history:team:${teamKey}:dynasty`,
       text: `${TINFO[teamKey].n}は${current.year}年まで${streak}年連続で日本一となっている。`,
-      factRefs: [factRef],
+      factRefs: [ref('TEAM_HISTORY', `${current.year}:${teamKey}:championship-streak`)],
       value: { teamKey, throughYear: current.year, consecutiveChampionships: streak },
     });
   }
@@ -259,7 +233,7 @@ function repeatFinal(article: NarrativeArticle, source: NarrativeSource): Narrat
   return {
     id: `history:final:${first}:${second}`,
     text: `${TINFO[first].n}と${TINFO[second].n}は${prior.year}年の日本シリーズでも対戦している。`,
-    factRefs: [ref('TEAM_HISTORY', `${article.year}:${first}:${second}:final`) ],
+    factRefs: [ref('TEAM_HISTORY', `${article.year}:${first}:${second}:previous-final`)],
     value: {
       teams: [first, second],
       previousFinalYear: prior.year,
@@ -277,7 +251,7 @@ function formerTeamFacts(
   const events = Object.values(source.narrativeEvents ?? {}).flat();
   const facts: NarrativeHistoryFact[] = [];
   for (const playerId of article.playerIds) {
-    const moves = events
+    const latest = events
       .filter(
         (event): event is TransactionNarrativeEvent =>
           event.type === 'transaction' &&
@@ -286,18 +260,14 @@ function formerTeamFacts(
           event.toTeamKey != null &&
           eventDate(event.year, event.date) < article.asOfDate,
       )
-      .sort((a, b) => eventDate(b.year, b.date).localeCompare(eventDate(a.year, a.date)));
-    const latest = moves[0];
+      .sort((a, b) => eventDate(b.year, b.date).localeCompare(eventDate(a.year, a.date)))[0];
     if (!latest?.fromTeamKey || !latest.toTeamKey) continue;
     if (!article.teamKeys.includes(latest.fromTeamKey) || !article.teamKeys.includes(latest.toTeamKey))
       continue;
     facts.push({
       id: `history:former:${playerId}`,
       text: `${latest.playerName}にとって${TINFO[latest.fromTeamKey].n}は古巣で、${latest.year}年に${TINFO[latest.toTeamKey].n}へ移籍している。`,
-      factRefs: [
-        ref('RELATIONSHIP_HISTORY', `${article.id}:${playerId}:former-team`),
-        ref('TRANSACTION', latest.id),
-      ],
+      factRefs: [ref('RELATIONSHIP_HISTORY', `${article.id}:${playerId}:former-team`)],
       value: {
         playerId,
         playerName: latest.playerName,
@@ -316,7 +286,7 @@ function formerTeamFacts(
 /**
  * Deterministic editorial facts derived only from archived canonical ledgers. These facts are
  * recomputable projections, not LLM memory and not simulation state. They exist so prose can say
- * "4年ぶり", "8シーズン目", "通算1500安打" or "古巣戦" without inventing arithmetic or history.
+ * "4年ぶり", "8シーズン目", career totals or "古巣戦" without inventing arithmetic/history.
  */
 export function buildNarrativeHistoryFacts(
   article: NarrativeArticle,
@@ -325,21 +295,35 @@ export function buildNarrativeHistoryFacts(
   limit = 8,
 ): NarrativeHistoryFact[] {
   const facts: NarrativeHistoryFact[] = [];
+  const seen = new Set<string>();
   const push = (fact: NarrativeHistoryFact | null | undefined) => {
-    if (fact && facts.length < limit) facts.push(fact);
+    if (!fact || facts.length >= limit || seen.has(fact.id)) return;
+    seen.add(fact.id);
+    facts.push(fact);
+  };
+  const addPlayers = (count: number) => {
+    for (const playerId of article.playerIds.slice(0, count))
+      for (const fact of playerCareerFacts(playerId, article, source, index)) push(fact);
+  };
+  const addTeams = () => {
+    for (const teamKey of article.teamKeys)
+      for (const fact of teamChampionshipFacts(teamKey, article, source)) push(fact);
   };
 
-  for (const playerId of article.playerIds.slice(0, 3)) {
-    for (const fact of careerSummary(playerId, article, index)) push(fact);
-    push(titleHistory(playerId, article, source));
-    if (facts.length >= limit) break;
+  if (article.kind === 'championship') {
+    addTeams();
+    push(repeatFinal(article, source));
+    addPlayers(2);
+  } else if (article.kind === 'gameRecap') {
+    for (const fact of formerTeamFacts(article, source)) push(fact);
+    addPlayers(2);
+  } else if (article.kind === 'seasonReview') {
+    addTeams();
+    addPlayers(3);
+  } else {
+    addPlayers(3);
+    addTeams();
   }
-  for (const teamKey of article.teamKeys) {
-    for (const fact of championshipHistory(teamKey, article, source)) push(fact);
-    if (facts.length >= limit) break;
-  }
-  push(repeatFinal(article, source));
-  for (const fact of formerTeamFacts(article, source)) push(fact);
 
-  return facts.slice(0, limit);
+  return facts;
 }
