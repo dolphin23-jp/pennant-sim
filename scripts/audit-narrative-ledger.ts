@@ -166,7 +166,7 @@ try {
       headline: makeUnit(headlineClaim),
       dek: null,
       segments: packet.claims
-        .filter((claim) => claim.id !== 'headline')
+        .filter((claim) => claim.role === 'primary' && claim.id !== 'headline')
         .map(makeUnit),
     };
     assert.ok(validateProse(prose, packet));
