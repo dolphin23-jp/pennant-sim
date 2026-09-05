@@ -151,6 +151,11 @@ function success(p = packet): typeof fetch {
 }
 
 test('packet uses only the archived event, dates and exact refs, without mutating source', async () => {
+  assert.equal(
+    canonicalJson({ z: 1, A: 2, a: 3 }),
+    '{"A":2,"a":3,"z":1}',
+    'hash key ordering is locale-independent',
+  );
   const before = canonicalJson(source);
   assert.ok(validPacket(packet));
   assert.equal(packet.asOfDate, '2034-12-31');
