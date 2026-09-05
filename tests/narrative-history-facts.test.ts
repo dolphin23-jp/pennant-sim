@@ -128,7 +128,7 @@ test('retirement history exposes deterministic career span, totals, best season 
   const text = facts.map((fact) => fact.text).join('\n');
 
   assert.match(text, /2027年の一軍初出場から8シーズン/);
-  assert.match(text, /通算成績は1040試合、1205安打、191本塁打/);
+  assert.match(text, /通算1040試合、1205安打、191本塁打/);
   assert.match(text, /シーズン最多本塁打は2030年の32本/);
   assert.match(text, /個人タイトルを延べ2回/);
   assert.ok(facts.every((fact) => fact.factRefs.length > 0));
@@ -163,14 +163,15 @@ test('history facts never leak the current final season into an in-season articl
   assert.match(text, /古巣/);
 });
 
-test('championship history makes drought, dynasty and rematch arithmetic explicit', () => {
+test('championship history prioritizes dynasty and rematch arithmetic before player detail', () => {
   const data = source();
   const article = articleFromChampionship(data.championHistory.at(-1)!);
   const facts = buildNarrativeHistoryFacts(article, data, buildNarrativeMemoryIndex(data), 8);
   const text = facts.map((fact) => fact.text).join('\n');
 
-  assert.match(text, /2033年以来1年ぶり|2年連続/);
+  assert.match(text, /2年連続で日本一/);
   assert.match(text, /3年連続で日本一/);
   assert.match(text, /2030年の日本シリーズでも対戦/);
   assert.ok(facts.some((fact) => fact.factRefs.some((ref) => ref.kind === 'TEAM_HISTORY')));
+  assert.ok(facts.findIndex((fact) => fact.id.includes('championship-gap')) < facts.findIndex((fact) => fact.id.includes('career')));
 });
