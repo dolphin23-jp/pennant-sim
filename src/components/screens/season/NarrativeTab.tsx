@@ -1,3 +1,6 @@
+import { AiArticle } from './AiArticle';
+import { loadNarrativeConnection, saveNarrativeConnection } from '../../../narrative/connection';
+import { narrativeArticleService, validProxyUrl } from '../../../narrative/service';
 import { useMemo, useState } from 'react';
 
 import { TINFO } from '../../../data';
@@ -132,6 +135,25 @@ function ArticleCard({ article }: { article: NarrativeArticle }) {
 
 export function NarrativeTab() {
   const game = useGameState();
+  const [connection, setConnection] = useState(loadNarrativeConnection);
+  const [draftConnection, setDraftConnection] = useState(connection);
+  const [connectionStatus, setConnectionStatus] = useState('');
+  const source = useMemo(
+    () => ({
+      gameBoxScores: game.gameBoxScores,
+      achievementHistory: game.achievementHistory,
+      championHistory: game.championHistory,
+      awardHistory: game.awardHistory,
+      narrativeEvents: game.narrativeEvents,
+    }),
+    [
+      game.gameBoxScores,
+      game.achievementHistory,
+      game.championHistory,
+      game.awardHistory,
+      game.narrativeEvents,
+    ],
+  );
   const [category, setCategory] = useState<FeedCategory>('all');
   const [myTeamOnly, setMyTeamOnly] = useState(false);
   const [visibleCount, setVisibleCount] = useState(40);
@@ -180,6 +202,71 @@ export function NarrativeTab() {
         </div>
       </div>
 
+      <details>
+        <summary>AI記事の設定</summary>
+        <div style={{ display: 'grid', gap: 8, padding: 12 }}>
+          <p>
+            保存された試合・選手の事実をOpenAIへ送信し、記事の表現を整えます。接続できない場合は標準記事を表示します。
+          </p>
+          <label>
+            <input
+              type="checkbox"
+              checked={draftConnection.enabled}
+              onChange={(e) =>
+                setDraftConnection({ ...draftConnection, enabled: e.target.checked })
+              }
+            />{' '}
+            AI記事を使う
+          </label>
+          <label>
+            記事サービスURL{' '}
+            <input
+              type="url"
+              value={draftConnection.url}
+              placeholder="https://your-worker.workers.dev/"
+              onChange={(e) => setDraftConnection({ ...draftConnection, url: e.target.value })}
+            />
+          </label>
+          <label>
+            記事サービス利用トークン{' '}
+            <input
+              type="password"
+              autoComplete="off"
+              value={draftConnection.token}
+              onChange={(e) => setDraftConnection({ ...draftConnection, token: e.target.value })}
+            />
+          </label>
+          <small>
+            OpenAI API
+            keyではありません。利用トークンはこのタブを再読み込みすると消去されます。生成済み記事はセーブに残ります。
+          </small>
+          <Button
+            onClick={() => {
+              const url = draftConnection.url.trim().replace(/\/$/, '') + '/';
+              if (draftConnection.enabled && !validProxyUrl(url)) {
+                setConnectionStatus('HTTPSのサービスURLを入力してください。');
+                return;
+              }
+              if (
+                draftConnection.token &&
+                (/^sk-/.test(draftConnection.token) ||
+                  !/^[A-Za-z0-9_-]{32,256}$/.test(draftConnection.token))
+              ) {
+                setConnectionStatus('記事サービス用のトークンを確認してください。');
+                return;
+              }
+              const next = { ...draftConnection, url };
+              narrativeArticleService.cancelQueued();
+              saveNarrativeConnection(next);
+              setConnection(next);
+              setConnectionStatus('設定を適用しました。');
+            }}
+          >
+            設定を適用
+          </Button>
+          <span role="status">{connectionStatus}</span>
+        </div>
+      </details>
       <div
         aria-label="ニュース絞り込み"
         style={{ display: 'flex', gap: 7, alignItems: 'center', flexWrap: 'wrap' }}
@@ -227,7 +314,14 @@ export function NarrativeTab() {
       ) : (
         <div style={{ display: 'grid', gap: 10 }}>
           {feed.articles.map((article) => (
-            <ArticleCard key={article.id} article={article} />
+            <AiArticle
+              key={`${game.worldId}:${article.id}`}
+              template={article}
+              source={source}
+              connection={connection}
+            >
+              {(rendered) => <ArticleCard article={rendered} />}
+            </AiArticle>
           ))}
         </div>
       )}

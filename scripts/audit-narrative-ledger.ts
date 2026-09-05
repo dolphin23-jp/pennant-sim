@@ -1,3 +1,16 @@
+import { buildFactPacket } from '../src/narrative/packet';
+import {
+  packetFactsHash,
+  snapshotKey,
+  validateProse,
+  type ArticleSnapshot,
+  type Prose,
+  MODELS,
+  RENDERER_VERSION,
+  PROMPT_VERSION,
+  VALIDATOR_VERSION,
+  STYLE_VERSION,
+} from '../src/narrative/protocol';
 /** Full scheduled seasons, real subsystem emissions, and v4 round trips at 30/100 years. */
 import assert from 'node:assert/strict';
 import {
@@ -67,12 +80,14 @@ function sumStats(first: AccumulatedStats, second: AccumulatedStats): Accumulate
 }
 try {
   let save = migrateSaveData({
+    worldId: 'narrative-audit-world',
     teams: initTeams(),
     playerTeam: 'giants',
     season: { year: 2026, schedule: [] },
   })!;
   let total = 0;
   let previousChunks: Record<string, { key: string }> = {};
+  let previousArticleChunks: Record<string, { key: string }> = {};
   const counts: Record<string, number> = {};
   for (let elapsed = 1; elapsed <= 100; elapsed++) {
     const year = 2025 + elapsed;
@@ -131,6 +146,44 @@ try {
       season: { year: year + 1, schedule: [] },
       narrativeEvents: ledger,
     };
+    // Mocked prose only: no external requests or simulation RNG. One selected article per year.
+    const template = articleFromFutureEvent(events[0]);
+    const packet = buildFactPacket(template, {
+      gameBoxScores: {},
+      achievementHistory: [],
+      championHistory: [],
+      awardHistory: [],
+      narrativeEvents: ledger,
+    })!;
+    assert.ok(packet);
+    const makeUnit = (c: (typeof packet.claims)[number]) => ({
+      class: 'FACTUAL' as const,
+      text: c.text,
+      claimId: c.id,
+    });
+    const prose: Prose = {
+      headline: makeUnit(packet.claims[0]),
+      segments: packet.claims.slice(1).map(makeUnit),
+    };
+    assert.ok(validateProse(prose, packet));
+    const factsHash = await packetFactsHash(packet);
+    const article: ArticleSnapshot = {
+      key: await snapshotKey(save.worldId!, factsHash, 'standard', 0),
+      articleId: template.id,
+      year,
+      factsHash,
+      rendererVersion: RENDERER_VERSION,
+      promptVersion: PROMPT_VERSION,
+      validatorVersion: VALIDATOR_VERSION,
+      styleVersion: STYLE_VERSION,
+      model: MODELS.standard,
+      quality: 'standard',
+      revision: 0,
+      generatedAt: '2026-09-05T00:00:00Z',
+      usage: { input: 0, output: 0 },
+      prose,
+    };
+    save.narrativeArticles = { ...save.narrativeArticles, [String(year)]: [article] };
     writes.length = 0;
     assert.equal(await saveGameToSlot(save, 1, backend), true);
     const root = JSON.parse(values.get(SAVE_KEY(1))!);
@@ -141,9 +194,21 @@ try {
       assert.ok(!writes.includes(ref.key), `rewrote ${oldYear} during ${year}`);
     }
     previousChunks = root.archive.seasons;
+    assert.deepEqual(root.current.narrativeArticles, {});
+    for (const [oldYear, ref] of Object.entries(previousArticleChunks)) {
+      assert.equal(root.archive.articleYears[oldYear].key, ref.key);
+      assert.ok(!writes.includes(ref.key), `rewrote prose ${oldYear}`);
+    }
+    previousArticleChunks = root.archive.articleYears;
     if (elapsed === 30 || elapsed === 100) {
       const loaded = (await loadGameFromSlot(1, backend))!;
       assert.deepEqual(loaded.narrativeEvents, ledger);
+      assert.deepEqual(loaded.narrativeArticles, save.narrativeArticles);
+      assert.deepEqual(
+        importSaveData(exportSaveData(loaded))!.narrativeArticles,
+        save.narrativeArticles,
+      );
+      assert.equal(Object.values(loaded.narrativeArticles!).flat().length, elapsed);
       assert.deepEqual(importSaveData(exportSaveData(loaded))!.narrativeEvents, ledger);
       const first = ledger['2026'][0];
       assert.deepEqual(
@@ -158,6 +223,7 @@ try {
         JSON.stringify({
           checkpointYears: elapsed,
           totalEvents: total,
+          mockProseSnapshots: Object.values(loaded.narrativeArticles!).flat().length,
           counts,
           eventBytes: bytes,
           rootBytes: Buffer.byteLength(values.get(SAVE_KEY(1))!),

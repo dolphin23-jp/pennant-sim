@@ -25,5 +25,7 @@ jobs:
         run: npm test
       - name: Narrative ledger 30/100-year audit
         run: npm run test:narrative:long
+      - name: Worker bundle (no credentials)
+        run: npm run worker:check
       - name: Build
         run: npm run build

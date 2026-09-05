@@ -3,3 +3,11 @@ dist
 *.local
 .DS_Store
 coverage
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+.wrangler
+worker/build
+
+build
