@@ -2,7 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { TINFO } from '../src/data';
-import type { BatterStats, Player, PlayerSeasonRecord, YearlyPlayerRecords } from '../src/engine';
+import type {
+  BatterStats,
+  PitcherStats,
+  Player,
+  PlayerSeasonRecord,
+  YearlyPlayerRecords,
+} from '../src/engine';
 import { buildPlayerNarrativeProfile } from '../src/narrative/playerProfile';
 import { canonicalJson, validateProse, type Prose } from '../src/narrative/protocol';
 
@@ -206,4 +212,98 @@ test('rich player profiles require multi-claim analytical prose while primary fa
     claimIds: context.slice(0, 2).map((claim) => claim.id),
   });
   assert.ok(validateProse(prose, profile.packet));
+});
+
+
+function pitcherStats(name: string, saves: number): PitcherStats {
+  return {
+    type: 'pit',
+    name,
+    g: 55,
+    gs: 0,
+    w: 3,
+    l: 2,
+    sv: saves,
+    hld: 4,
+    bs: 2,
+    ip3: 165,
+    h: 42,
+    bb: 14,
+    k: 68,
+    er: 12,
+    pc: 900,
+    r: 13,
+    hbp: 1,
+    hr: 4,
+    bf: 210,
+  };
+}
+
+function pitcherSeason(
+  year: number,
+  age: number,
+  saves: number,
+  id = 'profile-pitcher',
+  name = '架空 投手',
+  teamKey: PlayerSeasonRecord['teamKey'] = 'hawks',
+): PlayerSeasonRecord {
+  return {
+    playerId: id,
+    playerName: name,
+    year,
+    age,
+    teamKey,
+    teamName: TINFO[teamKey].n,
+    teamAbbreviation: TINFO[teamKey].ab,
+    isPitcher: true,
+    role: 'クローザー',
+    ovr: 55,
+    params: { stam: 42, vel: 60, ctrl: 53, nobi: 58 },
+    stats: pitcherStats(name, saves),
+  };
+}
+
+test('player profile supports pitcher role standings and career context', () => {
+  const closer = player({
+    id: 'profile-pitcher',
+    name: '架空 投手',
+    age: 28,
+    tk: 'hawks',
+    isP: true,
+    pos: undefined,
+    positions: undefined,
+    role: 'クローザー',
+    p: { stam: 42, vel: 64, ctrl: 55, nobi: 61, fld: 40 },
+    pot: { vel: 68, ctrl: 60 },
+    potentialClass: 'standard',
+  });
+  const yearlyStats: YearlyPlayerRecords = {
+    '2023': [pitcherSeason(2023, 25, 22)],
+    '2024': [pitcherSeason(2024, 26, 29)],
+    '2025': [
+      pitcherSeason(2025, 27, 36),
+      pitcherSeason(2025, 29, 41, 'marines-closer', '幕張 守', 'marines'),
+      pitcherSeason(2025, 30, 31, 'lions-closer', '所沢 守', 'lions'),
+    ],
+  };
+  const profile = buildPlayerNarrativeProfile({
+    player: closer,
+    teamKey: 'hawks',
+    seasonYear: 2026,
+    asOfDate: '2026-03-27',
+    yearlyStats,
+  });
+
+  assert.ok(profile);
+  assert.equal(profile.packet.kind, 'playerProfile');
+  assert.ok(
+    profile.editorialInputs.some(
+      (input) => input.id === 'relative-standing' && input.text.includes('セーブ'),
+    ),
+  );
+  assert.ok(
+    profile.editorialInputs.some(
+      (input) => input.id === 'strongest-skill' && input.text.includes('球速'),
+    ),
+  );
 });
