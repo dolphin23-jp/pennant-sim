@@ -188,24 +188,33 @@ function careerBest(
     };
   }
   const pitching = records.filter((record) => record.stats.type === 'pit');
+  const latestRole = pitching.at(-1)?.role ?? player.role;
+  const metric =
+    latestRole === 'クローザー'
+      ? { key: 'sv' as const, label: 'セーブ', unit: 'セーブ' }
+      : latestRole === 'リリーフ'
+        ? { key: 'hld' as const, label: 'ホールド', unit: 'ホールド' }
+        : { key: 'w' as const, label: '勝利', unit: '勝' };
   const best = pitching
     .slice()
     .sort((a, b) =>
       a.stats.type === 'pit' && b.stats.type === 'pit'
-        ? b.stats.w - a.stats.w || b.year - a.year
+        ? b.stats[metric.key] - a.stats[metric.key] || b.year - a.year
         : 0,
     )[0];
-  if (!best || best.stats.type !== 'pit' || best.stats.w <= 0) return null;
+  if (!best || best.stats.type !== 'pit' || best.stats[metric.key] <= 0) return null;
   return {
     id: 'career-best',
     sourceClass: 'derived',
-    text: `${player.name}のシーズン最多勝利は${best.year}年の${best.stats.w}勝。`,
-    factRefs: [ref('CAREER_SUMMARY', `${asOfDate}:${player.id}:profile-best-wins`)],
+    text: `${player.name}のシーズン最多${metric.label}は${best.year}年の${best.stats[metric.key]}${metric.unit}。`,
+    factRefs: [
+      ref('CAREER_SUMMARY', `${asOfDate}:${player.id}:profile-best-${metric.key}`),
+    ],
     value: {
       sourceClass: 'derived',
-      metric: 'wins',
+      metric: metric.key,
       bestYear: best.year,
-      value: best.stats.w,
+      value: best.stats[metric.key],
     },
   };
 }
@@ -325,10 +334,11 @@ function trajectoryInput(
 
   if (recent.every((record) => record.stats.type === 'pit')) {
     const lines = recent.map((record) => record.stats).filter((stats) => stats.type === 'pit');
+    const latestRole = recent.at(-1)?.role ?? player.role;
     const metric =
-      player.role === 'クローザー'
+      latestRole === 'クローザー'
         ? { label: 'セーブ', key: 'sv' as const, rise: 8, stable: 20 }
-        : player.role === 'リリーフ'
+        : latestRole === 'リリーフ'
           ? { label: 'ホールド', key: 'hld' as const, rise: 8, stable: 20 }
           : { label: '勝利', key: 'w' as const, rise: 4, stable: 8 };
     const first = lines[0][metric.key];
@@ -399,9 +409,9 @@ function relativeStanding(
     values = pool.flatMap((record) => (record.stats.type === 'bat' ? [record.stats.hr] : []));
   } else {
     const metric =
-      source.player.role === 'クローザー'
+      latest.role === 'クローザー'
         ? { label: 'セーブ', unit: '', key: 'sv' as const, minimum: 5 }
-        : source.player.role === 'リリーフ'
+        : latest.role === 'リリーフ'
           ? { label: 'ホールド', unit: '', key: 'hld' as const, minimum: 5 }
           : { label: '勝利', unit: '勝', key: 'w' as const, minimum: 3 };
     label = metric.label;
@@ -512,7 +522,12 @@ function peakAndLatest(
     );
     return { peak: Math.max(0, ...values), latest: latestRecord.stats.hr };
   }
-  const key = player.role === 'クローザー' ? 'sv' : player.role === 'リリーフ' ? 'hld' : 'w';
+  const key =
+    latestRecord.role === 'クローザー'
+      ? 'sv'
+      : latestRecord.role === 'リリーフ'
+        ? 'hld'
+        : 'w';
   const values = records.flatMap((record) =>
     record.stats.type === 'pit' ? [record.stats[key]] : [],
   );
