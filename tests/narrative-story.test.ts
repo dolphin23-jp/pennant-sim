@@ -70,7 +70,7 @@ test('director keeps all game recaps deterministic even when the game is dramati
   assert.ok(dramaticPlan.reasons.includes('deterministic-game-recap'));
 });
 
-test('first-round draft is feature-worthy while later routine selections stay as notices', () => {
+test('draft bulletins stay deterministic because new players have no career history yet', () => {
   const first = {
     type: 'draft' as const,
     id: 'draft:2034:giants:1:p1',
@@ -85,8 +85,12 @@ test('first-round draft is feature-worthy while later routine selections stay as
   const third = { ...first, id: 'draft:2034:giants:3:p2', playerId: 'p2', round: 3 };
   const source = emptySource();
   source.narrativeEvents = { '2034': [first, third] };
-  assert.equal(planNarrativeStory(articleFromFutureEvent(first), source).depth, 'feature');
-  assert.equal(planNarrativeStory(articleFromFutureEvent(third), source).depth, 'brief');
+  const firstPlan = planNarrativeStory(articleFromFutureEvent(first), source);
+  const thirdPlan = planNarrativeStory(articleFromFutureEvent(third), source);
+  assert.equal(firstPlan.depth, 'brief');
+  assert.equal(firstPlan.autoGenerate, false);
+  assert.equal(thirdPlan.depth, 'brief');
+  assert.equal(thirdPlan.autoGenerate, false);
 });
 
 test('cover stories receive sparse grounded history without same-day or future leakage', () => {
