@@ -162,12 +162,24 @@ try {
       text: claim.text,
       claimIds: [claim.id],
     });
+    const contextClaims = packet.claims.filter((claim) => claim.role === 'context').slice(0, 2);
     const prose: Prose = {
       headline: makeUnit(headlineClaim),
       dek: null,
-      segments: packet.claims
-        .filter((claim) => claim.role === 'primary' && claim.id !== 'headline')
-        .map(makeUnit),
+      segments: [
+        ...packet.claims
+          .filter((claim) => claim.role === 'primary' && claim.id !== 'headline')
+          .map(makeUnit),
+        ...(packet.story.depth !== 'brief' && contextClaims.length >= 2
+          ? [
+              {
+                class: 'ANALYTICAL' as const,
+                text: '過去の記録同士を時系列でみると、継続した流れとして位置づけられる。',
+                claimIds: contextClaims.map((claim) => claim.id),
+              },
+            ]
+          : []),
+      ],
     };
     assert.ok(validateProse(prose, packet));
     const factsHash = await packetFactsHash(packet);
