@@ -51,6 +51,7 @@ import { AptitudeFieldMap } from './AptitudeFieldMap';
 import { DisplayOVRValue } from './DisplayOVRValue';
 import { PlayerEditTab } from './PlayerEditTab';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
+import { PlayerNarrativeProfile } from './PlayerNarrativeProfile';
 import { useFocusTrap } from './useFocusTrap';
 
 const TEAM_KEY_SET = new Set<string>(Object.keys(TINFO));
@@ -60,7 +61,7 @@ function teamColorFor(player: Player): string | null {
   return TEAM_KEY_SET.has(candidate) ? TINFO[candidate as TeamKey].c : null;
 }
 
-type TabId = 'basic' | 'season' | 'career' | 'special' | 'edit';
+type TabId = 'basic' | 'narrative' | 'season' | 'career' | 'special' | 'edit';
 interface GrowthPoint {
   age: number;
   value: number;
@@ -68,6 +69,7 @@ interface GrowthPoint {
 
 const tabs: Array<{ id: TabId; label: string }> = [
   { id: 'basic', label: '基本情報' },
+  { id: 'narrative', label: '名鑑' },
   { id: 'season', label: '今季成績' },
   { id: 'career', label: '通算・年度別' },
   { id: 'special', label: '特殊能力' },
@@ -687,6 +689,7 @@ export function PlayerDetailModal({
                 onUpdatePlayer={isOwnTeam ? onUpdatePlayer : undefined}
               />
             )}
+            {activeTab === 'narrative' && <PlayerNarrativeProfile player={player} />}
             {activeTab === 'season' && (
               <Card className="detail-card" ariaLabel="今季成績">
                 <SectionTitle>Current Season</SectionTitle>
