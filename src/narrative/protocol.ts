@@ -318,11 +318,11 @@ export function validateProse(raw: unknown, packet: FactPacket): Prose | null {
 
 export function outputSchema(packet: FactPacket) {
   const claimIds = packet.claims.map((claim) => claim.id);
-  const unit = {
+  const unit = (classes: NarrativeStatementClass[]) => ({
     type: 'object',
     additionalProperties: false,
     properties: {
-      class: { type: 'string', enum: ['FACTUAL', 'ANALYTICAL', 'COLOR'] },
+      class: { type: 'string', enum: classes },
       text: { type: 'string' },
       claimIds: {
         type: 'array',
@@ -331,14 +331,18 @@ export function outputSchema(packet: FactPacket) {
       },
     },
     required: ['class', 'text', 'claimIds'],
-  };
+  });
   return {
     type: 'object',
     additionalProperties: false,
     properties: {
-      headline: unit,
-      dek: { anyOf: [unit, { type: 'null' }] },
-      segments: { type: 'array', items: unit, maxItems: 14 },
+      headline: unit(['FACTUAL']),
+      dek: { anyOf: [unit(['FACTUAL']), { type: 'null' }] },
+      segments: {
+        type: 'array',
+        items: unit(['FACTUAL', 'ANALYTICAL', 'COLOR']),
+        maxItems: 14,
+      },
     },
     required: ['headline', 'dek', 'segments'],
   };
