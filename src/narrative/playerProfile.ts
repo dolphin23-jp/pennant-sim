@@ -252,7 +252,6 @@ function strongestSkill(
 function trajectoryInput(
   player: Player,
   records: PlayerSeasonRecord[],
-  asOfDate: string,
 ): { input: PlayerProfileEditorialInput | null; trajectory: Trajectory } {
   const recent = records.slice(-3);
   if (recent.length < 3) return { input: null, trajectory: 'none' };
@@ -666,7 +665,7 @@ export function buildPlayerNarrativeProfile(
     : null;
   const best = careerBest(player, records, asOfDate);
   const strongest = strongestSkill(player, asOfDate);
-  const trajectory = trajectoryInput(player, records, asOfDate);
+  const trajectory = trajectoryInput(player, records);
   const standing = relativeStanding(source, records);
   const share = teamShare(source, records);
   const championship = championshipInput(source, records);
