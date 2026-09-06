@@ -500,16 +500,23 @@ function isRegular(record: PlayerSeasonRecord): boolean {
   return record.stats.g >= 40;
 }
 
-function peakAndLatest(records: PlayerSeasonRecord[], player: Player): { peak: number; latest: number } {
-  if (!records.length) return { peak: 0, latest: 0 };
-  if (records.at(-1)!.stats.type === 'bat') {
-    const values = records.flatMap((record) => (record.stats.type === 'bat' ? [record.stats.hr] : []));
-    return { peak: Math.max(0, ...values), latest: records.at(-1)!.stats.type === 'bat' ? records.at(-1)!.stats.hr : 0 };
+function peakAndLatest(
+  records: PlayerSeasonRecord[],
+  player: Player,
+): { peak: number; latest: number } {
+  const latestRecord = records.at(-1);
+  if (!latestRecord) return { peak: 0, latest: 0 };
+  if (latestRecord.stats.type === 'bat') {
+    const values = records.flatMap((record) =>
+      record.stats.type === 'bat' ? [record.stats.hr] : [],
+    );
+    return { peak: Math.max(0, ...values), latest: latestRecord.stats.hr };
   }
   const key = player.role === 'クローザー' ? 'sv' : player.role === 'リリーフ' ? 'hld' : 'w';
-  const values = records.flatMap((record) => (record.stats.type === 'pit' ? [record.stats[key]] : []));
-  const last = records.at(-1)!.stats;
-  return { peak: Math.max(0, ...values), latest: last.type === 'pit' ? last[key] : 0 };
+  const values = records.flatMap((record) =>
+    record.stats.type === 'pit' ? [record.stats[key]] : [],
+  );
+  return { peak: Math.max(0, ...values), latest: latestRecord.stats[key] };
 }
 
 function archetypeInput(
