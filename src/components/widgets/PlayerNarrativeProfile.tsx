@@ -158,7 +158,7 @@ export function PlayerNarrativeProfile({ player }: { player: Player }) {
           ))}
         </div>
         <div style={{ color: 'var(--color-text-faint)', fontSize: 10 }}>
-          {profile.archetype} / canonical facts → editorial projection → narrative
+          canonical facts → editorial analysis → narrative
         </div>
         {connection.enabled && profile.packet.story.depth !== 'brief' && (
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
