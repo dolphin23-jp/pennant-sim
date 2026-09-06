@@ -77,13 +77,14 @@ export function PlayerNarrativeProfile({ player }: { player: Player }) {
     if (!profile || !connection.enabled || profile.packet.story.depth === 'brief') return;
     let active = true;
     setBusy(true);
+    const renderConnection = request.force ? connection : { ...connection, token: '' };
     void narrativeArticleService
       .render(
         profile.article,
         profile.packet,
         worldId,
         stored,
-        connection,
+        renderConnection,
         request.quality,
         request.revision,
         request.force,
@@ -99,7 +100,7 @@ export function PlayerNarrativeProfile({ player }: { player: Player }) {
             : result.status === 'unavailable'
               ? '標準名鑑を表示中'
               : connection.token
-                ? ''
+                ? 'AI選手名鑑を作成できます'
                 : 'AI利用トークン未設定',
         );
         if (result.snapshot) recordNarrativeArticle(worldId, result.snapshot);
@@ -115,14 +116,11 @@ export function PlayerNarrativeProfile({ player }: { player: Player }) {
   }
 
   function regenerate(quality: Quality) {
-    const max = Math.max(
-      request.revision,
-      ...stored
-        .filter((snapshot: ArticleSnapshot) => snapshot.articleId === profile.article.id)
-        .map((snapshot) => snapshot.revision),
-      0,
-    );
-    setRequest({ quality, revision: max + 1, force: true });
+    const revisions = stored
+      .filter((snapshot: ArticleSnapshot) => snapshot.articleId === profile.article.id)
+      .map((snapshot) => snapshot.revision);
+    const revision = revisions.length ? Math.max(...revisions) + 1 : 0;
+    setRequest({ quality, revision, force: true });
   }
 
   return (
