@@ -168,7 +168,9 @@ export function PlayerNarrativeProfile({ player }: { player: Player }) {
               color="var(--color-surface-muted)"
               ariaLabel="AI選手名鑑を標準品質で書き直す"
             >
-              AIで書き直す
+              {status.includes('AI選手名鑑') && !status.includes('作成')
+                ? 'AIで書き直す'
+                : 'AI名鑑を作る'}
             </Button>
             <Button
               onClick={() => regenerate('premium')}
