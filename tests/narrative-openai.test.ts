@@ -231,6 +231,8 @@ test('validation rejects false references, swapped numbers, quotes, future claim
 
 test('validation requires grounded synthesis when a feature has rich context', () => {
   const rich = structuredClone(packet);
+  rich.story.depth = 'feature';
+  rich.story.targetParagraphs = { min: 3, max: 5 };
   const evidenceRefs = rich.claims.find((claim) => claim.id === 'headline')!.factRefs;
   rich.claims.push(
     {
