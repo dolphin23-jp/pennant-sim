@@ -119,8 +119,10 @@ export function PlayerNarrativeProfile({ player }: { player: Player }) {
   }
 
   function regenerate(quality: Quality) {
+    if (!profile) return;
+    const articleId = profile.article.id;
     const revisions = stored
-      .filter((snapshot: ArticleSnapshot) => snapshot.articleId === profile.article.id)
+      .filter((snapshot: ArticleSnapshot) => snapshot.articleId === articleId)
       .map((snapshot) => snapshot.revision);
     const revision = revisions.length ? Math.max(...revisions) + 1 : 0;
     setRequest({ quality, revision, force: true });
