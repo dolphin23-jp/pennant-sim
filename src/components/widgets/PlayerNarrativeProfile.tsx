@@ -41,6 +41,8 @@ export function PlayerNarrativeProfile({ player }: { player: Player }) {
   const [rendered, setRendered] = useState<NarrativeArticle | null>(null);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  const worldId = game.worldId;
+  const recordNarrativeArticle = game.recordNarrativeArticle;
   const teamKey = activeTeamKey(player);
   const asOfDate = profileAsOfDate(game.season.year, game.season.schedule);
 
@@ -61,7 +63,7 @@ export function PlayerNarrativeProfile({ player }: { player: Player }) {
 
   const stored = useMemo(
     () => (profile ? game.narrativeArticles[String(profile.article.year)] ?? [] : []),
-    [profile?.article.year, game.narrativeArticles],
+    [profile, game.narrativeArticles],
   );
 
   useEffect(() => {
@@ -69,7 +71,7 @@ export function PlayerNarrativeProfile({ player }: { player: Player }) {
     setStatus('');
     setBusy(false);
     setRequest({ quality: 'standard', revision: 0, force: false });
-  }, [profile?.article.id, profile?.packet.asOfDate]);
+  }, [profile]);
 
   useEffect(() => {
     if (!profile || !connection.enabled || profile.packet.story.depth === 'brief') return;
@@ -79,7 +81,7 @@ export function PlayerNarrativeProfile({ player }: { player: Player }) {
       .render(
         profile.article,
         profile.packet,
-        game.worldId,
+        worldId,
         stored,
         connection,
         request.quality,
@@ -100,13 +102,13 @@ export function PlayerNarrativeProfile({ player }: { player: Player }) {
                 ? ''
                 : 'AI利用トークン未設定',
         );
-        if (result.snapshot) game.recordNarrativeArticle(game.worldId, result.snapshot);
+        if (result.snapshot) recordNarrativeArticle(worldId, result.snapshot);
         setBusy(false);
       });
     return () => {
       active = false;
     };
-  }, [profile, connection, game.worldId, stored, request, game.recordNarrativeArticle]);
+  }, [profile, connection, worldId, stored, request, recordNarrativeArticle]);
 
   if (!profile || !rendered) {
     return <EmptyState>この選手の名鑑プロフィールは現在作成できません。</EmptyState>;
