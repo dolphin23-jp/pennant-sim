@@ -1,4 +1,4 @@
-import { TINFO } from '../data';
+import { MATURITY_PEAK_AGE, TINFO } from '../data';
 import { averageText, earnedRunAverage, inningsText } from '../engine/statsFormat';
 import type { Player, PlayerSeasonRecord, TeamKey, YearlyPlayerRecords } from '../engine/types';
 import type { ChampionRecord } from '../state/storage';
@@ -519,6 +519,14 @@ function peakAndLatest(
   return { peak: Math.max(0, ...values), latest: latestRecord.stats[key] };
 }
 
+function hasMaterialPotentialGap(player: Player): boolean {
+  return Object.entries(player.pot).some(([key, target]) => {
+    if (typeof target !== 'number') return false;
+    const current = player.p[key as keyof typeof player.p];
+    return typeof current === 'number' && target >= current + 12;
+  });
+}
+
 function archetypeInput(
   source: PlayerNarrativeProfileSource,
   records: PlayerSeasonRecord[],
@@ -530,6 +538,8 @@ function archetypeInput(
   const teamCount = new Set(records.map((record) => record.teamKey)).size;
   const latest = records.at(-1);
   const latestRegular = latest ? isRegular(latest) : false;
+  const maturityPeakAge = MATURITY_PEAK_AGE[player.mat];
+  const growthRoom = player.potentialClass === 'elite' || hasMaterialPotentialGap(player);
   const { peak, latest: latestValue } = peakAndLatest(records, player);
   const starPeak = player.isP
     ? player.role === 'クローザー'
@@ -541,7 +551,13 @@ function archetypeInput(
   let archetype: PlayerProfileArchetype;
   let label: string;
 
-  if (firstRegular && firstRegular.age >= 28 && records.length >= 2) {
+  if (
+    firstRegular &&
+    records.length >= 2 &&
+    (firstRegular.age >= 28 ||
+      ((player.mat === '晩成' || player.mat === '超晩成') &&
+        firstRegular.age >= maturityPeakAge - 2))
+  ) {
     archetype = 'late-bloomer';
     label = '遅咲き';
   } else if (player.age >= 33 && starPeak && latestValue <= peak * 0.55) {
@@ -553,12 +569,12 @@ function archetypeInput(
   } else if (relativeRank !== null && relativeRank <= 5 && records.length >= 3) {
     archetype = 'established-star';
     label = 'リーグ上位の実績を持つ主力';
-  } else if (player.age <= 24 && player.potentialClass === 'elite' && records.length <= 2) {
+  } else if (player.age <= 24 && growthRoom && records.length <= 2) {
     archetype = 'elite-prospect';
     label = '若手有望株';
   } else if (
-    player.age <= 27 &&
-    (player.potentialClass === 'elite' || trajectory === 'rising') &&
+    player.age <= Math.min(28, maturityPeakAge) &&
+    (growthRoom || trajectory === 'rising') &&
     records.length <= 4
   ) {
     archetype = 'breakout-candidate';
@@ -596,7 +612,10 @@ function archetypeInput(
           firstRegularAge: firstRegular?.age ?? null,
           relativeRank,
           trajectory,
+          maturity: player.mat,
+          maturityPeakAge,
           potentialClass: player.potentialClass ?? 'standard',
+          materialPotentialGap: hasMaterialPotentialGap(player),
         },
       },
     },
