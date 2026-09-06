@@ -229,21 +229,39 @@ test('validation rejects false references, swapped numbers, quotes, future claim
   assert.equal(validateProse(pp, cp), null);
 });
 
-test('validation accepts bounded multi-claim analysis while rejecting invented analytical facts', () => {
-  const output = prose();
-  const firstPrimary = packet.claims.find(
-    (claim) => claim.role === 'primary' && claim.id !== 'headline',
-  )!;
+test('validation requires grounded synthesis when a feature has rich context', () => {
+  const rich = structuredClone(packet);
+  const evidenceRefs = rich.claims.find((claim) => claim.id === 'headline')!.factRefs;
+  rich.claims.push(
+    {
+      id: 'ctxA',
+      role: 'context',
+      text: '過去にも保存された出来事がある。',
+      factRefs: evidenceRefs,
+      locked: false,
+    },
+    {
+      id: 'ctxB',
+      role: 'context',
+      text: '別の過去事実も保存されている。',
+      factRefs: evidenceRefs,
+      locked: false,
+    },
+  );
+
+  assert.equal(validateProse(prose(rich), rich), null, 'rich features may not collapse to template prose');
+
+  const output = prose(rich);
   output.segments.push({
     class: 'ANALYTICAL',
     text: '保存された複数の事実を一つの流れとして位置づけられる。',
-    claimIds: ['headline', firstPrimary.id],
+    claimIds: ['ctxA', 'ctxB'],
   });
-  assert.ok(validateProse(output, packet));
+  assert.ok(validateProse(output, rich));
 
   const invented = structuredClone(output);
   invented.segments.at(-1)!.text += ' 10年後にも続く。';
-  assert.equal(validateProse(invented, packet), null);
+  assert.equal(validateProse(invented, rich), null);
 });
 
 test('game packets stay deterministic while local wording validation remains available', async () => {
