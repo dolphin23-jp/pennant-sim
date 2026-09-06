@@ -154,11 +154,14 @@ or context claims and pass both factual validators.
 
 The renderer does not spend model tokens on every ledger row. A deterministic
 Narrative Director scores each canonical article and classifies it as `brief`,
-`feature`, or `cover`. Routine games, light injuries, ordinary growth, releases
-and later-round draft notices remain template-only by default. Championships,
-major records, first-round draft stories, retirements, major trades, awakenings
-and dramatic games can auto-generate. Any brief can still be explicitly expanded
-by the user.
+`feature`, or `cover`. **All game recaps are deterministic** even when a game
+is dramatic: rewriting a box score is not considered a useful use of model tokens.
+Light injuries, ordinary growth, releases and later-round draft notices also stay
+template-only by default. Draft selections also remain bulletins because a new
+player normally has no career history to synthesize yet. Championships, major
+records, retirements, major trades and awakenings can become AI features when their
+saved history provides enough editorial material. Non-game briefs may still be
+explicitly expanded by the user.
 
 Before a feature is generated, the packet builder collects a sparse set of prior
 canonical articles sharing the same players or clubs. Context is strictly older
@@ -172,13 +175,17 @@ instead of preserving the old one-claim/one-sentence structure. High-risk
 transaction, draft, injury, development and career relations remain locked and
 must appear verbatim when cited.
 
-Freer prose is accepted only after two gates: deterministic entity/number/locked
-claim validation, then an independent second Responses API pass acting as a
-fact checker over the exact packet and generated prose. The verifier rejects
-unsupported causality, psychology, quotes, future knowledge and relation swaps.
-Both calls are charged to the same D1 request budget. Generated prose remains
-optional presentation data; failure at either gate falls back to the deterministic
-article.
+Feature prose is accepted only after two gates: deterministic
+entity/number/locked-claim validation, then an independent second Responses API
+pass acting as a fact checker over the exact packet and generated prose. `FACTUAL`
+units still require direct support. `ANALYTICAL` units are limited to two-or-more
+claim synthesis: comparison, chronology and conservative career/franchise
+positioning. They may not introduce a new event, number, entity, cause, motive,
+emotion or future prediction. Primary facts must still be covered factually.
+The verifier rejects unsupported causality, psychology, quotes, future knowledge,
+relation swaps and analysis stronger than its cited evidence. Both calls are
+charged to the same D1 request budget. Generated prose remains optional
+presentation data; failure at either gate falls back to the deterministic article.
 
 ## Optional OpenAI rendering
 
@@ -200,7 +207,8 @@ The existing generator version and canonical article IDs remain intact; snapshot
 separately carry renderer, prompt, model, style and validator metadata. Compatible
 old snapshots survive renderer upgrades. Manual rewrites create explicit revisions.
 
-This first implementation constrains factual wording to audited equivalents and
-locks high-risk statements. It does not claim unrestricted language can be proven
-true by a JSON schema or valid FactRefs. See [deployment and editorial scope](openai-narrative-setup.md)
+The feature-first implementation keeps high-risk factual statements locked while
+allowing a narrow analytical layer whose evidence is explicit and independently
+verified. It does not claim unrestricted language can be proven true by a JSON
+schema or valid FactRefs. See [deployment and editorial scope](openai-narrative-setup.md)
 for the exact boundary, setup, usage controls and an opt-in live evaluation.

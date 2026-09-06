@@ -1,9 +1,9 @@
 import type { NarrativeArticle, NarrativeFactRef, NarrativeStatementClass } from './types';
 
-export const RENDERER_VERSION = 2;
-export const PROMPT_VERSION = 2;
-export const VALIDATOR_VERSION = 2;
-export const STYLE_VERSION = 2;
+export const RENDERER_VERSION = 3;
+export const PROMPT_VERSION = 3;
+export const VALIDATOR_VERSION = 3;
+export const STYLE_VERSION = 3;
 export const MODELS = { standard: 'gpt-5.4-mini', premium: 'gpt-5.4' } as const;
 export type Quality = keyof typeof MODELS;
 
@@ -247,6 +247,7 @@ export function validateProse(raw: unknown, packet: FactPacket): Prose | null {
 
   const claims = new Map(packet.claims.map((claim) => [claim.id, claim]));
   const coveredPrimary = new Set<string>();
+  let analyticalCount = 0;
   let colorCount = 0;
 
   function unit(
@@ -276,19 +277,25 @@ export function validateProse(raw: unknown, packet: FactPacket): Prose | null {
         !prohibited.test(text)
       );
     }
-    if (value.class !== 'FACTUAL' || !claimIds.length) return false;
+    if (!['FACTUAL', 'ANALYTICAL'].includes(String(value.class)) || !claimIds.length) return false;
+    const analytical = value.class === 'ANALYTICAL';
+    if (analytical) {
+      analyticalCount++;
+      if (placement !== 'segment' || claimIds.length < 2 || analyticalCount > 3) return false;
+    }
 
     const cited = claimIds.map((id) => claims.get(id));
     if (cited.some((claim) => !claim)) return false;
     const validClaims = cited as FactClaim[];
-    if (placement === 'headline' && !claimIds.includes('headline')) return false;
+    if (placement === 'headline' && (!claimIds.includes('headline') || analytical)) return false;
+    if (placement === 'dek' && analytical) return false;
 
     const evidence = validClaims.map((claim) => claim.text).join(' ');
-    // Canonical template wording is already an audited game projection. The lexical banlist
-    // applies to freer prose, not to an exact one-claim fallback (which may legitimately contain
-    // terms such as an archived origin/exit label).
+    // Canonical template wording is already an audited projection. The lexical banlist applies to
+    // freer prose, not to an exact one-claim FACTUAL fallback. ANALYTICAL units are deliberately
+    // limited to multi-claim synthesis and are independently checked by the Worker verifier.
     const exactCanonical =
-      validClaims.length === 1 && text === validClaims[0].text;
+      !analytical && validClaims.length === 1 && text === validClaims[0].text;
     if (!exactCanonical && prohibited.test(text)) return false;
     if (!isNumberSubset(numberList(text), numberList(evidence))) return false;
 
@@ -296,17 +303,21 @@ export function validateProse(raw: unknown, packet: FactPacket): Prose | null {
       if (text.includes(name) && !evidence.includes(name)) return false;
     }
     for (const claim of validClaims) {
-      if (claim.locked && !text.includes(claim.text)) return false;
-      if (claim.role === 'primary') coveredPrimary.add(claim.id);
+      if (!analytical && claim.locked && !text.includes(claim.text)) return false;
+      if (!analytical && claim.role === 'primary') coveredPrimary.add(claim.id);
     }
     return true;
   }
 
+  const analysisExpected =
+    packet.story.depth !== 'brief' &&
+    packet.claims.filter((claim) => claim.role === 'context').length >= 2;
   if (
     !unit(raw.headline, 'headline') ||
     (raw.dek !== null && !unit(raw.dek, 'dek')) ||
     !raw.segments.every((segment) => unit(segment, 'segment')) ||
-    packet.story.primaryClaimIds.some((id) => !coveredPrimary.has(id))
+    packet.story.primaryClaimIds.some((id) => !coveredPrimary.has(id)) ||
+    (analysisExpected && analyticalCount === 0)
   )
     return null;
 
@@ -315,11 +326,11 @@ export function validateProse(raw: unknown, packet: FactPacket): Prose | null {
 
 export function outputSchema(packet: FactPacket) {
   const claimIds = packet.claims.map((claim) => claim.id);
-  const unit = {
+  const unit = (classes: NarrativeStatementClass[]) => ({
     type: 'object',
     additionalProperties: false,
     properties: {
-      class: { type: 'string', enum: ['FACTUAL', 'COLOR'] },
+      class: { type: 'string', enum: classes },
       text: { type: 'string' },
       claimIds: {
         type: 'array',
@@ -328,14 +339,18 @@ export function outputSchema(packet: FactPacket) {
       },
     },
     required: ['class', 'text', 'claimIds'],
-  };
+  });
   return {
     type: 'object',
     additionalProperties: false,
     properties: {
-      headline: unit,
-      dek: { anyOf: [unit, { type: 'null' }] },
-      segments: { type: 'array', items: unit, maxItems: 14 },
+      headline: unit(['FACTUAL']),
+      dek: { anyOf: [unit(['FACTUAL']), { type: 'null' }] },
+      segments: {
+        type: 'array',
+        items: unit(['FACTUAL', 'ANALYTICAL', 'COLOR']),
+        maxItems: 14,
+      },
     },
     required: ['headline', 'dek', 'segments'],
   };
@@ -403,7 +418,7 @@ export function applyProse(
   const segments = prose.segments.map((segment) => ({
     class: segment.class,
     text: segment.text,
-    factRefs: segment.class === 'FACTUAL' ? refsFor(segment.claimIds) : [],
+    factRefs: segment.class === 'COLOR' ? [] : refsFor(segment.claimIds),
   }));
   return {
     ...template,

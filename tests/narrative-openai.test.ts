@@ -229,7 +229,44 @@ test('validation rejects false references, swapped numbers, quotes, future claim
   assert.equal(validateProse(pp, cp), null);
 });
 
-test('game packets support wording while preserving per-claim number and entity order', () => {
+test('validation requires grounded synthesis when a feature has rich context', () => {
+  const rich = structuredClone(packet);
+  rich.story.depth = 'feature';
+  rich.story.targetParagraphs = { min: 3, max: 5 };
+  const evidenceRefs = rich.claims.find((claim) => claim.id === 'headline')!.factRefs;
+  rich.claims.push(
+    {
+      id: 'ctxA',
+      role: 'context',
+      text: '過去にも保存された出来事がある。',
+      factRefs: evidenceRefs,
+      locked: false,
+    },
+    {
+      id: 'ctxB',
+      role: 'context',
+      text: '別の過去事実も保存されている。',
+      factRefs: evidenceRefs,
+      locked: false,
+    },
+  );
+
+  assert.equal(validateProse(prose(rich), rich), null, 'rich features may not collapse to template prose');
+
+  const output = prose(rich);
+  output.segments.push({
+    class: 'ANALYTICAL',
+    text: '保存された複数の事実を一つの流れとして位置づけられる。',
+    claimIds: ['ctxA', 'ctxB'],
+  });
+  assert.ok(validateProse(output, rich));
+
+  const invented = structuredClone(output);
+  invented.segments.at(-1)!.text += ' 10年後にも続く。';
+  assert.equal(validateProse(invented, rich), null);
+});
+
+test('game packets stay deterministic while local wording validation remains available', async () => {
   const box = {
     gameId: 'g',
     date: '2034-04-01',
@@ -268,6 +305,15 @@ test('game packets support wording while preserving per-claim number and entity 
   assert.ok(validateProse(output, p));
   output.segments[0].text = output.segments[0].text.replace('4-3', '3-4');
   assert.equal(validateProse(output, p), null);
+
+  const { env } = await environment();
+  let calls = 0;
+  const upstream: typeof fetch = async () => {
+    calls++;
+    throw new Error('game recap must not call OpenAI');
+  };
+  assert.equal((await handleRequest(request(p, 9), env, upstream)).status, 422);
+  assert.equal(calls, 0);
 });
 
 test('worker authenticates, constrains origin and model, and rejects oversized input before OpenAI', async () => {

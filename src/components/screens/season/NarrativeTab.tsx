@@ -119,8 +119,16 @@ function ArticleCard({ article }: { article: NarrativeArticle }) {
             key={`${article.id}:${index}`}
             style={{
               margin: 0,
-              color: segment.class === 'COLOR' ? 'var(--color-text-muted)' : 'var(--color-text)',
+              color:
+                segment.class === 'COLOR'
+                  ? 'var(--color-text-muted)'
+                  : segment.class === 'ANALYTICAL'
+                    ? 'var(--color-text-muted)'
+                    : 'var(--color-text)',
               fontStyle: segment.class === 'COLOR' ? 'italic' : undefined,
+              borderLeft:
+                segment.class === 'ANALYTICAL' ? '2px solid var(--color-border)' : undefined,
+              paddingLeft: segment.class === 'ANALYTICAL' ? 9 : undefined,
             }}
           >
             {segment.text}
@@ -218,7 +226,7 @@ export function NarrativeTab() {
         <summary>AI記事の設定</summary>
         <div style={{ display: 'grid', gap: 8, padding: 12 }}>
           <p>
-            日本一、大記録、劇的試合など物語性の高い出来事だけを自動でOpenAI記事化します。通常の速報はトークンを使わず、必要なら個別に特集化できます。
+            日本一、大記録、引退、大型移籍など、過去のキャリアや球団史と結びつける価値がある出来事だけをOpenAIで特集化します。試合記事は常に標準記事で、AIトークンを使いません。
           </p>
           <label>
             <input

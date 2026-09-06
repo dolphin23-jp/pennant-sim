@@ -80,9 +80,11 @@ export function planNarrativeStory(
       else if (event.transactionKind === 'foreignSigning') add(34, 'foreign-signing');
       else add(12, 'release');
     } else if (event?.type === 'draft') {
-      if (event.round === 1) add(52, 'first-round-draft');
-      else if (event.round === 2) add(30, 'early-draft');
-      else add(10, 'draft');
+      // A new draftee usually has no saved career history yet, so AI has little to synthesize.
+      // Keep the draft bulletin deterministic unless later historical context makes it relevant.
+      if (event.round === 1) add(25, 'first-round-draft');
+      else if (event.round === 2) add(15, 'early-draft');
+      else add(5, 'draft');
     } else if (event?.type === 'career') {
       if (event.careerKind === 'retirement') add(72, 'retirement');
       else if (event.careerKind === 'breakthrough') add(55, 'breakthrough');
@@ -128,12 +130,26 @@ export function planNarrativeStory(
   }
   if (arcBoost > 0) add(Math.min(18, arcBoost), 'story-arc-context');
 
-  const depth: NarrativeStoryDepth = score >= 100 ? 'cover' : score >= 50 ? 'feature' : 'brief';
+  // Game recaps are deliberately deterministic. AI is reserved for feature journalism that can
+  // connect a consequential event to durable career/franchise history; rewriting a box score is
+  // not a worthwhile use of model tokens.
+  const modelEligible = article.kind !== 'gameRecap';
+  const depth: NarrativeStoryDepth = modelEligible
+    ? score >= 100
+      ? 'cover'
+      : score >= 50
+        ? 'feature'
+        : 'brief'
+    : 'brief';
   return {
     depth,
     score,
-    autoGenerate: depth !== 'brief',
-    reasons: [...reasons, ...arcs.slice(0, 6).map((storyArc) => `arc:${storyArc.type}`)],
+    autoGenerate: modelEligible && depth !== 'brief',
+    reasons: [
+      ...reasons,
+      ...(!modelEligible ? ['deterministic-game-recap'] : []),
+      ...arcs.slice(0, 6).map((storyArc) => `arc:${storyArc.type}`),
+    ],
     targetParagraphs:
       depth === 'cover'
         ? { min: 5, max: 8 }
