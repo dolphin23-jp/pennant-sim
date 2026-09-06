@@ -6,6 +6,7 @@ import { loadNarrativeConnection } from '../../narrative/connection';
 import { buildPlayerNarrativeProfile } from '../../narrative/playerProfile';
 import { narrativeArticleService } from '../../narrative/service';
 import type { ArticleSnapshot, Quality } from '../../narrative/protocol';
+import type { NarrativeArticle } from '../../narrative/types';
 import { useGameState } from '../../state/gameState';
 import { Button, Card, EmptyState, SectionTitle } from '../ui';
 
@@ -37,11 +38,7 @@ export function PlayerNarrativeProfile({ player }: { player: Player }) {
     revision: 0,
     force: false,
   });
-  const [rendered, setRendered] = useState<ReturnType<typeof buildPlayerNarrativeProfile> extends infer R
-    ? R extends { article: infer A }
-      ? A
-      : never
-    : never | null>(null);
+  const [rendered, setRendered] = useState<NarrativeArticle | null>(null);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const teamKey = activeTeamKey(player);
@@ -62,7 +59,10 @@ export function PlayerNarrativeProfile({ player }: { player: Player }) {
     [player, teamKey, game.season.year, asOfDate, game.yearlyStats, game.championHistory],
   );
 
-  const stored = profile ? game.narrativeArticles[String(profile.article.year)] ?? [] : [];
+  const stored = useMemo(
+    () => (profile ? game.narrativeArticles[String(profile.article.year)] ?? [] : []),
+    [profile?.article.year, game.narrativeArticles],
+  );
 
   useEffect(() => {
     setRendered(profile?.article ?? null);
