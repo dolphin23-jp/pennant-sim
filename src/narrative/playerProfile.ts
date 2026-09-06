@@ -379,7 +379,7 @@ function relativeStanding(
 ): { input: PlayerProfileEditorialInput | null; rank: number | null } {
   const latest = records.at(-1);
   if (!latest) return { input: null, rank: null };
-  const league = TINFO[source.teamKey].lg;
+  const league = TINFO[latest.teamKey].lg;
   const pool = (source.yearlyStats[String(latest.year)] ?? []).filter(
     (record) =>
       record.stats.g > 0 &&
