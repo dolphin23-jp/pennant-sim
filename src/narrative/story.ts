@@ -128,12 +128,26 @@ export function planNarrativeStory(
   }
   if (arcBoost > 0) add(Math.min(18, arcBoost), 'story-arc-context');
 
-  const depth: NarrativeStoryDepth = score >= 100 ? 'cover' : score >= 50 ? 'feature' : 'brief';
+  // Game recaps are deliberately deterministic. AI is reserved for feature journalism that can
+  // connect a consequential event to durable career/franchise history; rewriting a box score is
+  // not a worthwhile use of model tokens.
+  const modelEligible = article.kind !== 'gameRecap';
+  const depth: NarrativeStoryDepth = modelEligible
+    ? score >= 100
+      ? 'cover'
+      : score >= 50
+        ? 'feature'
+        : 'brief'
+    : 'brief';
   return {
     depth,
     score,
-    autoGenerate: depth !== 'brief',
-    reasons: [...reasons, ...arcs.slice(0, 6).map((storyArc) => `arc:${storyArc.type}`)],
+    autoGenerate: modelEligible && depth !== 'brief',
+    reasons: [
+      ...reasons,
+      ...(!modelEligible ? ['deterministic-game-recap'] : []),
+      ...arcs.slice(0, 6).map((storyArc) => `arc:${storyArc.type}`),
+    ],
     targetParagraphs:
       depth === 'cover'
         ? { min: 5, max: 8 }
