@@ -44,7 +44,10 @@ Canonical inputs and derived editorial inputs are explicitly tagged in the proje
 does not receive permission to turn an archetype or potential signal into a prediction: profile
 prose is asked to explain who the player has been up to the current date, not what he will become.
 Profiles with insufficient context remain deterministic; richer profiles use the feature protocol
-and therefore must contain grounded multi-claim `ANALYTICAL` prose.
+and therefore must contain grounded multi-claim `ANALYTICAL` prose. Opening the tab first performs a
+cache-only lookup. A new OpenAI call is deliberate ("AI名鑑を作る" / premium) rather than automatic,
+because a live profile's `asOfDate` can advance during the season and date-only refreshes are not worth
+spending tokens on.
 
 This slice intentionally does **not** rewrite `createFictionalLeagueHistory()`. The current
 historical generator back-projects seasons from the present player state and therefore cannot
