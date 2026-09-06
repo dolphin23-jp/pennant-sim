@@ -19,7 +19,8 @@ export type NarrativeArticleKind =
   | 'draft'
   | 'career'
   | 'injury'
-  | 'development';
+  | 'development'
+  | 'playerProfile';
 
 export type NarrativeFactKind =
   | 'GAME_RESULT'
@@ -41,7 +42,9 @@ export type NarrativeFactKind =
   | 'DRAFT_SELECTION'
   | 'CAREER_EVENT'
   | 'INJURY'
-  | 'DEVELOPMENT';
+  | 'DEVELOPMENT'
+  | 'PLAYER_CURRENT'
+  | 'PLAYER_PROFILE';
 
 export interface NarrativeFactRef {
   kind: NarrativeFactKind;
