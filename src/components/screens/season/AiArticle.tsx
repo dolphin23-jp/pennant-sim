@@ -9,8 +9,8 @@ import { narrativeArticleService, type NarrativeConnection } from '../../../narr
 import { useGameState } from '../../../state/gameState';
 
 /**
- * Only consequential stories auto-enqueue when they enter the viewport. Routine notices remain
- * deterministic and free; the user can still explicitly expand any of them into an AI feature.
+ * Only consequential non-game stories auto-enqueue when they enter the viewport. Game recaps and
+ * routine notices stay deterministic; AI is reserved for feature journalism with historical context.
  */
 export function AiArticle({
   template,
@@ -53,9 +53,10 @@ export function AiArticle({
   }, []);
 
   const storyPlan = planNarrativeStory(template, source, memory);
+  const aiEligible = template.kind !== 'gameRecap';
 
   useEffect(() => {
-    if (!visible || !connection.enabled) {
+    if (!aiEligible || !visible || !connection.enabled) {
       setRendered(template);
       setStatus('');
       setBusy(false);
@@ -96,8 +97,8 @@ export function AiArticle({
         setStatus(
           result.snapshot
             ? packet.story.depth === 'cover'
-              ? 'AI特集'
-              : 'AI記事'
+              ? 'AIカバーストーリー'
+              : 'AI特集'
             : result.status === 'unavailable'
               ? '標準記事を表示中'
               : '',
@@ -108,7 +109,7 @@ export function AiArticle({
     return () => {
       active = false;
     };
-  }, [visible, connection, template, memory, game.worldId, request]);
+  }, [aiEligible, visible, connection, template, memory, game.worldId, request]);
 
   function regenerate(quality: Quality) {
     const max = Math.max(
@@ -121,12 +122,12 @@ export function AiArticle({
 
   return (
     <div ref={ref}>
-      {children(connection.enabled ? rendered : template)}
-      {connection.enabled && (
+      {children(connection.enabled && aiEligible ? rendered : template)}
+      {connection.enabled && aiEligible && (
         <div style={{ display: 'flex', gap: 10, fontSize: 11, marginTop: 5, flexWrap: 'wrap' }}>
           <span role="status">{busy ? '記事を準備中…' : status}</span>
           <button disabled={busy || !connection.token} onClick={() => regenerate('standard')}>
-            {storyPlan.autoGenerate ? '書き直す' : 'AIで特集化'}
+            {storyPlan.autoGenerate ? '特集を書き直す' : 'AI特集を作る'}
           </button>
           <button disabled={busy || !connection.token} onClick={() => regenerate('premium')}>
             高品質で書く
