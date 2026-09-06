@@ -306,4 +306,12 @@ test('player profile supports pitcher role standings and career context', () => 
       (input) => input.id === 'strongest-skill' && input.text.includes('球速'),
     ),
   );
+  assert.ok(
+    profile.editorialInputs.some(
+      (input) =>
+        input.id === 'career-best' &&
+        input.text.includes('セーブ') &&
+        !input.text.includes('最多勝利'),
+    ),
+  );
 });
