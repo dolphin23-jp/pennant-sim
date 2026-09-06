@@ -157,10 +157,11 @@ Narrative Director scores each canonical article and classifies it as `brief`,
 `feature`, or `cover`. **All game recaps are deterministic** even when a game
 is dramatic: rewriting a box score is not considered a useful use of model tokens.
 Light injuries, ordinary growth, releases and later-round draft notices also stay
-template-only by default. Championships, major records, first-round draft stories,
-retirements, major trades and awakenings can become AI features when their saved
-history provides enough editorial material. Non-game briefs may still be explicitly
-expanded by the user.
+template-only by default. Draft selections also remain bulletins because a new
+player normally has no career history to synthesize yet. Championships, major
+records, retirements, major trades and awakenings can become AI features when their
+saved history provides enough editorial material. Non-game briefs may still be
+explicitly expanded by the user.
 
 Before a feature is generated, the packet builder collects a sparse set of prior
 canonical articles sharing the same players or clubs. Context is strictly older
