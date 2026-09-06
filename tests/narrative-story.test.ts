@@ -52,7 +52,7 @@ function game(walkoff = false, comeback = false) {
   };
 }
 
-test('director leaves routine feed noise deterministic and spends tokens on consequential games', () => {
+test('director keeps all game recaps deterministic even when the game is dramatic', () => {
   const routine = game();
   const routineSource = emptySource();
   routineSource.gameBoxScores[routine.gameId] = routine;
@@ -64,9 +64,10 @@ test('director leaves routine feed noise deterministic and spends tokens on cons
   const dramaticSource = emptySource();
   dramaticSource.gameBoxScores[dramatic.gameId] = dramatic;
   const dramaticPlan = planNarrativeStory(articleFromGameBoxScore(dramatic), dramaticSource);
-  assert.ok(dramaticPlan.score >= 50);
-  assert.equal(dramaticPlan.depth, 'feature');
-  assert.equal(dramaticPlan.autoGenerate, true);
+  assert.ok(dramaticPlan.score >= 50, 'dramatic scoring remains available for editorial diagnostics');
+  assert.equal(dramaticPlan.depth, 'brief');
+  assert.equal(dramaticPlan.autoGenerate, false);
+  assert.ok(dramaticPlan.reasons.includes('deterministic-game-recap'));
 });
 
 test('first-round draft is feature-worthy while later routine selections stay as notices', () => {
