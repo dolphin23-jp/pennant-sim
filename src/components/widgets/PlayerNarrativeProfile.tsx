@@ -103,7 +103,10 @@ export function PlayerNarrativeProfile({ player }: { player: Player }) {
                 ? 'AI選手名鑑を作成できます'
                 : 'AI利用トークン未設定',
         );
-        if (result.snapshot) recordNarrativeArticle(worldId, result.snapshot);
+        if (result.snapshot) {
+          recordNarrativeArticle(worldId, result.snapshot);
+          if (request.force) setRequest((current) => ({ ...current, force: false }));
+        }
         setBusy(false);
       });
     return () => {
