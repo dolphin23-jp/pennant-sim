@@ -247,6 +247,7 @@ export function validateProse(raw: unknown, packet: FactPacket): Prose | null {
 
   const claims = new Map(packet.claims.map((claim) => [claim.id, claim]));
   const coveredPrimary = new Set<string>();
+  let analyticalCount = 0;
   let colorCount = 0;
 
   function unit(
@@ -278,7 +279,10 @@ export function validateProse(raw: unknown, packet: FactPacket): Prose | null {
     }
     if (!['FACTUAL', 'ANALYTICAL'].includes(String(value.class)) || !claimIds.length) return false;
     const analytical = value.class === 'ANALYTICAL';
-    if (analytical && (placement !== 'segment' || claimIds.length < 2)) return false;
+    if (analytical) {
+      analyticalCount++;
+      if (placement !== 'segment' || claimIds.length < 2 || analyticalCount > 3) return false;
+    }
 
     const cited = claimIds.map((id) => claims.get(id));
     if (cited.some((claim) => !claim)) return false;
@@ -305,11 +309,15 @@ export function validateProse(raw: unknown, packet: FactPacket): Prose | null {
     return true;
   }
 
+  const analysisExpected =
+    packet.story.depth !== 'brief' &&
+    packet.claims.filter((claim) => claim.role === 'context').length >= 2;
   if (
     !unit(raw.headline, 'headline') ||
     (raw.dek !== null && !unit(raw.dek, 'dek')) ||
     !raw.segments.every((segment) => unit(segment, 'segment')) ||
-    packet.story.primaryClaimIds.some((id) => !coveredPrimary.has(id))
+    packet.story.primaryClaimIds.some((id) => !coveredPrimary.has(id)) ||
+    (analysisExpected && analyticalCount === 0)
   )
     return null;
 
