@@ -252,7 +252,7 @@ test('career retrospective packets require grounded multi-claim analytical prose
 
 
 test('long decorated careers stay within bounded FactPacket limits', () => {
-  const awards: SeasonTitleRecord[] = Array.from({ length: 180 }, (_, index) => ({
+  const awards: SeasonTitleRecord[] = Array.from({ length: 180 }, () => ({
     year: 2030,
     league: 'central',
     titleId: 'homeRuns',
