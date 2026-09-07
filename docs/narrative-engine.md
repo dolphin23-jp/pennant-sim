@@ -24,6 +24,38 @@ The same source event always maps to the same id:
 
 UI surfaces should reuse these canonical articles instead of generating their own conflicting prose.
 
+Player profiles are entity-surface artifacts rather than news-feed events. Their stable seasonal id is
+`player-profile:<season>:<playerId>`. The profile packet distinguishes current canonical roster
+state (`PLAYER_CURRENT`), archived seasons (`PLAYER_SEASON` / `CAREER_SUMMARY`), and
+deterministic editorial projections (`PLAYER_PROFILE`). Generated profile prose is still optional
+presentation data and is saved through the same `ArticleSnapshot` archive; it never writes back to
+the player, yearly-stat, achievement, or event ledgers.
+
+## Player Narrative Profile vertical slice
+
+The first non-news OpenAI surface is the player-detail **名鑑** tab. Opening that tab derives a
+profile packet from the current player plus only season records available at the profile's
+`asOfDate`. The projection currently derives career length/totals, latest and best seasons,
+three-season trajectory when supportable, league-relative production, team home-run share,
+strongest current ability category, championship involvement when the archived champion record
+names the player, and a deterministic career archetype.
+
+Canonical inputs and derived editorial inputs are explicitly tagged in the projection. The model
+does not receive permission to turn an archetype or potential signal into a prediction: profile
+prose is asked to explain who the player has been up to the current date, not what he will become.
+Profiles with insufficient context remain deterministic; richer profiles use the feature protocol
+and therefore must contain grounded multi-claim `ANALYTICAL` prose. Opening the tab first performs a
+cache-only lookup. A new OpenAI call is deliberate ("AI名鑑を作る" / premium) rather than automatic,
+because a live profile's `asOfDate` can advance during the season and date-only refreshes are not worth
+spending tokens on.
+
+This slice intentionally does **not** rewrite `createFictionalLeagueHistory()`. The current
+historical generator back-projects seasons from the present player state and therefore cannot
+perfectly reconstruct every former star's true peak. Changing that generator would alter initial
+world generation and seeded random-consumption behavior. Career-curve-first world generation and
+pre-pro histories should be treated as separate canonical-data projects after the profile layer has
+made the missing historical shapes measurable.
+
 ## Storage model
 
 Save Architecture v4 already archives the factual ledgers used by the first narrative sources: game box scores, achievements, championships, season titles, and year-by-year records. The first narrative layer is therefore a deterministic projection over those immutable/archive facts rather than another copy of every game result.

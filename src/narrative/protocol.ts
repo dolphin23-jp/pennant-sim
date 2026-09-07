@@ -1,7 +1,7 @@
 import type { NarrativeArticle, NarrativeFactRef, NarrativeStatementClass } from './types';
 
 export const RENDERER_VERSION = 3;
-export const PROMPT_VERSION = 3;
+export const PROMPT_VERSION = 4;
 export const VALIDATOR_VERSION = 3;
 export const STYLE_VERSION = 3;
 export const MODELS = { standard: 'gpt-5.4-mini', premium: 'gpt-5.4' } as const;
@@ -144,6 +144,7 @@ export function validPacket(v: unknown): v is FactPacket {
       'career',
       'injury',
       'development',
+      'playerProfile',
     ].includes(v.kind)
   )
     return false;
