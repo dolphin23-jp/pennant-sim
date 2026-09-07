@@ -256,10 +256,14 @@ export function buildCareerRetrospective(
     .sort((a, b) => b.ovr - a.ovr || b.year - a.year)[0];
   const peak: CareerRetrospectiveEditorialInput = {
     id: 'career-peak',
-    sourceClass: 'canonical',
+    sourceClass: 'derived',
     text: `保存された年度別OVRが最も高いシーズンは${peakRecord.year}年。${seasonLine(peakRecord)}`,
-    factRefs: [ref('PLAYER_SEASON', `${peakRecord.year}:${player.id}`)],
-    value: { sourceClass: 'canonical', ...structuredClone(peakRecord) },
+    factRefs: [ref('CAREER_RETROSPECTIVE', `${asOfDate}:${player.id}:peak-season-v1`)],
+    value: {
+      sourceClass: 'derived',
+      peakRecord: structuredClone(peakRecord),
+      comparedSeasonOvrs: records.map((record) => ({ year: record.year, ovr: record.ovr })),
+    },
   };
 
   const titles = source.awardHistory
@@ -268,15 +272,27 @@ export function buildCareerRetrospective(
         record.playerId === player.id && visibleYear(record.year, seasonYear, asOfDate),
     )
     .sort((a, b) => a.year - b.year || a.titleLabel.localeCompare(b.titleLabel));
+  const titleCounts = [...titles.reduce((counts, title) => {
+    counts.set(title.titleLabel, (counts.get(title.titleLabel) ?? 0) + 1);
+    return counts;
+  }, new Map<string, number>()).entries()].sort(([a], [b]) => a.localeCompare(b));
   const titleInput: CareerRetrospectiveEditorialInput | null = titles.length
     ? {
         id: 'titles',
-        sourceClass: 'canonical',
-        text: `個人タイトルは延べ${titles.length}回。${titles.map((title) => `${title.year}年 ${title.titleLabel}（${title.displayValue}）`).join("、")}。`,
-        factRefs: titles.map((title) =>
-          ref('SEASON_TITLE', `${title.year}:${title.league}:${title.titleId}:${title.playerId}`),
-        ),
-        value: { sourceClass: 'canonical', titles: structuredClone(titles) },
+        sourceClass: 'derived',
+        text: `個人タイトルは延べ${titles.length}回（${titleCounts
+          .map(([label, count]) => `${label}${count}回`)
+          .join('、')}）。`,
+        factRefs: [
+          ref('CAREER_RETROSPECTIVE', `${asOfDate}:${player.id}:title-summary-v1`),
+        ],
+        value: {
+          sourceClass: 'derived',
+          totalTitles: titles.length,
+          titleCounts: titleCounts.map(([label, count]) => ({ label, count })),
+          firstTitleYear: titles[0]?.year ?? null,
+          lastTitleYear: titles.at(-1)?.year ?? null,
+        },
       }
     : null;
 
@@ -287,13 +303,28 @@ export function buildCareerRetrospective(
         visibleDated(event.year, event.date, seasonYear, asOfDate),
     )
     .sort((a, b) => a.year - b.year || a.date.localeCompare(b.date));
+  const achievementCounts = [...achievements.reduce((counts, event) => {
+    counts.set(event.metricLabel, (counts.get(event.metricLabel) ?? 0) + 1);
+    return counts;
+  }, new Map<string, number>()).entries()].sort(([a], [b]) => a.localeCompare(b));
   const achievementInput: CareerRetrospectiveEditorialInput | null = achievements.length
     ? {
         id: 'achievements',
-        sourceClass: 'canonical',
-        text: `主要記録イベントは${achievements.length}件保存されている。${achievements.map((event) => `${event.year}年 ${event.metricLabel}${event.value}`).join("、")}。`,
-        factRefs: achievements.map((event) => ref('ACHIEVEMENT', event.id)),
-        value: { sourceClass: 'canonical', achievements: structuredClone(achievements) },
+        sourceClass: 'derived',
+        text: `主要記録イベントは${achievements.length}件（${achievementCounts
+          .map(([label, count]) => `${label}${count}件`)
+          .join('、')}）。`,
+        factRefs: [
+          ref('CAREER_RETROSPECTIVE', `${asOfDate}:${player.id}:achievement-summary-v1`),
+        ],
+        value: {
+          sourceClass: 'derived',
+          totalAchievements: achievements.length,
+          achievementCounts: achievementCounts.map(([label, count]) => ({ label, count })),
+          firstAchievementYear: achievements[0]?.year ?? null,
+          lastAchievementYear: achievements.at(-1)?.year ?? null,
+          eventIds: achievements.map((event) => event.id),
+        },
       }
     : null;
 
