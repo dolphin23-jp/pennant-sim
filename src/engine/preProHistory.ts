@@ -47,6 +47,7 @@ export interface PreProHistoryOptions {
   entryYear: number;
   origin?: DraftOrigin;
   entryAge?: number;
+  /** Entry-time ability proxy. Existing fictional history supplies the first archived OVR. */
   prospectQuality?: number;
 }
 
@@ -87,13 +88,19 @@ function maxPotential(player: Player): number {
   return values.length ? Math.max(...values) : 0;
 }
 
-function profileScore(player: Player, quality?: number): number {
+function profileScore(player: Player, entryQuality?: number): number {
+  if (entryQuality != null) {
+    return Math.max(
+      entryQuality,
+      player.generationalTalent ? 104 : 0,
+      player.potentialClass === 'elite' ? 82 : 0,
+    );
+  }
   const current = player.isP ? calcOVR(player) : calcOVR(player, player.pos);
   const potential = maxPotential(player);
   return Math.max(
     current,
     potential * 0.72,
-    quality ?? 0,
     player.generationalTalent ? 104 : 0,
     player.potentialClass === 'elite' ? 88 : 0,
   );
@@ -240,6 +247,7 @@ export function createPreProHistory(player: Player, options: PreProHistoryOption
 
 export function preProSummary(history: PreProHistory | undefined): string {
   if (!history) return '';
-  const lead = history.entryYear > 0 ? `${history.origin}・${history.entryYear}年プロ入り` : history.origin;
+  const lead =
+    history.entryYear > 0 ? `${history.origin}・${history.entryYear}年プロ入り` : history.origin;
   return [lead, ...history.highlights.slice(0, 2).map((highlight) => highlight.text)].join(' / ');
 }
