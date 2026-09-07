@@ -16,6 +16,7 @@ import {
   type Teams,
 } from '../../engine';
 import { Button, Card, EmptyState, SectionTitle } from '../ui';
+import { DraftNarrativeProfile } from '../widgets/DraftNarrativeProfile';
 
 interface DraftProgress {
   teams: Teams;
@@ -68,7 +69,8 @@ export function DraftScreen({
   narrativeYear?: number;
 }) {
   const [round, setRound] = useState(1);
-  const [prospects, setProspects] = useState<Player[]>(() => generateDraftProspects());
+  const [initialProspects] = useState<Player[]>(() => generateDraftProspects());
+  const [prospects, setProspects] = useState<Player[]>(() => [...initialProspects]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [picks, setPicks] = useState<DraftPick[]>([]);
   const [pendingFirstRoundTeams, setPendingFirstRoundTeams] = useState<TeamKey[]>(() => [...order]);
@@ -293,10 +295,22 @@ export function DraftScreen({
                     <div style={{ color: 'var(--color-text-faint)', fontSize: 10, marginTop: 4 }}>
                       {player.isP ? player.role : player.pos} / {player.age}歳 / {player.note}
                     </div>
+                    {player.preProHistory?.highlights[0] && (
+                      <div style={{ color: 'var(--color-text-muted)', fontSize: 10, marginTop: 3 }}>
+                        {player.preProHistory.highlights[0].text}
+                      </div>
+                    )}
                   </button>
                 );
               })}
             </div>
+          )}
+          {selected && narrativeYear != null && (
+            <DraftNarrativeProfile
+              player={selected}
+              prospects={initialProspects}
+              year={narrativeYear}
+            />
           )}
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
             <Button

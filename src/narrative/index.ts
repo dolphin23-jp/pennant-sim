@@ -5,3 +5,4 @@ export * from './story';
 export * from './memory';
 export * from './historyFacts';
 export * from './playerProfile';
+export * from './draftProfile';
