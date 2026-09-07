@@ -6,3 +6,4 @@ export * from './memory';
 export * from './historyFacts';
 export * from './playerProfile';
 export * from './draftProfile';
+export * from './careerRetrospective';
