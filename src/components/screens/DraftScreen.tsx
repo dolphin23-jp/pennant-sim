@@ -15,7 +15,8 @@ import {
   type TeamKey,
   type Teams,
 } from '../../engine';
-import { Button, Card, EmptyState, SectionTitle } from '../ui';\nimport { DraftNarrativeProfile } from '../widgets/DraftNarrativeProfile';
+import { Button, Card, EmptyState, SectionTitle } from '../ui';
+import { DraftNarrativeProfile } from '../widgets/DraftNarrativeProfile';
 
 interface DraftProgress {
   teams: Teams;
@@ -68,7 +69,8 @@ export function DraftScreen({
   narrativeYear?: number;
 }) {
   const [round, setRound] = useState(1);
-  const [initialProspects] = useState<Player[]>(() => generateDraftProspects());\n  const [prospects, setProspects] = useState<Player[]>(() => [...initialProspects]);
+  const [initialProspects] = useState<Player[]>(() => generateDraftProspects());
+  const [prospects, setProspects] = useState<Player[]>(() => [...initialProspects]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [picks, setPicks] = useState<DraftPick[]>([]);
   const [pendingFirstRoundTeams, setPendingFirstRoundTeams] = useState<TeamKey[]>(() => [...order]);
