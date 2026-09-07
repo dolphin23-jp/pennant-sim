@@ -27,8 +27,9 @@ function mulberry32(seed: number): () => number {
 }
 
 function withoutPrePro(player: Player): Record<string, unknown> {
-  const { preProHistory: _history, ...rest } = player;
-  return rest;
+  const copy = structuredClone(player) as Record<string, unknown>;
+  delete copy.preProHistory;
+  return copy;
 }
 
 test('draft pre-pro enrichment consumes no simulation RNG and changes no prospect ratings', () => {
