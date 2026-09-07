@@ -1,4 +1,5 @@
 import { CENTRAL, PACIFIC } from '../data';
+import { isDraftProspectSnapshot } from '../engine/draftEvaluation';
 import type { NarrativeEvent, NarrativeEventLedger } from './types';
 
 const prefixes = {
@@ -96,7 +97,10 @@ function validEvent(value: unknown, year: number): value is NarrativeEvent {
         integer(value.round) &&
         value.round > 0 &&
         (value.overallPick == null || (integer(value.overallPick) && value.overallPick > 0)) &&
-        (value.origin == null || text(value.origin))
+        (value.origin == null || text(value.origin)) &&
+        (value.prospectSnapshot === undefined ||
+          (isDraftProspectSnapshot(value.prospectSnapshot) &&
+            value.prospectSnapshot.playerId === value.playerId))
       );
     case 'career':
       return (

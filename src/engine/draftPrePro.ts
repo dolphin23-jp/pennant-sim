@@ -6,6 +6,7 @@ import {
   type DraftPick,
 } from './draft';
 import { createPreProHistory } from './preProHistory';
+import { buildDraftProspectSnapshotMap } from './draftEvaluation';
 import type { Player, Teams } from './types';
 
 function enrichUnsignedProspect(player: Player): Player {
@@ -60,9 +61,11 @@ export function applyDraftPicks(
   teams: Teams,
   picks: DraftPick[],
   context?: NarrativeEventContext,
+  prospectPool?: readonly Player[],
 ): Teams {
   const signedPicks = picks.map((pick) => (context ? enrichSignedPick(pick, context) : pick));
-  return applyDraftPicksBase(teams, signedPicks, context);
+  const prospectSnapshots = prospectPool ? buildDraftProspectSnapshotMap(prospectPool) : undefined;
+  return applyDraftPicksBase(teams, signedPicks, context, prospectSnapshots);
 }
 
 export function runCpuDraft(

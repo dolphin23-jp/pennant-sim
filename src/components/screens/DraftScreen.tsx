@@ -87,7 +87,7 @@ export function DraftScreen({
             date: `${narrativeYear}年オフ`,
             emit: (event) => events.push(event),
           };
-    onComplete(applyDraftPicks(teams, finalPicks, context), finalPicks, events);
+    onComplete(applyDraftPicks(teams, finalPicks, context, initialProspects), finalPicks, events);
   };
 
   const makePick = () => {
