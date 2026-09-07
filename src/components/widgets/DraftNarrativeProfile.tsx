@@ -99,9 +99,11 @@ export function DraftNarrativeProfile({
     return <EmptyState>この候補のNarrative Profileは現在作成できません。</EmptyState>;
   }
 
+  const articleId = profile.article.id;
+
   function regenerate(quality: Quality) {
     const revisions = stored
-      .filter((snapshot: ArticleSnapshot) => snapshot.articleId === profile.article.id)
+      .filter((snapshot: ArticleSnapshot) => snapshot.articleId === articleId)
       .map((snapshot) => snapshot.revision);
     setRequest({
       quality,
