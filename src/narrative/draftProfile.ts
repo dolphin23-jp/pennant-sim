@@ -42,14 +42,14 @@ function overall(player: Player): number {
 }
 
 function strongestSkill(player: Player): { label: string; value: number } {
-  const skills = player.isP
+  const skills: Array<[string, number]> = player.isP
     ? [
         ['球速', Number(player.p.vel ?? 0)],
         ['制球', Number(player.p.ctrl ?? 0)],
         ['スタミナ', Number(player.p.stam ?? 0)],
         ['球威', Number(player.p.nobi ?? 0)],
         ['守備', Number(player.p.fld ?? 0)],
-      ] as const
+      ]
     : [
         ['ミート', Math.max(Number(player.p.cf ?? 0), Number(player.p.cb ?? 0))],
         ['長打力', Number(player.p.pw ?? 0)],
@@ -57,8 +57,12 @@ function strongestSkill(player: Player): { label: string; value: number } {
         ['走力', Number(player.p.sp ?? 0)],
         ['守備', Number(player.p.df ?? 0)],
         ['肩力', Number(player.p.arm ?? 0)],
-      ] as const;
-  return skills.reduce((best, candidate) => (candidate[1] > best[1] ? candidate : best), skills[0]);
+      ];
+  const [label, value] = skills.reduce(
+    (best, candidate) => (candidate[1] > best[1] ? candidate : best),
+    skills[0],
+  );
+  return { label, value };
 }
 
 function materialPotentialGapCount(player: Player): number {
