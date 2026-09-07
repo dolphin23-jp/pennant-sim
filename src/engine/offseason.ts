@@ -1,7 +1,8 @@
 import { emitRosterExits } from './narrativeEvents';
 import type { NarrativeEvent, NarrativeEventContext } from '../narrative/types';
 import { CENTRAL, FOREIGN_PLAYER_BALANCE, MATURITY_PEAK_AGE, PACIFIC } from '../data';
-import { runCpuDraft, type DraftPick } from './draft';
+import type { DraftPick } from './draft';
+import { runCpuDraft } from './draftPrePro';
 import { foreignPerformanceMultiplier, isForeignPlayer } from './foreign';
 import { growthPhase } from './growth';
 import { cpuAutoSignMarketRounds, genForeignMarket, genFreeAgentMarket } from './market';
