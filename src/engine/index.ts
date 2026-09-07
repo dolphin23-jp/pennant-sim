@@ -17,6 +17,7 @@ export * from './pitcherPlanSeason';
 export * from './pitcherUsage';
 export * from './playerEvents';
 export * from './players';
+export * from './preProHistory';
 export * from './random';
 export * from './ratings';
 export * from './scoring';
