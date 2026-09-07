@@ -145,6 +145,7 @@ export function validPacket(v: unknown): v is FactPacket {
       'injury',
       'development',
       'playerProfile',
+      'draftProfile',
     ].includes(v.kind)
   )
     return false;
