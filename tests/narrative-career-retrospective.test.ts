@@ -165,7 +165,7 @@ function source(input: {
         {
           year: 2030,
           league: 'central' as const,
-          titleId: 'hr',
+          titleId: 'homeRuns',
           titleLabel: '本塁打王',
           playerId: 'retro-player',
           playerName: '回顧 太郎',
