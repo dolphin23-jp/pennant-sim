@@ -11,9 +11,13 @@ import {
   random,
   registerExistingNames,
   resetRandom,
+  runCpuDraft,
   type Player,
 } from '../src/engine';
-import { generateDraftProspects as generateDraftProspectsBase } from '../src/engine/draft';
+import {
+  generateDraftProspects as generateDraftProspectsBase,
+  runCpuDraft as runCpuDraftBase,
+} from '../src/engine/draft';
 import { createFictionalLeagueHistory as createFictionalLeagueHistoryBase } from '../src/engine/leagueHistory';
 
 function mulberry32(seed: number): () => number {
@@ -76,6 +80,41 @@ test('signing fixes the rookie season without changing the prospect amateur achi
   assert.ok(signed?.preProHistory);
   assert.equal(signed.preProHistory.entryYear, 2027);
   assert.deepEqual(signed.preProHistory.highlights, beforeHighlights);
+  resetRandom();
+});
+
+test('automated CPU draft enrichment preserves the original outcome and RNG path', () => {
+  const run = (enriched: boolean) => {
+    configureRandom(mulberry32(20260911), () => 1_700_000_000_000);
+    registerExistingNames({});
+    const teams = initTeams();
+    const events: unknown[] = [];
+    const context = { year: 2026, date: '2026年オフ', emit: (event: unknown) => events.push(event) };
+    const result = enriched ? runCpuDraft(teams, 3, context) : runCpuDraftBase(teams, 3, context);
+    const nextRandom = random();
+    return { result, events, nextRandom };
+  };
+
+  const base = run(false);
+  const enriched = run(true);
+
+  assert.deepEqual(
+    enriched.result.picks.map(withoutPrePro),
+    base.result.picks.map(withoutPrePro),
+  );
+  assert.deepEqual(enriched.events, base.events);
+  assert.equal(enriched.nextRandom, base.nextRandom);
+  assert.ok(
+    enriched.result.picks.every(
+      (pick) =>
+        pick.preProHistory?.source === 'generated-v1' && pick.preProHistory.entryYear === 2027,
+    ),
+  );
+  for (const pick of enriched.result.picks) {
+    const team = enriched.result.teams[pick.teamKey];
+    const signed = [...team.pitchers, ...team.fielders].find((player) => player.id === pick.id);
+    assert.equal(signed?.preProHistory?.entryYear, 2027);
+  }
   resetRandom();
 });
 
