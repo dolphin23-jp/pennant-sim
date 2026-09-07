@@ -28,11 +28,16 @@ function enrichPlayer(
   // Existing players must not get amateur accomplishments inferred from their completed
   // 2026 ability. Use the earliest archived professional parameters as the historical
   // proxy; current parameters are used only for current rookies with no archived season.
+  const entryPotential = record
+    ? (Object.fromEntries(
+        Object.entries(record.params).filter((entry): entry is [string, number] => typeof entry[1] === 'number'),
+      ) as Player['pot'])
+    : undefined;
   const entryProxy: Player = record
     ? {
         ...player,
         p: structuredClone(record.params),
-        pot: structuredClone(record.params),
+        pot: entryPotential!,
       }
     : player;
   const preProHistory = createPreProHistory(entryProxy, {
