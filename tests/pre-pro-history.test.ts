@@ -9,6 +9,7 @@ import {
   generateDraftProspects,
   initTeams,
   random,
+  registerExistingNames,
   resetRandom,
   type Player,
 } from '../src/engine';
@@ -34,10 +35,12 @@ function withoutPrePro(player: Player): Record<string, unknown> {
 
 test('draft pre-pro enrichment consumes no simulation RNG and changes no prospect ratings', () => {
   configureRandom(mulberry32(20260907), () => 1_700_000_000_000);
+  registerExistingNames({});
   const base = generateDraftProspectsBase();
   const baseNextRandom = random();
 
   configureRandom(mulberry32(20260907), () => 1_700_000_000_000);
+  registerExistingNames({});
   const enriched = generateDraftProspects();
   const enrichedNextRandom = random();
 
