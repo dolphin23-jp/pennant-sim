@@ -129,13 +129,16 @@ test('CPU draft emits snapshots for every selected player', () => {
 });
 
 test('building draft snapshots consumes no simulation RNG draws', () => {
-  const run = (withSnapshot: boolean) => {
-    seeded(119);
-    const pool = generateDraftProspects();
-    if (withSnapshot) buildDraftProspectSnapshotMap(pool);
-    const next = random();
-    resetRandom();
-    return next;
-  };
-  assert.equal(run(true), run(false));
+  seeded(119);
+  const pool = generateDraftProspects();
+
+  seeded(211);
+  buildDraftProspectSnapshotMap(pool);
+  const afterSnapshot = random();
+
+  seeded(211);
+  const withoutSnapshot = random();
+
+  assert.equal(afterSnapshot, withoutSnapshot);
+  resetRandom();
 });
