@@ -111,10 +111,9 @@ test('fictional league history enrichment preserves historical facts while fixin
   }
   for (const player of active) {
     const record = firstRecord.get(player.id);
-    if (!record) continue;
     assert.ok(player.preProHistory);
-    assert.equal(player.preProHistory.entryYear, record.year);
-    assert.equal(player.preProHistory.entryAge, record.age);
+    assert.equal(player.preProHistory.entryYear, record?.year ?? 2026);
+    assert.equal(player.preProHistory.entryAge, record?.age ?? player.age);
     assert.equal(player.draftOrigin, player.preProHistory.origin);
   }
   resetRandom();
