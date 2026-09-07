@@ -77,24 +77,25 @@ test('signing fixes the rookie season without changing the prospect amateur achi
 });
 
 test('fictional league history enrichment preserves historical facts while fixing active pre-pro history', () => {
+  const options = {
+    endYear: 2025,
+    seasons: 20,
+    seed: 481516,
+    legendsPerTeam: 2,
+  } as const;
+
   configureRandom(mulberry32(20260909), () => 1_700_000_000_000);
-  const sourceTeams = initTeams();
-  const base = createFictionalLeagueHistoryBase(sourceTeams, {
-    endYear: 2025,
-    seasons: 20,
-    seed: 481516,
-    legendsPerTeam: 2,
-  });
-  const enriched = createFictionalLeagueHistory(sourceTeams, {
-    endYear: 2025,
-    seasons: 20,
-    seed: 481516,
-    legendsPerTeam: 2,
-  });
+  const base = createFictionalLeagueHistoryBase(initTeams(), options);
+  const baseNextRandom = random();
+
+  configureRandom(mulberry32(20260909), () => 1_700_000_000_000);
+  const enriched = createFictionalLeagueHistory(initTeams(), options);
+  const enrichedNextRandom = random();
 
   assert.deepEqual(enriched.yearlyStats, base.yearlyStats);
   assert.deepEqual(enriched.careerStats, base.careerStats);
   assert.deepEqual(enriched.championHistory, base.championHistory);
+  assert.equal(enrichedNextRandom, baseNextRandom);
 
   const active = Object.values(enriched.teams).flatMap((team) => [
     ...team.fielders,
