@@ -25,13 +25,20 @@ function enrichPlayer(
   if (!record && fallbackEntryYear == null) return;
   const entryYear = record?.year ?? fallbackEntryYear!;
   const entryAge = record?.age ?? player.age;
-  const preProHistory = createPreProHistory(player, {
+  // Existing players must not get amateur accomplishments inferred from their completed
+  // 2026 ability. Use the earliest archived professional parameters as the historical
+  // proxy; current parameters are used only for current rookies with no archived season.
+  const entryProxy: Player = record
+    ? {
+        ...player,
+        p: structuredClone(record.params),
+        pot: structuredClone(record.params),
+      }
+    : player;
+  const preProHistory = createPreProHistory(entryProxy, {
     entryYear,
     entryAge,
     origin: player.draftOrigin,
-    // For existing players, use the earliest archived professional level as the closest
-    // available proxy for how highly regarded they were at entry. This avoids turning a
-    // late-blooming veteran into an elite amateur merely because of later career ability.
     prospectQuality: record?.ovr,
   });
   player.preProHistory = preProHistory;
