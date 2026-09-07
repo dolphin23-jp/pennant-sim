@@ -1,14 +1,13 @@
 import { TINFO } from '../data';
 import type {
   AchievementEvent,
-  BatterStats,
-  PitcherStats,
   Player,
   PlayerSeasonRecord,
   SeasonTitleRecord,
   TeamKey,
   YearlyPlayerRecords,
 } from '../engine';
+import { earnedRunAverage, inningsText } from '../engine/statsFormat';
 import type { NarrativeEvent, NarrativeEventLedger, NarrativeFactKind, NarrativeFactRef, NarrativeArticle } from './types';
 import { NARRATIVE_GENERATOR_VERSION } from './types';
 import { validPacket, type FactPacket } from './protocol';
@@ -91,9 +90,8 @@ function seasonLine(record: PlayerSeasonRecord): string {
     const average = stats.ab > 0 ? (stats.h / stats.ab).toFixed(3).replace(/^0/, '') : '.000';
     return `${record.year}年は${record.teamName}で${stats.g}試合、打率${average}、${stats.hr}本塁打、${stats.rbi}打点、${stats.sb}盗塁、シーズン終了時OVR ${record.ovr}。`;
   }
-  const innings = (stats.ip3 / 3).toFixed(1);
-  const era = stats.ip3 > 0 ? ((stats.er * 27) / stats.ip3).toFixed(2) : null;
-  return `${record.year}年は${record.teamName}で${stats.g}登板${stats.gs ? `、${stats.gs}先発` : ''}、${stats.w}勝${stats.l}敗${stats.sv ? `、${stats.sv}セーブ` : ''}${stats.hld ? `、${stats.hld}ホールド` : ''}${era ? `、防御率${era}` : ''}、${innings}回、${stats.k}奪三振、シーズン終了時OVR ${record.ovr}。`;
+  const era = earnedRunAverage(stats);
+  return `${record.year}年は${record.teamName}で${stats.g}登板${stats.gs ? `、${stats.gs}先発` : ''}、${stats.w}勝${stats.l}敗${stats.sv ? `、${stats.sv}セーブ` : ''}${stats.hld ? `、${stats.hld}ホールド` : ''}${era !== null ? `、防御率${era.toFixed(2)}` : ''}、${inningsText(stats.ip3)}回、${stats.k}奪三振、シーズン終了時OVR ${record.ovr}。`;
 }
 
 function isRegular(record: PlayerSeasonRecord): boolean {
