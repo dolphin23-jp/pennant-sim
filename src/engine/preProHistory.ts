@@ -1,11 +1,46 @@
 import { calcOVR } from './ratings';
-import type {
-  DraftOrigin,
-  Player,
-  PreProHighlight,
-  PreProHistory,
-  PreProProfileTier,
-} from './types';
+import type { DraftOrigin, Player } from './types';
+
+export type PreProProfileTier = 'national-elite' | 'national' | 'regional' | 'developmental';
+export type PreProHighlightKind =
+  | 'national-tournament'
+  | 'regional-standout'
+  | 'career-home-runs'
+  | 'featured-pitcher'
+  | 'captain'
+  | 'university-regular'
+  | 'university-award'
+  | 'national-team'
+  | 'power-hitter'
+  | 'corporate-regular'
+  | 'corporate-tournament'
+  | 'immediate-impact';
+
+export interface PreProHighlight {
+  kind: PreProHighlightKind;
+  text: string;
+  competition?: string;
+  result?: string;
+  value?: number;
+  unit?: string;
+}
+
+export interface PreProHistory {
+  schemaVersion: 1;
+  source: 'generated-v1';
+  origin: DraftOrigin;
+  entryYear: number;
+  entryAge: number;
+  profileTier: PreProProfileTier;
+  highlights: PreProHighlight[];
+}
+
+declare module './types' {
+  interface Player {
+    /** Canonical, generated-once amateur history. AI prose may cite it but never mutate it. */
+    preProHistory?: PreProHistory;
+  }
+}
 
 export interface PreProHistoryOptions {
   entryYear: number;
@@ -110,7 +145,10 @@ function highSchoolHighlights(
 
   if (!player.isP && hitterPowerSignal(player) >= 58) {
     const power = hitterPowerSignal(player);
-    const total = Math.max(12, Math.min(68, Math.round(10 + power * 0.38 + randomInt(random, -4, 5))));
+    const total = Math.max(
+      12,
+      Math.min(68, Math.round(10 + power * 0.38 + randomInt(random, -4, 5))),
+    );
     highlights.push({
       kind: 'career-home-runs',
       text: `高校通算${total}本塁打`,
@@ -151,7 +189,6 @@ function universityHighlights(
 }
 
 function corporateHighlights(
-  player: Player,
   tier: PreProProfileTier,
   random: () => number,
 ): PreProHighlight[] {
@@ -180,15 +217,13 @@ export function createPreProHistory(player: Player, options: PreProHistoryOption
   const origin = options.origin ?? inferOrigin(entryAge);
   const score = profileScore(player, options.prospectQuality);
   const tier = profileTier(score);
-  const random = mulberry32(
-    hashString(`${player.id}|${origin}|${options.entryYear}|pre-pro-v1`),
-  );
+  const random = mulberry32(hashString(`${player.id}|${origin}|${options.entryYear}|pre-pro-v1`));
   const highlights =
     origin === '高卒'
       ? highSchoolHighlights(player, tier, random)
       : origin === '大卒'
         ? universityHighlights(player, tier, random)
-        : corporateHighlights(player, tier, random);
+        : corporateHighlights(tier, random);
   return {
     schemaVersion: 1,
     source: 'generated-v1',
