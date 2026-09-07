@@ -4,4 +4,5 @@ export * from './ledger';
 export * from './story';
 export * from './memory';
 export * from './historyFacts';
-export * from './playerProfile';\nexport * from './draftProfile';
+export * from './playerProfile';
+export * from './draftProfile';
