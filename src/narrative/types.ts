@@ -1,3 +1,4 @@
+import type { DraftProspectSnapshot } from '../engine/draftEvaluation';
 import type { GrowthChange, PlayerParams, TeamKey } from '../engine/types';
 
 export const NARRATIVE_GENERATOR_VERSION = 2 as const;
@@ -127,6 +128,8 @@ export interface DraftNarrativeEvent {
   round: number;
   overallPick?: number | null;
   origin?: string | null;
+  /** Frozen draft-time evaluation. Optional for legacy events without a supplied pool. */
+  prospectSnapshot?: DraftProspectSnapshot;
 }
 
 export type CareerNarrativeKind =
