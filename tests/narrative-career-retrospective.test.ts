@@ -250,6 +250,46 @@ test('career retrospective packets require grounded multi-claim analytical prose
   assert.ok(validateProse(prose, retrospective.packet));
 });
 
+
+test('long decorated careers stay within bounded FactPacket limits', () => {
+  const awards: SeasonTitleRecord[] = Array.from({ length: 180 }, (_, index) => ({
+    year: 2030,
+    league: 'central',
+    titleId: 'homeRuns',
+    titleLabel: '本塁打王',
+    playerId: 'retro-player',
+    playerName: '回顧 太郎',
+    teamKey: 'giants',
+    value: 32,
+    displayValue: '32',
+  }));
+  const achievements: AchievementEvent[] = Array.from({ length: 180 }, (_, index) => ({
+    id: `milestone:retro-player:h:${2000 + index * 1000}`,
+    kind: 'milestone',
+    playerId: 'retro-player',
+    playerName: '回顧 太郎',
+    teamKey: 'giants',
+    metricLabel: '通算安打',
+    value: 2000 + index * 1000,
+    year: 2030,
+    date: '2030-09-01',
+  }));
+
+  const retrospective = buildCareerRetrospective(source({ awards, achievements }));
+
+  assert.ok(retrospective);
+  assert.ok(retrospective.packet.facts.length < 20);
+  assert.ok(canonicalJson(retrospective.packet).length < 100000);
+  assert.match(
+    retrospective.editorialInputs.find((input) => input.id === 'titles')?.text ?? '',
+    /延べ180回/,
+  );
+  assert.match(
+    retrospective.editorialInputs.find((input) => input.id === 'achievements')?.text ?? '',
+    /180件/,
+  );
+});
+
 test('worker prompt version and instructions explicitly cover career retrospectives', () => {
   assert.equal(PROMPT_VERSION, 6);
   assert.match(SYSTEM_PROMPT, /kind=careerRetrospective/);
