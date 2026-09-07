@@ -29,6 +29,7 @@ export interface PreProHistory {
   schemaVersion: 1;
   source: 'generated-v1';
   origin: DraftOrigin;
+  /** 0 means a prospect has not signed yet. It is replaced with the actual rookie season on signing. */
   entryYear: number;
   entryAge: number;
   profileTier: PreProProfileTier;
@@ -217,7 +218,9 @@ export function createPreProHistory(player: Player, options: PreProHistoryOption
   const origin = options.origin ?? inferOrigin(entryAge);
   const score = profileScore(player, options.prospectQuality);
   const tier = profileTier(score);
-  const random = mulberry32(hashString(`${player.id}|${origin}|${options.entryYear}|pre-pro-v1`));
+  // entryYear is intentionally excluded: an unsigned prospect and the same player after
+  // signing must retain exactly the same amateur achievements.
+  const random = mulberry32(hashString(`${player.id}|${origin}|pre-pro-v1`));
   const highlights =
     origin === '高卒'
       ? highSchoolHighlights(player, tier, random)
@@ -237,6 +240,6 @@ export function createPreProHistory(player: Player, options: PreProHistoryOption
 
 export function preProSummary(history: PreProHistory | undefined): string {
   if (!history) return '';
-  const lead = `${history.origin}・${history.entryYear}年プロ入り`;
+  const lead = history.entryYear > 0 ? `${history.origin}・${history.entryYear}年プロ入り` : history.origin;
   return [lead, ...history.highlights.slice(0, 2).map((highlight) => highlight.text)].join(' / ');
 }
