@@ -3,6 +3,7 @@ import { CENTRAL, FIELD_POSITIONS, PACIFIC, PLAYER_DEVELOPMENT_BALANCE } from '.
 import { generateBatter, generatePitcher } from './players';
 import { gaussian, random, randomChoice, randomInt } from './random';
 import { bestLineup, calcOVR, effectiveOVR, topStarters } from './ratings';
+import { buildDraftProspectSnapshotMap, type DraftProspectSnapshot } from './draftEvaluation';
 import { teamNeedsScore } from './market';
 import type {
   DraftOrigin,
@@ -328,6 +329,7 @@ export function applyDraftPicks(
   teams: Teams,
   picks: DraftPick[],
   context?: NarrativeEventContext,
+  prospectSnapshots?: ReadonlyMap<string, DraftProspectSnapshot>,
 ): Teams {
   const next = { ...teams };
   for (const pick of picks) {
@@ -351,6 +353,9 @@ export function applyDraftPicks(
         playerName: pick.name,
         round: pick.round,
         origin: pick.draftOrigin,
+        ...(prospectSnapshots?.get(pick.id)
+          ? { prospectSnapshot: structuredClone(prospectSnapshots.get(pick.id)!) }
+          : {}),
       });
   }
   return next;
@@ -363,6 +368,7 @@ export function runCpuDraft(
 ): { teams: Teams; picks: DraftPick[] } {
   const order = draftOrder(teams);
   let prospects = generateDraftProspects();
+  const prospectSnapshots = buildDraftProspectSnapshotMap(prospects);
   let nextTeams = teams;
   const picks: DraftPick[] = [];
   let unresolved = [...order];
@@ -370,7 +376,7 @@ export function runCpuDraft(
     const wave = resolveFirstRoundWave(nextTeams, prospects, unresolved);
     if (!wave.picks.length) throw new Error('Draft first-round bidding could not resolve.');
     picks.push(...wave.picks);
-    nextTeams = applyDraftPicks(nextTeams, wave.picks, context);
+    nextTeams = applyDraftPicks(nextTeams, wave.picks, context, prospectSnapshots);
     const wonIds = new Set(wave.picks.map((pick) => pick.id));
     prospects = prospects.filter((prospect) => !wonIds.has(prospect.id));
     unresolved = wave.unresolvedTeams;
@@ -381,7 +387,7 @@ export function runCpuDraft(
       if (!selected) throw new Error(`Draft pool exhausted in round ${round}.`);
       const pick = { ...selected, teamKey, round };
       picks.push(pick);
-      nextTeams = applyDraftPicks(nextTeams, [pick], context);
+      nextTeams = applyDraftPicks(nextTeams, [pick], context, prospectSnapshots);
       prospects = prospects.filter((prospect) => prospect.id !== selected.id);
     }
   }
