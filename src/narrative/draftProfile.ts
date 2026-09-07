@@ -1,4 +1,4 @@
-import { calcOVR, effectiveOVR } from '../engine/ratings';
+import { buildDraftProspectSnapshot } from '../engine/draftEvaluation';
 import type { Player } from '../engine/types';
 import { validPacket, type FactPacket } from './protocol';
 import {
@@ -33,46 +33,6 @@ export interface DraftNarrativeProfileSource {
 
 const ref = (kind: NarrativeFactKind, key: string): NarrativeFactRef => ({ kind, key });
 
-function roleLabel(player: Player): string {
-  return player.isP ? player.role ?? '投手' : player.pos ?? '野手';
-}
-
-function overall(player: Player): number {
-  return player.isP ? calcOVR(player) : effectiveOVR(player, player.pos);
-}
-
-function strongestSkill(player: Player): { label: string; value: number } {
-  const skills: Array<[string, number]> = player.isP
-    ? [
-        ['球速', Number(player.p.vel ?? 0)],
-        ['制球', Number(player.p.ctrl ?? 0)],
-        ['スタミナ', Number(player.p.stam ?? 0)],
-        ['球威', Number(player.p.nobi ?? 0)],
-        ['守備', Number(player.p.fld ?? 0)],
-      ]
-    : [
-        ['ミート', Math.max(Number(player.p.cf ?? 0), Number(player.p.cb ?? 0))],
-        ['長打力', Number(player.p.pw ?? 0)],
-        ['選球眼', Number(player.p.dc ?? 0)],
-        ['走力', Number(player.p.sp ?? 0)],
-        ['守備', Number(player.p.df ?? 0)],
-        ['肩力', Number(player.p.arm ?? 0)],
-      ];
-  const [label, value] = skills.reduce(
-    (best, candidate) => (candidate[1] > best[1] ? candidate : best),
-    skills[0],
-  );
-  return { label, value };
-}
-
-function materialPotentialGapCount(player: Player): number {
-  return Object.entries(player.pot).filter(([key, target]) => {
-    if (typeof target !== 'number') return false;
-    const current = player.p[key as keyof typeof player.p];
-    return typeof current === 'number' && target >= current + 12;
-  }).length;
-}
-
 function uniqueRefs(inputs: DraftProfileEditorialInput[]): NarrativeFactRef[] {
   const seen = new Set<string>();
   return inputs.flatMap((input) =>
@@ -99,23 +59,20 @@ export function buildDraftNarrativeProfile(
 
   const { player, year, asOfDate } = source;
   const pool = [...source.prospects];
-  const ranked = pool
-    .map((candidate) => ({ id: candidate.id, overall: overall(candidate) }))
-    .sort((a, b) => b.overall - a.overall || a.id.localeCompare(b.id));
-  const rank = ranked.findIndex((candidate) => candidate.id === player.id) + 1;
-  if (rank <= 0) return null;
+  const snapshot = buildDraftProspectSnapshot(player, pool);
+  if (!snapshot) return null;
 
   const identity: DraftProfileEditorialInput = {
     id: 'identity',
     sourceClass: 'canonical',
-    text: `${player.name}は${player.age}歳の${roleLabel(player)}、${history.origin}のドラフト候補。`,
+    text: `${player.name}は${snapshot.age}歳の${snapshot.role}、${history.origin}のドラフト候補。`,
     factRefs: [ref('DRAFT_PROSPECT', `${year}:${player.id}:identity`)],
     value: {
       sourceClass: 'canonical',
       playerId: player.id,
       playerName: player.name,
-      age: player.age,
-      role: roleLabel(player),
+      age: snapshot.age,
+      role: snapshot.role,
       origin: history.origin,
     },
   };
@@ -131,35 +88,33 @@ export function buildDraftNarrativeProfile(
     value: { sourceClass: 'canonical', ...structuredClone(history) },
   };
 
-  const currentOverall = overall(player);
   const standing: DraftProfileEditorialInput = {
     id: 'draft-pool-standing',
     sourceClass: 'derived',
-    text: `現在能力のOVRでは${currentOverall}で、ドラフト候補${pool.length}人中${rank}位。`,
+    text: `現在能力のOVRでは${snapshot.currentOverall}で、ドラフト候補${snapshot.poolSize}人中${snapshot.poolRank}位。`,
     factRefs: [ref('DRAFT_PROSPECT', `${year}:${player.id}:pool-standing`)],
     value: {
       sourceClass: 'derived',
       metric: 'current-ovr',
-      overall: currentOverall,
-      rank,
-      poolSize: pool.length,
+      overall: snapshot.currentOverall,
+      rank: snapshot.poolRank,
+      poolSize: snapshot.poolSize,
     },
   };
 
-  const strongest = strongestSkill(player);
   const strength: DraftProfileEditorialInput = {
     id: 'strongest-current-skill',
     sourceClass: 'derived',
-    text: `現在能力で最も高い項目は${strongest.label}。`,
+    text: `現在能力で最も高い項目は${snapshot.strongestSkill.label}。`,
     factRefs: [ref('DRAFT_PROSPECT', `${year}:${player.id}:strongest-skill`)],
     value: {
       sourceClass: 'derived',
-      label: strongest.label,
-      rating: strongest.value,
+      label: snapshot.strongestSkill.label,
+      rating: snapshot.strongestSkill.rating,
     },
   };
 
-  const gapCount = materialPotentialGapCount(player);
+  const gapCount = snapshot.materialPotentialGap.count;
   const development: DraftProfileEditorialInput = {
     id: 'potential-gap',
     sourceClass: 'derived',
