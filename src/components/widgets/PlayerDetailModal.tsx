@@ -49,6 +49,7 @@ import { TitleIcon } from '../icons';
 import { AbilityRadarChart, type AbilityRadarItem } from './AbilityRadarChart';
 import { AptitudeFieldMap } from './AptitudeFieldMap';
 import { DisplayOVRValue } from './DisplayOVRValue';
+import { CareerRetrospective } from './CareerRetrospective';
 import { PlayerEditTab } from './PlayerEditTab';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
 import { PlayerNarrativeProfile } from './PlayerNarrativeProfile';
@@ -689,7 +690,12 @@ export function PlayerDetailModal({
                 onUpdatePlayer={isOwnTeam ? onUpdatePlayer : undefined}
               />
             )}
-            {activeTab === 'narrative' && <PlayerNarrativeProfile player={player} />}
+            {activeTab === 'narrative' && (
+              <div className="detail-grid">
+                <PlayerNarrativeProfile player={player} />
+                <CareerRetrospective player={player} />
+              </div>
+            )}
             {activeTab === 'season' && (
               <Card className="detail-card" ariaLabel="今季成績">
                 <SectionTitle>Current Season</SectionTitle>
