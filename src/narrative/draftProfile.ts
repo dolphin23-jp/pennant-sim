@@ -88,16 +88,16 @@ function uniqueRefs(inputs: DraftProfileEditorialInput[]): NarrativeFactRef[] {
 export function buildDraftNarrativeProfile(
   source: DraftNarrativeProfileSource,
 ): DraftNarrativeProfile | null {
+  const history = source.player.preProHistory;
   if (
     !Number.isSafeInteger(source.year) ||
     !/^\d{4}-\d{2}-\d{2}$/.test(source.asOfDate) ||
     Number(source.asOfDate.slice(0, 4)) !== source.year ||
-    !source.player.preProHistory
+    !history
   )
     return null;
 
   const { player, year, asOfDate } = source;
-  const history = player.preProHistory;
   const pool = [...source.prospects];
   const ranked = pool
     .map((candidate) => ({ id: candidate.id, overall: overall(candidate) }))
