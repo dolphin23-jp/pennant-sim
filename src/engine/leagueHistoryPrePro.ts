@@ -16,21 +16,36 @@ function firstRecordByPlayer(history: FictionalLeagueHistory): Map<string, Playe
   return first;
 }
 
-function enrichPlayer(player: Player, record: PlayerSeasonRecord | undefined): void {
-  if (player.preProHistory || !record) return;
+function enrichPlayer(
+  player: Player,
+  record: PlayerSeasonRecord | undefined,
+  fallbackEntryYear?: number,
+): void {
+  if (player.preProHistory) return;
+  if (!record && fallbackEntryYear == null) return;
+  const entryYear = record?.year ?? fallbackEntryYear!;
+  const entryAge = record?.age ?? player.age;
   const preProHistory = createPreProHistory(player, {
-    entryYear: record.year,
-    entryAge: record.age,
+    entryYear,
+    entryAge,
     origin: player.draftOrigin,
+    // For existing players, use the earliest archived professional level as the closest
+    // available proxy for how highly regarded they were at entry. This avoids turning a
+    // late-blooming veteran into an elite amateur merely because of later career ability.
+    prospectQuality: record?.ovr,
   });
   player.preProHistory = preProHistory;
   player.draftOrigin ??= preProHistory.origin;
 }
 
-function enrichTeams(teams: Teams, firstRecords: Map<string, PlayerSeasonRecord>): void {
+function enrichTeams(
+  teams: Teams,
+  firstRecords: Map<string, PlayerSeasonRecord>,
+  fallbackEntryYear: number,
+): void {
   for (const team of Object.values(teams)) {
     for (const player of [...team.fielders, ...team.pitchers]) {
-      enrichPlayer(player, firstRecords.get(player.id));
+      enrichPlayer(player, firstRecords.get(player.id), fallbackEntryYear);
     }
   }
 }
@@ -41,7 +56,10 @@ export function createFictionalLeagueHistory(
 ): FictionalLeagueHistory {
   const history = createFictionalLeagueHistoryBase(sourceTeams, options);
   const firstRecords = firstRecordByPlayer(history);
-  enrichTeams(history.teams, firstRecords);
+  const nextSeason = (options.endYear ?? 2025) + 1;
+  // Active players with no archived season are current rookies. They still need a
+  // canonical amateur history, with the coming season as their professional entry year.
+  enrichTeams(history.teams, firstRecords, nextSeason);
   for (const player of history.retiredPlayers) enrichPlayer(player, firstRecords.get(player.id));
   return history;
 }
