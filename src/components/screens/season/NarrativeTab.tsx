@@ -24,7 +24,8 @@ const KIND_LABEL: Record<NarrativeArticleKind, string> = {
   career: 'キャリア',
   injury: '故障',
   development: '成長',
-  playerProfile: '選手名鑑',\n  draftProfile: '候補名鑑',
+  playerProfile: '選手名鑑',
+  draftProfile: '候補名鑑',
 };
 
 type FeedCategory =
