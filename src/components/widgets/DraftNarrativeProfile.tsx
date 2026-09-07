@@ -29,6 +29,9 @@ export function DraftNarrativeProfile({
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
 
+  const worldId = game.worldId;
+  const recordNarrativeArticle = game.recordNarrativeArticle;
+
   const profile = useMemo(
     () =>
       buildDraftNarrativeProfile({
@@ -60,7 +63,7 @@ export function DraftNarrativeProfile({
       .render(
         profile.article,
         profile.packet,
-        game.worldId,
+        worldId,
         stored,
         renderConnection,
         request.quality,
@@ -82,7 +85,7 @@ export function DraftNarrativeProfile({
                 : 'AI利用トークン未設定',
         );
         if (result.snapshot) {
-          game.recordNarrativeArticle(game.worldId, result.snapshot);
+          recordNarrativeArticle(worldId, result.snapshot);
           if (request.force) setRequest((current) => ({ ...current, force: false }));
         }
         setBusy(false);
@@ -90,7 +93,7 @@ export function DraftNarrativeProfile({
     return () => {
       active = false;
     };
-  }, [profile, connection, game, stored, request]);
+  }, [profile, connection, worldId, recordNarrativeArticle, stored, request]);
 
   if (!profile || !rendered) {
     return <EmptyState>この候補のNarrative Profileは現在作成できません。</EmptyState>;
