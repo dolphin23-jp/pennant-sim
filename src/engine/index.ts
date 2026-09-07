@@ -5,6 +5,7 @@ export * from './atBat';
 export * from './boxScore';
 export * from './careerLedger';
 export * from './draft';
+export * from './draftEvaluation';
 export { applyDraftPicks, generateDraftProspects, runCpuDraft } from './draftPrePro';
 export * from './foreign';
 export * from './game';
