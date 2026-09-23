@@ -484,6 +484,9 @@ export function PostseasonScreen() {
 
   const runPostseason = () => {
     const league = game.leagueAccumulated;
+    // simulateGame writes post-game rosters (fatigue, injuries) back into the map it is
+    // given. Run the series on a copy and commit it explicitly instead of mutating state.
+    const seriesTeams = { ...teams };
     const regularSeasonEnd = game.season.schedule.reduce(
       (latest, scheduled) => (scheduled.date > latest ? scheduled.date : latest),
       game.season.schedule[0]?.date ?? `${game.season.year}-10-01`,
@@ -493,7 +496,7 @@ export function PostseasonScreen() {
       centralRanking[1],
       centralRanking[2],
       3,
-      teams,
+      seriesTeams,
       league,
       firstStageStart,
     );
@@ -501,7 +504,7 @@ export function PostseasonScreen() {
       pacificRanking[1],
       pacificRanking[2],
       3,
-      teams,
+      seriesTeams,
       league,
       firstStageStart,
     );
@@ -516,7 +519,7 @@ export function PostseasonScreen() {
       centralRanking[0],
       centralFirst.winner,
       7,
-      teams,
+      seriesTeams,
       league,
       finalStageStart,
       1,
@@ -525,7 +528,7 @@ export function PostseasonScreen() {
       pacificRanking[0],
       pacificFirst.winner,
       7,
-      teams,
+      seriesTeams,
       league,
       finalStageStart,
       1,
@@ -539,10 +542,11 @@ export function PostseasonScreen() {
       centralFinal.winner,
       pacificFinal.winner,
       7,
-      teams,
+      seriesTeams,
       league,
       japanSeriesStart,
     );
+    game.replaceTeams(seriesTeams);
     setResults({ centralFirst, centralFinal, pacificFirst, pacificFinal, japanSeries });
   };
 

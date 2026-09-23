@@ -4,6 +4,7 @@ export const WORLD_ARCHIVE_SCHEMA_VERSION = 1 as const;
 export interface ArchiveStorageBackend {
   get(key: string): Promise<string | null>;
   set(key: string, value: string): Promise<void>;
+  remove?(key: string): Promise<void>;
 }
 
 export interface ArchiveChunkRef {
@@ -88,13 +89,22 @@ export async function readArchiveChunk(
 }
 
 /**
- * Backends intentionally share the old get/set contract. Empty-string tombstones are
- * enough because every reader treats them as absent, and resilient fallback storage
- * stops at the first non-null value (including the tombstone).
+ * Unreachable revisions are deleted outright when the backend can delete, so a long career
+ * does not leave one dead key behind per save. Otherwise fall back to an empty-string
+ * tombstone: every reader treats it as absent, and resilient fallback storage stops at the
+ * first non-null value (including the tombstone).
  */
 export async function tombstoneArchiveChunk(
   backend: ArchiveStorageBackend,
   ref: ArchiveChunkRef,
 ): Promise<void> {
+  if (backend.remove) {
+    try {
+      await backend.remove(ref.key);
+      return;
+    } catch {
+      // Fall through to the tombstone.
+    }
+  }
   await backend.set(ref.key, '');
 }

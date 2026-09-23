@@ -1,5 +1,5 @@
 import { migrateArticleArchive, type ArticleArchive } from '../narrative/protocol';
-import { migrateNarrativeEvents } from '../narrative/ledger';
+import { migrateNarrativeEventsLenient } from '../narrative/ledger';
 import type { NarrativeEvent, NarrativeEventLedger } from '../narrative/types';
 import { CENTRAL, PACIFIC, TINFO } from '../data';
 import {
@@ -40,11 +40,17 @@ import {
 import type { ArchiveChunkRef, WorldArchiveIndex } from './worldArchive';
 
 export const LEGACY_SAVE_KEY = 'npb_sim_v3_restored';
+/** Set once the legacy single-slot save has been considered for slot 1, so clearing slot 1
+ * later can never resurrect it. The legacy data itself is left untouched. */
+export const LEGACY_MIGRATED_KEY = 'npb_sim_v3_legacy_migrated';
 export const ACTIVE_SAVE_SLOT_KEY = 'npb_sim_v3_active_slot';
 export const SAVE_SLOTS = [1, 2, 3] as const;
 export type SaveSlot = (typeof SAVE_SLOTS)[number];
 export const SAVE_KEY = (slot: SaveSlot): string => `npb_sim_v3_slot_${slot}`;
 export const SAVE_STORAGE_VERSION = WORLD_STORAGE_VERSION;
+/** Unreadable slot roots are preserved here instead of being overwritten. */
+export const quarantineSaveKey = (slot: SaveSlot, timestamp: number): string =>
+  `npb_sim_v3_slot_${slot}_quarantine_${timestamp}`;
 
 export interface SeasonState {
   year: number;
@@ -118,6 +124,8 @@ export interface GameSaveData {
   gameSummaries?: Record<string, GameSummary>;
   gameBoxScores?: Record<string, GameBoxScore>;
   narrativeEvents?: NarrativeEventLedger;
+  /** Narrative events that failed validation, kept verbatim instead of blocking the save. */
+  narrativeQuarantine?: unknown[];
   ts?: number;
   uiVersion?: number;
 }
@@ -133,12 +141,15 @@ export interface SaveSlotSummary {
 export interface StorageBackend {
   get(key: string): Promise<string | null>;
   set(key: string, value: string): Promise<void>;
+  /** Optional hard delete. Backends without it can only be tombstoned with `''`. */
+  remove?(key: string): Promise<void>;
 }
 
 interface WindowWithStorage extends Window {
   storage?: {
     get(key: string): Promise<{ value?: string | null } | null>;
     set(key: string, value: string): Promise<void>;
+    delete?(key: string): Promise<unknown>;
   };
 }
 
@@ -153,6 +164,8 @@ interface SeasonArchiveChunk {
   achievementHistory: AchievementEvent[];
   gameSummaries: Record<string, GameSummary>;
   gameBoxScores: Record<string, GameBoxScore>;
+  /** Load-time only: events in this chunk that failed validation. Never written. */
+  rejectedNarrativeEvents?: unknown[];
 }
 
 interface RetiredPlayerArchiveEntry {
@@ -202,6 +215,12 @@ const hostStorage: StorageBackend = {
     if (!enhancedWindow.storage?.set) throw new Error('Host storage is unavailable');
     await enhancedWindow.storage.set(key, value);
   },
+  async remove(key) {
+    if (typeof window === 'undefined') throw new Error('Host storage is unavailable');
+    const enhancedWindow = window as WindowWithStorage;
+    if (!enhancedWindow.storage?.delete) throw new Error('Host storage cannot delete keys');
+    await enhancedWindow.storage.delete(key);
+  },
 };
 
 const localStorageBackend: StorageBackend = {
@@ -212,6 +231,10 @@ const localStorageBackend: StorageBackend = {
   async set(key, value) {
     if (typeof window === 'undefined') throw new Error('Local storage is unavailable');
     window.localStorage.setItem(key, value);
+  },
+  async remove(key) {
+    if (typeof window === 'undefined') throw new Error('Local storage is unavailable');
+    window.localStorage.removeItem(key);
   },
 };
 
@@ -265,6 +288,22 @@ const indexedDbStorage: StorageBackend = {
       database.close();
     }
   },
+  async remove(key) {
+    const database = await openSaveDatabase();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const transaction = database.transaction(INDEXED_DB_STORE, 'readwrite');
+        transaction.objectStore(INDEXED_DB_STORE).delete(key);
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () =>
+          reject(transaction.error ?? new Error('IndexedDB delete could not be completed'));
+        transaction.onabort = () =>
+          reject(transaction.error ?? new Error('IndexedDB delete was aborted'));
+      });
+    } finally {
+      database.close();
+    }
+  },
 };
 
 /**
@@ -287,17 +326,40 @@ export function createResilientStorageBackend(backends: StorageBackend[]): Stora
     },
     async set(key, value) {
       let lastError: unknown = new Error('No storage backend available');
-      for (const backend of backends) {
+      for (const [index, backend] of backends.entries()) {
         try {
           await backend.set(key, value);
-          return;
         } catch (error) {
           lastError = error;
+          continue;
         }
+        // `get` prefers earlier stores, so an older value left there would shadow this write
+        // (e.g. a save root pointing at chunks that are about to be cleaned up). Clear it, or
+        // fail the write so the caller keeps its previous, still-consistent state.
+        await removeFrom(backends.slice(0, index), key);
+        return;
       }
       throw lastError;
     },
+    async remove(key) {
+      await removeFrom(backends, key);
+    },
   };
+}
+
+/** Delete `key` from every store that still holds it. Unreachable stores hold nothing readable. */
+async function removeFrom(backends: StorageBackend[], key: string): Promise<void> {
+  for (const backend of backends) {
+    let existing: string | null;
+    try {
+      existing = await backend.get(key);
+    } catch {
+      continue;
+    }
+    if (existing === null) continue;
+    if (!backend.remove) throw new Error(`Storage backend cannot delete ${key}.`);
+    await backend.remove(key);
+  }
 }
 
 const browserStorage = createResilientStorageBackend([
@@ -716,11 +778,30 @@ function migrateRotations(value: unknown): Record<TeamKey, number> {
   return rotations;
 }
 
+function mergedNarrative(
+  quarantine: unknown,
+  events: NarrativeEventLedger,
+  rejectedEarlier: unknown[],
+): Pick<GameSaveData, 'narrativeEvents' | 'narrativeQuarantine'> {
+  const { ledger, rejected } = migrateNarrativeEventsLenient(events);
+  const narrativeQuarantine = mergeQuarantine(quarantine, [...rejectedEarlier, ...rejected]);
+  return { narrativeEvents: ledger, ...(narrativeQuarantine ? { narrativeQuarantine } : {}) };
+}
+
+function mergeQuarantine(previous: unknown, rejected: unknown[]): unknown[] | undefined {
+  const merged = [...(Array.isArray(previous) ? previous : []), ...rejected];
+  if (rejected.length)
+    console.warn(`${rejected.length} narrative event(s) failed validation and were quarantined.`);
+  return merged.length ? merged : undefined;
+}
+
 export function migrateSaveData(raw: unknown): GameSaveData | null {
   if (!raw || typeof raw !== 'object') return null;
   const legacy = raw as Partial<GameSaveData>;
   const teams = migrateTeamsSpecialSchema(legacy.teams);
   if (!teams) return null;
+  const narrative = migrateNarrativeEventsLenient(legacy.narrativeEvents);
+  const narrativeQuarantine = mergeQuarantine(legacy.narrativeQuarantine, narrative.rejected);
 
   const season: SeasonState = {
     year: Number(legacy.season?.year ?? 2026),
@@ -755,7 +836,8 @@ export function migrateSaveData(raw: unknown): GameSaveData | null {
     achievementHistory: migrateAchievementHistory(legacy.achievementHistory),
     gameSummaries: migrateGameSummaries(legacy.gameSummaries),
     gameBoxScores: migrateGameBoxScores(legacy.gameBoxScores),
-    narrativeEvents: migrateNarrativeEvents(legacy.narrativeEvents),
+    narrativeEvents: narrative.ledger,
+    ...(narrativeQuarantine ? { narrativeQuarantine } : {}),
     ts: legacy.ts,
     uiVersion: 2,
   };
@@ -918,6 +1000,15 @@ function parseJson(raw: string): unknown {
   return JSON.parse(raw) as unknown;
 }
 
+function readableLegacyRoot(parsed: unknown): boolean {
+  if (parsed === null || typeof parsed !== 'object') return false;
+  try {
+    return migrateSaveData(parsed) !== null;
+  } catch {
+    return false;
+  }
+}
+
 function migrateSeasonArchive(value: unknown, expectedYear: number): SeasonArchiveChunk | null {
   if (!value || typeof value !== 'object') return null;
   const raw = value as Partial<SeasonArchiveChunk>;
@@ -932,14 +1023,20 @@ function migrateSeasonArchive(value: unknown, expectedYear: number): SeasonArchi
     achievementHistory: migrateAchievementHistory(raw.achievementHistory),
     gameSummaries: migrateGameSummaries(raw.gameSummaries),
     gameBoxScores: migrateGameBoxScores(raw.gameBoxScores),
-    ...(raw.narrativeEvents === undefined
-      ? {}
-      : {
-          narrativeEvents:
-            migrateNarrativeEvents({ [String(expectedYear)]: raw.narrativeEvents })[
-              String(expectedYear)
-            ] ?? [],
-        }),
+    ...(raw.narrativeEvents === undefined ? {} : seasonNarrativeEvents(raw, expectedYear)),
+  };
+}
+
+function seasonNarrativeEvents(
+  raw: Partial<SeasonArchiveChunk>,
+  year: number,
+): Pick<SeasonArchiveChunk, 'narrativeEvents' | 'rejectedNarrativeEvents'> {
+  const { ledger, rejected } = migrateNarrativeEventsLenient({
+    [String(year)]: raw.narrativeEvents,
+  });
+  return {
+    narrativeEvents: ledger[String(year)] ?? [],
+    ...(rejected.length ? { rejectedNarrativeEvents: rejected } : {}),
   };
 }
 
@@ -1041,16 +1138,40 @@ async function persistGameV4(
   let previous: PersistedSaveV4 | null = null;
   const previousRaw = await backend.get(SAVE_KEY(slot));
   if (previousRaw) {
+    let parsed: unknown = null;
     try {
-      previous = parsePersistedSaveV4(parseJson(previousRaw));
+      parsed = parseJson(previousRaw);
+      previous = parsePersistedSaveV4(parsed);
     } catch {
       previous = null;
+    }
+    // A root that neither this build's v4 reader nor the legacy migration understands
+    // (corruption, or a save from a newer build) is copied aside before it is replaced.
+    // If the copy cannot be written, the save fails rather than destroying the only copy.
+    if (!previous && !readableLegacyRoot(parsed)) {
+      await backend.set(quarantineSaveKey(slot, timestamp), previousRaw);
     }
   }
 
   const worldId = migrated.worldId ?? previous?.worldId ?? createWorldId();
   const previousArchive =
     previous?.worldId === worldId ? previous.archive : createEmptyWorldArchiveIndex();
+  // A different world is replacing this slot. If the old world still loads, this is a
+  // deliberate overwrite and its chunks become garbage. If it does not load (a missing or
+  // corrupted chunk), keep its root aside so the remaining history is not orphaned for good.
+  let replacedWorldRefs: ArchiveChunkRef[] = [];
+  if (previous && previousRaw && previous.worldId !== worldId) {
+    try {
+      await loadPersistedSaveV4(previous, backend);
+      replacedWorldRefs = [
+        ...Object.values(previous.archive.seasons),
+        ...Object.values(previous.archive.retiredPlayerBuckets),
+        ...Object.values(previous.archive.articleYears ?? {}),
+      ];
+    } catch {
+      await backend.set(quarantineSaveKey(slot, timestamp), previousRaw);
+    }
+  }
   const seasons = await writeSeasonArchives(
     migrated,
     slot,
@@ -1099,6 +1220,7 @@ async function persistGameV4(
   await backend.set(SAVE_KEY(slot), JSON.stringify(envelope));
 
   const stale = [
+    ...replacedWorldRefs,
     ...changedArchiveRefs(previousArchive.seasons, seasons),
     ...changedArchiveRefs(previousArchive.retiredPlayerBuckets, retiredPlayerBuckets),
     ...changedArchiveRefs(previousArchive.articleYears ?? {}, articleYears),
@@ -1140,6 +1262,7 @@ async function loadPersistedSaveV4(
   const achievementHistory: AchievementEvent[] = [];
   const gameSummaries: Record<string, GameSummary> = {};
   const gameBoxScores: Record<string, GameBoxScore> = {};
+  const rejectedEvents: unknown[] = [];
 
   for (const [yearKey, ref] of Object.entries(persisted.archive.seasons).sort(
     ([a], [b]) => Number(a) - Number(b),
@@ -1154,6 +1277,7 @@ async function loadPersistedSaveV4(
     achievementHistory.push(...chunk.achievementHistory);
     Object.assign(gameSummaries, chunk.gameSummaries);
     Object.assign(gameBoxScores, chunk.gameBoxScores);
+    if (chunk.rejectedNarrativeEvents) rejectedEvents.push(...chunk.rejectedNarrativeEvents);
     if (chunk.narrativeEvents?.length) {
       narrativeEvents[yearKey] = [...(narrativeEvents[yearKey] ?? []), ...chunk.narrativeEvents];
     }
@@ -1191,7 +1315,7 @@ async function loadPersistedSaveV4(
     achievementHistory,
     gameSummaries,
     gameBoxScores,
-    narrativeEvents: migrateNarrativeEvents(narrativeEvents),
+    ...mergedNarrative(current.narrativeQuarantine, narrativeEvents, rejectedEvents),
     ts: persisted.ts,
     uiVersion: 2,
   };
@@ -1214,14 +1338,23 @@ export function importSaveData(serialized: string): GameSaveData | null {
 export async function migrateLegacySaveToSlotOne(
   backend: StorageBackend = browserStorage,
 ): Promise<boolean> {
-  const currentSlotOne = await backend.get(SAVE_KEY(1));
-  if (currentSlotOne) return false;
-  const legacyRaw = await backend.get(LEGACY_SAVE_KEY);
-  if (!legacyRaw) return false;
-  const migrated = importSaveData(legacyRaw);
-  if (!migrated) return false;
-  await persistGameV4(migrated, 1, backend, migrated.ts ?? Date.now());
-  return true;
+  // Serialized with slot-1 writes so concurrent callers (load + slot listing) migrate once.
+  return queueSlotWrite(backend, 1, async () => {
+    if (await backend.get(LEGACY_MIGRATED_KEY)) return false;
+    const legacyRaw = await backend.get(LEGACY_SAVE_KEY);
+    if (!legacyRaw) return false;
+    const currentSlotOne = await backend.get(SAVE_KEY(1));
+    if (currentSlotOne) {
+      // Slot 1 already holds a save, so the legacy one was migrated before this marker existed.
+      await backend.set(LEGACY_MIGRATED_KEY, '1');
+      return false;
+    }
+    const migrated = importSaveData(legacyRaw);
+    if (!migrated) return false;
+    await persistGameV4(migrated, 1, backend, migrated.ts ?? Date.now());
+    await backend.set(LEGACY_MIGRATED_KEY, '1');
+    return true;
+  });
 }
 
 const saveQueues = new WeakMap<StorageBackend, Map<SaveSlot, Promise<unknown>>>();
