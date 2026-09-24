@@ -97,6 +97,35 @@ export const PLAYER_DEVELOPMENT_BALANCE = {
 // picks up aptitude there gradually, offseason by offseason, instead of it being fixed
 // forever at generation. Kept short of a lifelong specialist's ceiling on purpose - it
 // makes the player usable there, not their new best position.
+/**
+ * Veterans choose to retire before the hard age-42 limit, the way NPB careers end in the
+ * mid-to-late thirties. A retirement takes one of the club's release slots for the winter,
+ * so roster size is unchanged; it only decides that the veteran, not a young player, leaves.
+ */
+export const RETIREMENT_BALANCE = {
+  startAge: 33,
+  /** Chance per offseason at each age (the age reached this winter). */
+  chanceByAge: {
+    33: 0.04,
+    34: 0.07,
+    35: 0.11,
+    36: 0.17,
+    37: 0.25,
+    38: 0.35,
+    39: 0.47,
+    40: 0.6,
+    41: 0.75,
+  },
+  /** Stars play on longer; fringe veterans are the first to call it a career. */
+  starOvr: 80,
+  starMultiplier: 0.3,
+  /** Legends keep playing until decline, not a birthday, ends their careers. */
+  legendOvr: 100,
+  legendMultiplier: 0.08,
+  fringeOvr: 50,
+  fringeMultiplier: 1.6,
+} as const;
+
 export const POSITION_CONVERSION_BALANCE = {
   startingAptitude: { minimum: 15, maximum: 28 },
   ceiling: 80,
@@ -164,9 +193,9 @@ export const PITCHER_USAGE_BALANCE = {
     consecutiveAppearancePenalty: 12,
     starterBaseLoad: 10,
     starterPitchLoad: 0.85,
-    relieverBaseLoad: 18,
+    relieverBaseLoad: 21,
     relieverPitchLoad: 2,
-    closerBaseLoad: 20,
+    closerBaseLoad: 22,
     closerPitchLoad: 2,
     staminaLoadAdjustment: 0.0035,
     minimumStaminaMultiplier: 0.78,
@@ -186,7 +215,7 @@ export const PITCHER_USAGE_BALANCE = {
   strikeoutTail: {
     ratingDeltaSoftness: 45,
     ratingEffectSoftness: 0.16,
-    maximumRatingEffect: 0.045,
+    maximumRatingEffect: 0.055,
   },
 } as const;
 
@@ -256,7 +285,7 @@ export const AT_BAT_BALANCE = {
   // Stage 4 — does the ball fall in. These are hit rates on contact BEFORE the fielder's
   // ability is applied, so they sit above the finished BABIP.
   hitOnContact: {
-    base: { ground: 0.242, line: 0.638, fly: 0.203, popup: 0.02 },
+    base: { ground: 0.232, line: 0.62, fly: 0.195, popup: 0.02 },
     /** Rating points of fielder defence needed to move the hit rate by one unit. */
     defenseScale: 240,
     /** Batter speed matters most on ground balls, least in the air. */
@@ -269,14 +298,14 @@ export const AT_BAT_BALANCE = {
   // Stage 4b — a fly ball that carries out. Only outfield fly balls and line drives are
   // eligible; the batter's power moves this far more than anything else.
   homeRunOnFly: {
-    flyBase: 0.0535,
+    flyBase: 0.039,
     lineDriveFactor: 0.28,
     powerCurveReference: 60,
     // A slightly steeper curve moves home runs from ordinary hitters toward genuine
     // sluggers without imposing a cap on record seasons or raising the league total.
-    powerCurveScale: 24,
+    powerCurveScale: 19,
     minimumPowerLogMultiplier: -1.6,
-    maximumPowerLogMultiplier: 1.0,
+    maximumPowerLogMultiplier: 1.25,
     velocityScale: 3400,
     movementScale: 3400,
     directionFactor: { pull: 1.4, center: 0.85, oppo: 0.62 },

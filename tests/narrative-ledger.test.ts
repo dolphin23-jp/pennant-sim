@@ -240,7 +240,9 @@ test('CPU-only and skipped games retain injuries, awakenings and eligibility rec
         (game.postGameEvents.recoveries?.length ?? 0),
     );
     const schedule = generateSchedule(2034, { rainoutRate: 0, maxRainouts: 0 });
-    const skipped = skipGames(schedule, teams, createEmptyRotations(), 'giants', 'month');
+    // A whole season, so the expected ~20 injuries make "at least one" certain rather than
+    // depending on the random stream of a single month.
+    const skipped = skipGames(schedule, teams, createEmptyRotations(), 'giants', 'season');
     assert.ok(skipped.narrativeEvents.some((e) => 'teamKey' in e && e.teamKey !== 'giants'));
     assert.ok(skipped.narrativeEvents.some((e) => e.type === 'injury'));
     const cpuSchedule = schedule

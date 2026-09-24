@@ -2,24 +2,29 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import process from 'node:process';
 
-import { AT_BAT_BALANCE, PITCHER_USAGE_BALANCE } from '../src/data';
+import { AT_BAT_BALANCE, CENTRAL, PACIFIC, PITCHER_USAGE_BALANCE } from '../src/data';
 import {
   accumulateStatsAll,
+  calcInterleagueStandings,
   calcOVR,
+  calcStandings,
+  draftOrderFromStandings,
   configureRandom,
   countForeignPlayers,
   effectiveOVR,
   generateSchedule,
-  initTeams,
+  initSettledTeams,
   isForeignPlayer,
   resetRandom,
-  runAutomatedOffseason,
+  runFullOffseason,
+  runPostseason,
   simulateGame,
   type AccumulatedStats,
   type DraftPick,
   type Player,
   type PlayerStats,
   type RosterExit,
+  type ScheduleGame,
   type TeamKey,
   type Teams,
 } from '../src/engine/index';
@@ -267,7 +272,9 @@ function seasonSnapshot(stats: AccumulatedStats, games: number, totalRuns: numbe
     battingAverage300PlusCount: batting.filter(
       (line) => line.pa >= 443 && ratio(line.h, line.ab) >= 0.3,
     ).length,
+    homeRuns30Plus: batting.filter((line) => line.hr >= 30).length,
     homeRuns40Plus: batting.filter((line) => line.hr >= 40).length,
+    stolenBaseLeader: Math.max(0, ...batting.map((line) => line.sb ?? 0)),
     runsBattedIn100Plus: batting.filter((line) => line.rbi >= 100).length,
     era200MinusCount: qualifiedPitchers.filter((line) => pitcherEra(line) <= 2).length,
     errorsPerTeam: round(errors / 12, 3),
@@ -340,6 +347,7 @@ interface YearReport {
   openingRoster: RosterSnapshot;
   season: SeasonSnapshot;
   targetEvaluation: ReturnType<typeof evaluateNpbScoringTargets>;
+  competition: ReturnType<typeof competitionSnapshot>;
   offseason: {
     awakeningEvents: number;
     retirements: ReturnType<typeof retirementSummary>;
@@ -361,6 +369,86 @@ const LONG_TERM_ENDPOINT_METRICS = [
   'errorsPerTeam',
   'unearnedRunShare',
 ] as const;
+
+/** Standings, pennants and the Japan Series, so parity and dynasties can be measured. */
+function competitionSnapshot(
+  schedule: ScheduleGame[],
+  champion: TeamKey,
+): {
+  winPctStandardDeviation: number;
+  bestWinPct: number;
+  worstWinPct: number;
+  pennants: { central: TeamKey; pacific: TeamKey };
+  lastPlace: { central: TeamKey; pacific: TeamKey };
+  champion: TeamKey;
+  winPct: Record<string, number>;
+} {
+  const standings = calcStandings(schedule);
+  const pcts = Object.values(standings).map((record) => record.pct ?? 0);
+  const byRank = (keys: readonly TeamKey[]) =>
+    [...keys].sort((a, b) => (standings[a].rank ?? 99) - (standings[b].rank ?? 99));
+  const central = byRank(CENTRAL),
+    pacific = byRank(PACIFIC);
+  return {
+    winPctStandardDeviation: round(standardDeviation(pcts), 4),
+    bestWinPct: round(Math.max(...pcts), 3),
+    worstWinPct: round(Math.min(...pcts), 3),
+    pennants: { central: central[0]!, pacific: pacific[0]! },
+    lastPlace: { central: central.at(-1)!, pacific: pacific.at(-1)! },
+    champion,
+    winPct: Object.fromEntries(
+      Object.entries(standings).map(([teamKey, record]) => [teamKey, round(record.pct ?? 0, 3)]),
+    ),
+  };
+}
+
+function longestStreak(values: TeamKey[]): { teamKey: TeamKey | null; years: number } {
+  let best: { teamKey: TeamKey | null; years: number } = { teamKey: null, years: 0 };
+  let run = 0;
+  values.forEach((value, index) => {
+    run = index > 0 && values[index - 1] === value ? run + 1 : 1;
+    if (run > best.years) best = { teamKey: value, years: run };
+  });
+  return best;
+}
+
+/** Parity over the run: a realistic league has repeat winners and droughts, but no
+ * permanent dynasty and no club that never has a good year. */
+function paritySummary(years: YearReport[]) {
+  const counts = (values: TeamKey[]) =>
+    Object.fromEntries(
+      Object.entries(
+        values.reduce<Record<string, number>>((total, key) => {
+          total[key] = (total[key] ?? 0) + 1;
+          return total;
+        }, {}),
+      ).sort(([, a], [, b]) => b - a),
+    );
+  const champions = years.map((year) => year.competition.champion);
+  const pennants = years.flatMap((year) => [
+    year.competition.pennants.central,
+    year.competition.pennants.pacific,
+  ]);
+  return {
+    meanWinPctStandardDeviation: round(
+      average(years.map((year) => year.competition.winPctStandardDeviation)),
+      4,
+    ),
+    champions: counts(champions),
+    distinctChampions: new Set(champions).size,
+    pennants: counts(pennants),
+    clubsWithoutPennant: 12 - new Set(pennants).size,
+    longestChampionshipStreak: longestStreak(champions),
+    longestPennantStreak: {
+      central: longestStreak(years.map((year) => year.competition.pennants.central)),
+      pacific: longestStreak(years.map((year) => year.competition.pennants.pacific)),
+    },
+    longestLastPlaceStreak: {
+      central: longestStreak(years.map((year) => year.competition.lastPlace.central)),
+      pacific: longestStreak(years.map((year) => year.competition.lastPlace.pacific)),
+    },
+  };
+}
 
 function longTermEndpointPassed(evaluation: YearReport['targetEvaluation']): boolean {
   return LONG_TERM_ENDPOINT_METRICS.every(
@@ -401,6 +489,7 @@ function driftSummary(years: YearReport[]) {
       homeRuns: last.season.homeRuns - first.season.homeRuns,
     },
     largestClosingTeamOvrGap: largestGap,
+    parity: paritySummary(years),
     foreignLifecycle: {
       finalActivePlayers: last.closingRoster.foreignPlayers.total,
       peakActivePlayers: Math.max(...years.map((year) => year.closingRoster.foreignPlayers.total)),
@@ -423,7 +512,8 @@ async function simulateFranchise(options: CliOptions) {
   let clock = Date.UTC(options.startYear, 0, 1);
   configureRandom(mulberry32(options.seed), () => clock++);
   try {
-    let teams = initTeams();
+    // Start from the settled league a new world opens with (see initSettledTeams).
+    let teams = initSettledTeams(options.startYear);
     const caps = initialRosterCaps(teams);
     const years: YearReport[] = [];
     for (let seasonIndex = 0; seasonIndex < options.years; seasonIndex += 1) {
@@ -435,6 +525,7 @@ async function simulateFranchise(options: CliOptions) {
       ) as Record<TeamKey, number>;
       let accumulated: AccumulatedStats = {};
       let totalRuns = 0;
+      const played: ScheduleGame[] = [];
       for (const game of schedule) {
         const result = simulateGame(
           game.homeKey,
@@ -451,15 +542,29 @@ async function simulateFranchise(options: CliOptions) {
         );
         accumulated = accumulateStatsAll(result, accumulated);
         totalRuns += result.score.home + result.score.away;
+        played.push({ ...game, played: true, hs: result.score.home, as: result.score.away });
         rotations[game.homeKey] += 1;
         rotations[game.awayKey] += 1;
       }
       const season = seasonSnapshot(accumulated, schedule.length, totalRuns);
       const targetEvaluation = evaluateNpbScoringTargets(season);
-      const offseason = runAutomatedOffseason(teams, {
-        draftRounds: DRAFT_ROUNDS,
+      const standings = calcStandings(played);
+      const postseasonTeams = { ...teams };
+      const postseason = runPostseason({
+        teams: postseasonTeams,
+        standings,
+        schedule: played,
+        year,
+        leagueAccumulated: accumulated,
+      });
+      teams = postseasonTeams;
+      const competition = competitionSnapshot(played, postseason.japanSeries.winner);
+      // The production offseason: standings-order draft and CPU trades included.
+      const offseason = runFullOffseason(teams, {
         year,
         seasonStats: accumulated,
+        draftOrder: draftOrderFromStandings(standings, calcInterleagueStandings(played)),
+        userTeam: 'giants',
       });
       teams = offseason.teams;
       const closingRoster = rosterSnapshot(teams);
@@ -473,15 +578,19 @@ async function simulateFranchise(options: CliOptions) {
         openingRoster,
         season,
         targetEvaluation,
+        competition,
         offseason: {
-          awakeningEvents: offseason.awakeningEvents.length,
+          awakeningEvents: offseason.growth.awakeEvents.length,
           retirements: retirementSummary(offseason.exits),
           draft: draftSummary(offseason.draftPicks),
           freeAgentSignings: offseason.freeAgentSignings,
           foreignSignings: offseason.foreignSignings,
-          foreignRenewals: offseason.foreignRenewals,
-          foreignReleases: offseason.foreignReleases,
-          mlbTransfers: offseason.mlbTransfers,
+          foreignRenewals: offseason.foreignReview.events.filter((e) => e.type === 'renewed')
+            .length,
+          foreignReleases: offseason.foreignReview.events.filter((e) => e.type === 'released')
+            .length,
+          mlbTransfers: offseason.foreignReview.events.filter((e) => e.type === 'mlbTransfer')
+            .length,
         },
         closingRoster,
       });
@@ -492,7 +601,8 @@ async function simulateFranchise(options: CliOptions) {
           `P ${openingRoster.averageOvr.pitchers.toFixed(1)}→${closingRoster.averageOvr.pitchers.toFixed(1)} | ` +
           `exited ${offseason.exits.length}, drafted ${offseason.draftPicks.length}, ` +
           `FA ${offseason.freeAgentSignings}, foreign ${offseason.foreignSignings} ` +
-          `(renew ${offseason.foreignRenewals}, release ${offseason.foreignReleases}, MLB ${offseason.mlbTransfers})`,
+          `| ${competition.pennants.central}/${competition.pennants.pacific} → ${competition.champion}, ` +
+          `win% SD ${competition.winPctStandardDeviation.toFixed(3)}`,
       );
     }
     return {

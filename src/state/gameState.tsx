@@ -23,7 +23,7 @@ import {
   createFictionalLeagueHistory,
   detectAchievements,
   generateSchedule,
-  initTeams,
+  initSettledTeams,
   registerExistingNames,
   simCpuUntilNext,
   simulateGame,
@@ -218,13 +218,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
       worldId: crypto.randomUUID(),
       loading: false,
       screen: 'teamSelect',
-      teams: initTeams(),
+      // Rosters after ten silent offseasons, so the first decade plays at the same talent
+      // level as the rest of the world's history (see initSettledTeams).
+      teams: initSettledTeams(),
     });
   }, []);
 
   const chooseTeam = useCallback((teamKey: TeamKey) => {
     setState((current) => {
-      const initialTeams = current.teams ?? initTeams();
+      const initialTeams = current.teams ?? initSettledTeams();
       // A fixed literal seed here would give every new game the same 20-year fictional
       // history (same legends, same past champions); draw a fresh one per new game instead.
       const history = createFictionalLeagueHistory(initialTeams, {

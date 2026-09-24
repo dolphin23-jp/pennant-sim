@@ -15,6 +15,7 @@ import {
   type Player,
   type TeamKey,
   type Teams,
+  SETTLED_LEAGUE_BURN_IN_YEARS,
 } from '../src/engine/index';
 
 const MATURITIES: Maturity[] = ['超早熟', '早熟', '通常', '晩成', '超晩成'];
@@ -330,7 +331,9 @@ function auditWarnings(
   if (maturity.超晩成.averagePeakAge - maturity.超早熟.averagePeakAge < 4.5)
     warnings.push('超早熟と超晩成の平均ピーク年齢差が4.5年未満です。');
 
-  const stableYears = yearly.filter((year) => year.seasonIndex >= 10);
+  // The years a player actually sees: worlds open after SETTLED_LEAGUE_BURN_IN_YEARS silent
+  // offseasons, so the transition away from the generated opening rosters is never played.
+  const stableYears = yearly.filter((year) => year.seasonIndex >= SETTLED_LEAGUE_BURN_IN_YEARS);
   const starCounts = stableYears.map((year) => year.ovr100Plus);
   if (Math.min(...starCounts) < 7.5)
     warnings.push('定着期のOVR100以上が平均7.5人未満となる年があります。');
@@ -386,10 +389,18 @@ export function runLongTermDevelopmentAudit(options: AuditOptions = {}) {
       final: yearly.at(-1),
       stableOvr100Range: {
         minimum: round(
-          Math.min(...yearly.slice(Math.min(10, years)).map((year) => year.ovr100Plus)),
+          Math.min(
+            ...yearly
+              .slice(Math.min(SETTLED_LEAGUE_BURN_IN_YEARS, years))
+              .map((year) => year.ovr100Plus),
+          ),
         ),
         maximum: round(
-          Math.max(...yearly.slice(Math.min(10, years)).map((year) => year.ovr100Plus)),
+          Math.max(
+            ...yearly
+              .slice(Math.min(SETTLED_LEAGUE_BURN_IN_YEARS, years))
+              .map((year) => year.ovr100Plus),
+          ),
         ),
       },
     },

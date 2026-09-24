@@ -71,6 +71,12 @@ export const APTITUDE_RANK_THRESHOLDS = [
   { minimum: 0, rank: 'G' },
 ] as const;
 
+/** The best non-fastball pitch, as the at-bat model uses it for strikeouts. */
+export function bestBreakingBall(params: Player['p']): number {
+  const breaking = (params.pitches ?? []).filter((pitch) => pitch.type !== '直球');
+  return breaking.length ? Math.max(...breaking.map((pitch) => pitch.shr)) : 50;
+}
+
 export function calcOVR(player: Player | undefined, position?: FieldPosition): number {
   if (!player) return 50;
   const adaptationFactor = foreignPerformanceMultiplier(player);
@@ -82,6 +88,7 @@ export function calcOVR(player: Player | undefined, position?: FieldPosition): n
         (params.ctrl ?? 50) * weights.ctrl +
         (params.stam ?? 50) * weights.stam +
         (params.nobi ?? 50) * weights.nobi +
+        bestBreakingBall(params) * weights.brk +
         (params.fld ?? 50) * weights.fld) *
         adaptationFactor,
     );

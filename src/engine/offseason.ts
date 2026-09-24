@@ -1,6 +1,12 @@
 import { emitRosterExits } from './narrativeEvents';
 import type { NarrativeEvent, NarrativeEventContext } from '../narrative/types';
-import { CENTRAL, FOREIGN_PLAYER_BALANCE, MATURITY_PEAK_AGE, PACIFIC } from '../data';
+import {
+  CENTRAL,
+  FOREIGN_PLAYER_BALANCE,
+  MATURITY_PEAK_AGE,
+  PACIFIC,
+  RETIREMENT_BALANCE,
+} from '../data';
 import type { DraftPick } from './draft';
 import { runCpuDraft } from './draftPrePro';
 import { foreignPerformanceMultiplier, isForeignPlayer } from './foreign';
@@ -12,6 +18,7 @@ import {
   genFreeAgentMarket,
 } from './market';
 import { clamp, gaussian, random, randomInt } from './random';
+import { initTeams } from './players';
 import { calcOVR } from './ratings';
 import type {
   AccumulatedStats,
@@ -25,6 +32,7 @@ import type {
 
 export type RosterExitReason =
   | 'mandatoryRetirement'
+  | 'voluntaryRetirement'
   | 'ageAndPerformance'
   | 'draftOpportunity'
   | 'rosterCompetition'
@@ -282,17 +290,41 @@ function retentionScore(player: Player): number {
   return playerOvr(player) - agePenalty + potentialBonus + foreignContractBonus;
 }
 
-function exitReason(player: Player, forcedForDraft: boolean): RosterExitReason {
+function voluntaryRetirementChance(player: Player): number {
+  if (player.age < RETIREMENT_BALANCE.startAge || player.age >= 42) return 0;
+  const byAge =
+      RETIREMENT_BALANCE.chanceByAge[player.age as keyof typeof RETIREMENT_BALANCE.chanceByAge] ??
+      0,
+    ovr = playerOvr(player);
+  return (
+    byAge *
+    (ovr >= RETIREMENT_BALANCE.legendOvr
+      ? RETIREMENT_BALANCE.legendMultiplier
+      : ovr >= RETIREMENT_BALANCE.starOvr
+        ? RETIREMENT_BALANCE.starMultiplier
+        : ovr <= RETIREMENT_BALANCE.fringeOvr
+          ? RETIREMENT_BALANCE.fringeMultiplier
+          : 1)
+  );
+}
+
+function exitReason(
+  player: Player,
+  forcedForDraft: boolean,
+  retiring: ReadonlySet<string>,
+): RosterExitReason {
   if (player.age >= 42) return 'mandatoryRetirement';
+  if (retiring.has(player.id)) return 'voluntaryRetirement';
   if (player.age >= 35 && playerOvr(player) <= 55) return 'ageAndPerformance';
   return forcedForDraft ? 'draftOpportunity' : 'rosterCompetition';
 }
 
-function removalPriority(player: Player): number {
+function removalPriority(player: Player, retiring: ReadonlySet<string>): number {
   if (player.age >= 42) return 0;
-  if (player.age >= 35 && playerOvr(player) <= 55) return 1;
-  if (isForeignPlayer(player) && (player.foreignProfile?.contractYearsRemaining ?? 0) > 0) return 3;
-  return 2;
+  if (retiring.has(player.id)) return 1;
+  if (player.age >= 35 && playerOvr(player) <= 55) return 2;
+  if (isForeignPlayer(player) && (player.foreignProfile?.contractYearsRemaining ?? 0) > 0) return 4;
+  return 3;
 }
 
 function removePlayers(
@@ -304,15 +336,26 @@ function removePlayers(
   options: Required<Omit<CpuRosterOptions, 'excludedTeam'>>,
 ): { team: Team; exits: RosterExit[] } {
   const exits: RosterExit[] = [];
+  // Veterans decide once per winter, before the draft, whether this is their last season.
+  const retiring = new Set(
+    reasonMode === 'draft'
+      ? [...team.pitchers, ...team.fielders]
+          .filter((player) => {
+            const chance = voluntaryRetirementChance(player);
+            return chance > 0 && random() < chance;
+          })
+          .map((player) => player.id)
+      : [],
+  );
   const choose = (players: Player[], count: number, minimum: number): Player[] => {
     const ordered = [...players].sort(
       (first, second) =>
-        removalPriority(first) - removalPriority(second) ||
+        removalPriority(first, retiring) - removalPriority(second, retiring) ||
         retentionScore(first) - retentionScore(second),
     );
     // Mandatory retirements (sorted first) always happen; the roster minimum only limits
     // discretionary releases. The draft and free-agent phases refill the roster afterwards.
-    const mandatory = ordered.filter((player) => removalPriority(player) === 0).length;
+    const mandatory = ordered.filter((player) => removalPriority(player, retiring) === 0).length;
     const removable = Math.max(mandatory, players.length - minimum);
     return ordered.slice(0, Math.min(Math.max(count, mandatory), removable));
   };
@@ -327,7 +370,7 @@ function removePlayers(
       age: player.age,
       isPitcher: player.isP,
       ovr: playerOvr(player),
-      reason: exitReason(player, reasonMode === 'draft'),
+      reason: exitReason(player, reasonMode === 'draft', retiring),
       player,
     });
   }
@@ -480,6 +523,8 @@ export interface FullOffseasonResult {
   foreignReview: ReturnType<typeof reviewForeignPlayers>;
   growth: ReturnType<typeof growthPhase>;
   draftPicks: DraftPick[];
+  freeAgentSignings: number;
+  foreignSignings: number;
 }
 
 /**
@@ -502,9 +547,11 @@ export function runFullOffseason(
   const growth = growthPhase(foreignReview.teams, context);
   const rosterOptions: CpuRosterOptions = { excludedTeam: null, year: options.year };
   const prepared = prepareCpuRostersForDraft(growth.teams, rosterOptions, context);
+  const freeAgentMarket = genFreeAgentMarket();
+  const foreignMarket = genForeignMarket(options.year + 1);
   const afterFreeAgents = cpuAutoSignMarketRounds(
     prepared.teams,
-    genFreeAgentMarket(),
+    freeAgentMarket,
     'fa',
     4,
     null,
@@ -512,7 +559,7 @@ export function runFullOffseason(
   );
   const afterForeign = cpuAutoSignMarketRounds(
     afterFreeAgents.teams,
-    genForeignMarket(options.year + 1),
+    foreignMarket,
     'foreign',
     4,
     null,
@@ -527,7 +574,30 @@ export function runFullOffseason(
     foreignReview,
     growth,
     draftPicks: draft.picks,
+    freeAgentSignings: freeAgentMarket.length - afterFreeAgents.remaining.length,
+    foreignSignings: foreignMarket.length - afterForeign.remaining.length,
   };
+}
+
+/**
+ * Offseasons run on freshly generated rosters before a world opens. Generated rosters
+ * start well below the talent level the draft, growth and retirement cycle settles at,
+ * and the generated record-class stars retire before home-grown ones replace them (a dip
+ * in stars around years 10-16), so without this the first two decades of every world played
+ * in a different era from the rest, and balance tuned on the opening season did not describe
+ * the league a long-term player actually watches.
+ */
+export const SETTLED_LEAGUE_BURN_IN_YEARS = 20;
+
+export function initSettledTeams(
+  firstSeason = 2026,
+  burnInYears = SETTLED_LEAGUE_BURN_IN_YEARS,
+): Teams {
+  let teams = initTeams();
+  for (let index = 0; index < burnInYears; index += 1) {
+    teams = runAutomatedOffseason(teams, { year: firstSeason - burnInYears + index }).teams;
+  }
+  return teams;
 }
 
 /** Called by the user-retirement command, before removing the explicitly selected players. */
