@@ -14,9 +14,11 @@ import { SquadTab } from './season/SquadTab';
 import { StandingsTab } from './season/StandingsTab';
 import { StatsTab } from './season/StatsTab';
 import { TeamReportTab } from './season/TeamReportTab';
+import { YearReviewTab } from './season/YearReviewTab';
 
 type SeasonTab =
   | 'dashboard'
+  | 'yearReview'
   | 'news'
   | 'lineup'
   | 'rotation'
@@ -31,6 +33,7 @@ type SeasonTab =
 
 const tabs: Array<{ id: SeasonTab; label: string }> = [
   { id: 'dashboard', label: 'ダッシュボード' },
+  { id: 'yearReview', label: '年度総括' },
   { id: 'news', label: 'ニュース' },
   { id: 'lineup', label: '野手編成' },
   { id: 'rotation', label: '投手編成' },
@@ -190,8 +193,10 @@ export function SeasonScreen() {
               game.setViewTeam(teamKey);
               requestTabChange('teamReport');
             }}
+            onOpenYearReview={() => requestTabChange('yearReview')}
           />
         )}
+        {activeTab === 'yearReview' && <YearReviewTab />}
         {activeTab === 'news' && <NarrativeTab />}
         {activeTab === 'lineup' && <LineupTab onDirtyChange={setLineupDirty} />}
         {activeTab === 'rotation' && <RotationTab onDirtyChange={setRotationDirty} />}

@@ -11,6 +11,7 @@ import {
   type NarrativeArticleKind,
 } from '../../../narrative';
 import { useGameState } from '../../../state/gameState';
+import { availableReviewYears } from '../../../state/yearReview';
 import { Button, Card, EmptyState, SectionTitle, teamTextColor } from '../../ui';
 
 const KIND_LABEL: Record<NarrativeArticleKind, string> = {
@@ -179,6 +180,29 @@ export function NarrativeTab() {
   );
   const [category, setCategory] = useState<FeedCategory>('all');
   const [myTeamOnly, setMyTeamOnly] = useState(false);
+  const [yearFilter, setYearFilter] = useState<number | null>(null);
+  const feedYears = useMemo(
+    () =>
+      availableReviewYears(
+        {
+          championHistory: game.championHistory,
+          awardHistory: game.awardHistory,
+          achievementHistory: game.achievementHistory,
+          narrativeEvents: game.narrativeEvents,
+          yearlyStats: game.yearlyStats,
+          leagueCareerAccumulated: {},
+        },
+        game.season.year,
+      ),
+    [
+      game.championHistory,
+      game.awardHistory,
+      game.achievementHistory,
+      game.narrativeEvents,
+      game.yearlyStats,
+      game.season.year,
+    ],
+  );
   const [visibleCount, setVisibleCount] = useState(40);
 
   const filterKinds = category === 'all' ? undefined : CATEGORY_KINDS[category];
@@ -195,6 +219,7 @@ export function NarrativeTab() {
         {
           kinds: filterKinds,
           teamKey: myTeamOnly ? (game.playerTeam ?? undefined) : undefined,
+          year: yearFilter ?? undefined,
           limit: visibleCount,
         },
       ),
@@ -207,6 +232,7 @@ export function NarrativeTab() {
       game.narrativeEvents,
       game.playerTeam,
       myTeamOnly,
+      yearFilter,
       visibleCount,
     ],
   );
@@ -327,6 +353,24 @@ export function NarrativeTab() {
         >
           {myTeamOnly ? '自球団のみ ✓' : '自球団のみ'}
         </Button>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+          年
+          <select
+            value={yearFilter ?? ''}
+            onChange={(event) => {
+              setYearFilter(event.target.value ? Number(event.target.value) : null);
+              setVisibleCount(40);
+            }}
+            aria-label="記事の年で絞り込む"
+          >
+            <option value="">すべての年</option>
+            {feedYears.map((year) => (
+              <option key={year} value={year}>
+                {year}年
+              </option>
+            ))}
+          </select>
+        </label>
         <span style={{ color: 'var(--color-text-faint)', fontSize: 11 }}>{feed.total}件</span>
       </div>
 

@@ -9,7 +9,8 @@ const YEAR_OPTIONS = [1, 5, 10] as const;
  * which the user's club is managed like the others. For players who mostly watch the
  * league's history unfold rather than manage every step.
  */
-export function AutoAdvancePanel() {
+/** `onFinished` runs once the requested years are done (or stopped), e.g. to open the review. */
+export function AutoAdvancePanel({ onFinished }: { onFinished?(): void } = {}) {
   const game = useGameState();
   const { skipConfirmations } = useSettings();
   const progress = game.advanceProgress;
@@ -22,7 +23,7 @@ export function AutoAdvancePanel() {
       )
     )
       return;
-    void game.advanceYears(years);
+    void game.advanceYears(years).then(() => onFinished?.());
   };
 
   return (
