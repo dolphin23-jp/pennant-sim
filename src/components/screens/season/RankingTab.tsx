@@ -49,8 +49,7 @@ const BATTER_RANKINGS: RankingDefinition[] = [
     kind: 'bat',
     rate: true,
     direction: 'desc',
-    value: (stats) =>
-      stats.type === 'bat' && stats.ab > 0 ? stats.h / stats.ab : null,
+    value: (stats) => (stats.type === 'bat' && stats.ab > 0 ? stats.h / stats.ab : null),
     format: rateText,
   },
   {
@@ -98,8 +97,7 @@ const PITCHER_RANKINGS: RankingDefinition[] = [
     kind: 'pit',
     rate: true,
     direction: 'asc',
-    value: (stats) =>
-      stats.type === 'pit' && stats.ip3 > 0 ? (stats.er * 27) / stats.ip3 : null,
+    value: (stats) => (stats.type === 'pit' && stats.ip3 > 0 ? (stats.er * 27) / stats.ip3 : null),
     format: eraText,
   },
   {
@@ -195,7 +193,9 @@ function RankingCard({
             <thead>
               <tr>
                 <th scope="col">順</th>
-                <th scope="col" style={{ textAlign: 'left' }}>選手</th>
+                <th scope="col" style={{ textAlign: 'left' }}>
+                  選手
+                </th>
                 <th scope="col">球団</th>
                 <th scope="col">記録</th>
               </tr>
@@ -206,9 +206,7 @@ function RankingCard({
                   key={entry.player.id}
                   style={{
                     background:
-                      entry.teamKey === playerTeam
-                        ? 'var(--color-accent-soft)'
-                        : 'transparent',
+                      entry.teamKey === playerTeam ? 'var(--color-accent-soft)' : 'transparent',
                   }}
                 >
                   <td style={{ textAlign: 'center', fontWeight: 900 }}>{index + 1}</td>
@@ -319,7 +317,14 @@ export function RankingTab() {
       <section aria-label={`${LEAGUE_LABEL[activeLeague]} 打者タイトルランキング`}>
         <SectionTitle>
           Batter Rankings
-          <span style={{ marginLeft: 8, color: 'var(--color-text-faint)', fontSize: 12, fontWeight: 700 }}>
+          <span
+            style={{
+              marginLeft: 8,
+              color: 'var(--color-text-faint)',
+              fontSize: 12,
+              fontWeight: 700,
+            }}
+          >
             {LEAGUE_LABEL[activeLeague]}
           </span>
         </SectionTitle>
@@ -347,7 +352,14 @@ export function RankingTab() {
       <section aria-label={`${LEAGUE_LABEL[activeLeague]} 投手タイトルランキング`}>
         <SectionTitle>
           Pitcher Rankings
-          <span style={{ marginLeft: 8, color: 'var(--color-text-faint)', fontSize: 12, fontWeight: 700 }}>
+          <span
+            style={{
+              marginLeft: 8,
+              color: 'var(--color-text-faint)',
+              fontSize: 12,
+              fontWeight: 700,
+            }}
+          >
             {LEAGUE_LABEL[activeLeague]}
           </span>
         </SectionTitle>

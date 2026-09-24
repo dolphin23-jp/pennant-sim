@@ -3,11 +3,14 @@ import { CENTRAL, PACIFIC, TINFO } from '../data';
 import {
   bestLineup,
   calcOVR,
+  canRegisterForeignPlayer,
   clamp,
   effectiveOVR,
+  isForeignPlayer,
   random,
   sampleTradeCash,
   teamNeedsScore,
+  tradeRespectsForeignLimit,
 } from '../engine';
 import type { Player, Team, TeamKey, Teams } from '../engine';
 
@@ -70,7 +73,11 @@ export function generateTradeOffers(
     .slice(0, 6)
     .map((teamKey, index) => {
       const opponent = teams[teamKey];
-      const opponentPool = [...opponent.fielders, ...opponent.pitchers];
+      // A full foreign-player list cannot take on another foreign player for a domestic one.
+      const userForeignFull = !canRegisterForeignPlayer(userTeam) && !isForeignPlayer(primaryChip);
+      const opponentPool = [...opponent.fielders, ...opponent.pitchers].filter(
+        (player) => !userForeignFull || !isForeignPlayer(player),
+      );
       const primaryTarget = bestFit(opponentPool, userTeam, new Set());
       if (!primaryTarget) return null;
 
@@ -116,32 +123,26 @@ export function generateTradeOffers(
       } satisfies TradeOffer;
     })
     .filter((offer): offer is TradeOffer => offer !== null)
+    .filter((offer) => respectsForeignLimits(teams, playerTeam, offer))
     .slice(0, 3);
 }
 
-export function applyTrade(
+/** Neither club may end the trade over the foreign-player limit. */
+function respectsForeignLimits(teams: Teams, playerTeam: TeamKey, offer: TradeOffer): boolean {
+  const after = tradedRosters(teams, playerTeam, offer);
+  return (
+    tradeRespectsForeignLimit(teams[playerTeam], after.user) &&
+    tradeRespectsForeignLimit(teams[offer.fromTeam], after.opponent)
+  );
+}
+
+function tradedRosters(
   teams: Teams,
   playerTeam: TeamKey,
   offer: TradeOffer,
-  context?: import('../narrative/types').NarrativeEventContext,
-): Teams {
-  const next = { ...teams };
-  const user = { ...next[playerTeam] };
-  const opponent = { ...next[offer.fromTeam] };
-
-  // Guard against the same offer being applied twice (e.g. a duplicate click): if any
-  // player is no longer on the roster the offer expects, the trade was already applied,
-  // so return the input unchanged instead of duplicating players across rosters.
-  const userRoster = [...user.fielders, ...user.pitchers];
-  const opponentRoster = [...opponent.fielders, ...opponent.pitchers];
-  const userHasAllReceive = offer.receive.every((player) =>
-    userRoster.some((candidate) => candidate.id === player.id),
-  );
-  const opponentHasAllGive = offer.give.every((player) =>
-    opponentRoster.some((candidate) => candidate.id === player.id),
-  );
-  if (!userHasAllReceive || !opponentHasAllGive) return teams;
-
+): { user: Team; opponent: Team } {
+  const user = teams[playerTeam];
+  const opponent = teams[offer.fromTeam];
   const receiveIds = new Set(offer.receive.map((player) => player.id));
   const giveIds = new Set(offer.give.map((player) => player.id));
 
@@ -160,9 +161,40 @@ export function applyTrade(
     if (moved.isP) opponentPitchers.push(moved);
     else opponentFielders.push(moved);
   }
+  return {
+    user: { ...user, pitchers: userPitchers, fielders: userFielders },
+    opponent: { ...opponent, pitchers: opponentPitchers, fielders: opponentFielders },
+  };
+}
 
-  next[playerTeam] = { ...user, pitchers: userPitchers, fielders: userFielders };
-  next[offer.fromTeam] = { ...opponent, pitchers: opponentPitchers, fielders: opponentFielders };
+export function applyTrade(
+  teams: Teams,
+  playerTeam: TeamKey,
+  offer: TradeOffer,
+  context?: import('../narrative/types').NarrativeEventContext,
+): Teams {
+  const next = { ...teams };
+  const user = next[playerTeam];
+  const opponent = next[offer.fromTeam];
+
+  // Guard against the same offer being applied twice (e.g. a duplicate click): if any
+  // player is no longer on the roster the offer expects, the trade was already applied,
+  // so return the input unchanged instead of duplicating players across rosters.
+  const userRoster = [...user.fielders, ...user.pitchers];
+  const opponentRoster = [...opponent.fielders, ...opponent.pitchers];
+  const userHasAllReceive = offer.receive.every((player) =>
+    userRoster.some((candidate) => candidate.id === player.id),
+  );
+  const opponentHasAllGive = offer.give.every((player) =>
+    opponentRoster.some((candidate) => candidate.id === player.id),
+  );
+  if (!userHasAllReceive || !opponentHasAllGive) return teams;
+  // An offer generated before another move filled a foreign-player list is void.
+  if (!respectsForeignLimits(teams, playerTeam, offer)) return teams;
+
+  const after = tradedRosters(teams, playerTeam, offer);
+  next[playerTeam] = after.user;
+  next[offer.fromTeam] = after.opponent;
   emitTrade(
     context,
     offer.id,

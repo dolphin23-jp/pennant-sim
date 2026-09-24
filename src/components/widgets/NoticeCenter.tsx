@@ -57,7 +57,9 @@ export function NoticeCenter({
   onClear(): void;
 }) {
   const { hiddenNoticeKinds } = useSettings();
-  const visibleNotices = notices.filter((notice) => !hiddenNoticeKinds.has(notice.kind ?? 'system'));
+  const visibleNotices = notices.filter(
+    (notice) => !hiddenNoticeKinds.has(notice.kind ?? 'system'),
+  );
 
   return (
     <Card ariaLabel="チーム通知センター">
@@ -90,7 +92,9 @@ export function NoticeCenter({
 
       {!visibleNotices.length ? (
         <EmptyState>
-          {notices.length ? '設定で非表示にした種類以外の通知はありません。' : '新しいチーム情報はありません。'}
+          {notices.length
+            ? '設定で非表示にした種類以外の通知はありません。'
+            : '新しいチーム情報はありません。'}
         </EmptyState>
       ) : (
         <div

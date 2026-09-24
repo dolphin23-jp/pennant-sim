@@ -64,7 +64,10 @@ test('director keeps all game recaps deterministic even when the game is dramati
   const dramaticSource = emptySource();
   dramaticSource.gameBoxScores[dramatic.gameId] = dramatic;
   const dramaticPlan = planNarrativeStory(articleFromGameBoxScore(dramatic), dramaticSource);
-  assert.ok(dramaticPlan.score >= 50, 'dramatic scoring remains available for editorial diagnostics');
+  assert.ok(
+    dramaticPlan.score >= 50,
+    'dramatic scoring remains available for editorial diagnostics',
+  );
   assert.equal(dramaticPlan.depth, 'brief');
   assert.equal(dramaticPlan.autoGenerate, false);
   assert.ok(dramaticPlan.reasons.includes('deterministic-game-recap'));

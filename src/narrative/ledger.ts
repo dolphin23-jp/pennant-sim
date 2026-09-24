@@ -227,3 +227,68 @@ export function appendNarrativeEvents(
   for (const [year, entries] of byYear) next[String(year)] = [...entries.values()];
   return next;
 }
+
+export interface LenientLedgerResult {
+  ledger: NarrativeEventLedger;
+  /** Events that failed validation or conflicted with an earlier event, kept verbatim. */
+  rejected: unknown[];
+}
+
+/**
+ * Load-and-save path: one malformed or conflicting event must not make the whole world
+ * unreadable or unsaveable. Valid events are kept exactly as the strict migration would keep
+ * them; everything else is returned for quarantine instead of being dropped silently.
+ */
+export function migrateNarrativeEventsLenient(raw: unknown): LenientLedgerResult {
+  if (raw === undefined) return { ledger: {}, rejected: [] };
+  if (!object(raw)) return { ledger: {}, rejected: [raw] };
+  const ledger: NarrativeEventLedger = {};
+  const rejected: unknown[] = [];
+  const seen = new Map<string, string>();
+  for (const [yearKey, events] of Object.entries(raw)) {
+    const year = Number(yearKey);
+    if (!integer(year) || year < 1 || String(year) !== yearKey || !Array.isArray(events)) {
+      rejected.push({ [yearKey]: events });
+      continue;
+    }
+    const entries: NarrativeEvent[] = [];
+    for (const event of events) {
+      if (!validEvent(event, year)) {
+        rejected.push(event);
+        continue;
+      }
+      const id = narrativeEventArticleId(event);
+      const snapshot = eventSnapshot(event);
+      if (seen.has(id)) {
+        if (seen.get(id) !== snapshot) rejected.push(event);
+        continue;
+      }
+      seen.set(id, snapshot);
+      entries.push(structuredClone(event));
+    }
+    if (entries.length) ledger[yearKey] = entries;
+  }
+  return { ledger, rejected };
+}
+
+/** Game-progression path: like `appendNarrativeEvents`, but never throws out of a state update. */
+export function appendNarrativeEventsSafe(
+  ledger: NarrativeEventLedger,
+  events: readonly NarrativeEvent[],
+): LenientLedgerResult {
+  try {
+    return { ledger: appendNarrativeEvents(ledger, events), rejected: [] };
+  } catch {
+    // Retry one event at a time so only the offending events are set aside.
+  }
+  let next = ledger;
+  const rejected: unknown[] = [];
+  for (const event of events) {
+    try {
+      next = appendNarrativeEvents(next, [event]);
+    } catch {
+      rejected.push(structuredClone(event));
+    }
+  }
+  return { ledger: next, rejected };
+}

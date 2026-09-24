@@ -2,16 +2,51 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { detectAchievements, initTeams } from '../src/engine/index.ts';
-import type { AccumulatedStats, BatterStats, PitcherStats, YearlyPlayerRecords } from '../src/engine/index.ts';
+import type {
+  AccumulatedStats,
+  BatterStats,
+  PitcherStats,
+  YearlyPlayerRecords,
+} from '../src/engine/index.ts';
 
 const batterLine = (name: string, overrides: Partial<BatterStats> = {}): BatterStats => ({
-  type: 'bat', name, g: 143, pa: 600, ab: 540, h: 0, s: 0, d: 0, t: 0,
-  hr: 0, bb: 52, k: 80, rbi: 0, sb: 0, cs: 4, bnt: 3, sf: 5, ...overrides,
+  type: 'bat',
+  name,
+  g: 143,
+  pa: 600,
+  ab: 540,
+  h: 0,
+  s: 0,
+  d: 0,
+  t: 0,
+  hr: 0,
+  bb: 52,
+  k: 80,
+  rbi: 0,
+  sb: 0,
+  cs: 4,
+  bnt: 3,
+  sf: 5,
+  ...overrides,
 });
 
 const pitcherLine = (name: string, overrides: Partial<PitcherStats> = {}): PitcherStats => ({
-  type: 'pit', name, g: 25, gs: 25, w: 0, l: 5, sv: 0, hld: 0, bs: 0,
-  ip3: 450, h: 120, bb: 30, k: 0, er: 40, pc: 2200, ...overrides,
+  type: 'pit',
+  name,
+  g: 25,
+  gs: 25,
+  w: 0,
+  l: 5,
+  sv: 0,
+  hld: 0,
+  bs: 0,
+  ip3: 450,
+  h: 120,
+  bb: 30,
+  k: 0,
+  er: 40,
+  pc: 2200,
+  ...overrides,
 });
 
 test('career milestone: crossing 2000 hits fires once per 1000-hit threshold crossed', () => {
@@ -31,7 +66,9 @@ test('career milestone: crossing 2000 hits fires once per 1000-hit threshold cro
     yearlyStats: {},
   });
 
-  const milestones = events.filter((event) => event.kind === 'milestone' && event.playerId === player.id);
+  const milestones = events.filter(
+    (event) => event.kind === 'milestone' && event.playerId === player.id,
+  );
   assert.equal(milestones.length, 2, '2000本と3000本の2つの節目を跨いだはず');
   assert.deepEqual(
     milestones.map((event) => event.value).sort((a, b) => a - b),
@@ -88,8 +125,12 @@ test('season record: fires once when a player breaks the all-time single-season 
     ],
   };
 
-  const beforeSeason: AccumulatedStats = { [challenger.id]: batterLine(challenger.name, { hr: 18 }) };
-  const afterSeason: AccumulatedStats = { [challenger.id]: batterLine(challenger.name, { hr: 25 }) };
+  const beforeSeason: AccumulatedStats = {
+    [challenger.id]: batterLine(challenger.name, { hr: 18 }),
+  };
+  const afterSeason: AccumulatedStats = {
+    [challenger.id]: batterLine(challenger.name, { hr: 25 }),
+  };
 
   const firstPass = detectAchievements({
     year: 2030,
@@ -102,7 +143,10 @@ test('season record: fires once when a player breaks the all-time single-season 
     yearlyStats,
   });
   const seasonRecords = firstPass.filter(
-    (event) => event.kind === 'seasonRecord' && event.playerId === challenger.id && event.metricLabel === '本塁打',
+    (event) =>
+      event.kind === 'seasonRecord' &&
+      event.playerId === challenger.id &&
+      event.metricLabel === '本塁打',
   );
   assert.equal(seasonRecords.length, 1, '史上最多を上回った瞬間に一度だけ発生するはず');
   assert.equal(seasonRecords[0]?.previousValue, 22);
@@ -121,7 +165,8 @@ test('season record: fires once when a player breaks the all-time single-season 
     yearlyStats,
   });
   assert.equal(
-    secondPass.filter((event) => event.kind === 'seasonRecord' && event.playerId === challenger.id).length,
+    secondPass.filter((event) => event.kind === 'seasonRecord' && event.playerId === challenger.id)
+      .length,
     0,
     '同じ記録更新が毎試合再通知されてはいけない',
   );
@@ -218,7 +263,9 @@ test('career record: compares against frozen prior-season totals and fires once'
     yearlyStats,
   });
 
-  const careerRecords = events.filter((event) => event.kind === 'careerRecord' && event.playerId === ace.id);
+  const careerRecords = events.filter(
+    (event) => event.kind === 'careerRecord' && event.playerId === ace.id,
+  );
   assert.equal(careerRecords.length, 1);
   assert.equal(careerRecords[0]?.previousValue, 210);
   assert.equal(careerRecords[0]?.previousHolderName, rival.name);

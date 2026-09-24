@@ -11,11 +11,7 @@ test('reorderIds moves an item to the hovered item position without mutating inp
 });
 
 test('reorderIds supports moving upward and ignores invalid or identical targets', () => {
-  assert.deepEqual(reorderIds(['one', 'two', 'three'], 'three', 'one'), [
-    'three',
-    'one',
-    'two',
-  ]);
+  assert.deepEqual(reorderIds(['one', 'two', 'three'], 'three', 'one'), ['three', 'one', 'two']);
   const original = ['one', 'two', 'three'];
   assert.equal(reorderIds(original, 'missing', 'one'), original);
   assert.equal(reorderIds(original, 'two', 'two'), original);

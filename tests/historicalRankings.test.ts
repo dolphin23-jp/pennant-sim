@@ -2,16 +2,50 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { buildHistoricalRanking } from '../src/engine/historicalRankings';
-import type { BatterStats, PlayerSeasonRecord, PitcherStats, TeamKey, YearlyPlayerRecords } from '../src/engine/types';
+import type {
+  BatterStats,
+  PlayerSeasonRecord,
+  PitcherStats,
+  TeamKey,
+  YearlyPlayerRecords,
+} from '../src/engine/types';
 
 const batter = (name: string, hr: number, h = 100, ab = 400): BatterStats => ({
-  type: 'bat', name, g: 100, pa: ab + 40, ab, h, s: Math.max(0, h - hr), d: 0, t: 0,
-  hr, bb: 40, k: 80, rbi: hr * 3, sb: 5, cs: 2, bnt: 0, sf: 0,
+  type: 'bat',
+  name,
+  g: 100,
+  pa: ab + 40,
+  ab,
+  h,
+  s: Math.max(0, h - hr),
+  d: 0,
+  t: 0,
+  hr,
+  bb: 40,
+  k: 80,
+  rbi: hr * 3,
+  sb: 5,
+  cs: 2,
+  bnt: 0,
+  sf: 0,
 });
 
 const pitcher = (name: string, w: number, er: number, ip3 = 450): PitcherStats => ({
-  type: 'pit', name, g: 25, gs: 25, w, l: 5, sv: 0, hld: 0, bs: 0,
-  ip3, h: 120, bb: 30, k: 140, er, pc: 2200,
+  type: 'pit',
+  name,
+  g: 25,
+  gs: 25,
+  w,
+  l: 5,
+  sv: 0,
+  hld: 0,
+  bs: 0,
+  ip3,
+  h: 120,
+  bb: 30,
+  k: 140,
+  er,
+  pc: 2200,
 });
 
 function record(
@@ -104,7 +138,10 @@ test('rate-stat rankings exclude players who never reached the qualification bar
       record('starter', 2026, 26, 'giants', pitcher('先発', 10, 40, 500)),
     ],
   };
-  const averageRanking = buildHistoricalRanking(flukeYearly, { scope: 'season', metric: 'average' });
+  const averageRanking = buildHistoricalRanking(flukeYearly, {
+    scope: 'season',
+    metric: 'average',
+  });
   assert.ok(
     !averageRanking.some((entry) => entry.playerId === 'pinch-hitter'),
     '規定打席未満の代打が打率ランキングに含まれてはいけない',

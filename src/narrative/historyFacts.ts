@@ -151,7 +151,9 @@ function playerCareerFacts(
       counts.set(title.titleLabel, (counts.get(title.titleLabel) ?? 0) + 1);
     facts.push({
       id: `history:career:${playerId}:titles`,
-      text: `${first.playerName}は個人タイトルを延べ${titles.length}回獲得している（${[...counts.entries()]
+      text: `${first.playerName}は個人タイトルを延べ${titles.length}回獲得している（${[
+        ...counts.entries(),
+      ]
         .map(([label, count]) => `${label}${count}回`)
         .join('、')}）。`,
       factRefs: [ref('CAREER_SUMMARY', `${article.asOfDate}:${playerId}:titles`)],
@@ -217,7 +219,10 @@ function teamChampionshipFacts(
   return facts;
 }
 
-function repeatFinal(article: NarrativeArticle, source: NarrativeSource): NarrativeHistoryFact | null {
+function repeatFinal(
+  article: NarrativeArticle,
+  source: NarrativeSource,
+): NarrativeHistoryFact | null {
   if (article.kind !== 'championship' || article.teamKeys.length < 2) return null;
   const [first, second] = article.teamKeys;
   const prior = source.championHistory
@@ -262,7 +267,10 @@ function formerTeamFacts(
       )
       .sort((a, b) => eventDate(b.year, b.date).localeCompare(eventDate(a.year, a.date)))[0];
     if (!latest?.fromTeamKey || !latest.toTeamKey) continue;
-    if (!article.teamKeys.includes(latest.fromTeamKey) || !article.teamKeys.includes(latest.toTeamKey))
+    if (
+      !article.teamKeys.includes(latest.fromTeamKey) ||
+      !article.teamKeys.includes(latest.toTeamKey)
+    )
       continue;
     facts.push({
       id: `history:former:${playerId}`,

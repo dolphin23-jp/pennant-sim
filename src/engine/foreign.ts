@@ -81,3 +81,10 @@ export function countForeignPlayers(team: Team): number {
 export function canRegisterForeignPlayer(team: Team): boolean {
   return countForeignPlayers(team) < FOREIGN_PLAYER_BALANCE.registeredLimit;
 }
+
+/** A roster move may not take a club over the foreign-player limit. A club already over it
+ * (an old save) may still trade as long as the move does not add to the excess. */
+export function tradeRespectsForeignLimit(before: Team, after: Team): boolean {
+  const count = countForeignPlayers(after);
+  return count <= FOREIGN_PLAYER_BALANCE.registeredLimit || count <= countForeignPlayers(before);
+}

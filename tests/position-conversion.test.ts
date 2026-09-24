@@ -40,7 +40,10 @@ test('starting a conversion adds a low, deliberately shaky aptitude and does not
     assert.equal(converted.conversionTarget?.pos, '三塁手');
     assert.equal(converted.conversionTarget?.startedAge, player.age);
     const apt = converted.positions?.find((entry) => entry.pos === '三塁手')?.apt;
-    assert.ok(apt !== undefined && apt >= 15 && apt <= 28, `starting aptitude out of range: ${apt}`);
+    assert.ok(
+      apt !== undefined && apt >= 15 && apt <= 28,
+      `starting aptitude out of range: ${apt}`,
+    );
     const primaryApt = converted.positions?.find((entry) => entry.pos === player.pos)?.apt;
     assert.equal(primaryApt, 100, '本職の適性は変更されない');
   } finally {
@@ -68,7 +71,8 @@ test('yearly practice raises aptitude toward the ceiling and then clears the tar
     const startApt = player.positions?.find((entry) => entry.pos === '遊撃手')?.apt ?? 0;
 
     const afterOneYear = advancePositionConversion(player);
-    const aptAfterOneYear = afterOneYear.positions?.find((entry) => entry.pos === '遊撃手')?.apt ?? 0;
+    const aptAfterOneYear =
+      afterOneYear.positions?.find((entry) => entry.pos === '遊撃手')?.apt ?? 0;
     assert.ok(aptAfterOneYear > startApt, '1年分の練習で適性が上がっていない');
     assert.ok(afterOneYear.conversionTarget, '上限に達するまでは練習中フラグが残る');
 

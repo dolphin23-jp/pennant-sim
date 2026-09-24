@@ -30,7 +30,8 @@ test('Japanese name pools are weighted, broad, and free of contaminated fragment
   assert.ok(GN.length > JAPANESE_GIVEN_NAMES.length);
   const surnames = new Set(JAPANESE_SURNAMES.map((entry) => entry.value));
   const givenNames = new Set(JAPANESE_GIVEN_NAMES.map((entry) => entry.value));
-  for (const invalid of ['田中将', '高橋光', 'バウアー']) assert.equal(surnames.has(invalid), false);
+  for (const invalid of ['田中将', '高橋光', 'バウアー'])
+    assert.equal(surnames.has(invalid), false);
   assert.equal(givenNames.has('ノーラン'), false);
 });
 
@@ -61,7 +62,10 @@ test('same-name players use ids rather than numbered display-name suffixes', () 
       generateBatter('draft', 18 + (index % 7), '中堅手', 55 + (index % 25)),
     );
     // Duplicate display names are intentional; only the immutable Player.id must remain unique.
-    assert.equal(players.some((player) => player.name.includes('#')), false);
+    assert.equal(
+      players.some((player) => player.name.includes('#')),
+      false,
+    );
     assert.equal(new Set(players.map((player) => player.id)).size, players.length);
   } finally {
     resetRandom();

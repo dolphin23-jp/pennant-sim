@@ -88,9 +88,7 @@ const champion: ChampionRecord = {
   runnerUp: 'giants',
   keyBatters: ['主砲一郎'],
   keyPitchers: ['エース二郎'],
-  lineup: [
-    { playerId: 'hawk-1', playerName: '主砲一郎', pos: '右翼手', isPitcher: false },
-  ],
+  lineup: [{ playerId: 'hawk-1', playerName: '主砲一郎', pos: '右翼手', isPitcher: false }],
   teamStats: { avg: 0.252, hr: 132, sb: 71, era: 2.91, k: 1198 },
   record: { w: 82, l: 56, d: 5 },
 };
@@ -179,7 +177,10 @@ test('feed is newest-first, filterable, and paginated without changing canonical
     },
     { kinds: ['gameRecap'], limit: 20 },
   );
-  assert.deepEqual(gameOnly.articles.map((article) => article.id), [`game:${box.gameId}`]);
+  assert.deepEqual(
+    gameOnly.articles.map((article) => article.id),
+    [`game:${box.gameId}`],
+  );
 });
 
 test('future subsystem events enter the same article pipeline without inferred facts', () => {

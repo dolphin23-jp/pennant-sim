@@ -9,7 +9,13 @@ const THEME_KEY = 'pennant-sim-theme';
 const SKIP_CONFIRMATIONS_KEY = 'pennant-sim:skipConfirmations';
 const HIDDEN_NOTICE_KINDS_KEY = 'pennant-sim:hiddenNoticeKinds';
 
-export const NOTICE_KIND_ORDER: NoticeKind[] = ['achievement', 'awakening', 'growth', 'game', 'system'];
+export const NOTICE_KIND_ORDER: NoticeKind[] = [
+  'achievement',
+  'awakening',
+  'growth',
+  'game',
+  'system',
+];
 export const NOTICE_KIND_LABEL: Record<NoticeKind, string> = {
   achievement: '記録・メモリアル',
   awakening: '覚醒',
@@ -67,7 +73,8 @@ const SettingsContext = createContext<SettingsContextValue | null>(null);
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const [skipConfirmations, setSkipConfirmations] = useState<boolean>(initialSkipConfirmations);
-  const [hiddenNoticeKinds, setHiddenNoticeKinds] = useState<Set<NoticeKind>>(initialHiddenNoticeKinds);
+  const [hiddenNoticeKinds, setHiddenNoticeKinds] =
+    useState<Set<NoticeKind>>(initialHiddenNoticeKinds);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;

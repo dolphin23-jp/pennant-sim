@@ -396,3 +396,28 @@ test('postseasonSeriesDates paces games with a rest day roughly every third game
   // A rest day is worked in by the 4th game (index 3).
   assert.equal(dates[3], addDays('2026-10-10', 4));
 });
+
+test('schedule dates do not depend on the local time zone (JST used to shift every date a day early)', () => {
+  const originalTimeZone = process.env.TZ;
+  const scheduleIn = (timeZone: string) => {
+    process.env.TZ = timeZone;
+    configureRandom(
+      () => 0.5,
+      () => Date.UTC(2026, 0, 1),
+    );
+    try {
+      return generateSchedule(2026, { rainoutRate: 0, maxRainouts: 0 }).map((game) => game.date);
+    } finally {
+      resetRandom();
+    }
+  };
+  try {
+    const tokyo = scheduleIn('Asia/Tokyo');
+    assert.deepEqual(tokyo, scheduleIn('UTC'));
+    // Monday is the league's off day.
+    assert.equal(tokyo.filter((date) => new Date(`${date}T00:00:00Z`).getUTCDay() === 1).length, 0);
+  } finally {
+    if (originalTimeZone === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTimeZone;
+  }
+});

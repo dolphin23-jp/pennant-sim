@@ -177,8 +177,8 @@ function LineupEditor({
   );
   const benchPlayers = useMemo(() => {
     const startingIds = new Set(
-      LINEUP_SLOT_ORDER.map((slot) => editor.assignments[slot]?.id).filter(
-        (id): id is string => Boolean(id),
+      LINEUP_SLOT_ORDER.map((slot) => editor.assignments[slot]?.id).filter((id): id is string =>
+        Boolean(id),
       ),
     );
     // Bench = 一軍 fielders not currently starting. 二軍 players aren't "on
@@ -360,7 +360,10 @@ function LineupEditor({
           className="inline-status"
           role="status"
           aria-live="polite"
-          style={{ marginTop: 10, color: dirty ? 'var(--color-warning)' : 'var(--color-text-muted)' }}
+          style={{
+            marginTop: 10,
+            color: dirty ? 'var(--color-warning)' : 'var(--color-text-muted)',
+          }}
         >
           {armedPlayer
             ? `${armedPlayer.name}を配置する守備位置をタップしてください。`

@@ -1,6 +1,11 @@
 import { useEffect, useRef } from 'react';
 
-import { NOTICE_KIND_LABEL, NOTICE_KIND_ORDER, useSettings, type Theme } from '../../state/settings';
+import {
+  NOTICE_KIND_LABEL,
+  NOTICE_KIND_ORDER,
+  useSettings,
+  type Theme,
+} from '../../state/settings';
 import { Button, SectionTitle, SegmentedControl } from '../ui';
 import { SaveSlotControls } from './SaveSlotControls';
 import { useFocusTrap } from './useFocusTrap';
@@ -26,8 +31,14 @@ export function SettingsSheet({
   onClose(): void;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
-  const { theme, setTheme, skipConfirmations, setSkipConfirmations, hiddenNoticeKinds, toggleNoticeKind } =
-    useSettings();
+  const {
+    theme,
+    setTheme,
+    skipConfirmations,
+    setSkipConfirmations,
+    hiddenNoticeKinds,
+    toggleNoticeKind,
+  } = useSettings();
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -77,7 +88,12 @@ export function SettingsSheet({
             <SectionTitle>表示</SectionTitle>
             <div className="settings-sheet__row">
               <span>テーマ</span>
-              <SegmentedControl options={THEME_OPTIONS} value={theme} onChange={setTheme} ariaLabel="テーマ" />
+              <SegmentedControl
+                options={THEME_OPTIONS}
+                value={theme}
+                onChange={setTheme}
+                ariaLabel="テーマ"
+              />
             </div>
           </section>
 
@@ -112,7 +128,9 @@ export function SettingsSheet({
                   type="checkbox"
                   checked={debugMode}
                   onChange={onToggleDebugMode}
-                  aria-label={debugMode ? 'デバッグモードを無効にする' : 'デバッグモードを有効にする'}
+                  aria-label={
+                    debugMode ? 'デバッグモードを無効にする' : 'デバッグモードを有効にする'
+                  }
                 />
                 {debugMode ? 'ON' : 'OFF'}
               </label>

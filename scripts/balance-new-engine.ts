@@ -291,7 +291,10 @@ async function main(): Promise<void> {
         summarize(seasonStats.map((stats) => stats.stolenBaseAttemptsPerTeamGame)),
         6,
       ),
-      stolenBaseLeader: roundSummary(summarize(seasonStats.map((stats) => stats.stolenBaseLeader)), 3),
+      stolenBaseLeader: roundSummary(
+        summarize(seasonStats.map((stats) => stats.stolenBaseLeader)),
+        3,
+      ),
       walkRate: roundSummary(summarize(seasonStats.map((stats) => stats.walkRate)), 6),
       batterOvrStandardDeviation: roundSummary(
         summarize(seasonStats.map((stats) => stats.batterOvrStandardDeviation)),

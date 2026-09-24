@@ -24,12 +24,20 @@ export function DisplayOVRValue({
     return (
       <span aria-label={label} style={{ whiteSpace: 'nowrap' }}>
         <span style={{ color: 'var(--color-text-faint)' }}>{breakdown.base}</span>
-        <span aria-hidden="true" style={{ margin: '0 4px', color: 'var(--color-text-faint)' }}>→</span>
+        <span aria-hidden="true" style={{ margin: '0 4px', color: 'var(--color-text-faint)' }}>
+          →
+        </span>
         <strong className={breakdown.total >= 80 ? 'metric-highlight' : undefined}>
           {breakdown.total}
         </strong>
         {changed && (
-          <small style={{ marginLeft: 4, color: breakdown.specialAdjustment > 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+          <small
+            style={{
+              marginLeft: 4,
+              color:
+                breakdown.specialAdjustment > 0 ? 'var(--color-success)' : 'var(--color-danger)',
+            }}
+          >
             {signed(breakdown.specialAdjustment)}
           </small>
         )}

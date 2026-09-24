@@ -25,7 +25,9 @@ export interface DisplayOVROptions {
  * through position-conversion training). Shared by lineup/OVR eligibility checks and by
  * anything that needs to know "does this player have any claim to this position at all". */
 export function hasPositionAptitude(player: Player, position: FieldPosition): boolean {
-  return player.pos === position || (player.positions?.some((entry) => entry.pos === position) ?? false);
+  return (
+    player.pos === position || (player.positions?.some((entry) => entry.pos === position) ?? false)
+  );
 }
 
 // Pitch velocity is stored as a raw ability rating (the same 1-ceiling scale every other
@@ -40,7 +42,8 @@ function velocityKmhSlope(): number {
   return (VEL_KMH_AT_CEILING - VEL_KMH_AT_FLOOR) / (ceiling - VEL_RATING_FLOOR);
 }
 export function velocityToKmh(vel: number | undefined): number {
-  const raw = VEL_KMH_AT_FLOOR + velocityKmhSlope() * ((vel ?? VEL_RATING_FLOOR) - VEL_RATING_FLOOR);
+  const raw =
+    VEL_KMH_AT_FLOOR + velocityKmhSlope() * ((vel ?? VEL_RATING_FLOOR) - VEL_RATING_FLOOR);
   return Math.round(clamp(raw, 100, 180));
 }
 export function velocityKmhText(vel: number | undefined): string {

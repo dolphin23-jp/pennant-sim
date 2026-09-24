@@ -267,6 +267,9 @@ export interface PitcherAppearance {
   enteredRunners: number;
   scoreOnEntry: Score;
   scoreOnExit: Score;
+  /** Scoring events already in `scoringSequence` when he entered, to find the pitcher of
+   * record at any run. Absent on records built before this field existed. */
+  entrySeq?: number;
   outsRecorded: number;
   runsCharged: number;
 }

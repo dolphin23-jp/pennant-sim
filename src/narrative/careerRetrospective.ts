@@ -8,16 +8,19 @@ import type {
   YearlyPlayerRecords,
 } from '../engine';
 import { earnedRunAverage, inningsText } from '../engine/statsFormat';
-import type { NarrativeEvent, NarrativeEventLedger, NarrativeFactKind, NarrativeFactRef, NarrativeArticle } from './types';
+import type {
+  NarrativeEvent,
+  NarrativeEventLedger,
+  NarrativeFactKind,
+  NarrativeFactRef,
+  NarrativeArticle,
+} from './types';
 import { NARRATIVE_GENERATOR_VERSION } from './types';
 import { validPacket, type FactPacket } from './protocol';
 
 export type CareerRetrospectiveSourceClass = 'canonical' | 'derived';
 export type CareerRetrospectiveOutcome =
-  | 'top-evaluation-realized'
-  | 'lower-ranked-rise'
-  | 'top-evaluation-gap'
-  | 'steady-development';
+  'top-evaluation-realized' | 'lower-ranked-rise' | 'top-evaluation-gap' | 'steady-development';
 
 export interface CareerRetrospectiveEditorialInput {
   id: string;
@@ -171,7 +174,10 @@ function careerSummary(
   };
 }
 
-function transactionText(event: Extract<NarrativeEvent, { type: 'transaction' }>, playerId: string): string | null {
+function transactionText(
+  event: Extract<NarrativeEvent, { type: 'transaction' }>,
+  playerId: string,
+): string | null {
   const movement = event.movements?.find((entry) => entry.playerId === playerId);
   const playerName = movement?.playerName ?? event.playerName;
   const from = movement?.fromTeamKey ?? event.fromTeamKey;
@@ -251,9 +257,7 @@ export function buildCareerRetrospective(
   };
 
   const summary = careerSummary(player, records, asOfDate);
-  const peakRecord = records
-    .slice()
-    .sort((a, b) => b.ovr - a.ovr || b.year - a.year)[0];
+  const peakRecord = records.slice().sort((a, b) => b.ovr - a.ovr || b.year - a.year)[0];
   const peak: CareerRetrospectiveEditorialInput = {
     id: 'career-peak',
     sourceClass: 'derived',
@@ -268,14 +272,17 @@ export function buildCareerRetrospective(
 
   const titles = source.awardHistory
     .filter(
-      (record) =>
-        record.playerId === player.id && visibleYear(record.year, seasonYear, asOfDate),
+      (record) => record.playerId === player.id && visibleYear(record.year, seasonYear, asOfDate),
     )
     .sort((a, b) => a.year - b.year || a.titleLabel.localeCompare(b.titleLabel));
-  const titleCounts = [...titles.reduce((counts, title) => {
-    counts.set(title.titleLabel, (counts.get(title.titleLabel) ?? 0) + 1);
-    return counts;
-  }, new Map<string, number>()).entries()].sort(([a], [b]) => a.localeCompare(b));
+  const titleCounts = [
+    ...titles
+      .reduce((counts, title) => {
+        counts.set(title.titleLabel, (counts.get(title.titleLabel) ?? 0) + 1);
+        return counts;
+      }, new Map<string, number>())
+      .entries(),
+  ].sort(([a], [b]) => a.localeCompare(b));
   const titleInput: CareerRetrospectiveEditorialInput | null = titles.length
     ? {
         id: 'titles',
@@ -283,9 +290,7 @@ export function buildCareerRetrospective(
         text: `個人タイトルは延べ${titles.length}回（${titleCounts
           .map(([label, count]) => `${label}${count}回`)
           .join('、')}）。`,
-        factRefs: [
-          ref('CAREER_RETROSPECTIVE', `${asOfDate}:${player.id}:title-summary-v1`),
-        ],
+        factRefs: [ref('CAREER_RETROSPECTIVE', `${asOfDate}:${player.id}:title-summary-v1`)],
         value: {
           sourceClass: 'derived',
           totalTitles: titles.length,
@@ -299,14 +304,17 @@ export function buildCareerRetrospective(
   const achievements = source.achievementHistory
     .filter(
       (event) =>
-        event.playerId === player.id &&
-        visibleDated(event.year, event.date, seasonYear, asOfDate),
+        event.playerId === player.id && visibleDated(event.year, event.date, seasonYear, asOfDate),
     )
     .sort((a, b) => a.year - b.year || a.date.localeCompare(b.date));
-  const achievementCounts = [...achievements.reduce((counts, event) => {
-    counts.set(event.metricLabel, (counts.get(event.metricLabel) ?? 0) + 1);
-    return counts;
-  }, new Map<string, number>()).entries()].sort(([a], [b]) => a.localeCompare(b));
+  const achievementCounts = [
+    ...achievements
+      .reduce((counts, event) => {
+        counts.set(event.metricLabel, (counts.get(event.metricLabel) ?? 0) + 1);
+        return counts;
+      }, new Map<string, number>())
+      .entries(),
+  ].sort(([a], [b]) => a.localeCompare(b));
   const achievementInput: CareerRetrospectiveEditorialInput | null = achievements.length
     ? {
         id: 'achievements',
@@ -314,9 +322,7 @@ export function buildCareerRetrospective(
         text: `主要記録イベントは${achievements.length}件（${achievementCounts
           .map(([label, count]) => `${label}${count}件`)
           .join('、')}）。`,
-        factRefs: [
-          ref('CAREER_RETROSPECTIVE', `${asOfDate}:${player.id}:achievement-summary-v1`),
-        ],
+        factRefs: [ref('CAREER_RETROSPECTIVE', `${asOfDate}:${player.id}:achievement-summary-v1`)],
         value: {
           sourceClass: 'derived',
           totalAchievements: achievements.length,
@@ -362,7 +368,10 @@ export function buildCareerRetrospective(
     ? {
         id: 'career-events',
         sourceClass: 'canonical',
-        text: careerEvents.map((event) => event.detail).filter(Boolean).join(' '),
+        text: careerEvents
+          .map((event) => event.detail)
+          .filter(Boolean)
+          .join(' '),
         factRefs: careerEvents.map((event) => ref('CAREER_EVENT', event.id)),
         value: { sourceClass: 'canonical', events: structuredClone(careerEvents) },
       }
@@ -447,8 +456,11 @@ export function buildCareerRetrospective(
         draft.teamKey,
         ...records.map((record) => record.teamKey),
         ...transactions.flatMap((event) =>
-          [event.fromTeamKey, event.toTeamKey, ...(event.movements ?? []).flatMap((m) => [m.fromTeamKey, m.toTeamKey])]
-            .filter((key): key is TeamKey => Boolean(key)),
+          [
+            event.fromTeamKey,
+            event.toTeamKey,
+            ...(event.movements ?? []).flatMap((m) => [m.fromTeamKey, m.toTeamKey]),
+          ].filter((key): key is TeamKey => Boolean(key)),
         ),
       ]),
     ],
@@ -459,13 +471,27 @@ export function buildCareerRetrospective(
       { class: 'FACTUAL', text: evaluation.text, factRefs: evaluation.factRefs },
       { class: 'FACTUAL', text: summary.text, factRefs: summary.factRefs },
       { class: 'FACTUAL', text: peak.text, factRefs: peak.factRefs },
-      ...(titleInput ? [{ class: 'FACTUAL' as const, text: titleInput.text, factRefs: titleInput.factRefs }] : []),
+      ...(titleInput
+        ? [{ class: 'FACTUAL' as const, text: titleInput.text, factRefs: titleInput.factRefs }]
+        : []),
       ...(achievementInput
-        ? [{ class: 'FACTUAL' as const, text: achievementInput.text, factRefs: achievementInput.factRefs }]
+        ? [
+            {
+              class: 'FACTUAL' as const,
+              text: achievementInput.text,
+              factRefs: achievementInput.factRefs,
+            },
+          ]
         : []),
       { class: 'ANALYTICAL', text: outcomeInput.text, factRefs: outcomeInput.factRefs },
       ...(retirementInput
-        ? [{ class: 'FACTUAL' as const, text: retirementInput.text, factRefs: retirementInput.factRefs }]
+        ? [
+            {
+              class: 'FACTUAL' as const,
+              text: retirementInput.text,
+              factRefs: retirementInput.factRefs,
+            },
+          ]
         : []),
     ],
     factRefs: uniqueRefs(editorialInputs),
@@ -500,7 +526,8 @@ export function buildCareerRetrospective(
     const key = `${factRef.kind}:${factRef.key}`;
     if (!facts.has(key)) facts.set(key, { ref: factRef, value: structuredClone(value) });
   };
-  for (const input of editorialInputs) for (const factRef of input.factRefs) addFact(factRef, input.value);
+  for (const input of editorialInputs)
+    for (const factRef of input.factRefs) addFact(factRef, input.value);
   for (const factRef of headlineRefs)
     if (!facts.has(`${factRef.kind}:${factRef.key}`))
       addFact(factRef, factRef.kind === 'DRAFT_SELECTION' ? selection.value : summary.value);
@@ -551,7 +578,5 @@ export function buildCareerRetrospective(
     },
   };
 
-  return validPacket(packet)
-    ? { article, packet, editorialInputs, outcome, retired }
-    : null;
+  return validPacket(packet) ? { article, packet, editorialInputs, outcome, retired } : null;
 }

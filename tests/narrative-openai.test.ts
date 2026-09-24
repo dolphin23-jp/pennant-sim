@@ -154,9 +154,7 @@ function success(p = packet): typeof fetch {
           content: [
             {
               type: 'output_text',
-              text: JSON.stringify(
-                verification ? { supported: true, issues: [] } : prose(p),
-              ),
+              text: JSON.stringify(verification ? { supported: true, issues: [] } : prose(p)),
             },
           ],
         },
@@ -251,7 +249,11 @@ test('validation requires grounded synthesis when a feature has rich context', (
     },
   );
 
-  assert.equal(validateProse(prose(rich), rich), null, 'rich features may not collapse to template prose');
+  assert.equal(
+    validateProse(prose(rich), rich),
+    null,
+    'rich features may not collapse to template prose',
+  );
 
   const output = prose(rich);
   output.segments.push({

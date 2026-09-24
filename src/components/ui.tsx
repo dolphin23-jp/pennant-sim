@@ -230,7 +230,13 @@ export function TermTooltip({ term, description }: { term: string; description: 
  * too large/prominent on narrow phone screens. */
 export function SettingsButton({ onClick }: { onClick(): void }) {
   return (
-    <button type="button" className="settings-button" onClick={onClick} aria-label="設定を開く" title="設定">
+    <button
+      type="button"
+      className="settings-button"
+      onClick={onClick}
+      aria-label="設定を開く"
+      title="設定"
+    >
       <span aria-hidden="true">⚙</span>
     </button>
   );

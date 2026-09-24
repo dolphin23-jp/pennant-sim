@@ -4,6 +4,7 @@ export const WORLD_ARCHIVE_SCHEMA_VERSION = 1 as const;
 export interface ArchiveStorageBackend {
   get(key: string): Promise<string | null>;
   set(key: string, value: string): Promise<void>;
+  remove?(key: string): Promise<void>;
 }
 
 export interface ArchiveChunkRef {
@@ -17,6 +18,9 @@ export interface WorldArchiveIndex {
   /** Optional, independently recoverable generated prose; never factual history. */
   articleYears?: Record<string, ArchiveChunkRef>;
   retiredPlayerBuckets: Record<string, ArchiveChunkRef>;
+  /** Game summaries and box scores by `YYYY-MM`, so a game only rewrites its own month.
+   * Absent on saves written before the split, whose season chunks hold the games inline. */
+  gameMonths?: Record<string, ArchiveChunkRef>;
 }
 
 export function createEmptyWorldArchiveIndex(): WorldArchiveIndex {
@@ -67,6 +71,15 @@ export function retiredPlayerArchiveKey(
   return `npb_sim_v4_slot_${slot}_world_${safeSegment(worldId)}_retired_${bucket}_${revision}`;
 }
 
+export function gameMonthArchiveKey(
+  slot: number,
+  worldId: string,
+  month: string,
+  revision: string,
+): string {
+  return `npb_sim_v4_slot_${slot}_world_${safeSegment(worldId)}_games_${safeSegment(month)}_${revision}`;
+}
+
 export async function writeArchiveChunk(
   backend: ArchiveStorageBackend,
   key: string,
@@ -88,13 +101,22 @@ export async function readArchiveChunk(
 }
 
 /**
- * Backends intentionally share the old get/set contract. Empty-string tombstones are
- * enough because every reader treats them as absent, and resilient fallback storage
- * stops at the first non-null value (including the tombstone).
+ * Unreachable revisions are deleted outright when the backend can delete, so a long career
+ * does not leave one dead key behind per save. Otherwise fall back to an empty-string
+ * tombstone: every reader treats it as absent, and resilient fallback storage stops at the
+ * first non-null value (including the tombstone).
  */
 export async function tombstoneArchiveChunk(
   backend: ArchiveStorageBackend,
   ref: ArchiveChunkRef,
 ): Promise<void> {
+  if (backend.remove) {
+    try {
+      await backend.remove(ref.key);
+      return;
+    } catch {
+      // Fall through to the tombstone.
+    }
+  }
   await backend.set(ref.key, '');
 }

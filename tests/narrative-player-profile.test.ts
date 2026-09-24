@@ -214,7 +214,6 @@ test('rich player profiles require multi-claim analytical prose while primary fa
   assert.ok(validateProse(prose, profile.packet));
 });
 
-
 function pitcherStats(name: string, saves: number): PitcherStats {
   return {
     type: 'pit',

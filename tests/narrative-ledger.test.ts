@@ -23,10 +23,7 @@ import {
   reviewForeignPlayers,
   calcStandings,
 } from '../src/engine';
-import {
-  narrativeEventsFromPostGame,
-  seasonReviewEvents,
-} from '../src/engine/narrativeEvents';
+import { narrativeEventsFromPostGame, seasonReviewEvents } from '../src/engine/narrativeEvents';
 import { applyPostGamePlayerEvents } from '../src/engine/playerEvents';
 import { applyTrade, type TradeOffer } from '../src/state/offseason';
 import { createEmptyRotations } from '../src/state/storage';
@@ -248,7 +245,9 @@ test('CPU-only and skipped games retain injuries, awakenings and eligibility rec
     assert.ok(skipped.narrativeEvents.some((e) => e.type === 'injury'));
     const cpuSchedule = schedule
       .filter((g) => g.homeKey !== 'giants' && g.awayKey !== 'giants')
-      .slice(0, 20);
+      // Enough games that at least one injury/awakening/recovery occurs (expected ~4.5 at
+      // 120), rather than depending on the exact random stream of a 20-game sample.
+      .slice(0, 120);
     const cpu = simCpuUntilNext(cpuSchedule, teams, createEmptyRotations(), 'giants');
     assert.ok(cpu.narrativeEvents.length);
     appendNarrativeEvents({}, [...first, ...skipped.narrativeEvents]);

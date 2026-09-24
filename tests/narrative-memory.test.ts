@@ -175,7 +175,9 @@ test('StoryArc derives career continuity only from prior canonical history', () 
   const packet = buildFactPacket(article, source, undefined, memory);
   assert.ok(packet);
   assert.ok(packet.facts.some((fact) => fact.ref.kind === 'PLAYER_SEASON'));
-  assert.ok(packet.claims.some((claim) => claim.role === 'context' && claim.text.includes('2034年')));
+  assert.ok(
+    packet.claims.some((claim) => claim.role === 'context' && claim.text.includes('2034年')),
+  );
 });
 
 test('current-year final stats never leak into an in-season article', () => {

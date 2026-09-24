@@ -6,7 +6,9 @@ import { evaluateNpbScoringTargets, NPB_SCORING_TARGETS } from './npb-targets.mj
 
 const DEFAULT_SEASONS = 100;
 const DEFAULT_SEED = 20260723;
-const DEFAULT_OUTPUT = 'baseline/season-stats.json';
+// Measures the legacy single-file engine. Never default to season-stats.json, which holds the
+// approved baseline of the TypeScript engine that `npm run baseline:compare` gates on.
+const DEFAULT_OUTPUT = 'baseline/legacy-season-stats.json';
 const LEGACY_PATH = resolve('legacy/index.html');
 const REQUIRED_EXPORTS = [
   'initTeams',

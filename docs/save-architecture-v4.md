@@ -22,12 +22,19 @@ Season-scoped history is grouped by year:
 - champion history
 - season awards
 - achievements and milestones
-- game summaries
-- game box scores
+- that year's narrative events
 
 Only a changed season produces a new archive revision. Old completed seasons keep the same immutable chunk and are not rewritten by ordinary saves in later years.
 
 Narrative Engine data should follow the same rule. Articles, transactions, career events, draft reports, and season reviews that are frozen at a point in time should be added to the appropriate year-scoped archive schema rather than to the root current state.
+
+### Game month chunks
+
+Game summaries and box scores are the bulk of a season, so they are grouped by the
+`YYYY-MM` of the game date into `archive.gameMonths` chunks rather than the season chunk.
+An autosave after a game rewrites only the month being played (plus the root), not the
+whole season so far. Saves written before this split keep games inline in their season
+chunks; loading reads both, and the next save moves them into month chunks once.
 
 ### Retired-player chunks
 
@@ -50,6 +57,19 @@ Archive revisions are content-addressed.
 4. After the root succeeds, tombstone any superseded revision.
 
 If step 2 succeeds but step 3 fails, the old root still references the old intact archive. The new chunk is merely unreachable. Cleanup failures after step 3 do not invalidate the save.
+
+Superseded revisions are deleted when the backend supports deletion (IndexedDB,
+localStorage) and tombstoned with `''` otherwise.
+
+### Skipping unchanged chunks
+
+Step 1 does not re-serialize every chunk. Within a session, each chunk remembers the object
+references it was built from (the caller's state, before migration) and the key it was
+committed under. Runtime state is updated immutably, so when every reference is unchanged
+and the committed root still points at that key, the chunk is reused without
+`JSON.stringify` or hashing. The first save after loading serializes everything once.
+Optional article sidecars are excluded and still re-read on every save so a damaged one is
+repaired.
 
 ## Compatibility
 
@@ -90,10 +110,9 @@ facts fail the load/import rather than silently dropping history. Dedupe and
 conflict detection run on save and rehydration. The archive-first, root-last commit
 protocol and failed-save recovery are unchanged.
 
-As with other existing v4 fields, loading rehydrates the world and saving currently
-validates/serializes its history to compare content revisions. Old chunks are not
-rewritten, but CPU serialization and in-memory history still grow with world age;
-this extension does not introduce lazy loading or dirty-year tracking.
+Loading still rehydrates the whole world and saving still validates it, so in-memory
+history grows with world age; serialization is limited to changed chunks (see "Skipping
+unchanged chunks"). There is no lazy loading.
 
 ## Optional generated article sidecars
 

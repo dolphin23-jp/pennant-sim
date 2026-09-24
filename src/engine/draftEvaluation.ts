@@ -24,7 +24,7 @@ const object = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 function roleLabel(player: Player): string {
-  return player.isP ? player.role ?? '投手' : player.pos ?? '野手';
+  return player.isP ? (player.role ?? '投手') : (player.pos ?? '野手');
 }
 
 function overall(player: Player): number {

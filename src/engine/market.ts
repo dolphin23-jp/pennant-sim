@@ -5,6 +5,7 @@ import { CENTRAL, FIELD_POSITIONS, FOREIGN_PLAYER_BALANCE, PACIFIC, TINFO } from
 import {
   canRegisterForeignPlayer,
   countForeignPlayers,
+  tradeRespectsForeignLimit,
   createForeignPlayerProfile,
   isForeignPlayer,
 } from './foreign';
@@ -350,6 +351,11 @@ export function cpuAutoTradeBetweenTeams(
         if (valueGap > 12) continue;
         const firstAfter = move(firstTeam, firstOut, secondOut, firstTeamKey);
         const secondAfter = move(secondTeam, secondOut, firstOut, secondTeamKey);
+        if (
+          !tradeRespectsForeignLimit(firstTeam, firstAfter) ||
+          !tradeRespectsForeignLimit(secondTeam, secondAfter)
+        )
+          continue;
         const firstFit = teamNeedsScore(firstTeam, secondOut) - teamNeedsScore(firstTeam, firstOut);
         const secondFit =
           teamNeedsScore(secondTeam, firstOut) - teamNeedsScore(secondTeam, secondOut);

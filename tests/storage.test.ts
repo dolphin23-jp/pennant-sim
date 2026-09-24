@@ -7,6 +7,7 @@ import {
   ACTIVE_SAVE_SLOT_KEY,
   LEGACY_SAVE_KEY,
   SAVE_KEY,
+  LEGACY_MIGRATED_KEY,
   clearSaveSlot,
   createResilientStorageBackend,
   exportSaveData,
@@ -403,4 +404,146 @@ test('migrateSaveData rejects malformed team keys, standings, rotations, and his
   } finally {
     resetRandom();
   }
+});
+
+const withChampion = (data: GameSaveData, keyBatter: string): GameSaveData => ({
+  ...data,
+  championHistory: [{ year: 2025, champion: 'giants', runnerUp: null, keyBatters: [keyBatter] }],
+});
+
+const createDeletableBackend = () => {
+  const values = new Map<string, string>();
+  const backend: StorageBackend = {
+    async get(key) {
+      return values.get(key) ?? null;
+    },
+    async set(key, value) {
+      values.set(key, value);
+    },
+    async remove(key) {
+      values.delete(key);
+    },
+  };
+  return { values, backend };
+};
+
+test('a write that falls back to a later store clears the stale copy that would shadow it', async () => {
+  const primary = createDeletableBackend(),
+    fallback = createDeletableBackend();
+  let primaryFull = false;
+  const quotaAware: StorageBackend = {
+    ...primary.backend,
+    async set(key, value) {
+      if (primaryFull) throw new DOMException('Quota exceeded', 'QuotaExceededError');
+      await primary.backend.set(key, value);
+    },
+  };
+  const backend = createResilientStorageBackend([quotaAware, fallback.backend]);
+
+  const first = createSave('giants', 2026);
+  assert.equal(await saveGameToSlot(first, 1, backend), true);
+  primaryFull = true;
+  const second = { ...first, season: { ...first.season, year: 2027 } };
+  assert.equal(await saveGameToSlot(second, 1, backend), true);
+
+  // The new root landed in the fallback store and the old root no longer shadows it.
+  assert.equal(primary.values.has(SAVE_KEY(1)), false);
+  assert.equal((await loadGameFromSlot(1, backend))?.season.year, 2027);
+});
+
+test('a fallback write fails instead of leaving a shadowing value it cannot delete', async () => {
+  const primary = createBackend(),
+    fallback = createBackend();
+  primary.values.set('key', 'old');
+  const readOnly: StorageBackend = {
+    get: primary.backend.get,
+    async set() {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError');
+    },
+  };
+  const backend = createResilientStorageBackend([readOnly, fallback.backend]);
+  await assert.rejects(() => backend.set('key', 'new'));
+  assert.equal(await backend.get('key'), 'old');
+});
+
+test('superseded archive chunks are deleted, not left behind as empty keys', async () => {
+  const { values, backend } = createDeletableBackend();
+  const data = withChampion(createSave('giants', 2026), 'first');
+  assert.equal(await saveGameToSlot(data, 1, backend), true);
+  const keysAfterFirst = values.size;
+  assert.ok([...values.keys()].some((key) => key.includes('_season_2025_')));
+  for (let index = 0; index < 5; index += 1) {
+    assert.equal(await saveGameToSlot(withChampion(data, `b${index}`), 1, backend), true);
+  }
+  assert.ok([...values.values()].every((value) => value !== ''));
+  assert.ok(values.size <= keysAfterFirst + 1);
+  assert.equal((await loadGameFromSlot(1, backend))?.season.year, 2026);
+});
+
+test('clearing slot 1 never resurrects the legacy single save', async () => {
+  const { values, backend } = createBackend();
+  values.set(
+    LEGACY_SAVE_KEY,
+    JSON.stringify({
+      teams: initTeams(),
+      playerTeam: 'giants',
+      season: { year: 2026, schedule: [] },
+      lineup: [],
+    }),
+  );
+  assert.ok(await loadGame(backend));
+  assert.equal(values.get(LEGACY_MIGRATED_KEY), '1');
+  assert.equal(await clearSaveSlot(1, backend), true);
+  assert.equal(await loadGameFromSlot(1, backend), null);
+  assert.equal((await listSaveSlots(backend))[0]?.exists, false);
+  // The legacy data itself is never deleted.
+  assert.ok(values.get(LEGACY_SAVE_KEY));
+});
+
+test('an unreadable slot root is copied aside before a new save replaces it', async () => {
+  const { values, backend } = createBackend();
+  const garbage = JSON.stringify({ storageVersion: 99, from: 'a newer build' });
+  values.set(SAVE_KEY(1), garbage);
+  await assert.rejects(() => loadGameFromSlot(1, backend));
+
+  assert.equal(await saveGameToSlot(createSave('tigers', 2026), 1, backend), true);
+  const quarantined = [...values.entries()].filter(([key]) =>
+    key.startsWith('npb_sim_v3_slot_1_quarantine_'),
+  );
+  assert.deepEqual(
+    quarantined.map(([, value]) => value),
+    [garbage],
+  );
+  assert.equal((await loadGameFromSlot(1, backend))?.playerTeam, 'tigers');
+});
+
+test('a new world replacing a damaged one keeps the old root; replacing a healthy one frees it', async () => {
+  const { values, backend } = createDeletableBackend();
+  const oldWorld = { ...withChampion(createSave('giants', 2026), 'old'), worldId: 'old-world' };
+  assert.equal(await saveGameToSlot(oldWorld, 1, backend), true);
+  const oldChunkKeys = [...values.keys()].filter((key) => key.includes('old-world'));
+  assert.ok(oldChunkKeys.length > 0);
+
+  // Healthy old world: a deliberate overwrite, so its chunks are garbage-collected.
+  assert.equal(
+    await saveGameToSlot({ ...createSave('tigers', 2026), worldId: 'new-world' }, 1, backend),
+    true,
+  );
+  assert.ok(oldChunkKeys.every((key) => !values.has(key)));
+
+  // Damaged old world (a chunk is missing): its root is preserved before being replaced.
+  values.clear();
+  assert.equal(await saveGameToSlot(oldWorld, 1, backend), true);
+  const damagedRoot = values.get(SAVE_KEY(1))!;
+  values.delete([...values.keys()].find((key) => key.includes('old-world_season'))!);
+  await assert.rejects(() => loadGameFromSlot(1, backend));
+  assert.equal(
+    await saveGameToSlot({ ...createSave('tigers', 2026), worldId: 'third-world' }, 1, backend),
+    true,
+  );
+  assert.ok(
+    [...values.entries()].some(
+      ([key, value]) => key.startsWith('npb_sim_v3_slot_1_quarantine_') && value === damagedRoot,
+    ),
+  );
 });

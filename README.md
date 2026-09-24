@@ -20,15 +20,16 @@ Vite版は開発サーバーのURLで起動します。従来版は `/legacy/ind
 
 ```bash
 npm run lint
+npm run format:check
 npm test
 npm run build
 ```
 
-`npm test` はNode標準テストによるengine・保存移行テストと、100シーズンのbalance baseline比較を実行します。GitHub Actionsではpushおよびpull requestごとに `lint → test → build` を必須実行します。
+`npm test` はNode標準テストによるengine・保存移行テストと、100シーズンのbalance baseline比較を実行します。比較用の `baseline/new-season-stats.json` は毎回生成される生成物で、git管理外です。GitHub Actionsではpushおよびpull requestごとに `lint → format:check → test → build` を必須実行します。整形崩れは `npm run format` で直せます。
 
 ## GitHub Pages
 
-`main` ブランチへのpush時に、`.github/workflows/deploy-pages.yml` がViteアプリをビルドし、`dist/` をGitHub Pagesへデプロイします。Viteの公開パスはリポジトリ名に合わせて `/pennant-sim/` に設定しています。
+`main` ブランチへのpushでCIが成功した後に、`.github/workflows/deploy-pages.yml` がそのコミットのViteアプリをビルドし、`dist/` をGitHub Pagesへデプロイします（CIが失敗したコミットは公開されません。手動実行も可能です）。Viteの公開パスはリポジトリ名に合わせて `/pennant-sim/` に設定しています。
 
 初回利用時は、リポジトリ画面で次の手動設定が必要です。
 

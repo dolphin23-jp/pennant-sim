@@ -257,8 +257,7 @@ function buildPitcherLines(
               : (gameState.holdPitcherIds ?? []).includes(playerId)
                 ? 'H'
                 : null;
-      const seasonEraAfter =
-        afterPit && afterPit.ip3 > 0 ? (afterPit.er * 27) / afterPit.ip3 : 0;
+      const seasonEraAfter = afterPit && afterPit.ip3 > 0 ? (afterPit.er * 27) / afterPit.ip3 : 0;
       const line: PitcherLine = {
         playerId,
         name,
@@ -490,7 +489,8 @@ export function buildGameBoxScore(
   const tie = homeScore === awayScore;
   const homeWon = homeScore > awayScore;
   const lastInningIndex = innings.length - 1;
-  const walkoff = !tie && homeWon && lastInningIndex >= 8 && innings[lastInningIndex]?.home !== null;
+  const walkoff =
+    !tie && homeWon && lastInningIndex >= 8 && innings[lastInningIndex]?.home !== null;
   const shutoutTeam =
     awayScore === 0 && homeScore > 0
       ? gameState.teams.home.key

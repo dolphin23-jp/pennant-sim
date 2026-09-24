@@ -36,7 +36,8 @@ export function HistoricalRankings() {
         for (const player of [...team.fielders, ...team.pitchers]) players.set(player.id, player);
       }
     }
-    for (const player of game.retiredPlayers) if (!players.has(player.id)) players.set(player.id, player);
+    for (const player of game.retiredPlayers)
+      if (!players.has(player.id)) players.set(player.id, player);
     return players;
   }, [game.teams, game.retiredPlayers]);
   const activePlayerIds = useMemo(() => {
@@ -48,13 +49,14 @@ export function HistoricalRankings() {
     return ids;
   }, [game.teams]);
   const entries = useMemo(
-    () => buildHistoricalRanking(game.yearlyStats, {
-      scope,
-      metric,
-      teamKey: teamFilter === 'all' ? null : teamFilter,
-      activePlayerIds,
-      limit: 20,
-    }),
+    () =>
+      buildHistoricalRanking(game.yearlyStats, {
+        scope,
+        metric,
+        teamKey: teamFilter === 'all' ? null : teamFilter,
+        activePlayerIds,
+        limit: 20,
+      }),
     [activePlayerIds, game.yearlyStats, metric, scope, teamFilter],
   );
 
@@ -81,8 +83,16 @@ export function HistoricalRankings() {
               { id: 'pit', label: '投手', ariaLabel: '投手の歴代記録を表示' },
             ]}
           />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 10 }}>
-            <label style={{ display: 'grid', gap: 5, color: 'var(--color-text-muted)', fontSize: 12 }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))',
+              gap: 10,
+            }}
+          >
+            <label
+              style={{ display: 'grid', gap: 5, color: 'var(--color-text-muted)', fontSize: 12 }}
+            >
               記録項目
               <select
                 value={metric}
@@ -93,11 +103,15 @@ export function HistoricalRankings() {
                 }}
               >
                 {metrics.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>{candidate.label}</option>
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.label}
+                  </option>
                 ))}
               </select>
             </label>
-            <label style={{ display: 'grid', gap: 5, color: 'var(--color-text-muted)', fontSize: 12 }}>
+            <label
+              style={{ display: 'grid', gap: 5, color: 'var(--color-text-muted)', fontSize: 12 }}
+            >
               球団別
               <select
                 value={teamFilter}
@@ -105,7 +119,9 @@ export function HistoricalRankings() {
               >
                 <option value="all">全球団</option>
                 {TEAM_KEYS.map((teamKey) => (
-                  <option key={teamKey} value={teamKey}>{TINFO[teamKey].n}</option>
+                  <option key={teamKey} value={teamKey}>
+                    {TINFO[teamKey].n}
+                  </option>
                 ))}
               </select>
             </label>
@@ -125,7 +141,9 @@ export function HistoricalRankings() {
               <thead>
                 <tr>
                   <th scope="col">順</th>
-                  <th scope="col" style={{ textAlign: 'left' }}>選手</th>
+                  <th scope="col" style={{ textAlign: 'left' }}>
+                    選手
+                  </th>
                   <th scope="col">記録</th>
                   <th scope="col">達成年</th>
                   <th scope="col">年齢</th>
@@ -149,9 +167,17 @@ export function HistoricalRankings() {
                           >
                             {entry.playerName}
                           </button>
-                        ) : entry.playerName}
+                        ) : (
+                          entry.playerName
+                        )}
                         {scope === 'career' && (
-                          <span style={{ marginLeft: 6, color: 'var(--color-text-faint)', fontSize: 11 }}>
+                          <span
+                            style={{
+                              marginLeft: 6,
+                              color: 'var(--color-text-faint)',
+                              fontSize: 11,
+                            }}
+                          >
                             {entry.seasons}季
                           </span>
                         )}
@@ -164,7 +190,12 @@ export function HistoricalRankings() {
                       </td>
                       <td style={{ textAlign: 'center' }}>{entry.year}</td>
                       <td style={{ textAlign: 'center' }}>{entry.age}歳</td>
-                      <td style={{ textAlign: 'center', color: teamTextColor(TINFO[entry.teamKey].c) }}>
+                      <td
+                        style={{
+                          textAlign: 'center',
+                          color: teamTextColor(TINFO[entry.teamKey].c),
+                        }}
+                      >
                         {entry.teamAbbreviation}
                       </td>
                       <td style={{ textAlign: 'center' }}>{entry.isActive ? '現役' : '引退'}</td>

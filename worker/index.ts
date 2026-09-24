@@ -365,8 +365,7 @@ export async function handleRequest(
     );
     charged += checked.input + checked.output;
     const verification = JSON.parse(checked.text) as unknown;
-    if (!validVerification(verification) || !verification.supported)
-      throw new Error('unsupported');
+    if (!validVerification(verification) || !verification.supported) throw new Error('unsupported');
 
     const snapshot: ArticleSnapshot = {
       key,

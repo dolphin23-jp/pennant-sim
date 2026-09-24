@@ -110,7 +110,9 @@ function GameResultRow({
           flexWrap: 'wrap',
         }}
       >
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 800 }}>
+        <span
+          style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 800 }}
+        >
           <span style={{ color: teamTextColor(away.c) }}>{away.ab}</span>
           <span style={{ color: 'var(--color-text-faint)', fontFamily: 'var(--font-display)' }}>
             {summary.awayScore} - {summary.homeScore}
@@ -157,9 +159,7 @@ export function GameResultsTab() {
 
   const gamesForDate = useMemo(() => {
     if (!selectedDate) return [];
-    const games = game.season.schedule.filter(
-      (scheduleGame) => scheduleGame.date === selectedDate,
-    );
+    const games = game.season.schedule.filter((scheduleGame) => scheduleGame.date === selectedDate);
     return [...games].sort((first, second) => {
       const firstMine = first.homeKey === game.playerTeam || first.awayKey === game.playerTeam;
       const secondMine = second.homeKey === game.playerTeam || second.awayKey === game.playerTeam;

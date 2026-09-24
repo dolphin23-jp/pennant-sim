@@ -47,9 +47,7 @@ export function StatsTab() {
       <SortableStatsTable
         players={players}
         currentStats={scope === 'team' ? game.accumulated : game.leagueAccumulated}
-        careerStats={
-          scope === 'team' ? game.careerAccumulated : game.leagueCareerAccumulated
-        }
+        careerStats={scope === 'team' ? game.careerAccumulated : game.leagueCareerAccumulated}
         yearlyStats={game.yearlyStats}
         gamesByTeam={gamesByTeam}
         onSelect={game.selectPlayer}

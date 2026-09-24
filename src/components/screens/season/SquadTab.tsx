@@ -28,7 +28,9 @@ export function SquadTab() {
     <SquadBoard
       team={teams[playerTeam]}
       onSelectPlayer={game.selectPlayer}
-      onToggleActive={(player) => game.replaceTeams(withToggledActiveRoster(teams, playerTeam, player))}
+      onToggleActive={(player) =>
+        game.replaceTeams(withToggledActiveRoster(teams, playerTeam, player))
+      }
     />
   );
 }

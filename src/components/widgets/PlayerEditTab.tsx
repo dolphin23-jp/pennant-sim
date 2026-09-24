@@ -10,7 +10,12 @@ import {
   PS,
   SPECIAL_INDEX,
 } from '../../data';
-import { hasPositionAptitude, kmhToVelocity, syncSpecialsFromLevels, velocityToKmh } from '../../engine';
+import {
+  hasPositionAptitude,
+  kmhToVelocity,
+  syncSpecialsFromLevels,
+  velocityToKmh,
+} from '../../engine';
 import type { FieldPosition, Player, PlayerParams, SpecialAbility } from '../../engine';
 import { Button, Card, SectionTitle } from '../ui';
 
@@ -40,7 +45,9 @@ const PITCHER_PARAM_FIELDS: Array<{ key: keyof PlayerParams; label: string }> = 
 // fix/inspect that value by hand, so the gate matches hasPositionAptitude, not pos alone.
 function paramFieldsFor(player: Player): Array<{ key: keyof PlayerParams; label: string }> {
   if (player.isP) return PITCHER_PARAM_FIELDS;
-  return hasPositionAptitude(player, '捕手') ? [...BATTER_PARAM_FIELDS, CATCHER_FIELD] : BATTER_PARAM_FIELDS;
+  return hasPositionAptitude(player, '捕手')
+    ? [...BATTER_PARAM_FIELDS, CATCHER_FIELD]
+    : BATTER_PARAM_FIELDS;
 }
 
 /** Which special-ability pool applies to this player, mirroring how the engine reads them
@@ -127,13 +134,7 @@ function VelocityField({
   );
 }
 
-export function PlayerEditTab({
-  player,
-  onSave,
-}: {
-  player: Player;
-  onSave(next: Player): void;
-}) {
+export function PlayerEditTab({ player, onSave }: { player: Player; onSave(next: Player): void }) {
   const [draft, setDraft] = useState<Player>(player);
   const [savedNotice, setSavedNotice] = useState(false);
 
@@ -320,7 +321,10 @@ export function PlayerEditTab({
 
       <Card className="detail-card detail-card--wide" ariaLabel="特殊能力の編集">
         <SectionTitle>Special Abilities</SectionTitle>
-        <div className="debug-field-grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))' }}>
+        <div
+          className="debug-field-grid"
+          style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))' }}
+        >
           {specialPool.map((special) => {
             const level = draft.specialLevels?.[special.id] ?? 0;
             const maxLevel = SPECIAL_INDEX[special.id]?.tierMax ?? special.tierMax;

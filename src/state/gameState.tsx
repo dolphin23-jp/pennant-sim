@@ -1,5 +1,5 @@
 import { type ArticleArchive, type ArticleSnapshot, validSnapshot } from '../narrative/protocol';
-import { appendNarrativeEvents } from '../narrative/ledger';
+import { appendNarrativeEventsSafe } from '../narrative/ledger';
 import { resumeSeasonScreen } from './seasonProgress';
 import type { NarrativeEvent, NarrativeEventLedger } from '../narrative/types';
 import { narrativeEventsFromPostGame, seasonReviewEvents } from '../engine/narrativeEvents';
@@ -9,6 +9,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -93,11 +94,15 @@ interface RuntimeState {
   awardHistory: SeasonTitleRecord[];
   achievementHistory: AchievementEvent[];
   narrativeEvents: NarrativeEventLedger;
+  narrativeQuarantine?: unknown[];
   lastGame: GameState | null;
   selectedPlayer: Player | null;
   gameSummaries: Record<string, GameSummary>;
   gameBoxScores: Record<string, GameBoxScore>;
   selectedGameId: string | null;
+  /** Set to a fresh sequence number by any update that should be persisted; the autosave
+   * effect saves whenever it changes. */
+  autosaveSeq: number;
 }
 
 interface GameContextValue extends RuntimeState {
@@ -163,9 +168,25 @@ const initialState: RuntimeState = {
   gameSummaries: {},
   gameBoxScores: {},
   selectedGameId: null,
+  autosaveSeq: 0,
 };
 
 const GameContext = createContext<GameContextValue | null>(null);
+
+/** Append new ledger facts inside a state update. A rejected event is quarantined (and kept
+ * in the save) instead of throwing, which would abort the update and every later autosave. */
+function withNarrativeEvents(
+  current: Pick<RuntimeState, 'narrativeEvents' | 'narrativeQuarantine'>,
+  events: readonly NarrativeEvent[],
+): Pick<RuntimeState, 'narrativeEvents' | 'narrativeQuarantine'> {
+  const { ledger, rejected } = appendNarrativeEventsSafe(current.narrativeEvents, events);
+  if (!rejected.length) return { narrativeEvents: ledger };
+  console.warn(`${rejected.length} narrative event(s) failed validation and were quarantined.`);
+  return {
+    narrativeEvents: ledger,
+    narrativeQuarantine: [...(current.narrativeQuarantine ?? []), ...rejected],
+  };
+}
 
 function mergeStats(base: AccumulatedStats, addition: AccumulatedStats): AccumulatedStats {
   const merged: AccumulatedStats = { ...base };
@@ -209,19 +230,25 @@ function snapshotFromState(state: RuntimeState): GameSaveData | null {
     awardHistory: state.awardHistory,
     achievementHistory: state.achievementHistory,
     narrativeEvents: state.narrativeEvents,
+    ...(state.narrativeQuarantine?.length
+      ? { narrativeQuarantine: state.narrativeQuarantine }
+      : {}),
     gameSummaries: state.gameSummaries,
     gameBoxScores: state.gameBoxScores,
     uiVersion: 1,
   };
 }
 
+let autosaveCounter = 0;
+/** Monotonic across new games and loads, so a reset state can never reuse a saved sequence. */
+const nextAutosaveSeq = (): number => (autosaveCounter += 1);
+
 /**
- * Best-effort autosave: fire-and-forget, silently ignore failures. This runs
- * inside a setState updater (see simulateNextGame/skip/completeOffseason below),
- * which is already not a pure function in this codebase — it calls into the
- * simulation engine directly — so one more fire-and-forget side effect doesn't
- * introduce a new class of impurity. A failed autosave leaves the explicit
- * save button as the fallback; it must never surface as an error to the player.
+ * Best-effort autosave: fire-and-forget, silently ignore failures. Updaters only bump
+ * `autosaveSeq`; the provider's effect calls this once per committed state, so a replayed
+ * updater (StrictMode) never persists twice and saves are issued in commit order. A failed
+ * autosave leaves the explicit save button as the fallback; it must never surface as an
+ * error to the player.
  */
 function autosave(next: RuntimeState): void {
   const snapshot = snapshotFromState(next);
@@ -261,6 +288,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     window.localStorage.setItem(DEBUG_MODE_KEY, debugMode ? '1' : '0');
   }, [debugMode]);
 
+  const lastAutosaveSeq = useRef(0);
+  useEffect(() => {
+    if (state.autosaveSeq === lastAutosaveSeq.current) return;
+    lastAutosaveSeq.current = state.autosaveSeq;
+    autosave(state);
+  }, [state]);
+
   useEffect(() => {
     let active = true;
     void loadGame()
@@ -296,7 +330,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           ...current,
           loading: false,
           loadError:
-            'セーブデータの読み込み中にエラーが発生しました。データは保持されていますが、いったん新規ゲームとして開始できます。',
+            'セーブデータの読み込み中にエラーが発生しました。新規ゲームとして開始できます。読み込めなかった元データは、同じスロットへ保存する際に別キーへ退避され、上書きされません。',
         }));
       });
     return () => {
@@ -349,7 +383,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         championHistory: history.championHistory,
         gameSummaries: prepared.gameSummaries,
         gameBoxScores: prepared.gameBoxScores,
-        narrativeEvents: appendNarrativeEvents({}, prepared.narrativeEvents),
+        ...withNarrativeEvents({ narrativeEvents: {} }, prepared.narrativeEvents),
         notices: [
           {
             id: `system:2026:start:${teamKey}`,
@@ -375,10 +409,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
       );
       if (!nextGame) return { ...current, screen: 'postseason' };
 
+      // The engine writes post-game rosters back into the map it is given. Hand it a copy so
+      // the previous state stays untouched (StrictMode replays updaters in development).
+      const teams = { ...current.teams };
       const result = simulateGame(
         nextGame.homeKey,
         nextGame.awayKey,
-        current.teams,
+        teams,
         nextGame.homeKey === current.playerTeam ? current.lineup : null,
         nextGame.awayKey === current.playerTeam ? current.lineup : null,
         current.rotN[nextGame.homeKey] || 0,
@@ -417,7 +454,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const gameNotice = createGameResultNotice(playerGameBox, current.playerTeam);
       const prepared = simCpuUntilNext(
         playedSchedule,
-        current.teams,
+        teams,
         rotations,
         current.playerTeam,
         leagueAccumulated,
@@ -433,7 +470,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const achievements = detectAchievements({
         year: current.season.year,
         date: nextGame.date,
-        teams: current.teams,
+        teams,
         beforeSeasonStats: current.leagueAccumulated,
         afterSeasonStats: finalLeagueStats,
         beforeCareerStats: current.leagueCareerAccumulated,
@@ -445,6 +482,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const next: RuntimeState = {
         ...current,
         screen: seasonOver ? 'postseason' : 'season',
+        teams,
         season: { ...current.season, schedule: prepared.sched },
         rotN: prepared.rotN,
         standings: calcStandings(prepared.sched),
@@ -453,7 +491,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         careerAccumulated,
         leagueCareerAccumulated: finalCareerLeagueStats,
         achievementHistory: [...current.achievementHistory, ...achievements],
-        narrativeEvents: appendNarrativeEvents(current.narrativeEvents, [
+        ...withNarrativeEvents(current, [
           ...narrativeEventsFromPostGame(nextGame.id, nextGame.date, result.postGameEvents),
           ...prepared.narrativeEvents,
         ]),
@@ -473,8 +511,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           ...achievementNotices,
         ]),
         lastGame: result,
+        autosaveSeq: nextAutosaveSeq(),
       };
-      autosave(next);
       return next;
     });
   }, []);
@@ -483,9 +521,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setState((current) => {
       if (!current.teams || !current.playerTeam) return current;
       const beforeTeam = current.teams[current.playerTeam];
+      const teams = { ...current.teams };
       const result = skipGamesWithPitcherPlan(
         current.season.schedule,
-        current.teams,
+        teams,
         current.rotN,
         current.playerTeam,
         mode,
@@ -505,7 +544,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         `${current.season.year}年`;
       const developmentNotices = createSkippedInSeasonDevelopmentNotices(
         beforeTeam,
-        current.teams[current.playerTeam],
+        teams[current.playerTeam],
         current.playerTeam,
         noticeDate,
       );
@@ -515,7 +554,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const achievements = detectAchievements({
         year: current.season.year,
         date: noticeDate,
-        teams: current.teams,
+        teams,
         beforeSeasonStats: current.leagueAccumulated,
         afterSeasonStats: leagueAccumulated,
         beforeCareerStats: current.leagueCareerAccumulated,
@@ -526,6 +565,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const next: RuntimeState = {
         ...current,
         screen: seasonOver ? 'postseason' : 'season',
+        teams,
         season: { ...current.season, schedule: result.sched },
         rotN: result.rotN,
         standings: calcStandings(result.sched),
@@ -534,7 +574,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         careerAccumulated: mergeStats(current.careerAccumulated, result.distStats),
         leagueCareerAccumulated,
         achievementHistory: [...current.achievementHistory, ...achievements],
-        narrativeEvents: appendNarrativeEvents(current.narrativeEvents, result.narrativeEvents),
+        ...withNarrativeEvents(current, result.narrativeEvents),
         gameSummaries: { ...current.gameSummaries, ...result.gameSummaries },
         gameBoxScores: { ...current.gameBoxScores, ...result.gameBoxScores },
         notices: mergeNotices(current.notices, [
@@ -542,8 +582,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           ...developmentNotices,
           ...achievementNotices,
         ]),
+        autosaveSeq: nextAutosaveSeq(),
       };
-      autosave(next);
       return next;
     });
   }, []);
@@ -586,6 +626,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       retired: Player[] = [],
     ) => {
       setState((current) => {
+        const nextTeams = { ...teams };
         if (!current.playerTeam) return current;
         // A duplicate completion callback belongs to the already committed old year.
         if (events.some((event) => event.year !== current.season.year)) return current;
@@ -610,7 +651,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         const schedule = generateSchedule(year);
         const prepared = simCpuUntilNext(
           schedule,
-          teams,
+          nextTeams,
           createEmptyRotations(),
           current.playerTeam,
           {},
@@ -618,8 +659,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         );
         const next: RuntimeState = {
           ...current,
-          teams,
-          narrativeEvents: appendNarrativeEvents(current.narrativeEvents, [
+          teams: nextTeams,
+          ...withNarrativeEvents(current, [
             ...events,
             ...seasonReviewEvents(
               completedYear,
@@ -634,7 +675,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           screen: 'season',
           season: { year, schedule: prepared.sched },
           rotN: prepared.rotN,
-          lineup: bestLineup(teams[current.playerTeam]),
+          lineup: bestLineup(nextTeams[current.playerTeam]),
           standings: calcStandings(prepared.sched),
           accumulated: {},
           leagueAccumulated: prepared.leagueDistStats,
@@ -650,8 +691,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           gameBoxScores: { ...current.gameBoxScores, ...prepared.gameBoxScores },
           notices: mergeNotices(current.notices, developmentNotices),
           lastGame: null,
+          autosaveSeq: nextAutosaveSeq(),
         };
-        autosave(next);
         return next;
       });
     },
@@ -691,13 +732,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
         };
         const next: RuntimeState = {
           ...current,
-          narrativeEvents: appendNarrativeEvents(current.narrativeEvents, events),
+          ...withNarrativeEvents(current, events),
           championHistory: [
             ...current.championHistory.filter((entry) => entry.year !== current.season.year),
             record,
           ],
+          autosaveSeq: nextAutosaveSeq(),
         };
-        autosave(next);
         return next;
       });
     },
@@ -717,8 +758,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           ...current.narrativeArticles,
           [year]: [...entries, structuredClone(snapshot)],
         },
+        autosaveSeq: nextAutosaveSeq(),
       };
-      autosave(next);
       return next;
     });
   }, []);

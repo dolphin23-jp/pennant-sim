@@ -296,14 +296,16 @@ function removePlayers(
 ): { team: Team; exits: RosterExit[] } {
   const exits: RosterExit[] = [];
   const choose = (players: Player[], count: number, minimum: number): Player[] => {
-    const removable = Math.max(0, players.length - minimum);
-    return [...players]
-      .sort(
-        (first, second) =>
-          removalPriority(first) - removalPriority(second) ||
-          retentionScore(first) - retentionScore(second),
-      )
-      .slice(0, Math.min(count, removable));
+    const ordered = [...players].sort(
+      (first, second) =>
+        removalPriority(first) - removalPriority(second) ||
+        retentionScore(first) - retentionScore(second),
+    );
+    // Mandatory retirements (sorted first) always happen; the roster minimum only limits
+    // discretionary releases. The draft and free-agent phases refill the roster afterwards.
+    const mandatory = ordered.filter((player) => removalPriority(player) === 0).length;
+    const removable = Math.max(mandatory, players.length - minimum);
+    return ordered.slice(0, Math.min(Math.max(count, mandatory), removable));
   };
   const pitchers = choose(team.pitchers, pitcherRemovals, options.minimumPitchers);
   const fielders = choose(team.fielders, fielderRemovals, options.minimumFielders);

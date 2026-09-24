@@ -68,10 +68,13 @@ test('ledger migration accepts absent v3/v4 fields, dedupes exact events, reject
       migrateNarrativeEvents({ '2034': [event(), { ...event(), playerName: 'conflicting name' }] }),
     /Conflicting/,
   );
-  assert.equal(
-    importSaveData(JSON.stringify({ ...save(), narrativeEvents: { '2034': [{}] } })),
-    null,
+  // Saves quarantine a malformed fact instead of becoming unreadable because of it.
+  const imported = importSaveData(
+    JSON.stringify({ ...save(), narrativeEvents: { '2034': [event(), {}] } }),
   );
+  assert.ok(imported);
+  assert.deepEqual(imported.narrativeEvents, { '2034': [event()] });
+  assert.deepEqual(imported.narrativeQuarantine, [{}]);
 });
 
 test('events live in year chunks, rehydrate/export with identical canonical articles, and old years are not rewritten', async () => {
@@ -124,7 +127,7 @@ test('actual pre-ledger v4 chunks and v3 monolith migrate without fabricating hi
   assert.ok(!writes.includes(root.archive.seasons['2033'].key));
 });
 
-test('invalid but revision-consistent event chunks are corruption, and interrupted root writes retain the previous ledger', async () => {
+test('invalid but revision-consistent event chunks are quarantined, and interrupted root writes retain the previous ledger', async () => {
   const { values, backend } = memory();
   const data = save();
   data.narrativeEvents = appendNarrativeEvents({}, [event()]);
@@ -150,7 +153,14 @@ test('invalid but revision-consistent event chunks are corruption, and interrupt
   values.set(key, raw);
   root.archive.seasons['2034'] = { key, revision };
   values.set(SAVE_KEY(1), JSON.stringify(root));
-  await assert.rejects(() => loadGameFromSlot(1, backend), /corrupt/);
+  const loaded = (await loadGameFromSlot(1, backend))!;
+  assert.deepEqual(loaded.narrativeEvents, {});
+  assert.deepEqual(loaded.narrativeQuarantine, [chunk.narrativeEvents[0]]);
+  // The quarantined fact survives the next save instead of being dropped.
+  assert.equal(await saveGameToSlot(loaded, 1, backend), true);
+  assert.deepEqual((await loadGameFromSlot(1, backend))!.narrativeQuarantine, [
+    chunk.narrativeEvents[0],
+  ]);
 });
 
 test('reload resumes an already committed postseason at the offseason instead of rerolling events', async () => {

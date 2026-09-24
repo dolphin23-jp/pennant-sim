@@ -22,7 +22,10 @@ function ChampionCard({ record }: { record: ChampionRecord }) {
   const [expanded, setExpanded] = useState(false);
   const champion = TINFO[record.champion];
   return (
-    <Card ariaLabel={`${record.year}年 優勝 ${champion.n}`} style={{ borderLeft: `4px solid ${champion.c}` }}>
+    <Card
+      ariaLabel={`${record.year}年 優勝 ${champion.n}`}
+      style={{ borderLeft: `4px solid ${champion.c}` }}
+    >
       <div
         style={{
           display: 'flex',
@@ -75,7 +78,9 @@ function ChampionCard({ record }: { record: ChampionRecord }) {
             {expanded ? 'スタメンを隠す' : '優勝時のスタメンを表示'}
           </Button>
           {expanded && (
-            <ol style={{ margin: '8px 0 0', paddingLeft: 20, display: 'grid', gap: 3, fontSize: 12 }}>
+            <ol
+              style={{ margin: '8px 0 0', paddingLeft: 20, display: 'grid', gap: 3, fontSize: 12 }}
+            >
               {record.lineup.map((entry) => (
                 <li key={entry.playerId}>
                   {entry.playerName}（{entry.pos}）
@@ -133,7 +138,9 @@ export function HistoryTab() {
       <section aria-label="優勝球団の歴史">
         <SectionTitle>優勝球団の歴史</SectionTitle>
         {champions.length === 0 ? (
-          <EmptyState>まだ優勝球団の記録がありません。日本シリーズを制覇すると記録されます。</EmptyState>
+          <EmptyState>
+            まだ優勝球団の記録がありません。日本シリーズを制覇すると記録されます。
+          </EmptyState>
         ) : (
           <div style={{ display: 'grid', gap: 10 }}>
             {champions.map((record) => (

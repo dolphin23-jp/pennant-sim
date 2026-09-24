@@ -37,12 +37,7 @@ test('四球の押し出しでも既存走者のPlayer identityを失わない',
   const runnerOnThird = batter('r3', '三塁走者');
   const currentBatter = batter('b', '打者');
 
-  const result = advBases(
-    [runnerOnFirst, runnerOnSecond, runnerOnThird],
-    'BB',
-    currentBatter,
-    1,
-  );
+  const result = advBases([runnerOnFirst, runnerOnSecond, runnerOnThird], 'BB', currentBatter, 1);
 
   assert.deepEqual(result.bases, [currentBatter, runnerOnFirst, runnerOnSecond]);
   assert.equal(result.runs, 1);
