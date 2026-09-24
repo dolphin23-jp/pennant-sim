@@ -1,19 +1,23 @@
-import { narrativeEventsFromPostGame } from '../../engine/narrativeEvents';
-import type { NarrativeEvent } from '../../narrative/types';
 import { useMemo, useState } from 'react';
 
 import { CENTRAL, PACIFIC, TINFO } from '../../data';
-import { addDays, postseasonSeriesDates, selectSeasonTitles, simulateGame } from '../../engine';
+import {
+  postseasonNarrativeEvents,
+  postseasonRunnerUp,
+  runPostseason as runPostseasonSeries,
+  selectSeasonTitles,
+} from '../../engine';
 import type {
-  AccumulatedStats,
   AwardLeague,
+  PostseasonResults,
+  SeriesResult,
   Player,
   SeasonTitleRecord,
   TeamKey,
-  Teams,
 } from '../../engine';
 import { useGameState } from '../../state/gameState';
 import { useBusyAction } from '../useBusyAction';
+import { AutoAdvancePanel } from '../widgets/AutoAdvancePanel';
 import { TitleIcon } from '../icons';
 import {
   BackToTitleButton,
@@ -24,40 +28,6 @@ import {
   SectionTitle,
   teamTextColor,
 } from '../ui';
-
-interface SeriesGame {
-  game: number;
-  date: string;
-  home: TeamKey;
-  away: TeamKey;
-  homeScore: number;
-  awayScore: number;
-  winner: TeamKey | null;
-}
-
-interface SeriesResult {
-  narrativeEvents: NarrativeEvent[];
-  first: TeamKey;
-  second: TeamKey;
-  firstWins: number;
-  secondWins: number;
-  winner: TeamKey;
-  games: SeriesGame[];
-}
-
-interface PostseasonResults {
-  centralFirst: SeriesResult;
-  centralFinal: SeriesResult;
-  pacificFirst: SeriesResult;
-  pacificFinal: SeriesResult;
-  japanSeries: SeriesResult;
-}
-
-// Rest/travel gaps between postseason rounds, matching the real Climax
-// Series/Japan Series calendar rather than everything resolving on one day.
-const REGULAR_SEASON_TO_FIRST_STAGE_GAP = 6;
-const FIRST_STAGE_TO_FINAL_STAGE_GAP = 4;
-const FINAL_STAGE_TO_JAPAN_SERIES_GAP = 5;
 
 function formatShortDate(dateString: string): string {
   const date = new Date(`${dateString}T00:00:00Z`);
@@ -152,82 +122,6 @@ function SeasonTitlesPanel({
       </div>
     </section>
   );
-}
-
-function simulateSeries(
-  first: TeamKey,
-  second: TeamKey,
-  bestOf: number,
-  teams: Teams,
-  // Carrying the regular season's totals keeps in-season mastery continuous into the
-  // playoffs; passing {} would reset every player to opening mastery mid-year.
-  accumulated: AccumulatedStats,
-  startDate: string,
-  firstAdvantage = 0,
-): SeriesResult {
-  const target = Math.ceil(bestOf / 2);
-  let firstWins = firstAdvantage;
-  let secondWins = 0;
-  let firstRotation = 0;
-  let secondRotation = 0;
-  let gameNumber = 1;
-  const narrativeEvents: NarrativeEvent[] = [];
-  const games: SeriesGame[] = [],
-    // Sized to the defensive game-count cap below, so even a rare tie-heavy series that
-    // runs past a "normal" bestOf length still has a real date for every game it plays.
-    dates = postseasonSeriesDates(startDate, bestOf + 8);
-
-  while (firstWins < target && secondWins < target && gameNumber <= bestOf + 8) {
-    const home = gameNumber % 2 === 1 ? first : second;
-    const away = home === first ? second : first;
-    const result = simulateGame(
-      home,
-      away,
-      teams,
-      null,
-      null,
-      home === first ? firstRotation : secondRotation,
-      away === first ? firstRotation : secondRotation,
-      accumulated,
-    );
-    narrativeEvents.push(
-      ...narrativeEventsFromPostGame(
-        `postseason:${startDate}:${first}:${second}:${gameNumber}`,
-        dates[gameNumber - 1] as string,
-        result.postGameEvents,
-      ),
-    );
-    firstRotation += 1;
-    secondRotation += 1;
-    const winner =
-      result.score.home === result.score.away
-        ? null
-        : result.score.home > result.score.away
-          ? home
-          : away;
-    if (winner === first) firstWins += 1;
-    if (winner === second) secondWins += 1;
-    games.push({
-      game: gameNumber,
-      date: dates[gameNumber - 1] as string,
-      home,
-      away,
-      homeScore: result.score.home,
-      awayScore: result.score.away,
-      winner,
-    });
-    gameNumber += 1;
-  }
-
-  return {
-    first,
-    second,
-    firstWins,
-    secondWins,
-    narrativeEvents,
-    winner: firstWins >= secondWins ? first : second,
-    games,
-  };
 }
 
 function TeamPill({ teamKey, won, wins }: { teamKey: TeamKey; won: boolean; wins: number }) {
@@ -483,71 +377,18 @@ export function PostseasonScreen() {
   );
 
   const runPostseason = () => {
-    const league = game.leagueAccumulated;
     // simulateGame writes post-game rosters (fatigue, injuries) back into the map it is
     // given. Run the series on a copy and commit it explicitly instead of mutating state.
     const seriesTeams = { ...teams };
-    const regularSeasonEnd = game.season.schedule.reduce(
-      (latest, scheduled) => (scheduled.date > latest ? scheduled.date : latest),
-      game.season.schedule[0]?.date ?? `${game.season.year}-10-01`,
-    );
-    const firstStageStart = addDays(regularSeasonEnd, REGULAR_SEASON_TO_FIRST_STAGE_GAP);
-    const centralFirst = simulateSeries(
-      centralRanking[1],
-      centralRanking[2],
-      3,
-      seriesTeams,
-      league,
-      firstStageStart,
-    );
-    const pacificFirst = simulateSeries(
-      pacificRanking[1],
-      pacificRanking[2],
-      3,
-      seriesTeams,
-      league,
-      firstStageStart,
-    );
-    // Both leagues' Final Stage always opens on the same shared date, so it waits for
-    // whichever First Stage actually ran longer (a tie can stretch a "best of 3" out).
-    const firstStageEnd = [centralFirst, pacificFirst]
-      .map((series) => series.games.at(-1)?.date ?? firstStageStart)
-      .sort()
-      .at(-1) as string;
-    const finalStageStart = addDays(firstStageEnd, FIRST_STAGE_TO_FINAL_STAGE_GAP);
-    const centralFinal = simulateSeries(
-      centralRanking[0],
-      centralFirst.winner,
-      7,
-      seriesTeams,
-      league,
-      finalStageStart,
-      1,
-    );
-    const pacificFinal = simulateSeries(
-      pacificRanking[0],
-      pacificFirst.winner,
-      7,
-      seriesTeams,
-      league,
-      finalStageStart,
-      1,
-    );
-    const finalStageEnd = [centralFinal, pacificFinal]
-      .map((series) => series.games.at(-1)?.date ?? finalStageStart)
-      .sort()
-      .at(-1) as string;
-    const japanSeriesStart = addDays(finalStageEnd, FINAL_STAGE_TO_JAPAN_SERIES_GAP);
-    const japanSeries = simulateSeries(
-      centralFinal.winner,
-      pacificFinal.winner,
-      7,
-      seriesTeams,
-      league,
-      japanSeriesStart,
-    );
+    const postseason = runPostseasonSeries({
+      teams: seriesTeams,
+      standings: game.standings,
+      schedule: game.season.schedule,
+      year: game.season.year,
+      leagueAccumulated: game.leagueAccumulated,
+    });
     game.replaceTeams(seriesTeams);
-    setResults({ centralFirst, centralFinal, pacificFirst, pacificFinal, japanSeries });
+    setResults(postseason);
   };
 
   return (
@@ -571,7 +412,10 @@ export function PostseasonScreen() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           {!results ? (
             <>
-              <Button onClick={() => run(runPostseason)} disabled={busy}>
+              <Button
+                onClick={() => run(runPostseason)}
+                disabled={busy || game.advanceProgress !== null}
+              >
                 全シリーズを実行
               </Button>
               {busy && (
@@ -587,14 +431,10 @@ export function PostseasonScreen() {
           ) : (
             <Button
               onClick={() => {
-                const runnerUp =
-                  results.japanSeries.winner === results.japanSeries.first
-                    ? results.japanSeries.second
-                    : results.japanSeries.first;
                 game.recordChampionship(
                   results.japanSeries.winner,
-                  runnerUp,
-                  Object.values(results).flatMap((series) => series.narrativeEvents),
+                  postseasonRunnerUp(results),
+                  postseasonNarrativeEvents(results),
                 );
                 game.setScreen('offseason');
               }}
@@ -608,6 +448,7 @@ export function PostseasonScreen() {
       </header>
 
       <div style={{ display: 'grid', gap: 14 }}>
+        {!results && <AutoAdvancePanel />}
         <SeasonTitlesPanel titles={titles} players={players} onSelect={game.selectPlayer} />
         <LeagueBracketRow
           leagueLabel="セ・リーグ"

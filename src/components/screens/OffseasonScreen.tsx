@@ -20,7 +20,10 @@ import {
 } from '../../engine';
 import type { Player, TeamKey, Teams } from '../../engine';
 import { useGameState } from '../../state/gameState';
-import { createOffseasonDevelopmentNotices } from '../../state/notices';
+import {
+  createForeignLifecycleNotices,
+  createOffseasonDevelopmentNotices,
+} from '../../state/notices';
 import type { Notice } from '../../state/storage';
 import { applyTrade, generateTradeOffers } from '../../state/offseason';
 import {
@@ -183,33 +186,7 @@ function OffseasonContent({
     return value;
   };
   const [foreignNotices] = useState<Notice[]>(() =>
-    foreignReview.events
-      .filter((event) => event.teamKey === playerTeam)
-      .map((event) => ({
-        id: `foreign:${game.season.year}:${event.playerId}:${event.type}`,
-        kind: 'system',
-        title:
-          event.type === 'renewed'
-            ? `${event.name}と${event.contractYearsRemaining}年契約で更新`
-            : event.type === 'mlbTransfer'
-              ? `${event.name}がMLBへ移籍`
-              : event.type === 'released'
-                ? `${event.name}が契約満了で退団`
-                : event.adaptationAfter >= event.adaptationBefore
-                  ? `${event.name}が日本野球へ適応`
-                  : `${event.name}が日本野球への対応に苦戦`,
-        body: `${event.origin}出身・NPB ${event.npbSeasons}季・適応 ${event.adaptationAfter.toFixed(2)}・OVR ${event.ovr}`,
-        tone:
-          event.type === 'renewed' ||
-          (event.type === 'adaptation' && event.adaptationAfter >= event.adaptationBefore)
-            ? 'good'
-            : event.type === 'mlbTransfer'
-              ? 'info'
-              : 'warn',
-        date: `${game.season.year}年オフ`,
-        playerId: event.playerId,
-        teamKey: playerTeam,
-      })),
+    createForeignLifecycleNotices(foreignReview.events, playerTeam, game.season.year),
   );
   const [developmentNotices] = useState(() => [
     ...createOffseasonDevelopmentNotices(
@@ -563,7 +540,16 @@ function OffseasonContent({
                 emit: (e) => events.push(e),
               },
             );
-            game.completeOffseason(finalized.teams, developmentNotices, events, retired);
+            // Everyone who left a roster this winter keeps a place in the record books.
+            const departed = [
+              ...foreignReview.exits,
+              ...cpuPreparation.exits,
+              ...finalized.exits,
+            ].map((exit) => exit.player);
+            game.completeOffseason(finalized.teams, developmentNotices, events, [
+              ...retired,
+              ...departed,
+            ]);
           }}
         />
       )}

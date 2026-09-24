@@ -365,8 +365,9 @@ export function runCpuDraft(
   teams: Teams,
   rounds = 6,
   context?: NarrativeEventContext,
+  /** Waiver order; defaults to reverse team strength when standings are not available. */
+  order: TeamKey[] = draftOrder(teams),
 ): { teams: Teams; picks: DraftPick[] } {
-  const order = draftOrder(teams);
   let prospects = generateDraftProspects();
   const prospectSnapshots = buildDraftProspectSnapshotMap(prospects);
   let nextTeams = teams;

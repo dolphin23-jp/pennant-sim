@@ -7,12 +7,15 @@ import { useGameState } from '../../../state/gameState';
 import { useBusyAction } from '../../useBusyAction';
 import { Button, Card, LampFigure, SectionTitle, StatChip, teamTextColor } from '../../ui';
 import { BoxScore } from '../../widgets/BoxScore';
+import { AutoAdvancePanel } from '../../widgets/AutoAdvancePanel';
 import { NoticeCenter } from '../../widgets/NoticeCenter';
 import { StandingsTable } from '../../widgets/StandingsTable';
 
 export function DashboardTab({ onSelectTeam }: { onSelectTeam?(teamKey: TeamKey): void }) {
   const game = useGameState();
-  const { busy, run } = useBusyAction();
+  const { busy: actionBusy, run } = useBusyAction();
+  // Manual progress is locked while whole years are being advanced automatically.
+  const busy = actionBusy || game.advanceProgress !== null;
   const nextGame = useMemo(
     () =>
       game.season.schedule.find(
@@ -160,7 +163,7 @@ export function DashboardTab({ onSelectTeam }: { onSelectTeam?(teamKey: TeamKey)
                 >
                   残り全試合
                 </Button>
-                {busy && (
+                {actionBusy && (
                   <span
                     role="status"
                     aria-live="polite"
@@ -178,6 +181,7 @@ export function DashboardTab({ onSelectTeam }: { onSelectTeam?(teamKey: TeamKey)
               </div>
               <Button
                 onClick={() => game.setScreen('postseason')}
+                disabled={busy}
                 color={playerTeam.c}
                 ariaLabel="ポストシーズン画面へ移動"
               >
@@ -243,6 +247,10 @@ export function DashboardTab({ onSelectTeam }: { onSelectTeam?(teamKey: TeamKey)
             AIで最適オーダー
           </Button>
         </Card>
+      </div>
+
+      <div style={{ marginBottom: 12 }}>
+        <AutoAdvancePanel />
       </div>
 
       {game.lastGame && (

@@ -1,5 +1,6 @@
 import { TINFO } from '../data';
 import { calcOVR } from '../engine';
+import type { ForeignLifecycleEvent } from '../engine';
 import type {
   AchievementEvent,
   GameBoxScore,
@@ -252,4 +253,39 @@ export function createGameResultNotice(box: GameBoxScore, playerTeam: TeamKey): 
     teamKey: playerTeam,
     gameId: box.gameId,
   };
+}
+
+/** Renewals, releases, MLB moves and adaptation of the user's foreign players. */
+export function createForeignLifecycleNotices(
+  events: ForeignLifecycleEvent[],
+  playerTeam: TeamKey,
+  year: number,
+): Notice[] {
+  return events
+    .filter((event) => event.teamKey === playerTeam)
+    .map((event) => ({
+      id: `foreign:${year}:${event.playerId}:${event.type}`,
+      kind: 'system',
+      title:
+        event.type === 'renewed'
+          ? `${event.name}と${event.contractYearsRemaining}年契約で更新`
+          : event.type === 'mlbTransfer'
+            ? `${event.name}がMLBへ移籍`
+            : event.type === 'released'
+              ? `${event.name}が契約満了で退団`
+              : event.adaptationAfter >= event.adaptationBefore
+                ? `${event.name}が日本野球へ適応`
+                : `${event.name}が日本野球への対応に苦戦`,
+      body: `${event.origin}出身・NPB ${event.npbSeasons}季・適応 ${event.adaptationAfter.toFixed(2)}・OVR ${event.ovr}`,
+      tone:
+        event.type === 'renewed' ||
+        (event.type === 'adaptation' && event.adaptationAfter >= event.adaptationBefore)
+          ? 'good'
+          : event.type === 'mlbTransfer'
+            ? 'info'
+            : 'warn',
+      date: `${year}年オフ`,
+      playerId: event.playerId,
+      teamKey: playerTeam,
+    }));
 }

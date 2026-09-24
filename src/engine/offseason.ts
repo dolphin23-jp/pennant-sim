@@ -5,7 +5,12 @@ import type { DraftPick } from './draft';
 import { runCpuDraft } from './draftPrePro';
 import { foreignPerformanceMultiplier, isForeignPlayer } from './foreign';
 import { growthPhase } from './growth';
-import { cpuAutoSignMarketRounds, genForeignMarket, genFreeAgentMarket } from './market';
+import {
+  cpuAutoSignMarketRounds,
+  cpuAutoTradeBetweenTeams,
+  genForeignMarket,
+  genFreeAgentMarket,
+} from './market';
 import { clamp, gaussian, random, randomInt } from './random';
 import { calcOVR } from './ratings';
 import type {
@@ -34,6 +39,8 @@ export interface RosterExit {
   isPitcher: boolean;
   ovr: number;
   reason: RosterExitReason;
+  /** The player as he left, so his record can be archived with the retired players. */
+  player: Player;
 }
 
 export interface CpuRosterOptions {
@@ -205,6 +212,7 @@ export function reviewForeignPlayers(
           isPitcher: player.isP,
           ovr,
           reason: 'mlbTransfer',
+          player,
         });
         return null;
       }
@@ -221,6 +229,7 @@ export function reviewForeignPlayers(
           isPitcher: player.isP,
           ovr,
           reason: 'foreignRelease',
+          player,
         });
         return null;
       }
@@ -319,6 +328,7 @@ function removePlayers(
       isPitcher: player.isP,
       ovr: playerOvr(player),
       reason: exitReason(player, reasonMode === 'draft'),
+      player,
     });
   }
   return {
@@ -460,6 +470,63 @@ export function runAutomatedOffseason(
     foreignRenewals: foreignReview.events.filter((event) => event.type === 'renewed').length,
     foreignReleases: foreignReview.events.filter((event) => event.type === 'released').length,
     mlbTransfers: foreignReview.events.filter((event) => event.type === 'mlbTransfer').length,
+  };
+}
+
+export interface FullOffseasonResult {
+  teams: Teams;
+  /** Every player who left a roster this winter (retired, released, or moved abroad). */
+  exits: RosterExit[];
+  foreignReview: ReturnType<typeof reviewForeignPlayers>;
+  growth: ReturnType<typeof growthPhase>;
+  draftPicks: DraftPick[];
+}
+
+/**
+ * The whole offseason with every club, the user's included, managed by the CPU: the same
+ * order the interactive offseason screen follows (foreign review, growth, pre-draft cuts,
+ * FA and foreign markets, CPU trades, the draft in standings order, final cuts). The
+ * user's club takes part in cuts, signings and the draft but is never traded away.
+ */
+export function runFullOffseason(
+  teams: Teams,
+  options: {
+    year: number;
+    seasonStats: AccumulatedStats;
+    draftOrder: TeamKey[];
+    userTeam: TeamKey;
+  },
+  context?: NarrativeEventContext,
+): FullOffseasonResult {
+  const foreignReview = reviewForeignPlayers(teams, options.seasonStats, options.year, context);
+  const growth = growthPhase(foreignReview.teams, context);
+  const rosterOptions: CpuRosterOptions = { excludedTeam: null, year: options.year };
+  const prepared = prepareCpuRostersForDraft(growth.teams, rosterOptions, context);
+  const afterFreeAgents = cpuAutoSignMarketRounds(
+    prepared.teams,
+    genFreeAgentMarket(),
+    'fa',
+    4,
+    null,
+    context,
+  );
+  const afterForeign = cpuAutoSignMarketRounds(
+    afterFreeAgents.teams,
+    genForeignMarket(options.year + 1),
+    'foreign',
+    4,
+    null,
+    context,
+  );
+  const traded = cpuAutoTradeBetweenTeams(afterForeign.teams, options.userTeam, 8, context);
+  const draft = runCpuDraft(traded, DEFAULTS.draftRounds, context, options.draftOrder);
+  const finalized = finalizeCpuRosters(draft.teams, rosterOptions, context);
+  return {
+    teams: finalized.teams,
+    exits: [...foreignReview.exits, ...prepared.exits, ...finalized.exits],
+    foreignReview,
+    growth,
+    draftPicks: draft.picks,
   };
 }
 
