@@ -178,14 +178,14 @@ export const CONTRACT_BALANCE = {
  */
 export const FINANCE_BALANCE = {
   /** Budget at market size bd = budgetAtBd60 + (bd - 60) * budgetPerBd. */
-  budgetAtBd60: 220000,
-  budgetPerBd: 6000,
+  budgetAtBd60: 242000,
+  budgetPerBd: 3000,
   winPctRevenueEffect: 0.8,
   postseasonRevenue: { climax: 0.02, japanSeries: 0.04, champion: 0.06 },
   /** Share of the gap to this season's revenue closed each winter. */
   budgetAdjustment: 0.35,
-  minimumBudgetShare: 0.8,
-  maximumBudgetShare: 1.3,
+  minimumBudgetShare: 0.88,
+  maximumBudgetShare: 1.15,
   /** Clubs may overspend the budget by this share to complete a signing. */
   overspendAllowance: 0.03,
   /** A club over budget scales renewals by budget / payroll, down to this factor. */
@@ -236,6 +236,23 @@ export const FREE_AGENCY_BALANCE = {
   returnChancePerYearOfAge: 0.08,
   maximumReturnChance: 0.6,
   retireAbroadAge: 38,
+} as const;
+
+/** Each CPU club's winter plan (see clubPlan.ts). */
+export const CLUB_PLAN_BALANCE = {
+  coreSize: 15,
+  rebuildWinPct: 0.42,
+  agingRebuildWinPct: 0.47,
+  agingCore: 29.5,
+  contendWinPct: 0.55,
+  contendBudgetRoomShare: 0.05,
+  youngAge: 27,
+  contendBidBonus: 3,
+  rebuildYoungBidBonus: 2,
+  rebuildVeteranBidPenalty: 6,
+  rebuildAgeTradeWeight: 0.25,
+  contendOvrTradeWeight: 0.1,
+  rebuildRetentionPerYear: 0.8,
 } as const;
 
 export const POSITION_CONVERSION_BALANCE = {
@@ -326,8 +343,8 @@ export const PITCHER_USAGE_BALANCE = {
   },
   strikeoutTail: {
     ratingDeltaSoftness: 45,
-    ratingEffectSoftness: 0.16,
-    maximumRatingEffect: 0.055,
+    ratingEffectSoftness: 0.2,
+    maximumRatingEffect: 0.08,
   },
 } as const;
 
@@ -397,9 +414,13 @@ export const AT_BAT_BALANCE = {
   // Stage 4 — does the ball fall in. These are hit rates on contact BEFORE the fielder's
   // ability is applied, so they sit above the finished BABIP.
   hitOnContact: {
-    base: { ground: 0.24, line: 0.64, fly: 0.2, popup: 0.02 },
-    /** Rating points of fielder defence needed to move the hit rate by one unit. */
-    defenseScale: 240,
+    /** Hit rates for a fielder of league-average defence (defenseReference). */
+    base: { ground: 0.186, line: 0.595, fly: 0.145, popup: 0.01 },
+    /** Rating points of fielder defence needed to move the hit rate by one unit. Team
+     * defence is the widest run-prevention lever, so it is kept gentle enough that a
+     * club's gloves do not outweigh its pitching staff. */
+    defenseScale: 480,
+    defenseReference: 63.5,
     /** Batter speed matters most on ground balls, least in the air. */
     speedScale: { ground: 700, line: 4000, fly: 4000, popup: 8000 },
     /** Balls hit to the gaps and down the lines are harder to field than centre cuts. */
@@ -410,12 +431,12 @@ export const AT_BAT_BALANCE = {
   // Stage 4b — a fly ball that carries out. Only outfield fly balls and line drives are
   // eligible; the batter's power moves this far more than anything else.
   homeRunOnFly: {
-    flyBase: 0.0355,
+    flyBase: 0.038,
     lineDriveFactor: 0.28,
     powerCurveReference: 60,
     // A slightly steeper curve moves home runs from ordinary hitters toward genuine
     // sluggers without imposing a cap on record seasons or raising the league total.
-    powerCurveScale: 16,
+    powerCurveScale: 18,
     minimumPowerLogMultiplier: -1.6,
     maximumPowerLogMultiplier: 1.6,
     velocityScale: 3400,

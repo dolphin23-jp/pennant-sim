@@ -519,7 +519,7 @@ function OffseasonContent({
               ),
             );
             const traded = capture(
-              (context) => cpuAutoTradeBetweenTeams(result.teams, playerTeam, 8, context),
+              (context) => cpuAutoTradeBetweenTeams(result.teams, playerTeam, 8, context, outcome),
               'before-user-trades',
             );
             setWorkTeams(traded);
@@ -543,7 +543,7 @@ function OffseasonContent({
           onSkip={() => {
             setWorkTeams(
               capture(
-                (context) => cpuAutoTradeBetweenTeams(workTeams, playerTeam, 3, context),
+                (context) => cpuAutoTradeBetweenTeams(workTeams, playerTeam, 3, context, outcome),
                 'after-user-trades',
               ),
             );
@@ -565,7 +565,7 @@ function OffseasonContent({
             const events = [...pendingEvents, ...draftEvents];
             const finalized = finalizeCpuRosters(
               draftedTeams,
-              { excludedTeam: playerTeam },
+              { excludedTeam: playerTeam, outcome },
               {
                 year: game.season.year,
                 date: `${game.season.year}年オフ`,

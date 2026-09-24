@@ -7,6 +7,7 @@ export * from './careerLedger';
 export * from './draft';
 export * from './draftEvaluation';
 export * from './contracts';
+export * from './clubPlan';
 export * from './freeAgency';
 export { applyDraftPicks, generateDraftProspects, runCpuDraft } from './draftPrePro';
 export * from './foreign';

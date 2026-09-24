@@ -394,8 +394,14 @@ function competitionSnapshot(
   lastPlace: { central: TeamKey; pacific: TeamKey };
   champion: TeamKey;
   winPct: Record<string, number>;
+  runsScored: { minimum: number; maximum: number };
 } {
   const standings = calcStandings(schedule);
+  const scored = new Map<TeamKey, number>();
+  for (const game of schedule) {
+    scored.set(game.homeKey, (scored.get(game.homeKey) ?? 0) + (game.hs ?? 0));
+    scored.set(game.awayKey, (scored.get(game.awayKey) ?? 0) + (game.as ?? 0));
+  }
   const pcts = Object.values(standings).map((record) => record.pct ?? 0);
   const byRank = (keys: readonly TeamKey[]) =>
     [...keys].sort((a, b) => (standings[a].rank ?? 99) - (standings[b].rank ?? 99));
@@ -411,6 +417,7 @@ function competitionSnapshot(
     winPct: Object.fromEntries(
       Object.entries(standings).map(([teamKey, record]) => [teamKey, round(record.pct ?? 0, 3)]),
     ),
+    runsScored: { minimum: Math.min(...scored.values()), maximum: Math.max(...scored.values()) },
   };
 }
 
@@ -446,6 +453,10 @@ function paritySummary(years: YearReport[]) {
       average(years.map((year) => year.competition.winPctStandardDeviation)),
       4,
     ),
+    meanRunsScoredRange: {
+      minimum: round(average(years.map((year) => year.competition.runsScored.minimum)), 1),
+      maximum: round(average(years.map((year) => year.competition.runsScored.maximum)), 1),
+    },
     champions: counts(champions),
     distinctChampions: new Set(champions).size,
     pennants: counts(pennants),

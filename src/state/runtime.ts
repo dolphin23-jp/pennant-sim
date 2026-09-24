@@ -9,6 +9,8 @@ import {
   calcInterleagueStandings,
   calcOVR,
   calcStandings,
+  CLUB_PLAN_LABEL,
+  clubPlanFor,
   createPlayerSeasonRecords,
   detectAchievements,
   draftOrderFromStandings,
@@ -32,6 +34,7 @@ import type {
   SeasonOutcome,
   SeasonTitleRecord,
   StandingRecord,
+  Team,
   TeamKey,
   Teams,
   YearlyPlayerRecords,
@@ -387,6 +390,29 @@ export function applyOffseasonCompletion(
   return next;
 }
 
+/** The winter plan the CPU chose for the user's club when it manages the offseason. */
+function clubPlanNotice(
+  team: Team | undefined,
+  outcome: SeasonOutcome,
+  year: number,
+): Notice | null {
+  if (!team) return null;
+  const plan = clubPlanFor(team, outcome);
+  if (plan.mode === 'balanced') return null;
+  return {
+    id: `club-plan:${year}:${team.key}`,
+    kind: 'system',
+    title: `今オフの編成方針：${CLUB_PLAN_LABEL[plan.mode]}`,
+    body:
+      plan.mode === 'rebuild'
+        ? `勝率${plan.winPct.toFixed(3).replace(/^0/, '')}・主力の平均${plan.coreAge.toFixed(1)}歳。ベテランを出して若手を集めます。`
+        : `勝率${plan.winPct.toFixed(3).replace(/^0/, '')}。FAで即戦力の獲得に動きます。`,
+    tone: 'info',
+    date: `${year}年オフ`,
+    teamKey: team.key,
+  };
+}
+
 /** How the season that just ended went, for club revenue and FA decisions. */
 export function seasonOutcome(
   current: Pick<RuntimeState, 'standings' | 'championHistory' | 'season'>,
@@ -453,7 +479,8 @@ export function advanceOneYear(current: RuntimeState): RuntimeState {
     ),
     ...createForeignLifecycleNotices(offseason.foreignReview.events, playerTeam, year),
     ...createFreeAgencyNotices(events, playerTeam, year),
-  ];
+    clubPlanNotice(state.teams?.[playerTeam], seasonOutcome(state), year),
+  ].filter((notice): notice is Notice => notice !== null);
   return applyOffseasonCompletion(
     state,
     offseason.teams,

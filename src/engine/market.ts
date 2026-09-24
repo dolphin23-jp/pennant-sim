@@ -18,6 +18,8 @@ import {
   roundSalary,
   type SeasonOutcome,
 } from './contracts';
+import { teamStrategyFor } from './aiStrategy';
+import { clubPlanFor, planBidAdjustment, planTradeAdjustment, type ClubPlan } from './clubPlan';
 import {
   canRegisterForeignPlayer,
   countForeignPlayers,
@@ -73,6 +75,19 @@ export function potentialUpside(player: Player): number {
   );
 }
 
+/** A club's philosophy (power, speed, defence) tilts which fielders it values: a small
+ * nudge, a few points for a player strong in what the club wants. */
+function philosophyFit(team: Team, player: Player): number {
+  const strategy = teamStrategyFor(team.key);
+  const lean = (rating: number | undefined, weight: number, neutral: number) =>
+    ((rating ?? 50) - 60) * (weight - neutral) * 0.1;
+  return (
+    lean(player.p.pw, strategy.powerWeight, 0.2) +
+    lean(player.p.sp, strategy.speedWeight, 0.1) +
+    lean(player.p.df, strategy.defenseWeight, 0.24)
+  );
+}
+
 export function teamNeedsScore(team: Team, player: Player): number {
   if (player.isP) {
     const starters = team.pitchers.filter((pitcher) => pitcher.role === '先発').length,
@@ -96,6 +111,7 @@ export function teamNeedsScore(team: Team, player: Player): number {
     weakSpot = Math.max(0, 3 - count) * 8,
     rosterNeed = Math.max(0, 35 - team.fielders.length) * 12;
   return (
+    philosophyFit(team, player) +
     rosterNeed +
     weakSpot +
     effectiveOVR(player, position) * 0.7 +
@@ -375,6 +391,9 @@ export function cpuAutoSignMarket(
     remaining = [...market];
   const balance = FREE_AGENCY_BALANCE,
     clubs = [...CENTRAL, ...PACIFIC].filter((teamKey) => teamKey !== excludedTeam),
+    plans = Object.fromEntries(
+      clubs.map((teamKey) => [teamKey, clubPlanFor(teams[teamKey], outcome)]),
+    ) as Record<TeamKey, ClubPlan>,
     signedClubs = new Set<TeamKey>(),
     bidScore = (teamKey: TeamKey, pick: Player): number => {
       const team = nextTeams[teamKey],
@@ -383,7 +402,14 @@ export function cpuAutoSignMarket(
         affordability = clamp((budgetRoom(team) - (pick.ask || 0)) / (budget * 0.02), -5, 5),
         home = (pick.faFrom ?? pick.homeTeam) === teamKey ? balance.homeBonus : 0,
         contender = balance.contenderBonus * (winPctOf(outcome, teamKey) - 0.5);
-      return need + affordability + home + contender + gaussian(0, 0.9);
+      return (
+        need +
+        affordability +
+        home +
+        contender +
+        planBidAdjustment(plans[teamKey], pick) +
+        gaussian(0, 0.9)
+      );
     },
     candidates = [...remaining].sort(
       (first, second) =>
@@ -464,6 +490,7 @@ export function cpuAutoTradeBetweenTeams(
   playerTeam: TeamKey,
   rounds = 4,
   context?: NarrativeEventContext,
+  outcome?: SeasonOutcome,
 ): Teams {
   const nextTeams = { ...teams };
   const clubs = [...CENTRAL, ...PACIFIC]
@@ -506,6 +533,8 @@ export function cpuAutoTradeBetweenTeams(
     if (!firstTeamKey || !secondTeamKey || firstTeamKey === secondTeamKey) continue;
     const firstTeam = nextTeams[firstTeamKey];
     const secondTeam = nextTeams[secondTeamKey];
+    const firstPlan = clubPlanFor(firstTeam, outcome);
+    const secondPlan = clubPlanFor(secondTeam, outcome);
     const firstPool = tradeable(firstTeam);
     const secondPool = tradeable(secondTeam);
     const firstBefore = rosterCoreValue(firstTeam);
@@ -535,8 +564,14 @@ export function cpuAutoTradeBetweenTeams(
         const firstFit = teamNeedsScore(firstTeam, secondOut) - teamNeedsScore(firstTeam, firstOut);
         const secondFit =
           teamNeedsScore(secondTeam, firstOut) - teamNeedsScore(secondTeam, secondOut);
-        const firstGain = (rosterCoreValue(firstAfter) - firstBefore) * 1.5 + firstFit * 0.35;
-        const secondGain = (rosterCoreValue(secondAfter) - secondBefore) * 1.5 + secondFit * 0.35;
+        const firstGain =
+          (rosterCoreValue(firstAfter) - firstBefore) * 1.5 +
+          firstFit * 0.35 +
+          planTradeAdjustment(firstPlan, firstOut, secondOut);
+        const secondGain =
+          (rosterCoreValue(secondAfter) - secondBefore) * 1.5 +
+          secondFit * 0.35 +
+          planTradeAdjustment(secondPlan, secondOut, firstOut);
         if (firstGain < 0.5 || secondGain < 0.5) continue;
         const score = firstGain + secondGain - valueGap * 0.2 + gaussian(0, 0.75);
         if (!best || score > best.score)

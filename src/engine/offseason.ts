@@ -17,6 +17,7 @@ import {
   withTeamContractDefaults,
   type SeasonOutcome,
 } from './contracts';
+import { clubPlanFor, planRetentionAdjustment, type ClubPlan } from './clubPlan';
 import type { DraftPick } from './draft';
 import { runCpuDraft } from './draftPrePro';
 import { foreignPerformanceMultiplier, isForeignPlayer } from './foreign';
@@ -78,6 +79,8 @@ export interface CpuRosterOptions {
   minimumFielders?: number;
   year?: number;
   seasonStats?: AccumulatedStats;
+  /** Last season, so each club's winter plan can shape its cuts. */
+  outcome?: SeasonOutcome;
 }
 
 export interface ForeignLifecycleEvent {
@@ -275,7 +278,7 @@ export function reviewForeignPlayers(
   return { teams: next, exits, events };
 }
 
-function retentionScore(player: Player): number {
+function retentionScore(player: Player, plan?: ClubPlan): number {
   const agePenalty = player.age <= 30 ? 0 : (player.age - 30) * (player.age >= 38 ? 1.8 : 1.05);
   const potentialGap = Math.max(
     0,
@@ -294,7 +297,13 @@ function retentionScore(player: Player): number {
   const foreignContractBonus = isForeignPlayer(player)
     ? 16 + (player.foreignProfile?.contractYearsRemaining ?? 1) * 4
     : 0;
-  return playerOvr(player) - agePenalty + potentialBonus + foreignContractBonus;
+  return (
+    playerOvr(player) -
+    agePenalty +
+    potentialBonus +
+    foreignContractBonus +
+    planRetentionAdjustment(plan, player)
+  );
 }
 
 function voluntaryRetirementChance(player: Player): number {
@@ -340,9 +349,10 @@ function removePlayers(
   pitcherRemovals: number,
   fielderRemovals: number,
   reasonMode: 'draft' | 'competition',
-  options: Required<Omit<CpuRosterOptions, 'excludedTeam'>>,
+  options: ReturnType<typeof resolvedOptions>,
 ): { team: Team; exits: RosterExit[] } {
   const exits: RosterExit[] = [];
+  const plan = clubPlanFor(team, options.outcome);
   // Veterans decide once per winter, before the draft, whether this is their last season.
   const retiring = new Set(
     reasonMode === 'draft'
@@ -358,7 +368,7 @@ function removePlayers(
     const ordered = [...players].sort(
       (first, second) =>
         removalPriority(first, retiring) - removalPriority(second, retiring) ||
-        retentionScore(first) - retentionScore(second),
+        retentionScore(first, plan) - retentionScore(second, plan),
     );
     // Mandatory retirements (sorted first) always happen; the roster minimum only limits
     // discretionary releases. The draft and free-agent phases refill the roster afterwards.
@@ -392,10 +402,11 @@ function removePlayers(
 }
 
 function resolvedOptions(options: CpuRosterOptions): Required<
-  Omit<CpuRosterOptions, 'excludedTeam' | 'seasonStats'>
+  Omit<CpuRosterOptions, 'excludedTeam' | 'seasonStats' | 'outcome'>
 > & {
   excludedTeam: TeamKey | null;
   seasonStats: AccumulatedStats;
+  outcome: SeasonOutcome | undefined;
 } {
   return {
     excludedTeam: options.excludedTeam ?? null,
@@ -406,6 +417,7 @@ function resolvedOptions(options: CpuRosterOptions): Required<
     minimumFielders: options.minimumFielders ?? DEFAULTS.minimumFielders,
     year: options.year ?? 2026,
     seasonStats: options.seasonStats ?? {},
+    outcome: options.outcome,
   };
 }
 
@@ -559,7 +571,7 @@ export function openOffseason(
   const declaration = declareFreeAgents(mlb.teams, { outcome: options.outcome });
   const prepared = prepareCpuRostersForDraft(
     declaration.teams,
-    { excludedTeam: options.userTeam ?? null, year: options.year },
+    { excludedTeam: options.userTeam ?? null, year: options.year, outcome: options.outcome },
     context,
   );
   return {
@@ -734,7 +746,11 @@ export function runFullOffseason(
     },
     context,
   );
-  const rosterOptions: CpuRosterOptions = { excludedTeam: null, year: options.year };
+  const rosterOptions: CpuRosterOptions = {
+    excludedTeam: null,
+    year: options.year,
+    outcome: options.outcome,
+  };
   const foreignMarket = genForeignMarket(options.year + 1);
   const afterFreeAgents = settleFreeAgency(
     opened.teams,
@@ -751,7 +767,13 @@ export function runFullOffseason(
     context,
     options.outcome,
   );
-  const traded = cpuAutoTradeBetweenTeams(afterForeign.teams, options.userTeam, 8, context);
+  const traded = cpuAutoTradeBetweenTeams(
+    afterForeign.teams,
+    options.userTeam,
+    8,
+    context,
+    options.outcome,
+  );
   const draft = runCpuDraft(traded, DEFAULTS.draftRounds, context, options.draftOrder);
   const finalized = finalizeCpuRosters(draft.teams, rosterOptions, context);
   return {

@@ -3,6 +3,8 @@ import {
   aggregateTeamStats,
   bestLineup,
   calcOVR,
+  CLUB_PLAN_LABEL,
+  clubPlanFor,
   deriveTeamForm,
   financeOf,
   formatManYen,
@@ -11,9 +13,20 @@ import {
   resolveStarterRotation,
   salaryOf,
   teamPayroll,
+  teamStrategyFor,
   yearsUntilFreeAgency,
 } from '../../../engine';
-import type { Player, Team, TeamKey } from '../../../engine';
+import type { Player, StandingRecord, Team, TeamKey, TeamPhilosophy } from '../../../engine';
+
+const PHILOSOPHY_LABEL: Record<TeamPhilosophy, string> = {
+  balanced: 'バランス型',
+  power: '長打力重視',
+  onBase: '出塁重視',
+  speed: '機動力重視',
+  defense: '守備重視',
+  youth: '若手育成',
+  veteran: 'ベテラン重用',
+};
 import { useGameState } from '../../../state/gameState';
 import { Card, LampFigure, SectionTitle, StatChip, teamTextColor } from '../../ui';
 import { TeamFormationOverview } from '../../widgets/TeamFormationOverview';
@@ -50,8 +63,17 @@ function PlayerChips({
 }
 
 /** Budget and payroll, the club's biggest contracts, and who may test free agency. */
-function ClubFinances({ team, onSelect }: { team: Team; onSelect(player: Player): void }) {
+function ClubFinances({
+  team,
+  standings,
+  onSelect,
+}: {
+  team: Team;
+  standings: Record<TeamKey, StandingRecord>;
+  onSelect(player: Player): void;
+}) {
   const finance = financeOf(team);
+  const plan = clubPlanFor(team, { standings });
   const payroll = teamPayroll(team);
   const room = finance.budget - payroll;
   const roster = [...team.pitchers, ...team.fielders];
@@ -80,6 +102,11 @@ function ClubFinances({ team, onSelect }: { team: Team; onSelect(player: Player)
           tone={room >= 0 ? 'var(--color-success)' : 'var(--color-warning)'}
         />
         <StatChip label="前年収入" value={formatManYen(finance.revenue)} />
+        <StatChip
+          label="チームカラー"
+          value={PHILOSOPHY_LABEL[teamStrategyFor(team.key).philosophy]}
+        />
+        <StatChip label="今の成績なら" value={`${CLUB_PLAN_LABEL[plan.mode]}方針`} />
       </div>
       <div style={{ color: 'var(--color-text-faint)', fontSize: 11, marginBottom: 4 }}>
         高額年俸
@@ -102,7 +129,7 @@ function ClubFinances({ team, onSelect }: { team: Team; onSelect(player: Player)
         <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>該当する選手はいません</div>
       )}
       <p style={{ color: 'var(--color-text-faint)', fontSize: 11, margin: '10px 0 0' }}>
-        予算は本拠地の市場規模と前年の成績・ポストシーズン収入で決まります。年俸総額が予算を超えている球団はFA選手を獲得できず、主力がFA宣言しやすくなります。
+        CPU球団はオフに、成績と主力の年齢から「勝負」（FAで即戦力を獲る）・「再建」（ベテランを出して若手を集める）・「中庸」の方針を決めます。予算は本拠地の市場規模と前年の成績・ポストシーズン収入で決まります。年俸総額が予算を超えている球団はFA選手を獲得できず、主力がFA宣言しやすくなります。
       </p>
     </Card>
   );
@@ -191,7 +218,7 @@ export function TeamReportTab() {
         </div>
       </Card>
 
-      <ClubFinances team={viewedTeam} onSelect={game.selectPlayer} />
+      <ClubFinances team={viewedTeam} standings={game.standings} onSelect={game.selectPlayer} />
 
       <TeamFormationOverview
         lineup={lineup}
