@@ -44,7 +44,8 @@ function SquadRow({
           {player.name}
         </button>
         <div style={{ marginTop: 2, color: 'var(--color-text-muted)', fontSize: 10 }}>
-          {player.isP ? player.role : (player._assignedPos ?? player.pos)} / OVR {playerOverall(player)}
+          {player.isP ? player.role : (player._assignedPos ?? player.pos)} / OVR{' '}
+          {playerOverall(player)}
         </div>
         <div style={{ marginTop: 2 }}>
           <PlayerStatusBadges player={player} compact />
@@ -167,11 +168,22 @@ export function SquadBoard({
       <div style={{ display: 'grid', gap: 16 }}>
         <div>
           <div
-            style={{ color: 'var(--color-text-faint)', fontSize: 11, marginBottom: 8, fontWeight: 700 }}
+            style={{
+              color: 'var(--color-text-faint)',
+              fontSize: 11,
+              marginBottom: 8,
+              fontWeight: 700,
+            }}
           >
             野手
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,260px),1fr))', gap: 14 }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,260px),1fr))',
+              gap: 14,
+            }}
+          >
             <SquadColumn
               title="一軍"
               players={grouped.fielders.active}
@@ -190,11 +202,22 @@ export function SquadBoard({
         </div>
         <div>
           <div
-            style={{ color: 'var(--color-text-faint)', fontSize: 11, marginBottom: 8, fontWeight: 700 }}
+            style={{
+              color: 'var(--color-text-faint)',
+              fontSize: 11,
+              marginBottom: 8,
+              fontWeight: 700,
+            }}
           >
             投手
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,260px),1fr))', gap: 14 }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,260px),1fr))',
+              gap: 14,
+            }}
+          >
             <SquadColumn
               title="一軍"
               players={grouped.pitchers.active}

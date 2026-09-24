@@ -10,11 +10,7 @@ import {
   articleFromSeasonAwards,
   type NarrativeSource,
 } from './generate';
-import {
-  buildNarrativeStoryContext,
-  planNarrativeStory,
-  type NarrativeStoryDepth,
-} from './story';
+import { buildNarrativeStoryContext, planNarrativeStory, type NarrativeStoryDepth } from './story';
 import type { NarrativeArticle, NarrativeFactRef } from './types';
 import { canonicalJson, validPacket, type FactPacket } from './protocol';
 
@@ -112,8 +108,7 @@ export function buildFactPacket(
     memoryIndex,
     story.depth === 'cover' ? 8 : story.depth === 'feature' ? 6 : 4,
   );
-  for (const claim of articleContext)
-    if (claim.factValue !== undefined) visit(claim.factValue);
+  for (const claim of articleContext) if (claim.factValue !== undefined) visit(claim.factValue);
   for (const fact of historyFacts) visit(fact.value);
 
   // Preserve exact high-risk relations in the primary event. Context is supplementary and may be

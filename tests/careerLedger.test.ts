@@ -6,8 +6,23 @@ import type { BatterStats } from '../src/engine/index.ts';
 import { migrateSaveData } from '../src/state/storage.ts';
 
 const batterLine = (name: string): BatterStats => ({
-  type: 'bat', name, g: 143, pa: 600, ab: 540, h: 162, s: 120, d: 30, t: 2,
-  hr: 10, bb: 52, k: 80, rbi: 70, sb: 12, cs: 4, bnt: 3, sf: 5,
+  type: 'bat',
+  name,
+  g: 143,
+  pa: 600,
+  ab: 540,
+  h: 162,
+  s: 120,
+  d: 30,
+  t: 2,
+  hr: 10,
+  bb: 52,
+  k: 80,
+  rbi: 70,
+  sb: 12,
+  cs: 4,
+  bnt: 3,
+  sf: 5,
 });
 
 test('年度台帳は所属・年齢・能力・成績を独立したスナップショットとして保存する', () => {
@@ -38,7 +53,9 @@ test('年度台帳は所属・年齢・能力・成績を独立したスナッ�
 test('出場のない選手もゼロ成績で年度台帳へ残る', () => {
   const teams = initTeams();
   const player = teams.tigers.pitchers[0];
-  const record = createPlayerSeasonRecords(2026, teams, {}).find((entry) => entry.playerId === player.id);
+  const record = createPlayerSeasonRecords(2026, teams, {}).find(
+    (entry) => entry.playerId === player.id,
+  );
 
   assert.ok(record);
   assert.equal(record.stats.type, 'pit');
@@ -49,8 +66,9 @@ test('出場のない選手もゼロ成績で年度台帳へ残る', () => {
 test('旧セーブの不定形yearlyStatsは安全に除外し、正式台帳は保持する', () => {
   const teams = initTeams();
   const player = teams.carp.fielders[0];
-  const [record] = createPlayerSeasonRecords(2026, teams, { [player.id]: batterLine(player.name) })
-    .filter((entry) => entry.playerId === player.id);
+  const [record] = createPlayerSeasonRecords(2026, teams, {
+    [player.id]: batterLine(player.name),
+  }).filter((entry) => entry.playerId === player.id);
 
   const migrated = migrateSaveData({
     teams,

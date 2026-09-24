@@ -79,9 +79,7 @@ function planSignature(plan: PitcherPlan): string {
 
 function playersFromIds(ids: string[], pitchers: Player[]): Player[] {
   const byId = new Map(pitchers.map((pitcher) => [pitcher.id, pitcher]));
-  return ids
-    .map((id) => byId.get(id))
-    .filter((pitcher): pitcher is Player => Boolean(pitcher));
+  return ids.map((id) => byId.get(id)).filter((pitcher): pitcher is Player => Boolean(pitcher));
 }
 
 function RotationEditor({
@@ -120,7 +118,10 @@ function RotationEditor({
     [editor.candidateIds, team.pitchers],
   );
   const promotingPitcher = useMemo(
-    () => (promotingId ? candidatePitchers.find((pitcher) => pitcher.id === promotingId) ?? null : null),
+    () =>
+      promotingId
+        ? (candidatePitchers.find((pitcher) => pitcher.id === promotingId) ?? null)
+        : null,
     [candidatePitchers, promotingId],
   );
   const closerPitchers = useMemo(
@@ -255,7 +256,8 @@ function RotationEditor({
           <div>
             <SectionTitle>Pitcher Plan Editor</SectionTitle>
             <div style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
-              ローテーションは{rotationSlotCount(team)}枠。先発順はドラッグまたは矢印、候補からの入れ替えは「昇格」、抑えは枠のタップで変更します。
+              ローテーションは{rotationSlotCount(team)}
+              枠。先発順はドラッグまたは矢印、候補からの入れ替えは「昇格」、抑えは枠のタップで変更します。
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -274,11 +276,7 @@ function RotationEditor({
             >
               変更を破棄
             </Button>
-            <Button
-              onClick={savePlan}
-              disabled={!dirty}
-              ariaLabel="編集した投手編成を保存"
-            >
+            <Button onClick={savePlan} disabled={!dirty} ariaLabel="編集した投手編成を保存">
               投手編成を保存
             </Button>
           </div>
@@ -287,7 +285,10 @@ function RotationEditor({
           className="inline-status"
           role="status"
           aria-live="polite"
-          style={{ marginTop: 10, color: dirty ? 'var(--color-warning)' : 'var(--color-text-muted)' }}
+          style={{
+            marginTop: 10,
+            color: dirty ? 'var(--color-warning)' : 'var(--color-text-muted)',
+          }}
         >
           {status || (dirty ? '未保存の変更があります。' : '保存済みです。')}
         </div>

@@ -144,7 +144,12 @@ export function BattingOrderList({
                     </span>{' '}
                     / {player.hand.bat ?? '-'}打 / OVR{' '}
                     <strong style={{ color: 'var(--color-text)' }}>
-                      {displayOVRBreakdown(player, slot === 'extra' ? undefined : (slot ?? undefined)).total}
+                      {
+                        displayOVRBreakdown(
+                          player,
+                          slot === 'extra' ? undefined : (slot ?? undefined),
+                        ).total
+                      }
                     </strong>
                   </div>
                   <div style={{ marginTop: 2, color: 'var(--color-text-muted)', fontSize: 11 }}>

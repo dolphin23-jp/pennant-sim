@@ -59,7 +59,11 @@ function prospect(
 
 test('draft profile keeps canonical pre-pro history separate from derived draft-pool analysis', () => {
   const selected = prospect('draft-a', '候補 一郎', 78);
-  const pool = [selected, prospect('draft-b', '候補 二郎', 64), prospect('draft-c', '候補 三郎', 55)];
+  const pool = [
+    selected,
+    prospect('draft-b', '候補 二郎', 64),
+    prospect('draft-c', '候補 三郎', 55),
+  ];
   const before = structuredClone(selected);
 
   const profile = buildDraftNarrativeProfile({
@@ -84,13 +88,20 @@ test('draft profile keeps canonical pre-pro history separate from derived draft-
       (input) => input.id === 'draft-pool-standing' && input.sourceClass === 'derived',
     ),
   );
-  assert.match(profile.article.segments.map((segment) => segment.text).join(' '), /高校通算39本塁打/);
+  assert.match(
+    profile.article.segments.map((segment) => segment.text).join(' '),
+    /高校通算39本塁打/,
+  );
   assert.deepEqual(selected, before);
 });
 
 test('draft profile rank is anchored to the full supplied draft pool', () => {
   const selected = prospect('draft-a', '候補 一郎', 62);
-  const pool = [prospect('draft-b', '候補 二郎', 82), selected, prospect('draft-c', '候補 三郎', 50)];
+  const pool = [
+    prospect('draft-b', '候補 二郎', 82),
+    selected,
+    prospect('draft-c', '候補 三郎', 50),
+  ];
   const profile = buildDraftNarrativeProfile({
     player: selected,
     prospects: pool,

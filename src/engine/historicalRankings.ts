@@ -1,11 +1,6 @@
 import { qualifiesForRate, STATS_QUALIFICATION } from './statsQualification';
 import { ops } from './statsFormat';
-import type {
-  PlayerSeasonRecord,
-  PlayerStats,
-  TeamKey,
-  YearlyPlayerRecords,
-} from './types';
+import type { PlayerSeasonRecord, PlayerStats, TeamKey, YearlyPlayerRecords } from './types';
 
 // Season records here are always a completed 143-game NPB season (the schedule always
 // produces exactly that), so a fixed season length is safe without storing per-record
@@ -109,7 +104,9 @@ function mergeSameKindStats(base: PlayerStats, addition: PlayerStats): PlayerSta
 }
 
 function allRecords(yearlyStats: YearlyPlayerRecords): PlayerSeasonRecord[] {
-  return Object.values(yearlyStats).flat().filter((record) => record && record.stats);
+  return Object.values(yearlyStats)
+    .flat()
+    .filter((record) => record && record.stats);
 }
 
 function entryFromRecord(
@@ -169,11 +166,13 @@ function careerEntries(
     const value = historicalMetricValue(metric, stats);
     if (value === null) return [];
     const latest = [...playerRecords].sort((a, b) => b.year - a.year)[0];
-    return [{
-      ...entryFromRecord(latest, value, activePlayerIds),
-      seasons: playerRecords.length,
-      stats,
-    }];
+    return [
+      {
+        ...entryFromRecord(latest, value, activePlayerIds),
+        seasons: playerRecords.length,
+        stats,
+      },
+    ];
   });
 }
 
@@ -185,9 +184,10 @@ export function buildHistoricalRanking(
   const records = allRecords(yearlyStats).filter(
     (record) => !options.teamKey || record.teamKey === options.teamKey,
   );
-  const entries = options.scope === 'season'
-    ? seasonEntries(records, options.metric, activePlayerIds)
-    : careerEntries(records, options.metric, activePlayerIds);
+  const entries =
+    options.scope === 'season'
+      ? seasonEntries(records, options.metric, activePlayerIds)
+      : careerEntries(records, options.metric, activePlayerIds);
   const direction = historicalMetricDirection(options.metric);
   entries.sort((first, second) => {
     const difference = first.value - second.value;

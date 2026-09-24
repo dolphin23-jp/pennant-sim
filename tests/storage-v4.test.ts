@@ -114,7 +114,11 @@ test('Save Architecture v4 keeps historical seasons out of the current-state blo
   assert.equal(root.current.careerAccumulated[retired.id], undefined);
   assert.ok(root.archive.seasons['2025']);
   assert.equal(Object.keys(root.archive.retiredPlayerBuckets).length, 1);
-  assert.equal(rootRaw.includes('ARCHIVED_ONLY_2025'), false, 'historical payload is not duplicated in current state');
+  assert.equal(
+    rootRaw.includes('ARCHIVED_ONLY_2025'),
+    false,
+    'historical payload is not duplicated in current state',
+  );
 
   const seasonRaw = values.get(root.archive.seasons['2025'].key);
   assert.ok(seasonRaw?.includes('ARCHIVED_ONLY_2025'));
@@ -155,7 +159,11 @@ test('unchanged historical chunks are reused while only a changed year receives 
   const second2025 = secondRoot.archive.seasons['2025'];
   const second2026 = secondRoot.archive.seasons['2026'];
   assert.equal(second2025.key, first2025.key, 'unchanged years keep their immutable chunk');
-  assert.notEqual(second2026.key, first2026.key, 'changed years get a new content-addressed revision');
+  assert.notEqual(
+    second2026.key,
+    first2026.key,
+    'changed years get a new content-addressed revision',
+  );
   assert.equal(
     writes.some((write) => write.key === first2025.key),
     false,

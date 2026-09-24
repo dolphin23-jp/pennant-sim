@@ -41,7 +41,9 @@ export function AgePositionFilterBar({
 }) {
   const showPosition = positionFilter !== undefined && Boolean(onPositionFilterChange);
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'end', gap: 10, marginBottom: 10 }}>
+    <div
+      style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'end', gap: 10, marginBottom: 10 }}
+    >
       {showPosition && (
         <label style={labelStyle}>
           可能ポジション

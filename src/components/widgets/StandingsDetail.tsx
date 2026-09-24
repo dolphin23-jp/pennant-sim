@@ -1,12 +1,6 @@
 import { CENTRAL, PACIFIC, TINFO } from '../../data';
 import { aggregateTeamStats, buildHeadToHeadMatrix } from '../../engine';
-import type {
-  AccumulatedStats,
-  ScheduleGame,
-  StandingRecord,
-  TeamKey,
-  Teams,
-} from '../../engine';
+import type { AccumulatedStats, ScheduleGame, StandingRecord, TeamKey, Teams } from '../../engine';
 import { Card, SectionTitle, teamTextColor } from '../ui';
 
 function sortByRank(
@@ -21,10 +15,18 @@ function sortByRank(
 function TeamAbbreviation({ teamKey }: { teamKey: TeamKey }) {
   const info = TINFO[teamKey];
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: teamTextColor(info.c) }}>
+    <span
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: teamTextColor(info.c) }}
+    >
       <span
         aria-hidden="true"
-        style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: info.c }}
+        style={{
+          display: 'inline-block',
+          width: 8,
+          height: 8,
+          borderRadius: 2,
+          background: info.c,
+        }}
       />
       {info.ab}
     </span>
@@ -97,7 +99,11 @@ export function TeamStatsComparison({
   return (
     <section
       aria-label="チーム打撃・投手成績"
-      style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 12 }}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))',
+        gap: 12,
+      }}
     >
       <TeamStatsLeagueTable
         title="Central League"
@@ -194,10 +200,24 @@ export function HeadToHeadComparison({
   return (
     <section
       aria-label="対戦成績（星取表）"
-      style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 12 }}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))',
+        gap: 12,
+      }}
     >
-      <HeadToHeadLeagueTable title="Central League" teamKeys={CENTRAL} schedule={schedule} standings={standings} />
-      <HeadToHeadLeagueTable title="Pacific League" teamKeys={PACIFIC} schedule={schedule} standings={standings} />
+      <HeadToHeadLeagueTable
+        title="Central League"
+        teamKeys={CENTRAL}
+        schedule={schedule}
+        standings={standings}
+      />
+      <HeadToHeadLeagueTable
+        title="Pacific League"
+        teamKeys={PACIFIC}
+        schedule={schedule}
+        standings={standings}
+      />
     </section>
   );
 }

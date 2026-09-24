@@ -69,11 +69,11 @@ test('signing fixes the rookie season without changing the prospect amateur achi
   assert.ok(prospect.preProHistory);
   const beforeHighlights = structuredClone(prospect.preProHistory.highlights);
 
-  const signedTeams = applyDraftPicks(
-    teams,
-    [{ ...prospect, teamKey: 'giants', round: 1 }],
-    { year: 2026, date: '2026年オフ', emit: () => {} },
-  );
+  const signedTeams = applyDraftPicks(teams, [{ ...prospect, teamKey: 'giants', round: 1 }], {
+    year: 2026,
+    date: '2026年オフ',
+    emit: () => {},
+  });
   const signed = [...signedTeams.giants.fielders, ...signedTeams.giants.pitchers].find(
     (player) => player.id === prospect.id,
   );
@@ -89,7 +89,11 @@ test('automated CPU draft enrichment preserves the original outcome and RNG path
     registerExistingNames({});
     const teams = initTeams();
     const events: unknown[] = [];
-    const context = { year: 2026, date: '2026年オフ', emit: (event: unknown) => events.push(event) };
+    const context = {
+      year: 2026,
+      date: '2026年オフ',
+      emit: (event: unknown) => events.push(event),
+    };
     const result = enriched ? runCpuDraft(teams, 3, context) : runCpuDraftBase(teams, 3, context);
     const nextRandom = random();
     return { result, events, nextRandom };
@@ -98,10 +102,7 @@ test('automated CPU draft enrichment preserves the original outcome and RNG path
   const base = run(false);
   const enriched = run(true);
 
-  assert.deepEqual(
-    enriched.result.picks.map(withoutPrePro),
-    base.result.picks.map(withoutPrePro),
-  );
+  assert.deepEqual(enriched.result.picks.map(withoutPrePro), base.result.picks.map(withoutPrePro));
   assert.deepEqual(enriched.events, base.events);
   assert.equal(enriched.nextRandom, base.nextRandom);
   assert.ok(

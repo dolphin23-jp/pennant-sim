@@ -166,7 +166,8 @@ export function SaveSlotControls({
               team = summary?.playerTeam ? TINFO[summary.playerTeam].ab : null;
             return (
               <option key={slot} value={slot}>
-                スロット{slot} — {summary?.exists ? `${team ?? '未選択'} ${summary.year ?? '-'}年` : '空き'}
+                スロット{slot} —{' '}
+                {summary?.exists ? `${team ?? '未選択'} ${summary.year ?? '-'}年` : '空き'}
                 {slot === activeSlot ? '（読込中）' : ''}
               </option>
             );

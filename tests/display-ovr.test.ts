@@ -1,12 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  calcOVR,
-  displayOVR,
-  displayOVRBreakdown,
-  effectiveOVR,
-} from '../src/engine/ratings';
+import { calcOVR, displayOVR, displayOVRBreakdown, effectiveOVR } from '../src/engine/ratings';
 import type { Player, SpecialAbility } from '../src/engine/types';
 
 function special(

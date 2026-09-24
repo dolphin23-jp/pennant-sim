@@ -61,7 +61,11 @@ function prospect(id: string, name: string, power: number): Player {
 
 test('draft prospect snapshot freezes full-pool evaluation without mutation', () => {
   const selected = prospect('draft-b', '候補 二郎', 64);
-  const pool = [prospect('draft-a', '候補 一郎', 82), selected, prospect('draft-c', '候補 三郎', 50)];
+  const pool = [
+    prospect('draft-a', '候補 一郎', 82),
+    selected,
+    prospect('draft-c', '候補 三郎', 50),
+  ];
   const before = structuredClone(pool);
 
   const snapshot = buildDraftProspectSnapshot(selected, pool);
@@ -80,7 +84,11 @@ test('draft prospect snapshot freezes full-pool evaluation without mutation', ()
 test('interactive draft events persist the exact original-pool prospect snapshot', () => {
   const teams = initTeams();
   const selected = prospect('draft-selected', '候補 選手', 72);
-  const pool = [prospect('draft-top', '候補 首位', 88), selected, prospect('draft-low', '候補 下位', 45)];
+  const pool = [
+    prospect('draft-top', '候補 首位', 88),
+    selected,
+    prospect('draft-low', '候補 下位', 45),
+  ];
   const events: NarrativeEvent[] = [];
   const context: NarrativeEventContext = {
     year: 2034,

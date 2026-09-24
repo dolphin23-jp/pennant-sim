@@ -15,12 +15,12 @@ Both implementations validated the same conditions:
 
 The independently recorded results matched the Phase A baseline after stored rounding:
 
-| Metric | Mean | Population standard deviation |
-| --- | ---: | ---: |
-| Batting average | 0.221309 | 0.005742 |
-| ERA | 4.221261 | 0.282428 |
-| Home runs | 3117.99 | 243.897 |
-| Stolen-base success rate | 0.621848 | 0.061481 |
-| Walk rate | 0.073970 | 0.004831 |
+| Metric                   |     Mean | Population standard deviation |
+| ------------------------ | -------: | ----------------------------: |
+| Batting average          | 0.221309 |                      0.005742 |
+| ERA                      | 4.221261 |                      0.282428 |
+| Home runs                |  3117.99 |                       243.897 |
+| Stolen-base success rate | 0.621848 |                      0.061481 |
+| Walk rate                | 0.073970 |                      0.004831 |
 
 This reconciliation deliberately avoids keeping parallel files such as two player-generation modules, two special-ability modules, or two new-engine baseline pipelines. The implementation currently on `main` remains the single source of truth.

@@ -61,8 +61,7 @@ export function CareerRetrospective({ player }: { player: Player }) {
     ],
   );
   const stored = useMemo(
-    () =>
-      retrospective ? game.narrativeArticles[String(retrospective.article.year)] ?? [] : [],
+    () => (retrospective ? (game.narrativeArticles[String(retrospective.article.year)] ?? []) : []),
     [retrospective, game.narrativeArticles],
   );
 
@@ -112,14 +111,7 @@ export function CareerRetrospective({ player }: { player: Player }) {
     return () => {
       active = false;
     };
-  }, [
-    retrospective,
-    connection,
-    worldId,
-    stored,
-    request,
-    recordNarrativeArticle,
-  ]);
+  }, [retrospective, connection, worldId, stored, request, recordNarrativeArticle]);
 
   if (!retrospective || !rendered) return null;
 
@@ -137,7 +129,9 @@ export function CareerRetrospective({ player }: { player: Player }) {
 
   return (
     <Card className="detail-card detail-card--wide" ariaLabel="キャリア回顧">
-      <SectionTitle>{retrospective.retired ? 'Career Retrospective' : 'Career Story So Far'}</SectionTitle>
+      <SectionTitle>
+        {retrospective.retired ? 'Career Retrospective' : 'Career Story So Far'}
+      </SectionTitle>
       <div style={{ display: 'grid', gap: 8 }}>
         <div style={{ color: 'var(--color-text-faint)', fontSize: 11 }}>
           {rendered.publishedAt} / as of {rendered.asOfDate}
@@ -153,9 +147,7 @@ export function CareerRetrospective({ player }: { player: Player }) {
               style={{
                 margin: 0,
                 color:
-                  segment.class === 'FACTUAL'
-                    ? 'var(--color-text)'
-                    : 'var(--color-text-muted)',
+                  segment.class === 'FACTUAL' ? 'var(--color-text)' : 'var(--color-text-muted)',
                 borderLeft:
                   segment.class === 'ANALYTICAL' ? '2px solid var(--color-border)' : undefined,
                 paddingLeft: segment.class === 'ANALYTICAL' ? 9 : undefined,

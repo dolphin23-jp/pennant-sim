@@ -48,15 +48,10 @@ test('every generated lineup has eight unique fielders plus exactly one DH', () 
 });
 
 test('multi-run scoring advances the score one runner at a time', () => {
-  const events = progressiveScoringEvents(
-    { home: 2, away: 2 },
-    'home',
-    0,
-    [
-      { runnerId: 'r1', chargedPitcherId: 'p1', earned: true },
-      { runnerId: 'r2', chargedPitcherId: 'p2', earned: true },
-    ],
-  );
+  const events = progressiveScoringEvents({ home: 2, away: 2 }, 'home', 0, [
+    { runnerId: 'r1', chargedPitcherId: 'p1', earned: true },
+    { runnerId: 'r2', chargedPitcherId: 'p2', earned: true },
+  ]);
   assert.deepEqual(
     events.map((event) => [event.homeScore, event.awayScore, event.chargedPitcherId]),
     [
@@ -107,7 +102,10 @@ test('interleague games occupy one exclusive calendar block', () => {
     const interleague = schedule.filter((game) => game.isInterleague);
     assert.ok(interleague.length > 0);
     const first = interleague.map((game) => game.date).sort()[0]!;
-    const last = interleague.map((game) => game.date).sort().at(-1)!;
+    const last = interleague
+      .map((game) => game.date)
+      .sort()
+      .at(-1)!;
     assert.equal(
       schedule.filter((game) => game.date >= first && game.date <= last && !game.isInterleague)
         .length,
@@ -129,8 +127,12 @@ test('draft contact calibration respects shared rating and potential ceilings', 
   configureRandom(mulberry32(77), () => 1_700_000_000_000);
   try {
     for (const player of generateDraftProspects().filter((candidate) => !candidate.isP)) {
-      assert.ok((player.p.cf ?? 0) <= PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.maximumRating);
-      assert.ok((player.p.cb ?? 0) <= PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.maximumRating);
+      assert.ok(
+        (player.p.cf ?? 0) <= PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.maximumRating,
+      );
+      assert.ok(
+        (player.p.cb ?? 0) <= PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation.maximumRating,
+      );
       const ceiling =
         player.potentialClass === 'elite'
           ? PLAYER_DEVELOPMENT_BALANCE.potentialCeiling.elite

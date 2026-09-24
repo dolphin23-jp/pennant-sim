@@ -11,7 +11,8 @@ function countErrors(game: GameState, side: 'home' | 'away'): number {
 
 function countHits(game: GameState, side: 'home' | 'away'): number {
   const teamKey = game.teams[side].key;
-  return game.atBatLog.filter((entry) => entry.bSide === teamKey && HIT_RESULTS.has(entry.result)).length;
+  return game.atBatLog.filter((entry) => entry.bSide === teamKey && HIT_RESULTS.has(entry.result))
+    .length;
 }
 
 export function BoxScore({ game }: { game: GameState | null }) {

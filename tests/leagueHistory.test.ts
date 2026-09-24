@@ -32,16 +32,24 @@ test('new league history contains active careers, legends, and twenty champions'
     seed: 77,
     legendsPerTeam: 2,
   });
-  const activePlayers = Object.values(history.teams)
-    .flatMap((team) => [...team.fielders, ...team.pitchers]);
+  const activePlayers = Object.values(history.teams).flatMap((team) => [
+    ...team.fielders,
+    ...team.pitchers,
+  ]);
   const records = Object.values(history.yearlyStats).flat();
 
   assert.equal(history.championHistory.length, 20);
   assert.equal(history.championHistory[0]?.year, 2006);
   assert.equal(history.championHistory.at(-1)?.year, 2025);
   assert.equal(history.retiredPlayers.length, 24);
-  assert.ok(records.some((record) => activePlayers.some((player) => player.id === record.playerId)));
-  assert.ok(records.some((record) => history.retiredPlayers.some((player) => player.id === record.playerId)));
+  assert.ok(
+    records.some((record) => activePlayers.some((player) => player.id === record.playerId)),
+  );
+  assert.ok(
+    records.some((record) =>
+      history.retiredPlayers.some((player) => player.id === record.playerId),
+    ),
+  );
   assert.ok(activePlayers.some((player) => Number(player.proYears ?? 0) > 0));
 });
 
@@ -52,7 +60,9 @@ test('generated records stay bounded to the requested historical window', () => 
     seed: 9,
     legendsPerTeam: 1,
   });
-  const years = Object.values(history.yearlyStats).flat().map((record) => record.year);
+  const years = Object.values(history.yearlyStats)
+    .flat()
+    .map((record) => record.year);
 
   assert.ok(years.length > 0);
   assert.ok(Math.min(...years) >= 2018);

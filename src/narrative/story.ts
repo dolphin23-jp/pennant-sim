@@ -6,11 +6,7 @@ import {
   buildNarrativeStoryArcs,
   type NarrativeMemoryIndex,
 } from './memory';
-import type {
-  NarrativeArticle,
-  NarrativeArticleKind,
-  NarrativeFactRef,
-} from './types';
+import type { NarrativeArticle, NarrativeArticleKind, NarrativeFactRef } from './types';
 
 export type NarrativeStoryDepth = 'brief' | 'feature' | 'cover';
 
@@ -55,8 +51,7 @@ export function planNarrativeStory(
   else if (article.kind === 'achievement') {
     add(65, 'record-or-milestone');
     const event = source.achievementHistory.find((e) => `achievement:${e.id}` === article.id);
-    if (event?.kind === 'seasonRecord' || event?.kind === 'careerRecord')
-      add(15, 'record-history');
+    if (event?.kind === 'seasonRecord' || event?.kind === 'careerRecord') add(15, 'record-history');
   } else if (article.kind === 'gameRecap') {
     const box = source.gameBoxScores[article.id.slice('game:'.length)];
     if (box?.walkoff) add(32, 'walkoff');
@@ -184,7 +179,9 @@ export function buildNarrativeStoryContext(
   limit = 12,
   memory: NarrativeMemoryIndex = buildNarrativeMemoryIndex(source),
 ): NarrativeContextClaim[] {
-  const memoryLimit = article.playerIds.length ? Math.min(6, Math.max(2, Math.floor(limit * 0.45))) : 0;
+  const memoryLimit = article.playerIds.length
+    ? Math.min(6, Math.max(2, Math.floor(limit * 0.45)))
+    : 0;
   const career = buildCareerMemoryContext(article, source, memory, memoryLimit);
 
   const candidates = new Map<string, NarrativeArticle>();

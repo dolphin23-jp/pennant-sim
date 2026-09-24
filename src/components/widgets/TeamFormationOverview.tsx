@@ -134,7 +134,9 @@ function FormationRow({
       </div>
       <div style={{ textAlign: 'right' }}>
         <div style={{ color: 'var(--color-text-faint)', fontSize: 9, fontWeight: 800 }}>OVR</div>
-        <strong style={{ fontFamily: 'var(--font-display)', fontSize: 16 }}>{calcOVR(player)}</strong>
+        <strong style={{ fontFamily: 'var(--font-display)', fontSize: 16 }}>
+          {calcOVR(player)}
+        </strong>
       </div>
     </li>
   );

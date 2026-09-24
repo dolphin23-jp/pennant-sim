@@ -36,7 +36,8 @@ function WelcomeScreen() {
 
   const handleResume = () => {
     const seasonOver =
-      game.season.schedule.length > 0 && game.season.schedule.every((scheduled) => scheduled.played);
+      game.season.schedule.length > 0 &&
+      game.season.schedule.every((scheduled) => scheduled.played);
     game.setScreen(seasonOver ? 'postseason' : 'season');
   };
 

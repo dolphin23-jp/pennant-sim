@@ -66,7 +66,7 @@ function recordsFor(source: PlayerNarrativeProfileSource): PlayerSeasonRecord[] 
 }
 
 function roleLabel(player: Player): string {
-  return player.isP ? player.role ?? '投手' : player.pos ?? '野手';
+  return player.isP ? (player.role ?? '投手') : (player.pos ?? '野手');
 }
 
 function seasonText(record: PlayerSeasonRecord): string {
@@ -118,7 +118,14 @@ function careerSummary(
       sourceClass: 'derived',
       text: `${last.year}年終了時点で、${player.name}は${first.year}年の一軍初出場から${records.length}シーズンに出場。通算${totals.games}試合、${totals.hits}安打、${totals.homeRuns}本塁打、${totals.rbi}打点、${totals.stolenBases}盗塁を記録している${teamKeys.length > 1 ? `。一軍キャリアでは${teamKeys.length}球団に所属した` : ''}。`,
       factRefs,
-      value: { sourceClass: 'derived', firstActiveYear: first.year, throughYear: last.year, activeSeasons: records.length, teamKeys, totals },
+      value: {
+        sourceClass: 'derived',
+        firstActiveYear: first.year,
+        throughYear: last.year,
+        activeSeasons: records.length,
+        teamKeys,
+        totals,
+      },
     };
   }
   const totals = records.reduce(
@@ -139,7 +146,14 @@ function careerSummary(
     sourceClass: 'derived',
     text: `${last.year}年終了時点で、${player.name}は${first.year}年の一軍初登板から${records.length}シーズンに登板。通算${totals.games}登板、${totals.wins}勝、${totals.strikeouts}奪三振、${totals.saves}セーブ、${totals.holds}ホールドを記録している${teamKeys.length > 1 ? `。一軍キャリアでは${teamKeys.length}球団に所属した` : ''}。`,
     factRefs,
-    value: { sourceClass: 'derived', firstActiveYear: first.year, throughYear: last.year, activeSeasons: records.length, teamKeys, totals },
+    value: {
+      sourceClass: 'derived',
+      firstActiveYear: first.year,
+      throughYear: last.year,
+      activeSeasons: records.length,
+      teamKeys,
+      totals,
+    },
   };
 }
 
@@ -173,7 +187,12 @@ function careerBest(
       sourceClass: 'derived',
       text: `${player.name}のシーズン最多本塁打は${best.year}年の${best.stats.hr}本。`,
       factRefs: [ref('CAREER_SUMMARY', `${asOfDate}:${player.id}:profile-best-home-runs`)],
-      value: { sourceClass: 'derived', metric: 'homeRuns', bestYear: best.year, value: best.stats.hr },
+      value: {
+        sourceClass: 'derived',
+        metric: 'homeRuns',
+        bestYear: best.year,
+        value: best.stats.hr,
+      },
     };
   }
   const metric = pitchingMetric(latest, player);
@@ -190,7 +209,12 @@ function careerBest(
     sourceClass: 'derived',
     text: `${player.name}のシーズン最多${metric.label}は${best.year}年の${best.stats[metric.key]}${metric.unit}。`,
     factRefs: [ref('CAREER_SUMMARY', `${asOfDate}:${player.id}:profile-best-${metric.key}`)],
-    value: { sourceClass: 'derived', metric: metric.key, bestYear: best.year, value: best.stats[metric.key] },
+    value: {
+      sourceClass: 'derived',
+      metric: metric.key,
+      bestYear: best.year,
+      value: best.stats[metric.key],
+    },
   };
 }
 
@@ -237,19 +261,81 @@ function trajectoryInput(
     const first = lines[0];
     const last = lines.at(-1)!;
     if (lines.every((stats) => stats.hr >= 20)) {
-      return { trajectory: 'stable', input: { id: 'recent-trajectory', sourceClass: 'derived', text: `${player.name}は直近3シーズンすべてで20本塁打以上を記録している。`, factRefs, value: { sourceClass: 'derived', trajectory: 'stable-power', years: recent.map((record) => record.year) } } };
+      return {
+        trajectory: 'stable',
+        input: {
+          id: 'recent-trajectory',
+          sourceClass: 'derived',
+          text: `${player.name}は直近3シーズンすべてで20本塁打以上を記録している。`,
+          factRefs,
+          value: {
+            sourceClass: 'derived',
+            trajectory: 'stable-power',
+            years: recent.map((record) => record.year),
+          },
+        },
+      };
     }
     if (last.g >= first.g + 30 && last.g >= 80) {
-      return { trajectory: 'rising', input: { id: 'recent-trajectory', sourceClass: 'derived', text: `${recent[0].year}年から${recent[2].year}年にかけて、${player.name}の年間出場試合数は${first.g}試合から${last.g}試合へ増えた。`, factRefs, value: { sourceClass: 'derived', trajectory: 'playing-time-up', from: first.g, to: last.g } } };
+      return {
+        trajectory: 'rising',
+        input: {
+          id: 'recent-trajectory',
+          sourceClass: 'derived',
+          text: `${recent[0].year}年から${recent[2].year}年にかけて、${player.name}の年間出場試合数は${first.g}試合から${last.g}試合へ増えた。`,
+          factRefs,
+          value: {
+            sourceClass: 'derived',
+            trajectory: 'playing-time-up',
+            from: first.g,
+            to: last.g,
+          },
+        },
+      };
     }
     if (last.hr >= first.hr + 8) {
-      return { trajectory: 'rising', input: { id: 'recent-trajectory', sourceClass: 'derived', text: `${recent[0].year}年から${recent[2].year}年にかけて、${player.name}の本塁打は${first.hr}本から${last.hr}本へ増えた。`, factRefs, value: { sourceClass: 'derived', trajectory: 'home-runs-up', from: first.hr, to: last.hr } } };
+      return {
+        trajectory: 'rising',
+        input: {
+          id: 'recent-trajectory',
+          sourceClass: 'derived',
+          text: `${recent[0].year}年から${recent[2].year}年にかけて、${player.name}の本塁打は${first.hr}本から${last.hr}本へ増えた。`,
+          factRefs,
+          value: {
+            sourceClass: 'derived',
+            trajectory: 'home-runs-up',
+            from: first.hr,
+            to: last.hr,
+          },
+        },
+      };
     }
     if (player.age >= 32 && last.g <= first.g - 25 && last.hr <= first.hr - 5) {
-      return { trajectory: 'declining', input: { id: 'recent-trajectory', sourceClass: 'derived', text: `${recent[0].year}年から${recent[2].year}年にかけて、${player.name}は出場試合数と本塁打の双方が減少している。`, factRefs, value: { sourceClass: 'derived', trajectory: 'batting-output-down' } } };
+      return {
+        trajectory: 'declining',
+        input: {
+          id: 'recent-trajectory',
+          sourceClass: 'derived',
+          text: `${recent[0].year}年から${recent[2].year}年にかけて、${player.name}は出場試合数と本塁打の双方が減少している。`,
+          factRefs,
+          value: { sourceClass: 'derived', trajectory: 'batting-output-down' },
+        },
+      };
     }
-    if (lines.every((stats) => stats.g >= 100) && Math.max(...lines.map((stats) => stats.hr)) - Math.min(...lines.map((stats) => stats.hr)) <= 5) {
-      return { trajectory: 'stable', input: { id: 'recent-trajectory', sourceClass: 'derived', text: `${player.name}は直近3シーズンすべてで100試合以上に出場し、本塁打数の振れ幅は5本以内だった。`, factRefs, value: { sourceClass: 'derived', trajectory: 'stable-regular' } } };
+    if (
+      lines.every((stats) => stats.g >= 100) &&
+      Math.max(...lines.map((stats) => stats.hr)) - Math.min(...lines.map((stats) => stats.hr)) <= 5
+    ) {
+      return {
+        trajectory: 'stable',
+        input: {
+          id: 'recent-trajectory',
+          sourceClass: 'derived',
+          text: `${player.name}は直近3シーズンすべてで100試合以上に出場し、本塁打数の振れ幅は5本以内だった。`,
+          factRefs,
+          value: { sourceClass: 'derived', trajectory: 'stable-regular' },
+        },
+      };
     }
     return { input: null, trajectory: 'none' };
   }
@@ -260,13 +346,52 @@ function trajectoryInput(
     const first = lines[0][metric.key];
     const last = lines.at(-1)![metric.key];
     if (lines.every((stats) => stats[metric.key] >= threshold.stable)) {
-      return { trajectory: 'stable', input: { id: 'recent-trajectory', sourceClass: 'derived', text: `${player.name}は直近3シーズンすべてで${metric.label}${threshold.stable}以上を記録している。`, factRefs, value: { sourceClass: 'derived', trajectory: 'stable-pitching-role', metric: metric.key } } };
+      return {
+        trajectory: 'stable',
+        input: {
+          id: 'recent-trajectory',
+          sourceClass: 'derived',
+          text: `${player.name}は直近3シーズンすべてで${metric.label}${threshold.stable}以上を記録している。`,
+          factRefs,
+          value: { sourceClass: 'derived', trajectory: 'stable-pitching-role', metric: metric.key },
+        },
+      };
     }
     if (last >= first + threshold.rise) {
-      return { trajectory: 'rising', input: { id: 'recent-trajectory', sourceClass: 'derived', text: `${recent[0].year}年から${recent[2].year}年にかけて、${player.name}の${metric.label}は${first}から${last}へ増えた。`, factRefs, value: { sourceClass: 'derived', trajectory: 'pitching-output-up', metric: metric.key, from: first, to: last } } };
+      return {
+        trajectory: 'rising',
+        input: {
+          id: 'recent-trajectory',
+          sourceClass: 'derived',
+          text: `${recent[0].year}年から${recent[2].year}年にかけて、${player.name}の${metric.label}は${first}から${last}へ増えた。`,
+          factRefs,
+          value: {
+            sourceClass: 'derived',
+            trajectory: 'pitching-output-up',
+            metric: metric.key,
+            from: first,
+            to: last,
+          },
+        },
+      };
     }
     if (player.age >= 32 && last + threshold.rise <= first) {
-      return { trajectory: 'declining', input: { id: 'recent-trajectory', sourceClass: 'derived', text: `${recent[0].year}年から${recent[2].year}年にかけて、${player.name}の${metric.label}は${first}から${last}へ減った。`, factRefs, value: { sourceClass: 'derived', trajectory: 'pitching-output-down', metric: metric.key, from: first, to: last } } };
+      return {
+        trajectory: 'declining',
+        input: {
+          id: 'recent-trajectory',
+          sourceClass: 'derived',
+          text: `${recent[0].year}年から${recent[2].year}年にかけて、${player.name}の${metric.label}は${first}から${last}へ減った。`,
+          factRefs,
+          value: {
+            sourceClass: 'derived',
+            trajectory: 'pitching-output-down',
+            metric: metric.key,
+            from: first,
+            to: last,
+          },
+        },
+      };
     }
   }
   return { input: null, trajectory: 'none' };
@@ -280,7 +405,10 @@ function relativeStanding(
   if (!latest) return { input: null, rank: null };
   const league = TINFO[latest.teamKey].lg;
   const pool = (source.yearlyStats[String(latest.year)] ?? []).filter(
-    (record) => record.stats.g > 0 && TINFO[record.teamKey]?.lg === league && record.stats.type === latest.stats.type,
+    (record) =>
+      record.stats.g > 0 &&
+      TINFO[record.teamKey]?.lg === league &&
+      record.stats.type === latest.stats.type,
   );
   let label: string;
   let unit: string;
@@ -297,7 +425,9 @@ function relativeStanding(
     label = metric.label;
     unit = metric.unit === '勝' ? '勝' : '';
     value = latest.stats[metric.key];
-    values = pool.flatMap((record) => (record.stats.type === 'pit' ? [record.stats[metric.key]] : []));
+    values = pool.flatMap((record) =>
+      record.stats.type === 'pit' ? [record.stats[metric.key]] : [],
+    );
     if (value < (metric.key === 'w' ? 3 : 5)) return { input: null, rank: null };
   }
   const rank = 1 + values.filter((candidate) => candidate > value).length;
@@ -311,16 +441,29 @@ function relativeStanding(
       sourceClass: 'derived',
       text: `${latest.year}年の${label}${value}${unit}は${leagueName}で${tied ? '同率' : ''}${rank}位。`,
       factRefs: [ref('PLAYER_PROFILE', `${source.asOfDate}:${source.player.id}:relative-standing`)],
-      value: { sourceClass: 'derived', year: latest.year, league, metric: label, value, rank, tied },
+      value: {
+        sourceClass: 'derived',
+        year: latest.year,
+        league,
+        metric: label,
+        value,
+        rank,
+        tied,
+      },
     },
   };
 }
 
-function teamShare(source: PlayerNarrativeProfileSource, records: PlayerSeasonRecord[]): PlayerProfileEditorialInput | null {
+function teamShare(
+  source: PlayerNarrativeProfileSource,
+  records: PlayerSeasonRecord[],
+): PlayerProfileEditorialInput | null {
   const latest = records.at(-1);
   if (!latest || latest.stats.type !== 'bat' || latest.stats.hr < 5) return null;
   const teamHomeRuns = (source.yearlyStats[String(latest.year)] ?? []).reduce(
-    (total, record) => total + (record.teamKey === latest.teamKey && record.stats.type === 'bat' ? record.stats.hr : 0),
+    (total, record) =>
+      total +
+      (record.teamKey === latest.teamKey && record.stats.type === 'bat' ? record.stats.hr : 0),
     0,
   );
   if (teamHomeRuns <= 0) return null;
@@ -331,11 +474,20 @@ function teamShare(source: PlayerNarrativeProfileSource, records: PlayerSeasonRe
     sourceClass: 'derived',
     text: `${latest.year}年、${source.player.name}の${latest.stats.hr}本塁打は${latest.teamName}のチーム本塁打${teamHomeRuns}本の${sharePercent}%を占めた。`,
     factRefs: [ref('PLAYER_PROFILE', `${source.asOfDate}:${source.player.id}:team-home-run-share`)],
-    value: { sourceClass: 'derived', year: latest.year, playerHomeRuns: latest.stats.hr, teamHomeRuns, sharePercent },
+    value: {
+      sourceClass: 'derived',
+      year: latest.year,
+      playerHomeRuns: latest.stats.hr,
+      teamHomeRuns,
+      sharePercent,
+    },
   };
 }
 
-function championshipInput(source: PlayerNarrativeProfileSource, records: PlayerSeasonRecord[]): PlayerProfileEditorialInput | null {
+function championshipInput(
+  source: PlayerNarrativeProfileSource,
+  records: PlayerSeasonRecord[],
+): PlayerProfileEditorialInput | null {
   const byYear = new Map(records.map((record) => [record.year, record]));
   const years = (source.championHistory ?? [])
     .filter((championship) => {
@@ -355,7 +507,9 @@ function championshipInput(source: PlayerNarrativeProfileSource, records: Player
     id: 'championship-history',
     sourceClass: 'derived',
     text: `${source.player.name}は${years.join('年、')}年の日本一記録で、優勝チームの主要選手として名前が保存されている。`,
-    factRefs: [ref('PLAYER_PROFILE', `${source.asOfDate}:${source.player.id}:championship-history`)],
+    factRefs: [
+      ref('PLAYER_PROFILE', `${source.asOfDate}:${source.player.id}:championship-history`),
+    ],
     value: { sourceClass: 'derived', championshipYears: years },
   };
 }
@@ -371,11 +525,15 @@ function peakAndLatest(records: PlayerSeasonRecord[]): { peak: number; latest: n
   const latestRecord = records.at(-1);
   if (!latestRecord) return { peak: 0, latest: 0 };
   if (latestRecord.stats.type === 'bat') {
-    const values = records.flatMap((record) => (record.stats.type === 'bat' ? [record.stats.hr] : []));
+    const values = records.flatMap((record) =>
+      record.stats.type === 'bat' ? [record.stats.hr] : [],
+    );
     return { peak: Math.max(0, ...values), latest: latestRecord.stats.hr };
   }
   const metric = pitchingMetric(latestRecord, { role: latestRecord.role } as Player);
-  const values = records.flatMap((record) => (record.stats.type === 'pit' ? [record.stats[metric.key]] : []));
+  const values = records.flatMap((record) =>
+    record.stats.type === 'pit' ? [record.stats[metric.key]] : [],
+  );
   return { peak: Math.max(0, ...values), latest: latestRecord.stats[metric.key] };
 }
 
@@ -414,7 +572,9 @@ function archetypeInput(
   if (
     firstRegular &&
     records.length >= 2 &&
-    (firstRegular.age >= 28 || ((player.mat === '晩成' || player.mat === '超晩成') && firstRegular.age >= maturityPeakAge - 2))
+    (firstRegular.age >= 28 ||
+      ((player.mat === '晩成' || player.mat === '超晩成') &&
+        firstRegular.age >= maturityPeakAge - 2))
   ) {
     archetype = 'late-bloomer';
     label = '遅咲き';
@@ -430,7 +590,11 @@ function archetypeInput(
   } else if (player.age <= 24 && growthRoom && records.length <= 2) {
     archetype = 'elite-prospect';
     label = '若手有望株';
-  } else if (player.age <= Math.min(28, maturityPeakAge) && (growthRoom || trajectory === 'rising') && records.length <= 4) {
+  } else if (
+    player.age <= Math.min(28, maturityPeakAge) &&
+    (growthRoom || trajectory === 'rising') &&
+    records.length <= 4
+  ) {
     archetype = 'breakout-candidate';
     label = 'ブレイク候補';
   } else if (player.age <= 26 && latestRegular) {
@@ -487,8 +651,14 @@ function uniqueRefs(inputs: PlayerProfileEditorialInput[]): NarrativeFactRef[] {
   );
 }
 
-export function buildPlayerNarrativeProfile(source: PlayerNarrativeProfileSource): PlayerNarrativeProfile | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(source.asOfDate) || Number(source.asOfDate.slice(0, 4)) !== source.seasonYear) return null;
+export function buildPlayerNarrativeProfile(
+  source: PlayerNarrativeProfileSource,
+): PlayerNarrativeProfile | null {
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(source.asOfDate) ||
+    Number(source.asOfDate.slice(0, 4)) !== source.seasonYear
+  )
+    return null;
   const { player, teamKey, seasonYear, asOfDate } = source;
   const team = TINFO[teamKey];
   if (!team) return null;
@@ -498,12 +668,26 @@ export function buildPlayerNarrativeProfile(source: PlayerNarrativeProfileSource
     sourceClass: 'canonical',
     text: `${player.name}は${player.age}歳の${roleLabel(player)}で、${team.n}に所属する。`,
     factRefs: [ref('PLAYER_CURRENT', `${asOfDate}:${player.id}:identity`)],
-    value: { sourceClass: 'canonical', asOfDate, playerId: player.id, playerName: player.name, age: player.age, teamKey, role: roleLabel(player) },
+    value: {
+      sourceClass: 'canonical',
+      asOfDate,
+      playerId: player.id,
+      playerName: player.name,
+      age: player.age,
+      teamKey,
+      role: roleLabel(player),
+    },
   };
   const summary = careerSummary(player, records, asOfDate);
   const latest = records.at(-1);
   const latestInput: PlayerProfileEditorialInput | null = latest
-    ? { id: 'latest-season', sourceClass: 'canonical', text: seasonText(latest), factRefs: [ref('PLAYER_SEASON', `${latest.year}:${player.id}`)], value: { sourceClass: 'canonical', ...structuredClone(latest) } }
+    ? {
+        id: 'latest-season',
+        sourceClass: 'canonical',
+        text: seasonText(latest),
+        factRefs: [ref('PLAYER_SEASON', `${latest.year}:${player.id}`)],
+        value: { sourceClass: 'canonical', ...structuredClone(latest) },
+      }
     : null;
   const best = careerBest(player, records, asOfDate);
   const trajectory = trajectoryInput(player, records);
@@ -513,7 +697,16 @@ export function buildPlayerNarrativeProfile(source: PlayerNarrativeProfileSource
   const championship = championshipInput(source, records);
   const archetype = archetypeInput(source, records, trajectory.trajectory, standing.rank);
   const primary = [identity, ...(summary ? [summary] : [])];
-  const context = [latestInput, best, trajectory.input, standing.input, share, strongest, championship, archetype.input]
+  const context = [
+    latestInput,
+    best,
+    trajectory.input,
+    standing.input,
+    share,
+    strongest,
+    championship,
+    archetype.input,
+  ]
     .filter((input): input is PlayerProfileEditorialInput => Boolean(input))
     .slice(0, 10);
   const editorialInputs = [...primary, ...context];
@@ -531,17 +724,39 @@ export function buildPlayerNarrativeProfile(source: PlayerNarrativeProfileSource
     playerIds: [player.id],
     segments: [
       { class: 'FACTUAL', text: identity.text, factRefs: identity.factRefs },
-      ...(summary ? [{ class: 'FACTUAL' as const, text: summary.text, factRefs: summary.factRefs }] : []),
-      ...(latestInput ? [{ class: 'FACTUAL' as const, text: latestInput.text, factRefs: latestInput.factRefs }] : []),
+      ...(summary
+        ? [{ class: 'FACTUAL' as const, text: summary.text, factRefs: summary.factRefs }]
+        : []),
+      ...(latestInput
+        ? [{ class: 'FACTUAL' as const, text: latestInput.text, factRefs: latestInput.factRefs }]
+        : []),
       { class: 'FACTUAL', text: archetype.input.text, factRefs: archetype.input.factRefs },
     ],
     factRefs: uniqueRefs(editorialInputs),
   };
   const primaryClaims = [
-    { id: 'headline', role: 'primary' as const, text: headline, factRefs: identity.factRefs, locked: false },
-    ...primary.map((input, index) => ({ id: `p${index}`, role: 'primary' as const, text: input.text, factRefs: input.factRefs, locked: false })),
+    {
+      id: 'headline',
+      role: 'primary' as const,
+      text: headline,
+      factRefs: identity.factRefs,
+      locked: false,
+    },
+    ...primary.map((input, index) => ({
+      id: `p${index}`,
+      role: 'primary' as const,
+      text: input.text,
+      factRefs: input.factRefs,
+      locked: false,
+    })),
   ];
-  const contextClaims = context.map((input, index) => ({ id: `ctx${index}`, role: 'context' as const, text: input.text, factRefs: input.factRefs, locked: false }));
+  const contextClaims = context.map((input, index) => ({
+    id: `ctx${index}`,
+    role: 'context' as const,
+    text: input.text,
+    factRefs: input.factRefs,
+    locked: false,
+  }));
   const facts = new Map<string, FactPacket['facts'][number]>();
   for (const input of editorialInputs) {
     for (const factRef of input.factRefs) {
@@ -559,17 +774,34 @@ export function buildPlayerNarrativeProfile(source: PlayerNarrativeProfileSource
     publishedAt: article.publishedAt,
     facts: [...facts.values()],
     claims: [...primaryClaims, ...contextClaims],
-    entities: [player.name, team.n, team.ab, ...records.flatMap((record) => [record.teamName, record.teamAbbreviation])]
+    entities: [
+      player.name,
+      team.n,
+      team.ab,
+      ...records.flatMap((record) => [record.teamName, record.teamAbbreviation]),
+    ]
       .filter((value, index, values) => value.length > 0 && values.indexOf(value) === index)
       .sort(),
     story: {
       depth: rich ? 'feature' : 'brief',
       score: rich ? 70 + Math.min(20, contextClaims.length * 2) : 25,
-      reasons: ['player-profile', ...(records.length ? ['career-history'] : []), ...(trajectory.input ? ['career-trajectory'] : []), ...(standing.input ? ['relative-standing'] : []), ...(rich ? ['profile-rich-context'] : [])],
+      reasons: [
+        'player-profile',
+        ...(records.length ? ['career-history'] : []),
+        ...(trajectory.input ? ['career-trajectory'] : []),
+        ...(standing.input ? ['relative-standing'] : []),
+        ...(rich ? ['profile-rich-context'] : []),
+      ],
       targetParagraphs: rich ? { min: 2, max: 4 } : { min: 1, max: 2 },
       primaryClaimIds: primaryClaims.map((claim) => claim.id),
-      contextArticleIds: context.flatMap((input) => input.factRefs.map((factRef) => `${factRef.kind.toLowerCase()}:${factRef.key}`)).slice(0, 32),
+      contextArticleIds: context
+        .flatMap((input) =>
+          input.factRefs.map((factRef) => `${factRef.kind.toLowerCase()}:${factRef.key}`),
+        )
+        .slice(0, 32),
     },
   };
-  return validPacket(packet) ? { article, packet, editorialInputs, archetype: archetype.archetype } : null;
+  return validPacket(packet)
+    ? { article, packet, editorialInputs, archetype: archetype.archetype }
+    : null;
 }

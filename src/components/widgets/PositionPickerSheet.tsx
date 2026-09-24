@@ -52,7 +52,8 @@ export function PositionPickerSheet({
     () =>
       players
         .filter(
-          (player) => matchesAge(player, ageFilter) || assignedSlot(assignments, player.id) === slot,
+          (player) =>
+            matchesAge(player, ageFilter) || assignedSlot(assignments, player.id) === slot,
         )
         .map((player) => {
           const best = bestPositionValue(player);

@@ -26,9 +26,7 @@ const overall = (player: Player): number =>
 
 function standardDeviation(values: number[]): number {
   const mean = values.reduce((total, value) => total + value, 0) / values.length;
-  return Math.sqrt(
-    values.reduce((total, value) => total + (value - mean) ** 2, 0) / values.length,
-  );
+  return Math.sqrt(values.reduce((total, value) => total + (value - mean) ** 2, 0) / values.length);
 }
 
 test('initial rosters contain multiple stars while retaining a broad distribution', () => {

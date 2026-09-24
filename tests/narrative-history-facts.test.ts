@@ -1,13 +1,22 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { PlayerSeasonRecord } from '../src/engine';
-import { articleFromChampionship, articleFromFutureEvent, type NarrativeSource } from '../src/narrative/generate';
+import {
+  articleFromChampionship,
+  articleFromFutureEvent,
+  type NarrativeSource,
+} from '../src/narrative/generate';
 import { buildNarrativeHistoryFacts } from '../src/narrative/historyFacts';
 import { buildNarrativeMemoryIndex } from '../src/narrative/memory';
 import { buildFactPacket } from '../src/narrative/packet';
 import type { NarrativeArticle, NarrativeEvent } from '../src/narrative/types';
 
-function season(year: number, teamKey: 'giants' | 'tigers', hits: number, homeRuns: number): PlayerSeasonRecord {
+function season(
+  year: number,
+  teamKey: 'giants' | 'tigers',
+  hits: number,
+  homeRuns: number,
+): PlayerSeasonRecord {
   return {
     playerId: 'story-player',
     playerName: '物語太郎',
@@ -135,7 +144,9 @@ test('retirement history exposes deterministic career span, totals, best season 
 
   const packet = buildFactPacket(article, data, undefined, index);
   assert.ok(packet);
-  assert.ok(packet.claims.some((claim) => claim.id.startsWith('h') && claim.text.includes('8シーズン')));
+  assert.ok(
+    packet.claims.some((claim) => claim.id.startsWith('h') && claim.text.includes('8シーズン')),
+  );
   assert.ok(packet.facts.some((fact) => fact.ref.kind === 'CAREER_SUMMARY'));
 });
 
@@ -172,5 +183,7 @@ test('championship history prioritizes dynasty and rematch arithmetic', () => {
   assert.match(text, /2年連続で日本一/);
   assert.match(text, /3年連続で日本一/);
   assert.match(text, /2030年の日本シリーズでも対戦/);
-  assert.ok(facts.slice(0, 3).every((fact) => fact.factRefs.some((ref) => ref.kind === 'TEAM_HISTORY')));
+  assert.ok(
+    facts.slice(0, 3).every((fact) => fact.factRefs.some((ref) => ref.kind === 'TEAM_HISTORY')),
+  );
 });

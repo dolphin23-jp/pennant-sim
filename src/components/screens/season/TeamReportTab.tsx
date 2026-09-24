@@ -38,7 +38,10 @@ export function TeamReportTab() {
   const teamStats = aggregateTeamStats(viewedTeam, statsSource);
 
   const lineup = isOwnTeam && game.lineup.length ? game.lineup : bestLineup(viewedTeam);
-  const rotation = resolveStarterRotation(viewedTeam, isOwnTeam ? game.pitcherPlan.rotationOrder : []);
+  const rotation = resolveStarterRotation(
+    viewedTeam,
+    isOwnTeam ? game.pitcherPlan.rotationOrder : [],
+  );
   const bullpenClosers = resolveCloserOrder(
     viewedTeam,
     isOwnTeam ? game.pitcherPlan.closerPriority : [],
@@ -59,12 +62,22 @@ export function TeamReportTab() {
       />
 
       <Card ariaLabel={`${TINFO[viewedKey].n}の成績スナップショット`}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 6,
+            flexWrap: 'wrap',
+          }}
+        >
           <SectionTitle>Team Snapshot</SectionTitle>
           <span style={{ color: teamTextColor(TINFO[viewedKey].c), fontWeight: 800, fontSize: 13 }}>
             {TINFO[viewedKey].n}
           </span>
-          <span style={{ color: 'var(--color-text-faint)', fontSize: 11 }}>{leagueLabel(viewedKey)}</span>
+          <span style={{ color: 'var(--color-text-faint)', fontSize: 11 }}>
+            {leagueLabel(viewedKey)}
+          </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
           <LampFigure

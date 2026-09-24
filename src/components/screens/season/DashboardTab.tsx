@@ -10,11 +10,7 @@ import { BoxScore } from '../../widgets/BoxScore';
 import { NoticeCenter } from '../../widgets/NoticeCenter';
 import { StandingsTable } from '../../widgets/StandingsTable';
 
-export function DashboardTab({
-  onSelectTeam,
-}: {
-  onSelectTeam?(teamKey: TeamKey): void;
-}) {
+export function DashboardTab({ onSelectTeam }: { onSelectTeam?(teamKey: TeamKey): void }) {
   const game = useGameState();
   const { busy, run } = useBusyAction();
   const nextGame = useMemo(

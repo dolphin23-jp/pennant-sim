@@ -191,15 +191,15 @@ function universityHighlights(
     highlights.push({ kind: 'power-hitter', text: '大学球界で長打力を評価された' });
   }
   if (player.isP && pitcherSignal(player) >= 76) {
-    highlights.push({ kind: 'featured-pitcher', text: '大学球界を代表する投手の一人として注目された' });
+    highlights.push({
+      kind: 'featured-pitcher',
+      text: '大学球界を代表する投手の一人として注目された',
+    });
   }
   return highlights;
 }
 
-function corporateHighlights(
-  tier: PreProProfileTier,
-  random: () => number,
-): PreProHighlight[] {
+function corporateHighlights(tier: PreProProfileTier, random: () => number): PreProHighlight[] {
   const highlights: PreProHighlight[] = [
     { kind: 'corporate-regular', text: '社会人野球で主力としてプレーした' },
   ];

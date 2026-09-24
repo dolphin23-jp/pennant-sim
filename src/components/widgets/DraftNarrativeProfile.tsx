@@ -43,7 +43,7 @@ export function DraftNarrativeProfile({
     [player, prospects, year],
   );
   const stored = useMemo(
-    () => (profile ? game.narrativeArticles[String(profile.article.year)] ?? [] : []),
+    () => (profile ? (game.narrativeArticles[String(profile.article.year)] ?? []) : []),
     [profile, game.narrativeArticles],
   );
 
@@ -138,8 +138,7 @@ export function DraftNarrativeProfile({
             key={`${rendered.id}:${index}`}
             style={{
               margin: 0,
-              color:
-                segment.class === 'FACTUAL' ? 'var(--color-text)' : 'var(--color-text-muted)',
+              color: segment.class === 'FACTUAL' ? 'var(--color-text)' : 'var(--color-text-muted)',
               borderLeft:
                 segment.class === 'ANALYTICAL' ? '2px solid var(--color-border)' : undefined,
               paddingLeft: segment.class === 'ANALYTICAL' ? 9 : undefined,

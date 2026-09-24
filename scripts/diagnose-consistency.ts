@@ -294,7 +294,9 @@ function main(): void {
   );
   const battedBallTotal = Object.values(counters.battedBall).reduce((a, b) => a + b, 0);
   for (const [kind, count] of Object.entries(counters.battedBall)) {
-    console.log(`  ${kind.padEnd(8)}: ${String(count).padStart(6)} (${pct(count, battedBallTotal)})`);
+    console.log(
+      `  ${kind.padEnd(8)}: ${String(count).padStart(6)} (${pct(count, battedBallTotal)})`,
+    );
   }
   console.log('');
   console.log('--- 責任投手 ---');
@@ -304,10 +306,18 @@ function main(): void {
     `決着したが勝利投手なし:   ${counters.gamesNoWinner} (${pct(counters.gamesNoWinner, counters.games - counters.ties)} of decided games)`,
   );
   const decided = counters.games - counters.ties;
-  console.log(`救援勝利:                 ${counters.reliefWins} (${pct(counters.reliefWins, decided)} of decided)`);
-  console.log(`セーブ:                   ${counters.saves} (${pct(counters.saves, decided)} of decided)`);
-  console.log(`ホールド:                 ${counters.holds} (1球団あたり ${(counters.holds / 12).toFixed(1)})`);
-  console.log(`ブロウンセーブ:           ${counters.blownSaves} (1球団あたり ${(counters.blownSaves / 12).toFixed(1)})`);
+  console.log(
+    `救援勝利:                 ${counters.reliefWins} (${pct(counters.reliefWins, decided)} of decided)`,
+  );
+  console.log(
+    `セーブ:                   ${counters.saves} (${pct(counters.saves, decided)} of decided)`,
+  );
+  console.log(
+    `ホールド:                 ${counters.holds} (1球団あたり ${(counters.holds / 12).toFixed(1)})`,
+  );
+  console.log(
+    `ブロウンセーブ:           ${counters.blownSaves} (1球団あたり ${(counters.blownSaves / 12).toFixed(1)})`,
+  );
 }
 
 main();

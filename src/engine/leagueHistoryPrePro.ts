@@ -30,7 +30,9 @@ function enrichPlayer(
   // proxy; current parameters are used only for current rookies with no archived season.
   const entryPotential = record
     ? (Object.fromEntries(
-        Object.entries(record.params).filter((entry): entry is [string, number] => typeof entry[1] === 'number'),
+        Object.entries(record.params).filter(
+          (entry): entry is [string, number] => typeof entry[1] === 'number',
+        ),
       ) as Player['pot'])
     : undefined;
   const entryProxy: Player = record

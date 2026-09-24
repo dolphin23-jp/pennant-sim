@@ -1,4 +1,11 @@
-import type { AccumulatedStats, BatterStats, PitcherStats, TeamKey, Teams, YearlyPlayerRecords } from './types';
+import type {
+  AccumulatedStats,
+  BatterStats,
+  PitcherStats,
+  TeamKey,
+  Teams,
+  YearlyPlayerRecords,
+} from './types';
 
 export type AchievementKind = 'milestone' | 'seasonRecord' | 'careerRecord';
 
@@ -35,7 +42,10 @@ const PITCHER_RECORD_METRICS: CountingMetricDefinition[] = [
   { key: 'sv', kind: 'pit', label: 'セーブ' },
   { key: 'hld', kind: 'pit', label: 'ホールド' },
 ];
-const RECORD_METRICS: CountingMetricDefinition[] = [...BATTER_RECORD_METRICS, ...PITCHER_RECORD_METRICS];
+const RECORD_METRICS: CountingMetricDefinition[] = [
+  ...BATTER_RECORD_METRICS,
+  ...PITCHER_RECORD_METRICS,
+];
 
 // Below these, a "record" is too trivial to be worth a celebration (a rookie's 3rd
 // career hit is not a record, even if literally nobody else has 3 hits yet in a
@@ -131,7 +141,12 @@ function detectCareerMilestones(
       if (afterStats.type !== definition.kind) continue;
       const beforeValue = metricValue(definition, before[playerId]),
         afterValue = metricValue(definition, afterStats);
-      for (const threshold of crossedThresholds(beforeValue, afterValue, definition.start, definition.step)) {
+      for (const threshold of crossedThresholds(
+        beforeValue,
+        afterValue,
+        definition.start,
+        definition.step,
+      )) {
         events.push({
           id: `milestone:${playerId}:${definition.key}:${threshold}`,
           kind: 'milestone',
@@ -309,6 +324,12 @@ export function detectAchievements(input: {
       input.year,
       input.date,
     ),
-    ...detectCareerRecords(input.afterCareerStats, playerInfo, input.yearlyStats, input.year, input.date),
+    ...detectCareerRecords(
+      input.afterCareerStats,
+      playerInfo,
+      input.yearlyStats,
+      input.year,
+      input.date,
+    ),
   ];
 }

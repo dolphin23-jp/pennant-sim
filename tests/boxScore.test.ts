@@ -3,7 +3,15 @@ import test from 'node:test';
 
 import { buildGameBoxScore, isNotableGame, toSummary } from '../src/engine/boxScore';
 import { accumulateStatsAll, mergeStatMaps } from '../src/engine/stats';
-import type { AccumulatedStats, AtBatLogEntry, BatterStats, GameState, Player, Team, TeamKey } from '../src/engine/types';
+import type {
+  AccumulatedStats,
+  AtBatLogEntry,
+  BatterStats,
+  GameState,
+  Player,
+  Team,
+  TeamKey,
+} from '../src/engine/types';
 
 function makeBatter(id: string, teamKey: TeamKey): Player {
   return {
@@ -53,7 +61,9 @@ function makeTeam(key: TeamKey, fielders: Player[], pitchers: Player[]): Team {
   };
 }
 
-function entry(partial: Partial<AtBatLogEntry> & Pick<AtBatLogEntry, 'inning' | 'isBot'>): AtBatLogEntry {
+function entry(
+  partial: Partial<AtBatLogEntry> & Pick<AtBatLogEntry, 'inning' | 'isBot'>,
+): AtBatLogEntry {
   return {
     batter: '',
     batterId: '',
@@ -155,7 +165,10 @@ test('打者・投手成績がatBatLogの集計と一致し、得点合計がチ
   ];
 
   const gameState = {
-    teams: { home: makeTeam('giants', [hB1, hB2], [hP]), away: makeTeam('tigers', [aB1, aB2], [aP]) },
+    teams: {
+      home: makeTeam('giants', [hB1, hB2], [hP]),
+      away: makeTeam('tigers', [aB1, aB2], [aP]),
+    },
     lineups: { home: [hB1, hB2], away: [aB1, aB2] },
     park: { homeRun: 1, hit: 1 },
     matchupCounts: {},
@@ -227,11 +240,66 @@ test('猛打賞・大差勝利の注目記録を検出する', () => {
   const hP = makePitcher('hP', 'giants');
 
   const atBatLog: AtBatLogEntry[] = [
-    entry({ inning: 1, isBot: true, batter: 'hB1', batterId: 'hB1', bSide: 'giants', pitcher: 'aP', pitcherId: 'aP', pSide: 'tigers', result: '1B', snap: { home: 0, away: 0 } }),
-    entry({ inning: 2, isBot: true, batter: 'hB1', batterId: 'hB1', bSide: 'giants', pitcher: 'aP', pitcherId: 'aP', pSide: 'tigers', result: '2B', snap: { home: 0, away: 0 } }),
-    entry({ inning: 3, isBot: true, batter: 'hB1', batterId: 'hB1', bSide: 'giants', pitcher: 'aP', pitcherId: 'aP', pSide: 'tigers', result: '1B', snap: { home: 0, away: 0 } }),
-    entry({ inning: 4, isBot: true, batter: 'hB1', batterId: 'hB1', bSide: 'giants', pitcher: 'aP', pitcherId: 'aP', pSide: 'tigers', result: '1B', snap: { home: 0, away: 0 } }),
-    entry({ inning: 5, isBot: false, batter: 'aB1', batterId: 'aB1', bSide: 'tigers', pitcher: 'hP', pitcherId: 'hP', pSide: 'giants', result: 'K', snap: { home: 0, away: 0 } }),
+    entry({
+      inning: 1,
+      isBot: true,
+      batter: 'hB1',
+      batterId: 'hB1',
+      bSide: 'giants',
+      pitcher: 'aP',
+      pitcherId: 'aP',
+      pSide: 'tigers',
+      result: '1B',
+      snap: { home: 0, away: 0 },
+    }),
+    entry({
+      inning: 2,
+      isBot: true,
+      batter: 'hB1',
+      batterId: 'hB1',
+      bSide: 'giants',
+      pitcher: 'aP',
+      pitcherId: 'aP',
+      pSide: 'tigers',
+      result: '2B',
+      snap: { home: 0, away: 0 },
+    }),
+    entry({
+      inning: 3,
+      isBot: true,
+      batter: 'hB1',
+      batterId: 'hB1',
+      bSide: 'giants',
+      pitcher: 'aP',
+      pitcherId: 'aP',
+      pSide: 'tigers',
+      result: '1B',
+      snap: { home: 0, away: 0 },
+    }),
+    entry({
+      inning: 4,
+      isBot: true,
+      batter: 'hB1',
+      batterId: 'hB1',
+      bSide: 'giants',
+      pitcher: 'aP',
+      pitcherId: 'aP',
+      pSide: 'tigers',
+      result: '1B',
+      snap: { home: 0, away: 0 },
+    }),
+    entry({
+      inning: 5,
+      isBot: false,
+      batter: 'aB1',
+      batterId: 'aB1',
+      bSide: 'tigers',
+      pitcher: 'hP',
+      pitcherId: 'hP',
+      pSide: 'giants',
+      result: 'K',
+      snap: { home: 0, away: 0 },
+    }),
   ];
 
   const gameState = {
@@ -258,7 +326,11 @@ test('猛打賞・大差勝利の注目記録を検出する', () => {
 
   const box = buildGameBoxScore(gameState, 'g2', '2026-04-02', 2026, {});
 
-  assert.ok(box.notableEvents.some((eventItem) => eventItem.type === 'bigGame' && eventItem.playerId === 'hB1'));
+  assert.ok(
+    box.notableEvents.some(
+      (eventItem) => eventItem.type === 'bigGame' && eventItem.playerId === 'hB1',
+    ),
+  );
   assert.ok(box.notableEvents.some((eventItem) => eventItem.type === 'blowout'));
   assert.equal(isNotableGame(box), true);
 });
@@ -270,8 +342,32 @@ test('9回裏で決着した場合のみサヨナラと判定し、9回裏を行
   const hP = makePitcher('hP', 'giants');
 
   const walkoffLog: AtBatLogEntry[] = [
-    entry({ inning: 9, isBot: false, batter: 'aB1', batterId: 'aB1', bSide: 'tigers', pitcher: 'hP', pitcherId: 'hP', pSide: 'giants', result: 'K', snap: { home: 0, away: 0 } }),
-    entry({ inning: 9, isBot: true, batter: 'hB1', batterId: 'hB1', bSide: 'giants', pitcher: 'aP', pitcherId: 'aP', pSide: 'tigers', result: 'HR', rbi: 1, scoredIds: ['hB1'], snap: { home: 1, away: 0 } }),
+    entry({
+      inning: 9,
+      isBot: false,
+      batter: 'aB1',
+      batterId: 'aB1',
+      bSide: 'tigers',
+      pitcher: 'hP',
+      pitcherId: 'hP',
+      pSide: 'giants',
+      result: 'K',
+      snap: { home: 0, away: 0 },
+    }),
+    entry({
+      inning: 9,
+      isBot: true,
+      batter: 'hB1',
+      batterId: 'hB1',
+      bSide: 'giants',
+      pitcher: 'aP',
+      pitcherId: 'aP',
+      pSide: 'tigers',
+      result: 'HR',
+      rbi: 1,
+      scoredIds: ['hB1'],
+      snap: { home: 1, away: 0 },
+    }),
   ];
   const innings = Array.from({ length: 9 }, () => ({ home: 0, away: 0 }));
   innings[8] = { home: 1, away: 0 };
@@ -304,7 +400,18 @@ test('9回裏で決着した場合のみサヨナラと判定し、9回裏を行
   assert.equal(walkoffBox.innings[8]?.home, 1);
 
   const noBottomLog: AtBatLogEntry[] = [
-    entry({ inning: 9, isBot: false, batter: 'aB1', batterId: 'aB1', bSide: 'tigers', pitcher: 'hP', pitcherId: 'hP', pSide: 'giants', result: 'K', snap: { home: 3, away: 0 } }),
+    entry({
+      inning: 9,
+      isBot: false,
+      batter: 'aB1',
+      batterId: 'aB1',
+      bSide: 'tigers',
+      pitcher: 'hP',
+      pitcherId: 'hP',
+      pSide: 'giants',
+      result: 'K',
+      snap: { home: 3, away: 0 },
+    }),
   ];
   const noBottomInnings = Array.from({ length: 9 }, () => ({ home: 0, away: 0 }));
   noBottomInnings[8] = { home: 0, away: 0 };
@@ -327,8 +434,32 @@ test('toSummaryは打者・投手成績と注目記録を除きhasBoxScoreをfal
   const aB1 = makeBatter('aB1', 'tigers');
   const aP = makePitcher('aP', 'tigers');
   const atBatLog: AtBatLogEntry[] = [
-    entry({ inning: 1, isBot: false, batter: 'aB1', batterId: 'aB1', bSide: 'tigers', pitcher: 'hP', pitcherId: 'hP', pSide: 'giants', result: '1B', snap: { home: 0, away: 0 } }),
-    entry({ inning: 1, isBot: true, batter: 'hB1', batterId: 'hB1', bSide: 'giants', pitcher: 'aP', pitcherId: 'aP', pSide: 'tigers', result: '2B', rbi: 1, scoredIds: [], snap: { home: 1, away: 0 } }),
+    entry({
+      inning: 1,
+      isBot: false,
+      batter: 'aB1',
+      batterId: 'aB1',
+      bSide: 'tigers',
+      pitcher: 'hP',
+      pitcherId: 'hP',
+      pSide: 'giants',
+      result: '1B',
+      snap: { home: 0, away: 0 },
+    }),
+    entry({
+      inning: 1,
+      isBot: true,
+      batter: 'hB1',
+      batterId: 'hB1',
+      bSide: 'giants',
+      pitcher: 'aP',
+      pitcherId: 'aP',
+      pSide: 'tigers',
+      result: '2B',
+      rbi: 1,
+      scoredIds: [],
+      snap: { home: 1, away: 0 },
+    }),
   ];
   const gameState = {
     teams: { home: makeTeam('giants', [hB1], [hP]), away: makeTeam('tigers', [aB1], [aP]) },
@@ -357,18 +488,29 @@ test('toSummaryは打者・投手成績と注目記録を除きhasBoxScoreをfal
   assert.equal(summary.hasBoxScore, false);
   assert.equal('batterLines' in summary, false);
   assert.equal(summary.gameId, 'g5');
-  assert.equal(
-    isNotableGame(box),
-    true,
-    '完封(1-0)なのでshutoutTeamが立ちnotableと判定される',
-  );
+  assert.equal(isNotableGame(box), true, '完封(1-0)なのでshutoutTeamが立ちnotableと判定される');
 });
 
 test('mergeStatMapsはbaseのネストしたPlayerStatsを変異させない(同一baseを複数回再利用しても二重加算しない)', () => {
   const seasonStatsSoFar: AccumulatedStats = {
     p1: {
-      type: 'bat', name: 'p1', g: 10, pa: 40, ab: 36, h: 10, s: 8, d: 1, t: 0,
-      hr: 1, bb: 3, k: 6, rbi: 5, sb: 1, cs: 0, bnt: 0, sf: 0,
+      type: 'bat',
+      name: 'p1',
+      g: 10,
+      pa: 40,
+      ab: 36,
+      h: 10,
+      s: 8,
+      d: 1,
+      t: 0,
+      hr: 1,
+      bb: 3,
+      k: 6,
+      rbi: 5,
+      sb: 1,
+      cs: 0,
+      bnt: 0,
+      sf: 0,
     } as BatterStats,
   };
   const frozenBefore = JSON.parse(JSON.stringify(seasonStatsSoFar)) as AccumulatedStats;
@@ -381,8 +523,23 @@ test('mergeStatMapsはbaseのネストしたPlayerStatsを変異させない(同
 
   leagueStats = {
     p1: {
-      type: 'bat', name: 'p1', g: 1, pa: 4, ab: 4, h: 1, s: 1, d: 0, t: 0,
-      hr: 0, bb: 0, k: 0, rbi: 0, sb: 0, cs: 0, bnt: 0, sf: 0,
+      type: 'bat',
+      name: 'p1',
+      g: 1,
+      pa: 4,
+      ab: 4,
+      h: 1,
+      s: 1,
+      d: 0,
+      t: 0,
+      hr: 0,
+      bb: 0,
+      k: 0,
+      rbi: 0,
+      sb: 0,
+      cs: 0,
+      bnt: 0,
+      sf: 0,
     } as BatterStats,
   };
   const snapshotBeforeGame3 = mergeStatMaps(seasonStatsSoFar, leagueStats); // game3直前のスナップショット
@@ -408,14 +565,24 @@ test('CPU消化バッチで同一選手が複数試合に出場しても、他�
   function singleHitGame(): GameState {
     const atBatLog: AtBatLogEntry[] = [
       entry({
-        inning: 1, isBot: true, batter: 'cpuBatter', batterId: 'cpuBatter', bSide: 'giants',
-        pitcher: 'cpuPitcher', pitcherId: 'cpuPitcher', pSide: 'tigers', result: '1B',
+        inning: 1,
+        isBot: true,
+        batter: 'cpuBatter',
+        batterId: 'cpuBatter',
+        bSide: 'giants',
+        pitcher: 'cpuPitcher',
+        pitcherId: 'cpuPitcher',
+        pSide: 'tigers',
+        result: '1B',
         snap: { home: 0, away: 0 },
       }),
     ];
     return {
       // 本塁打者側(home)の投手陣は空にし、この検証に無関係なaway投手線だけを見る。
-      teams: { home: makeTeam('giants', [scorer], []), away: makeTeam('tigers', [], [opposingPitcher]) },
+      teams: {
+        home: makeTeam('giants', [scorer], []),
+        away: makeTeam('tigers', [], [opposingPitcher]),
+      },
       lineups: { home: [scorer], away: [] },
       park: { homeRun: 1, hit: 1 },
       matchupCounts: {},
@@ -441,8 +608,23 @@ test('CPU消化バッチで同一選手が複数試合に出場しても、他�
   // seasonStatsSoFar として毎バッチ渡す。この選手は既に9安打を持っているとする。
   const seasonStatsSoFar: AccumulatedStats = {
     cpuBatter: {
-      type: 'bat', name: 'cpuBatter', g: 20, pa: 80, ab: 72, h: 9, s: 8, d: 1, t: 0,
-      hr: 0, bb: 5, k: 10, rbi: 4, sb: 0, cs: 0, bnt: 0, sf: 0,
+      type: 'bat',
+      name: 'cpuBatter',
+      g: 20,
+      pa: 80,
+      ab: 72,
+      h: 9,
+      s: 8,
+      d: 1,
+      t: 0,
+      hr: 0,
+      bb: 5,
+      k: 10,
+      rbi: 4,
+      sb: 0,
+      cs: 0,
+      bnt: 0,
+      sf: 0,
     } as BatterStats,
   };
 

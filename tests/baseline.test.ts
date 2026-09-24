@@ -63,10 +63,7 @@ test('current engine stays within two percent of the recorded balance baseline',
       `${metric} mean diverged by more than 2%`,
     );
     assert.ok(
-      relativeDifference(
-        baselineMetric.standardDeviation,
-        currentMetric.standardDeviation,
-      ) <= 0.02,
+      relativeDifference(baselineMetric.standardDeviation, currentMetric.standardDeviation) <= 0.02,
       `${metric} standard deviation diverged by more than 2%`,
     );
   }

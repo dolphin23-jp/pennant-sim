@@ -11,9 +11,7 @@ export function requiredPlateAppearances(teamGames: number): number {
 }
 
 export function requiredPitchingOuts(teamGames: number): number {
-  return Math.ceil(
-    Math.max(0, teamGames) * STATS_QUALIFICATION.inningsPerTeamGame * 3,
-  );
+  return Math.ceil(Math.max(0, teamGames) * STATS_QUALIFICATION.inningsPerTeamGame * 3);
 }
 
 export function qualifiesForRate(stats: PlayerStats, teamGames: number): boolean {

@@ -100,10 +100,7 @@ export function BullpenBoard({
   onSelectPlayer(player: Player): void;
 }) {
   const setupPitchers = relievers.slice(0, 2);
-  const others = useMemo(
-    () => [...closers.slice(2), ...relievers.slice(2)],
-    [closers, relievers],
-  );
+  const others = useMemo(() => [...closers.slice(2), ...relievers.slice(2)], [closers, relievers]);
   const [ageFilter, setAgeFilter] = useState<AgeFilter>('all');
   const filteredOthers = useMemo(
     () => others.filter((pitcher) => matchesAge(pitcher, ageFilter)),
@@ -150,7 +147,14 @@ export function BullpenBoard({
       </div>
 
       <div style={{ marginTop: 12 }}>
-        <div style={{ marginBottom: 7, color: 'var(--color-text-faint)', fontSize: 10, fontWeight: 900 }}>
+        <div
+          style={{
+            marginBottom: 7,
+            color: 'var(--color-text-faint)',
+            fontSize: 10,
+            fontWeight: 900,
+          }}
+        >
           その他
         </div>
         {others.length > 0 && (

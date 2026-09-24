@@ -192,11 +192,15 @@ test('a lone runner on second can attempt third, rarer than second but with a hi
   assert.ok(thirdAttempt > 0, '三盗の企図率が発生していること');
   assert.ok(thirdAttempt < secondAttempt, '三盗の企図は盗塁より控えめであること');
 
-  assert.equal(stealThirdAttemptRate(runner, catcher, pitcher, speed, {
-    inning: 8,
-    outs: 2,
-    scoreDifference: 0,
-  }), 0, '2アウトでは三盗を企図しないこと');
+  assert.equal(
+    stealThirdAttemptRate(runner, catcher, pitcher, speed, {
+      inning: 8,
+      outs: 2,
+      scoreDifference: 0,
+    }),
+    0,
+    '2アウトでは三盗を企図しないこと',
+  );
 
   const successRate = stealThirdSuccessRate(runner, catcher, pitcher);
   assert.ok(successRate > 0.5 && successRate <= 0.95, '三盗の成功率が妥当な範囲であること');

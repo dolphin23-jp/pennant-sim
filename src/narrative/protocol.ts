@@ -253,10 +253,7 @@ export function validateProse(raw: unknown, packet: FactPacket): Prose | null {
   let analyticalCount = 0;
   let colorCount = 0;
 
-  function unit(
-    value: unknown,
-    placement: 'headline' | 'dek' | 'segment',
-  ): value is ProseUnit {
+  function unit(value: unknown, placement: 'headline' | 'dek' | 'segment'): value is ProseUnit {
     if (
       !record(value) ||
       Object.keys(value).some((k) => !['class', 'text', 'claimIds'].includes(k)) ||
@@ -297,8 +294,7 @@ export function validateProse(raw: unknown, packet: FactPacket): Prose | null {
     // Canonical template wording is already an audited projection. The lexical banlist applies to
     // freer prose, not to an exact one-claim FACTUAL fallback. ANALYTICAL units are deliberately
     // limited to multi-claim synthesis and are independently checked by the Worker verifier.
-    const exactCanonical =
-      !analytical && validClaims.length === 1 && text === validClaims[0].text;
+    const exactCanonical = !analytical && validClaims.length === 1 && text === validClaims[0].text;
     if (!exactCanonical && prohibited.test(text)) return false;
     if (!isNumberSubset(numberList(text), numberList(evidence))) return false;
 

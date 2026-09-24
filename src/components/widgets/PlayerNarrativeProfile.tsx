@@ -10,10 +10,7 @@ import type { NarrativeArticle } from '../../narrative/types';
 import { useGameState } from '../../state/gameState';
 import { Button, Card, EmptyState, SectionTitle } from '../ui';
 
-function profileAsOfDate(
-  year: number,
-  schedule: Array<{ date: string; played: boolean }>,
-): string {
+function profileAsOfDate(year: number, schedule: Array<{ date: string; played: boolean }>): string {
   const valid = schedule
     .map((game) => game.date)
     .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
@@ -62,7 +59,7 @@ export function PlayerNarrativeProfile({ player }: { player: Player }) {
   );
 
   const stored = useMemo(
-    () => (profile ? game.narrativeArticles[String(profile.article.year)] ?? [] : []),
+    () => (profile ? (game.narrativeArticles[String(profile.article.year)] ?? []) : []),
     [profile, game.narrativeArticles],
   );
 
@@ -146,9 +143,7 @@ export function PlayerNarrativeProfile({ player }: { player: Player }) {
               style={{
                 margin: 0,
                 color:
-                  segment.class === 'FACTUAL'
-                    ? 'var(--color-text)'
-                    : 'var(--color-text-muted)',
+                  segment.class === 'FACTUAL' ? 'var(--color-text)' : 'var(--color-text-muted)',
                 borderLeft:
                   segment.class === 'ANALYTICAL' ? '2px solid var(--color-border)' : undefined,
                 paddingLeft: segment.class === 'ANALYTICAL' ? 9 : undefined,

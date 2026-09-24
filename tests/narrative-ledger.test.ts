@@ -23,10 +23,7 @@ import {
   reviewForeignPlayers,
   calcStandings,
 } from '../src/engine';
-import {
-  narrativeEventsFromPostGame,
-  seasonReviewEvents,
-} from '../src/engine/narrativeEvents';
+import { narrativeEventsFromPostGame, seasonReviewEvents } from '../src/engine/narrativeEvents';
 import { applyPostGamePlayerEvents } from '../src/engine/playerEvents';
 import { applyTrade, type TradeOffer } from '../src/state/offseason';
 import { createEmptyRotations } from '../src/state/storage';

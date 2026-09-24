@@ -16,7 +16,10 @@ function TeamPennant({ color }: { color: string }) {
 }
 
 function StrengthMeter({ value, color }: { value: number; color: string }) {
-  const percentage = Math.min(100, Math.max(0, ((value - STRENGTH_MIN) / (STRENGTH_MAX - STRENGTH_MIN)) * 100));
+  const percentage = Math.min(
+    100,
+    Math.max(0, ((value - STRENGTH_MIN) / (STRENGTH_MAX - STRENGTH_MIN)) * 100),
+  );
   return (
     <div style={{ margin: '8px 0 12px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
@@ -68,7 +71,9 @@ function LeagueChoices({ title, teams }: { title: string; teams: readonly TeamKe
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <TeamPennant color={team.c} />
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: teamTextColor(team.c) }}>{team.ab}</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: teamTextColor(team.c) }}>
+                    {team.ab}
+                  </div>
                   <div style={{ fontSize: 13, marginTop: 2 }}>{team.n}</div>
                 </div>
               </div>

@@ -11,12 +11,7 @@ import {
   whip,
   yearlyRows,
 } from '../../engine';
-import type {
-  AccumulatedStats,
-  Player,
-  PlayerStats,
-  TeamKey,
-} from '../../engine';
+import type { AccumulatedStats, Player, PlayerStats, TeamKey } from '../../engine';
 import { Card, EmptyState, SectionTitle, SegmentedControl } from '../ui';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
 import { hasGoldSpecial } from './specialDisplay';
@@ -231,17 +226,22 @@ function StatsMobileCard({
   onSelect(): void;
 }) {
   const gold = hasGoldSpecial(row.player);
-  const metrics = playerKind === 'bat'
-    ? [
-        { key: 'average' as const, label: '打率', value: formattedValue(row, 'average') },
-        { key: 'hr' as const, label: '本塁打', value: formattedValue(row, 'hr') },
-        { key: 'rbi' as const, label: '打点', value: formattedValue(row, 'rbi') },
-      ]
-    : [
-        { key: 'era' as const, label: '防御率', value: formattedValue(row, 'era') },
-        { key: 'w' as const, label: '勝敗', value: `${formattedValue(row, 'w')}-${formattedValue(row, 'l')}` },
-        { key: 'sv' as const, label: 'セーブ', value: formattedValue(row, 'sv') },
-      ];
+  const metrics =
+    playerKind === 'bat'
+      ? [
+          { key: 'average' as const, label: '打率', value: formattedValue(row, 'average') },
+          { key: 'hr' as const, label: '本塁打', value: formattedValue(row, 'hr') },
+          { key: 'rbi' as const, label: '打点', value: formattedValue(row, 'rbi') },
+        ]
+      : [
+          { key: 'era' as const, label: '防御率', value: formattedValue(row, 'era') },
+          {
+            key: 'w' as const,
+            label: '勝敗',
+            value: `${formattedValue(row, 'w')}-${formattedValue(row, 'l')}`,
+          },
+          { key: 'sv' as const, label: 'セーブ', value: formattedValue(row, 'sv') },
+        ];
   const excluded = new Set<SortKey>(
     playerKind === 'bat'
       ? ['name', 'team', 'average', 'hr', 'rbi']
@@ -328,9 +328,10 @@ export function SortableStatsTable({
   );
   const selectedYear = availableYears.includes(year) ? year : (availableYears[0] ?? '');
   const columns = playerKind === 'bat' ? batterColumns : pitcherColumns;
-  const defaultSort = playerKind === 'bat'
-    ? { key: 'average' as SortKey, direction: 'desc' as SortDirection }
-    : { key: 'era' as SortKey, direction: 'asc' as SortDirection };
+  const defaultSort =
+    playerKind === 'bat'
+      ? { key: 'average' as SortKey, direction: 'desc' as SortDirection }
+      : { key: 'era' as SortKey, direction: 'asc' as SortDirection };
   const effectiveSort = columns.some((column) => column.key === sort.key) ? sort : defaultSort;
 
   const rows = useMemo(() => {
@@ -488,24 +489,31 @@ export function SortableStatsTable({
                 }}
               >
                 {columns.map((column) => (
-                  <option key={column.key} value={column.key}>{column.label}</option>
+                  <option key={column.key} value={column.key}>
+                    {column.label}
+                  </option>
                 ))}
               </select>
             </label>
             <button
               type="button"
               aria-label={`現在${effectiveSort.direction === 'asc' ? '昇順' : '降順'}。順序を反転`}
-              onClick={() => setSort({
-                key: effectiveSort.key,
-                direction: effectiveSort.direction === 'asc' ? 'desc' : 'asc',
-              })}
+              onClick={() =>
+                setSort({
+                  key: effectiveSort.key,
+                  direction: effectiveSort.direction === 'asc' ? 'desc' : 'asc',
+                })
+              }
             >
               {effectiveSort.direction === 'asc' ? '昇順 ↑' : '降順 ↓'}
             </button>
           </div>
 
           <div className="table-scroll desktop-table-view">
-            <table className="data-table" aria-label={`${playerKind === 'bat' ? '打者' : '投手'}成績一覧`}>
+            <table
+              className="data-table"
+              aria-label={`${playerKind === 'bat' ? '打者' : '投手'}成績一覧`}
+            >
               <caption>
                 列名を選択すると昇順・降順を切り替えます。{rows.length}名を表示中です。
               </caption>

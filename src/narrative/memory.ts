@@ -53,9 +53,12 @@ function eventAsOfDate(event: NarrativeEvent): string {
 }
 
 function playerIdsFromEvent(event: NarrativeEvent): string[] {
-  if (event.type === 'seasonReview') return (event.titleHolders ?? []).map((holder) => holder.playerId);
+  if (event.type === 'seasonReview')
+    return (event.titleHolders ?? []).map((holder) => holder.playerId);
   if (event.type === 'transaction') {
-    return [...new Set([event.playerId, ...(event.movements ?? []).map((movement) => movement.playerId)])];
+    return [
+      ...new Set([event.playerId, ...(event.movements ?? []).map((movement) => movement.playerId)]),
+    ];
   }
   return [event.playerId];
 }
@@ -200,10 +203,8 @@ export function buildCareerMemoryContext(
         )
         .map((award) => award.year),
     );
-    for (const record of eligible.slice().reverse())
-      if (titleYears.has(record.year)) add(record);
-    for (const record of eligible.slice().reverse())
-      if (standoutSeason(record)) add(record);
+    for (const record of eligible.slice().reverse()) if (titleYears.has(record.year)) add(record);
+    for (const record of eligible.slice().reverse()) if (standoutSeason(record)) add(record);
 
     if (eligible.length >= 3) add(eligible[0]);
     for (const record of eligible.slice().reverse()) add(record);
@@ -257,9 +258,14 @@ export function buildNarrativeStoryArcs(
     const draft = events.find((event) => event.type === 'draft');
     if (draft)
       arcs.push(
-        arc('career-origin', playerId, [narrativeEventArticleId(draft)], 8, [playerId], [
-          draft.teamKey,
-        ]),
+        arc(
+          'career-origin',
+          playerId,
+          [narrativeEventArticleId(draft)],
+          8,
+          [playerId],
+          [draft.teamKey],
+        ),
       );
 
     const transaction = events
@@ -279,9 +285,7 @@ export function buildNarrativeStoryArcs(
 
     const injury = events.filter((event) => event.type === 'injury').at(-1);
     const recovery = events
-      .filter(
-        (event) => event.type === 'career' && event.careerKind === 'returnFromInjury',
-      )
+      .filter((event) => event.type === 'career' && event.careerKind === 'returnFromInjury')
       .at(-1);
     if (injury && recovery && eventAsOfDate(injury) <= eventAsOfDate(recovery))
       arcs.push(
@@ -314,7 +318,9 @@ export function buildNarrativeStoryArcs(
       );
 
     const titleYears = source.awardHistory
-      .filter((award) => award.playerId === playerId && award.year < Number(article.asOfDate.slice(0, 4)))
+      .filter(
+        (award) => award.playerId === playerId && award.year < Number(article.asOfDate.slice(0, 4)),
+      )
       .map((award) => award.year);
     if (titleYears.length)
       arcs.push(

@@ -7,7 +7,12 @@ import { Button, Card, EmptyState, SectionTitle, TermTooltip } from '../ui';
 import { DisplayOVRValue } from './DisplayOVRValue';
 import { PlayerCompareModal } from './PlayerCompareModal';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
-import { matchesAge, matchesPositionFilter, type AgeFilter, type PositionFilter } from './playerFilters';
+import {
+  matchesAge,
+  matchesPositionFilter,
+  type AgeFilter,
+  type PositionFilter,
+} from './playerFilters';
 import { hasGoldSpecial } from './specialDisplay';
 import { BatterStatLine, PitcherStatLine } from './StatLine';
 import './phaseB.css';
@@ -158,7 +163,8 @@ function SortHeader({
         cursor: 'pointer',
       }}
     >
-      {label}{selected ? (direction === 'asc' ? ' ↑' : ' ↓') : ''}
+      {label}
+      {selected ? (direction === 'asc' ? ' ↑' : ' ↓') : ''}
     </button>
   );
 }
@@ -205,7 +211,7 @@ function RosterMobileCard({
             {player.name}
           </button>
           <div className="player-summary-card__meta">
-            {player.age}歳 / {player.isP ? player.role : player._assignedPos ?? player.pos}
+            {player.age}歳 / {player.isP ? player.role : (player._assignedPos ?? player.pos)}
             {gold ? ' / ★ゴールド特殊能力' : ''}
           </div>
           <div style={{ marginTop: 5 }}>
@@ -241,7 +247,7 @@ function RosterMobileCard({
           <dd>
             <DisplayOVRValue
               player={player}
-              position={player.isP ? undefined : player._assignedPos ?? player.pos}
+              position={player.isP ? undefined : (player._assignedPos ?? player.pos)}
               compact
             />
           </dd>
@@ -252,7 +258,9 @@ function RosterMobileCard({
         </div>
         <div className="player-summary-card__detail">
           <dt>特殊能力</dt>
-          <dd><SpecialSummary player={player} /></dd>
+          <dd>
+            <SpecialSummary player={player} />
+          </dd>
         </div>
       </dl>
     </article>
@@ -339,7 +347,9 @@ export function RosterTable({
             marginBottom: 12,
           }}
         >
-          <label style={{ display: 'grid', gap: 4, color: 'var(--color-text-muted)', fontSize: 11 }}>
+          <label
+            style={{ display: 'grid', gap: 4, color: 'var(--color-text-muted)', fontSize: 11 }}
+          >
             投打
             <select
               aria-label="投手と野手で絞り込む"
@@ -363,7 +373,9 @@ export function RosterTable({
               <option value="pitcher">投手</option>
             </select>
           </label>
-          <label style={{ display: 'grid', gap: 4, color: 'var(--color-text-muted)', fontSize: 11 }}>
+          <label
+            style={{ display: 'grid', gap: 4, color: 'var(--color-text-muted)', fontSize: 11 }}
+          >
             守備位置
             <select
               aria-label="守備位置で絞り込む"
@@ -384,11 +396,15 @@ export function RosterTable({
             >
               <option value="all">すべて</option>
               {FIELD_POSITIONS.map((position) => (
-                <option key={position} value={position}>{position}</option>
+                <option key={position} value={position}>
+                  {position}
+                </option>
               ))}
             </select>
           </label>
-          <label style={{ display: 'grid', gap: 4, color: 'var(--color-text-muted)', fontSize: 11 }}>
+          <label
+            style={{ display: 'grid', gap: 4, color: 'var(--color-text-muted)', fontSize: 11 }}
+          >
             年齢帯
             <select
               aria-label="年齢帯で絞り込む"
@@ -430,17 +446,21 @@ export function RosterTable({
                   }}
                 >
                   {rosterSortOptions.map((option) => (
-                    <option key={option.key} value={option.key}>{option.label}</option>
+                    <option key={option.key} value={option.key}>
+                      {option.label}
+                    </option>
                   ))}
                 </select>
               </label>
               <button
                 type="button"
                 aria-label={`現在${sort.direction === 'asc' ? '昇順' : '降順'}。順序を反転`}
-                onClick={() => setSort((current) => ({
-                  ...current,
-                  direction: current.direction === 'asc' ? 'desc' : 'asc',
-                }))}
+                onClick={() =>
+                  setSort((current) => ({
+                    ...current,
+                    direction: current.direction === 'asc' ? 'desc' : 'asc',
+                  }))
+                }
               >
                 {sort.direction === 'asc' ? '昇順 ↑' : '降順 ↓'}
               </button>
@@ -448,30 +468,70 @@ export function RosterTable({
 
             <div className="roster-table-wrap desktop-table-view">
               <table className="roster-table" aria-label={`${team.n}の選手一覧`}>
-                <caption>選手名を選択すると詳細を表示します。基本総合値から特殊込み総合値への変化を表示します。</caption>
+                <caption>
+                  選手名を選択すると詳細を表示します。基本総合値から特殊込み総合値への変化を表示します。
+                </caption>
                 <thead>
                   <tr>
                     <th scope="col">比較</th>
                     <th scope="col" style={{ textAlign: 'left' }}>
-                      <SortHeader sortKey="name" label="選手" activeKey={sort.key} direction={sort.direction} onSort={handleSort} />
+                      <SortHeader
+                        sortKey="name"
+                        label="選手"
+                        activeKey={sort.key}
+                        direction={sort.direction}
+                        onSort={handleSort}
+                      />
                     </th>
                     <th scope="col">
-                      <SortHeader sortKey="age" label="年齢" activeKey={sort.key} direction={sort.direction} onSort={handleSort} />
+                      <SortHeader
+                        sortKey="age"
+                        label="年齢"
+                        activeKey={sort.key}
+                        direction={sort.direction}
+                        onSort={handleSort}
+                      />
                     </th>
                     <th scope="col">役割</th>
                     <th scope="col">
-                      <TermTooltip term="能力値OVR" description="守備位置適性と特殊能力を含めない能力値ベースのOVRです。" />{' '}
-                      <SortHeader sortKey="ovr" label="並替" activeKey={sort.key} direction={sort.direction} onSort={handleSort} />
+                      <TermTooltip
+                        term="能力値OVR"
+                        description="守備位置適性と特殊能力を含めない能力値ベースのOVRです。"
+                      />{' '}
+                      <SortHeader
+                        sortKey="ovr"
+                        label="並替"
+                        activeKey={sort.key}
+                        direction={sort.direction}
+                        onSort={handleSort}
+                      />
                     </th>
                     <th scope="col">
-                      <TermTooltip term="基本 → 特殊込み" description="従来の実効OVRから、特殊能力を表示上だけ加減した総合値への変化です。" />{' '}
-                      <SortHeader sortKey="display" label="並替" activeKey={sort.key} direction={sort.direction} onSort={handleSort} />
+                      <TermTooltip
+                        term="基本 → 特殊込み"
+                        description="従来の実効OVRから、特殊能力を表示上だけ加減した総合値への変化です。"
+                      />{' '}
+                      <SortHeader
+                        sortKey="display"
+                        label="並替"
+                        activeKey={sort.key}
+                        direction={sort.direction}
+                        onSort={handleSort}
+                      />
                     </th>
                     <th scope="col">
-                      <SortHeader sortKey="status" label="状態" activeKey={sort.key} direction={sort.direction} onSort={handleSort} />
+                      <SortHeader
+                        sortKey="status"
+                        label="状態"
+                        activeKey={sort.key}
+                        direction={sort.direction}
+                        onSort={handleSort}
+                      />
                     </th>
                     <th scope="col">特殊</th>
-                    <th scope="col" style={{ textAlign: 'left' }}>今季</th>
+                    <th scope="col" style={{ textAlign: 'left' }}>
+                      今季
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -502,7 +562,7 @@ export function RosterTable({
                         </td>
                         <td style={{ textAlign: 'center' }}>{player.age}</td>
                         <td style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                          {player.isP ? player.role : player._assignedPos ?? player.pos}
+                          {player.isP ? player.role : (player._assignedPos ?? player.pos)}
                         </td>
                         <td
                           className={overall >= 80 ? 'metric-highlight' : undefined}
@@ -513,7 +573,7 @@ export function RosterTable({
                         <td style={{ textAlign: 'center' }}>
                           <DisplayOVRValue
                             player={player}
-                            position={player.isP ? undefined : player._assignedPos ?? player.pos}
+                            position={player.isP ? undefined : (player._assignedPos ?? player.pos)}
                             compact
                           />
                         </td>
@@ -540,7 +600,11 @@ export function RosterTable({
               </table>
             </div>
 
-            <div className="mobile-card-list" role="list" aria-label={`${team.n}のモバイル選手一覧`}>
+            <div
+              className="mobile-card-list"
+              role="list"
+              aria-label={`${team.n}のモバイル選手一覧`}
+            >
               {filteredPlayers.map((player) => {
                 const selected = selectedIds.includes(player.id);
                 return (

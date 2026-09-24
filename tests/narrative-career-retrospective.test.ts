@@ -11,7 +11,12 @@ import type {
   YearlyPlayerRecords,
 } from '../src/engine';
 import { buildCareerRetrospective } from '../src/narrative/careerRetrospective';
-import { canonicalJson, PROMPT_VERSION, validateProse, type Prose } from '../src/narrative/protocol';
+import {
+  canonicalJson,
+  PROMPT_VERSION,
+  validateProse,
+  type Prose,
+} from '../src/narrative/protocol';
 import type { NarrativeEvent, NarrativeEventLedger } from '../src/narrative/types';
 import { SYSTEM_PROMPT } from '../worker/index';
 
@@ -130,13 +135,15 @@ function baseHistory(includeFuture = false): YearlyPlayerRecords {
   return history;
 }
 
-function source(input: {
-  withSnapshot?: boolean;
-  includeFuture?: boolean;
-  retirement?: boolean;
-  awards?: SeasonTitleRecord[];
-  achievements?: AchievementEvent[];
-} = {}) {
+function source(
+  input: {
+    withSnapshot?: boolean;
+    includeFuture?: boolean;
+    retirement?: boolean;
+    awards?: SeasonTitleRecord[];
+    achievements?: AchievementEvent[];
+  } = {},
+) {
   const events: NarrativeEvent[] = [draftEvent(input.withSnapshot !== false)];
   if (input.retirement) {
     events.push({
@@ -159,21 +166,19 @@ function source(input: {
     seasonYear: 2031,
     asOfDate: '2031-04-01',
     yearlyStats: baseHistory(input.includeFuture),
-    awardHistory:
-      input.awards ??
-      [
-        {
-          year: 2030,
-          league: 'central' as const,
-          titleId: 'homeRuns',
-          titleLabel: '本塁打王',
-          playerId: 'retro-player',
-          playerName: '回顧 太郎',
-          teamKey: 'giants' as const,
-          displayValue: '32本',
-          value: 32,
-        },
-      ],
+    awardHistory: input.awards ?? [
+      {
+        year: 2030,
+        league: 'central' as const,
+        titleId: 'homeRuns',
+        titleLabel: '本塁打王',
+        playerId: 'retro-player',
+        playerName: '回顧 太郎',
+        teamKey: 'giants' as const,
+        displayValue: '32本',
+        value: 32,
+      },
+    ],
     achievementHistory: input.achievements ?? [],
     narrativeEvents,
   };
@@ -249,7 +254,6 @@ test('career retrospective packets require grounded multi-claim analytical prose
   });
   assert.ok(validateProse(prose, retrospective.packet));
 });
-
 
 test('long decorated careers stay within bounded FactPacket limits', () => {
   const awards: SeasonTitleRecord[] = Array.from({ length: 180 }, () => ({

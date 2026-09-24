@@ -157,7 +157,9 @@ export function createOffseasonDevelopmentNotices(
         .slice()
         .sort((first, second) => Math.abs(second.diff) - Math.abs(first.diff))
         .slice(0, 5)
-        .map((change) => `${parameterLabel(change.param)} ${change.diff > 0 ? '+' : ''}${change.diff}`)
+        .map(
+          (change) => `${parameterLabel(change.param)} ${change.diff > 0 ? '+' : ''}${change.diff}`,
+        )
         .join(' / ');
       return {
         id: noticeId(['growth', year, player.id]),
