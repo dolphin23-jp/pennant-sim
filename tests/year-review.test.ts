@@ -61,10 +61,15 @@ test('a year advanced automatically reads back as one complete review', () => {
       (event) => event.type === 'transaction' && event.transactionKind === 'retirement',
     );
     assert.equal(review.retirements.length, Math.min(15, retirements.length));
+    // A career line comes from the archived league totals; a player who retires without
+    // ever appearing in a league game has none.
     assert.ok(
-      review.retirements.every((row) => row.career !== null),
+      review.retirements.every(
+        (row) => (row.career !== null) === Boolean(state.leagueCareerAccumulated[row.playerId]),
+      ),
       'careers are archived',
     );
+    assert.ok(review.retirements.some((row) => row.career !== null));
 
     // 2027 is in progress, so the newest reviewable year is the one just completed.
     const years = availableReviewYears(state, state.season.year - 1);

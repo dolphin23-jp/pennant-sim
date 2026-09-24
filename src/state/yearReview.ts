@@ -67,6 +67,40 @@ const ACHIEVEMENT_PRIORITY: Record<AchievementEvent['kind'], number> = {
   milestone: 2,
 };
 
+/** Order of the year's moves: MLB departures and FA moves, compensation, trades, then the
+ * rest. Sort is stable, so each group keeps the order the moves happened in. */
+function MOVE_PRIORITY(event: TransactionNarrativeEvent): number {
+  if (event.transactionKind === 'release' || event.returnFromMlb) return 0;
+  if (
+    event.transactionKind === 'faSigning' &&
+    event.fromTeamKey &&
+    event.fromTeamKey !== event.toTeamKey
+  )
+    return 1;
+  if (event.transactionKind === 'compensation') return 2;
+  if (event.transactionKind === 'trade') return 3;
+  if (event.transactionKind === 'faSigning' && event.fromTeamKey) return 4;
+  return 5;
+}
+
+/** Short label for a move in the year's list. */
+export function moveLabel(event: TransactionNarrativeEvent): string {
+  switch (event.transactionKind) {
+    case 'trade':
+      return 'トレード';
+    case 'foreignSigning':
+      return '新外国人';
+    case 'compensation':
+      return '人的補償';
+    case 'release':
+      return 'MLB移籍';
+    default:
+      if (event.returnFromMlb) return 'MLB復帰';
+      if (event.fromTeamKey && event.fromTeamKey === event.toTeamKey) return 'FA残留';
+      return event.fromTeamKey ? 'FA移籍' : '入団';
+  }
+}
+
 const rate = (numerator: number, denominator: number): number =>
   denominator > 0 ? numerator / denominator : 0;
 
@@ -173,7 +207,9 @@ export function buildYearReview(source: YearReviewSource, year: number): YearRev
     (event) =>
       event.transactionKind === 'trade' ||
       event.transactionKind === 'faSigning' ||
-      event.transactionKind === 'foreignSigning',
+      event.transactionKind === 'foreignSigning' ||
+      event.transactionKind === 'compensation' ||
+      (event.transactionKind === 'release' && event.exitReason === 'mlbTransfer'),
   );
   const retirements = transactions
     .filter((event) => event.transactionKind === 'retirement')
@@ -208,13 +244,13 @@ export function buildYearReview(source: YearReviewSource, year: number): YearRev
           first.date.localeCompare(second.date),
       )
       .slice(0, 10),
-    // Trades first: every one is a story, while FA signings are routine each winter.
+    // Stars changing clubs or leaving for MLB first, then trades; journeyman and foreign
+    // signings are routine each winter.
     moves: {
       total: moves.length,
-      highlights: [
-        ...moves.filter((event) => event.transactionKind === 'trade'),
-        ...moves.filter((event) => event.transactionKind !== 'trade'),
-      ].slice(0, 10),
+      highlights: [...moves]
+        .sort((first, second) => MOVE_PRIORITY(first) - MOVE_PRIORITY(second))
+        .slice(0, 12),
     },
     retirements,
     firstRoundPicks: events

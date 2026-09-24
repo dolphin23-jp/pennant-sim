@@ -29,6 +29,7 @@ import type {
   GameSummary,
   Player,
   PlayerStats,
+  SeasonOutcome,
   SeasonTitleRecord,
   StandingRecord,
   TeamKey,
@@ -38,6 +39,7 @@ import type {
 import {
   createAchievementNotices,
   createForeignLifecycleNotices,
+  createFreeAgencyNotices,
   createGameResultNotice,
   createOffseasonDevelopmentNotices,
   createSkippedInSeasonDevelopmentNotices,
@@ -74,6 +76,8 @@ export interface RuntimeState {
   leagueCareerAccumulated: AccumulatedStats;
   yearlyStats: YearlyPlayerRecords;
   retiredPlayers: Player[];
+  /** Players currently in MLB (see advanceOverseasPlayers). */
+  overseasPlayers: Player[];
   notices: Notice[];
   championHistory: ChampionRecord[];
   awardHistory: SeasonTitleRecord[];
@@ -110,6 +114,7 @@ export const initialState: RuntimeState = {
   leagueCareerAccumulated: {},
   yearlyStats: {},
   retiredPlayers: [],
+  overseasPlayers: [],
   notices: [],
   championHistory: [],
   awardHistory: [],
@@ -306,12 +311,18 @@ export function applyOffseasonCompletion(
   developmentNotices: Notice[] = [],
   events: NarrativeEvent[] = [],
   retired: Player[] = [],
+  overseas: Player[] = current.overseasPlayers,
 ): RuntimeState {
   const nextTeams = { ...teams };
   if (!current.playerTeam) return current;
   // A duplicate completion callback belongs to the already committed old year.
   if (events.some((event) => event.year !== current.season.year)) return current;
   const completedYear = current.season.year;
+  const activeIds = new Set(
+    Object.values(nextTeams).flatMap((team) =>
+      [...team.pitchers, ...team.fielders].map((player) => player.id),
+    ),
+  );
   const seasonRecords = current.teams
     ? createPlayerSeasonRecords(completedYear, current.teams, current.leagueAccumulated)
     : [];
@@ -347,9 +358,11 @@ export function applyOffseasonCompletion(
       ),
       ...prepared.narrativeEvents,
     ]),
+    // A player back on a roster (returning from MLB) is no longer a departed one.
     retiredPlayers: [
       ...new Map([...current.retiredPlayers, ...retired].map((p) => [p.id, p])).values(),
-    ],
+    ].filter((player) => !activeIds.has(player.id)),
+    overseasPlayers: overseas,
     screen: 'season',
     season: { year, schedule: prepared.sched },
     rotN: prepared.rotN,
@@ -372,6 +385,18 @@ export function applyOffseasonCompletion(
     autosaveSeq: nextAutosaveSeq(),
   };
   return next;
+}
+
+/** How the season that just ended went, for club revenue and FA decisions. */
+export function seasonOutcome(
+  current: Pick<RuntimeState, 'standings' | 'championHistory' | 'season'>,
+): SeasonOutcome {
+  const record = current.championHistory.find((entry) => entry.year === current.season.year);
+  return {
+    standings: current.standings,
+    champion: record?.champion ?? null,
+    runnerUp: record?.runnerUp ?? null,
+  };
 }
 
 /**
@@ -413,6 +438,8 @@ export function advanceOneYear(current: RuntimeState): RuntimeState {
         calcInterleagueStandings(state.season.schedule),
       ),
       userTeam: playerTeam,
+      outcome: seasonOutcome(state),
+      overseas: state.overseasPlayers,
     },
     { year, date: `${year}年オフ`, emit: (event) => events.push(event) },
   );
@@ -425,6 +452,7 @@ export function advanceOneYear(current: RuntimeState): RuntimeState {
       year,
     ),
     ...createForeignLifecycleNotices(offseason.foreignReview.events, playerTeam, year),
+    ...createFreeAgencyNotices(events, playerTeam, year),
   ];
   return applyOffseasonCompletion(
     state,
@@ -432,6 +460,7 @@ export function advanceOneYear(current: RuntimeState): RuntimeState {
     developmentNotices,
     events,
     offseason.exits.map((exit) => exit.player),
+    offseason.overseas,
   );
 }
 

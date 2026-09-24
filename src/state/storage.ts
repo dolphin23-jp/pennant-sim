@@ -9,6 +9,7 @@ import {
   ensureCatcherAttributes,
   ensureSpecialLevels,
   syncSpecialsFromLevels,
+  withTeamContractDefaults,
 } from '../engine';
 import type {
   AccumulatedStats,
@@ -118,6 +119,8 @@ export interface GameSaveData {
   leagueCareerAccumulated: AccumulatedStats;
   yearlyStats: YearlyPlayerRecords;
   retiredPlayers: Player[];
+  /** Players currently in MLB, who may return. Missing on saves before free agency. */
+  overseasPlayers?: Player[];
   notices: Notice[];
   championHistory: ChampionRecord[];
   awardHistory: SeasonTitleRecord[];
@@ -416,6 +419,8 @@ export async function setActiveSaveSlot(
 export function migrateTeamsSpecialSchema(teams: Teams | null | undefined): Teams | null {
   if (!teams) return null;
   const migrated = { ...teams };
+  // Saves from before salaries and FA rights get estimated contracts and a budget.
+  const needsContracts = teamKeys.some((teamKey) => teams[teamKey] && !teams[teamKey].finance);
   for (const teamKey of teamKeys) {
     const team = migrated[teamKey];
     if (!team) continue;
@@ -432,7 +437,7 @@ export function migrateTeamsSpecialSchema(teams: Teams | null | undefined): Team
       ),
     };
   }
-  return migrated;
+  return needsContracts ? withTeamContractDefaults(migrated) : migrated;
 }
 
 const migrateSchedule = (schedule: ScheduleGame[] | undefined): ScheduleGame[] =>
@@ -840,6 +845,7 @@ export function migrateSaveData(raw: unknown): GameSaveData | null {
     leagueCareerAccumulated: migrateAccumulatedStats(legacy.leagueCareerAccumulated),
     yearlyStats: migrateYearlyStats(legacy.yearlyStats),
     retiredPlayers: migratePlayerArray(legacy.retiredPlayers),
+    overseasPlayers: migratePlayerArray(legacy.overseasPlayers),
     notices: migrateNotices(legacy.notices),
     championHistory: migrateChampionHistory(legacy.championHistory),
     awardHistory: migrateAwardHistory(legacy.awardHistory),

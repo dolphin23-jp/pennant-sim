@@ -13,11 +13,14 @@ import {
   countForeignPlayers,
   effectiveOVR,
   generateSchedule,
-  initSettledTeams,
   isForeignPlayer,
+  financeOf,
+  initSettledWorld,
+  postseasonRunnerUp,
   resetRandom,
   runFullOffseason,
   runPostseason,
+  teamPayroll,
   simulateGame,
   type AccumulatedStats,
   type DraftPick,
@@ -357,6 +360,15 @@ interface YearReport {
     foreignRenewals: number;
     foreignReleases: number;
     mlbTransfers: number;
+    freeAgency: {
+      declared: number;
+      moved: number;
+      mlbDepartures: number;
+      playersAbroad: number;
+      payrollMinimum: number;
+      payrollMaximum: number;
+      clubsOverBudget: number;
+    };
   };
   closingRoster: RosterSnapshot;
 }
@@ -490,6 +502,19 @@ function driftSummary(years: YearReport[]) {
     },
     largestClosingTeamOvrGap: largestGap,
     parity: paritySummary(years),
+    freeAgency: {
+      averageDeclared: round(average(years.map((y) => y.offseason.freeAgency.declared)), 2),
+      averageMoved: round(average(years.map((y) => y.offseason.freeAgency.moved)), 2),
+      averageMlbDepartures: round(
+        average(years.map((y) => y.offseason.freeAgency.mlbDepartures)),
+        2,
+      ),
+      finalPlayersAbroad: last.offseason.freeAgency.playersAbroad,
+      averageClubsOverBudget: round(
+        average(years.map((y) => y.offseason.freeAgency.clubsOverBudget)),
+        2,
+      ),
+    },
     foreignLifecycle: {
       finalActivePlayers: last.closingRoster.foreignPlayers.total,
       peakActivePlayers: Math.max(...years.map((year) => year.closingRoster.foreignPlayers.total)),
@@ -513,7 +538,9 @@ async function simulateFranchise(options: CliOptions) {
   configureRandom(mulberry32(options.seed), () => clock++);
   try {
     // Start from the settled league a new world opens with (see initSettledTeams).
-    let teams = initSettledTeams(options.startYear);
+    const world = initSettledWorld(options.startYear);
+    let teams = world.teams;
+    let overseas = world.overseas;
     const caps = initialRosterCaps(teams);
     const years: YearReport[] = [];
     for (let seasonIndex = 0; seasonIndex < options.years; seasonIndex += 1) {
@@ -565,8 +592,16 @@ async function simulateFranchise(options: CliOptions) {
         seasonStats: accumulated,
         draftOrder: draftOrderFromStandings(standings, calcInterleagueStandings(played)),
         userTeam: 'giants',
+        outcome: {
+          standings,
+          champion: postseason.japanSeries.winner,
+          runnerUp: postseasonRunnerUp(postseason),
+        },
+        overseas,
       });
       teams = offseason.teams;
+      overseas = offseason.overseas;
+      const payrolls = teamKeys(teams).map((teamKey) => teamPayroll(teams[teamKey]));
       const closingRoster = rosterSnapshot(teams);
       if (closingRoster.players !== openingRoster.players)
         throw new Error(
@@ -591,6 +626,17 @@ async function simulateFranchise(options: CliOptions) {
             .length,
           mlbTransfers: offseason.foreignReview.events.filter((e) => e.type === 'mlbTransfer')
             .length,
+          freeAgency: {
+            declared: offseason.declaredFreeAgents.length,
+            moved: offseason.freeAgentMoves,
+            mlbDepartures: offseason.mlbDepartures.length,
+            playersAbroad: overseas.length,
+            payrollMinimum: Math.min(...payrolls),
+            payrollMaximum: Math.max(...payrolls),
+            clubsOverBudget: teamKeys(teams).filter(
+              (teamKey) => teamPayroll(teams[teamKey]) > financeOf(teams[teamKey]).budget,
+            ).length,
+          },
         },
         closingRoster,
       });
@@ -600,7 +646,9 @@ async function simulateFranchise(options: CliOptions) {
           `OVR F ${openingRoster.averageOvr.fielders.toFixed(1)}→${closingRoster.averageOvr.fielders.toFixed(1)}, ` +
           `P ${openingRoster.averageOvr.pitchers.toFixed(1)}→${closingRoster.averageOvr.pitchers.toFixed(1)} | ` +
           `exited ${offseason.exits.length}, drafted ${offseason.draftPicks.length}, ` +
-          `FA ${offseason.freeAgentSignings}, foreign ${offseason.foreignSignings} ` +
+          `FA ${offseason.freeAgentSignings} (declared ${offseason.declaredFreeAgents.length}, ` +
+          `moved ${offseason.freeAgentMoves}, MLB ${offseason.mlbDepartures.length}), ` +
+          `foreign ${offseason.foreignSignings} ` +
           `| ${competition.pennants.central}/${competition.pennants.pacific} → ${competition.champion}, ` +
           `win% SD ${competition.winPctStandardDeviation.toFixed(3)}`,
       );

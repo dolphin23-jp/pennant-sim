@@ -6,24 +6,29 @@ import { FOREIGN_PLAYER_BALANCE, TINFO } from '../../data';
 import {
   calcOVR,
   calcInterleagueStandings,
+  canAffordSalary,
   countForeignPlayers,
   cpuAutoSignMarketRounds,
   cpuAutoTradeBetweenTeams,
   draftOrderFromStandings,
   finalizeCpuRosters,
+  financeOf,
   genForeignMarket,
-  genFreeAgentMarket,
-  growthPhase,
-  prepareCpuRostersForDraft,
-  reviewForeignPlayers,
+  openOffseason,
+  renewContracts,
+  settleFreeAgency,
+  signFreeAgent,
   signPlayerToTeam,
+  teamPayroll,
 } from '../../engine';
 import type { Player, TeamKey, Teams } from '../../engine';
 import { useGameState } from '../../state/gameState';
 import {
   createForeignLifecycleNotices,
+  createFreeAgencyNotices,
   createOffseasonDevelopmentNotices,
 } from '../../state/notices';
+import { seasonOutcome } from '../../state/runtime';
 import type { Notice } from '../../state/storage';
 import { applyTrade, generateTradeOffers } from '../../state/offseason';
 import {
@@ -149,6 +154,7 @@ function OffseasonContent({
   playerTeam: TeamKey;
 }) {
   const [phase, setPhase] = useState<OffseasonPhase>('growth');
+  const [outcome] = useState(() => seasonOutcome(game));
   const [preparation] = useState(() => {
     const events: NarrativeEvent[] = [];
     const context: NarrativeEventContext = {
@@ -156,21 +162,21 @@ function OffseasonContent({
       date: `${game.season.year}年オフ`,
       emit: (e) => events.push(e),
     };
-    const foreignReview = reviewForeignPlayers(
+    const opened = openOffseason(
       initialTeams,
-      game.leagueAccumulated,
-      game.season.year,
+      {
+        year: game.season.year,
+        seasonStats: game.leagueAccumulated,
+        outcome,
+        userTeam: playerTeam,
+        overseas: game.overseasPlayers,
+      },
       context,
     );
-    const growthResult = growthPhase(foreignReview.teams, context);
-    const cpuPreparation = prepareCpuRostersForDraft(
-      growthResult.teams,
-      { excludedTeam: playerTeam },
-      context,
-    );
-    return { foreignReview, growthResult, cpuPreparation, events };
+    return { opened, events };
   });
-  const { foreignReview, growthResult, cpuPreparation } = preparation;
+  const { opened } = preparation;
+  const { foreignReview, growth: growthResult } = opened;
   const [pendingEvents, setPendingEvents] = useState<NarrativeEvent[]>(preparation.events);
   const [retired, setRetired] = useState<Player[]>([]);
   // Collect facts alongside the staged roster; publish only at offseason completion.
@@ -185,9 +191,10 @@ function OffseasonContent({
     setPendingEvents((current) => [...current, ...events]);
     return value;
   };
-  const [foreignNotices] = useState<Notice[]>(() =>
-    createForeignLifecycleNotices(foreignReview.events, playerTeam, game.season.year),
-  );
+  const [foreignNotices] = useState<Notice[]>(() => [
+    ...createForeignLifecycleNotices(foreignReview.events, playerTeam, game.season.year),
+    ...createFreeAgencyNotices(preparation.events, playerTeam, game.season.year),
+  ]);
   const [developmentNotices] = useState(() => [
     ...createOffseasonDevelopmentNotices(
       foreignReview.teams[playerTeam],
@@ -198,15 +205,17 @@ function OffseasonContent({
     ),
     ...foreignNotices,
   ]);
-  const [workTeams, setWorkTeams] = useState<Teams>(cpuPreparation.teams);
-  const [faMarket, setFaMarket] = useState<Player[]>(() => genFreeAgentMarket());
+  const [workTeams, setWorkTeams] = useState<Teams>(opened.teams);
+  const [faMarket, setFaMarket] = useState<Player[]>(opened.freeAgentMarket);
+  // Players in MLB after this winter: those who stayed, plus returnees nobody signed.
+  const [overseas, setOverseas] = useState<Player[]>(opened.overseas);
   const [foreignMarket, setForeignMarket] = useState<Player[]>(() =>
     genForeignMarket(game.season.year + 1),
   );
   const [retireIds, setRetireIds] = useState<string[]>([]);
   const [tradeBatch, setTradeBatch] = useState(0);
   const [tradeOffers, setTradeOffers] = useState(() =>
-    generateTradeOffers(growthResult.teams, playerTeam),
+    generateTradeOffers(opened.teams, playerTeam),
   );
 
   // Offseason progress (growth, retirements, FA/foreign signings, trades, the
@@ -254,15 +263,23 @@ function OffseasonContent({
     setPhase('fa');
   };
 
-  const signFreeAgent = (player: Player) => {
-    setWorkTeams(capture((context) => signPlayerToTeam(workTeams, playerTeam, player, context)));
+  const unaffordable = (player: Player): string | null =>
+    canAffordSalary(workTeams[playerTeam], player.ask ?? 0) ? null : '予算が足りません';
+  const signMarketFreeAgent = (player: Player) => {
+    if (unaffordable(player)) return;
+    setWorkTeams(capture((context) => signFreeAgent(workTeams, playerTeam, player, context)));
     setFaMarket((market) => market.filter((candidate) => candidate.id !== player.id));
   };
   const signForeignPlayer = (player: Player) => {
     if (countForeignPlayers(workTeams[playerTeam]) >= FOREIGN_PLAYER_BALANCE.registeredLimit)
       return;
+    if (unaffordable(player)) return;
     setWorkTeams(capture((context) => signPlayerToTeam(workTeams, playerTeam, player, context)));
     setForeignMarket((market) => market.filter((candidate) => candidate.id !== player.id));
+  };
+  const finances = {
+    payroll: teamPayroll(workTeams[playerTeam]),
+    budget: financeOf(workTeams[playerTeam]).budget,
   };
 
   return (
@@ -456,16 +473,20 @@ function OffseasonContent({
       {phase === 'fa' && (
         <MarketScreen
           title="FA市場"
-          subtitle="国内FA候補です。獲得すると自球団へ加入します。"
+          subtitle="FA宣言した選手と自由契約の選手です。提示額（年俸×年数）で獲得できます。自球団から宣言した選手は、ここで再契約しなければ他球団と交渉します。Aランク・Bランクの選手を他球団から獲得すると、人的補償で1人が移籍することがあります。"
           players={faMarket}
           accent={teamInfo.c}
-          onSign={signFreeAgent}
+          playerTeam={playerTeam}
+          finances={finances}
+          unavailableReason={unaffordable}
+          onSign={signMarketFreeAgent}
           onNext={() => {
             const result = capture((context) =>
-              cpuAutoSignMarketRounds(workTeams, faMarket, 'fa', 4, playerTeam, context),
+              settleFreeAgency(workTeams, faMarket, { excludedTeam: playerTeam, outcome }, context),
             );
             setWorkTeams(result.teams);
             setFaMarket(result.remaining);
+            setOverseas((current) => [...current, ...result.unsignedReturnees]);
             setPhase('foreign');
           }}
         />
@@ -477,6 +498,9 @@ function OffseasonContent({
           subtitle="外国人候補です。長打力や救援の即戦力が多い市場です。"
           players={foreignMarket}
           accent={teamInfo.c}
+          playerTeam={playerTeam}
+          finances={finances}
+          unavailableReason={unaffordable}
           onSign={signForeignPlayer}
           signDisabled={
             countForeignPlayers(workTeams[playerTeam]) >= FOREIGN_PLAYER_BALANCE.registeredLimit
@@ -484,7 +508,15 @@ function OffseasonContent({
           signDisabledReason={`外国人登録枠（${FOREIGN_PLAYER_BALANCE.registeredLimit}人）が満員です`}
           onNext={() => {
             const result = capture((context) =>
-              cpuAutoSignMarketRounds(workTeams, foreignMarket, 'foreign', 4, playerTeam, context),
+              cpuAutoSignMarketRounds(
+                workTeams,
+                foreignMarket,
+                'foreign',
+                4,
+                playerTeam,
+                context,
+                outcome,
+              ),
             );
             const traded = capture(
               (context) => cpuAutoTradeBetweenTeams(result.teams, playerTeam, 8, context),
@@ -543,13 +575,25 @@ function OffseasonContent({
             // Everyone who left a roster this winter keeps a place in the record books.
             const departed = [
               ...foreignReview.exits,
-              ...cpuPreparation.exits,
+              ...opened.mlb.exits,
+              ...opened.prepared.exits,
               ...finalized.exits,
             ].map((exit) => exit.player);
-            game.completeOffseason(finalized.teams, developmentNotices, events, [
-              ...retired,
-              ...departed,
-            ]);
+            const offseasonNotices = [
+              ...developmentNotices,
+              ...createFreeAgencyNotices(
+                events.filter((event) => !preparation.events.includes(event)),
+                playerTeam,
+                game.season.year,
+              ),
+            ];
+            game.completeOffseason(
+              renewContracts(finalized.teams, game.leagueAccumulated),
+              offseasonNotices,
+              events,
+              [...retired, ...departed],
+              overseas,
+            );
           }}
         />
       )}

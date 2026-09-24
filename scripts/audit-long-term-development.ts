@@ -335,8 +335,12 @@ function auditWarnings(
   // offseasons, so the transition away from the generated opening rosters is never played.
   const stableYears = yearly.filter((year) => year.seasonIndex >= SETTLED_LEAGUE_BURN_IN_YEARS);
   const starCounts = stableYears.map((year) => year.ovr100Plus);
-  if (Math.min(...starCounts) < 7.5)
-    warnings.push('定着期のOVR100以上が平均7.5人未満となる年があります。');
+  // The very best leave for MLB in their prime (and some come back), so the OVR 100+ tier
+  // is thinner than a closed league's; the 85+ tier below it guards the stars as a class.
+  if (Math.min(...starCounts) < 4.5)
+    warnings.push('定着期のOVR100以上が平均4.5人未満となる年があります。');
+  if (Math.min(...stableYears.map((year) => year.ovr85Plus)) < 30)
+    warnings.push('定着期のOVR85以上が平均30人未満となる年があります。');
   if (Math.max(...starCounts) > 60)
     warnings.push('定着期にOVR100以上が60人を超え、名選手が蓄積しています。');
   const final = yearly.at(-1);

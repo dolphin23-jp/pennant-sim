@@ -6,6 +6,8 @@ export * from './boxScore';
 export * from './careerLedger';
 export * from './draft';
 export * from './draftEvaluation';
+export * from './contracts';
+export * from './freeAgency';
 export { applyDraftPicks, generateDraftProspects, runCpuDraft } from './draftPrePro';
 export * from './foreign';
 export * from './game';

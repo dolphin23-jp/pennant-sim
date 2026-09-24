@@ -6,6 +6,7 @@ import { useGameState } from '../../../state/gameState';
 import {
   availableReviewYears,
   buildYearReview,
+  moveLabel,
   YEAR_REVIEW_LEAGUES,
   type YearReview,
 } from '../../../state/yearReview';
@@ -360,13 +361,7 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
             <ul style={listStyle}>
               {review.moves.highlights.map((event) => (
                 <li key={event.id} style={{ ...rowStyle, justifyContent: 'flex-start' }}>
-                  <span style={{ ...mutedStyle, minWidth: 48 }}>
-                    {event.transactionKind === 'trade'
-                      ? 'トレード'
-                      : event.transactionKind === 'foreignSigning'
-                        ? '新外国人'
-                        : 'FA'}
-                  </span>
+                  <span style={{ ...mutedStyle, minWidth: 56 }}>{moveLabel(event)}</span>
                   <span>
                     {event.movements?.length ? (
                       event.movements.map((movement, index) => (
@@ -388,7 +383,15 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
                           name={event.playerName}
                           onSelect={selectPlayer}
                         />{' '}
-                        <TeamName teamKey={event.toTeamKey ?? null} short />
+                        {event.fromTeamKey && event.fromTeamKey !== event.toTeamKey ? (
+                          <>
+                            （<TeamName teamKey={event.fromTeamKey} short />→
+                            {event.toTeamKey ? <TeamName teamKey={event.toTeamKey} short /> : 'MLB'}
+                            ）
+                          </>
+                        ) : (
+                          <TeamName teamKey={event.toTeamKey ?? event.fromTeamKey ?? null} short />
+                        )}
                       </>
                     )}
                   </span>

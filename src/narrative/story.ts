@@ -71,8 +71,13 @@ export function planNarrativeStory(
       if (event.transactionKind === 'retirement') add(72, 'retirement');
       else if (event.transactionKind === 'trade') {
         add(event.movements && event.movements.length > 1 ? 62 : 52, 'trade');
-      } else if (event.transactionKind === 'faSigning') add(50, 'fa-signing');
+      } else if (event.transactionKind === 'faSigning') {
+        if (event.returnFromMlb) add(58, 'mlb-return');
+        else if (event.fromTeamKey && event.fromTeamKey !== event.toTeamKey) add(60, 'fa-move');
+        else add(event.fromTeamKey ? 30 : 40, 'fa-signing');
+      } else if (event.transactionKind === 'compensation') add(45, 'fa-compensation');
       else if (event.transactionKind === 'foreignSigning') add(34, 'foreign-signing');
+      else if (event.exitReason === 'mlbTransfer') add(70, 'mlb-transfer');
       else add(12, 'release');
     } else if (event?.type === 'draft') {
       // A new draftee usually has no saved career history yet, so AI has little to synthesize.

@@ -23,7 +23,7 @@ import {
   createFictionalLeagueHistory,
   detectAchievements,
   generateSchedule,
-  initSettledTeams,
+  initSettledWorld,
   registerExistingNames,
   simCpuUntilNext,
   simulateGame,
@@ -92,6 +92,7 @@ interface GameContextValue extends RuntimeState {
     developmentNotices?: Notice[],
     events?: NarrativeEvent[],
     retired?: Player[],
+    overseas?: Player[],
   ): void;
   recordChampionship(champion: TeamKey, runnerUp: TeamKey, events?: NarrativeEvent[]): void;
 }
@@ -117,6 +118,7 @@ function snapshotFromState(state: RuntimeState): GameSaveData | null {
     leagueCareerAccumulated: state.leagueCareerAccumulated,
     yearlyStats: state.yearlyStats,
     retiredPlayers: state.retiredPlayers,
+    overseasPlayers: state.overseasPlayers,
     notices: state.notices,
     championHistory: state.championHistory,
     awardHistory: state.awardHistory,
@@ -189,6 +191,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           worldId: saved.worldId ?? crypto.randomUUID(),
           narrativeArticles: saved.narrativeArticles ?? {},
           narrativeEvents: saved.narrativeEvents ?? {},
+          overseasPlayers: saved.overseasPlayers ?? [],
           lineup,
           loading: false,
           screen: resumeSeasonScreen(saved),
@@ -213,20 +216,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const startNewGame = useCallback(() => {
+    // Rosters after twenty silent offseasons, so the first decades play at the same talent
+    // level as the rest of the world's history (see initSettledTeams).
+    const world = initSettledWorld();
     setState({
       ...initialState,
       worldId: crypto.randomUUID(),
       loading: false,
       screen: 'teamSelect',
-      // Rosters after ten silent offseasons, so the first decade plays at the same talent
-      // level as the rest of the world's history (see initSettledTeams).
-      teams: initSettledTeams(),
+      teams: world.teams,
+      overseasPlayers: world.overseas,
     });
   }, []);
 
   const chooseTeam = useCallback((teamKey: TeamKey) => {
     setState((current) => {
-      const initialTeams = current.teams ?? initSettledTeams();
+      const world = current.teams
+        ? { teams: current.teams, overseas: current.overseasPlayers }
+        : initSettledWorld();
+      const initialTeams = world.teams;
       // A fixed literal seed here would give every new game the same 20-year fictional
       // history (same legends, same past champions); draw a fresh one per new game instead.
       const history = createFictionalLeagueHistory(initialTeams, {
@@ -256,6 +264,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         leagueCareerAccumulated,
         yearlyStats: history.yearlyStats,
         retiredPlayers: history.retiredPlayers,
+        overseasPlayers: world.overseas,
         championHistory: history.championHistory,
         gameSummaries: prepared.gameSummaries,
         gameBoxScores: prepared.gameBoxScores,
@@ -433,9 +442,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       developmentNotices: Notice[] = [],
       events: NarrativeEvent[] = [],
       retired: Player[] = [],
+      overseas?: Player[],
     ) => {
       setState((current) =>
-        applyOffseasonCompletion(current, teams, developmentNotices, events, retired),
+        applyOffseasonCompletion(current, teams, developmentNotices, events, retired, overseas),
       );
     },
     [],

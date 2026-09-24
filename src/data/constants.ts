@@ -126,6 +126,118 @@ export const RETIREMENT_BALANCE = {
   fringeMultiplier: 1.6,
 } as const;
 
+/**
+ * Salaries, contracts and service time. Money is in 万円, as NPB reports it. The salary
+ * curve maps OVR to what the market pays a proven player: about 1,000万 for a fringe
+ * roster player, 1億 around OVR 80 and 3-4億 for the league's best.
+ */
+export const CONTRACT_BALANCE = {
+  minimumSalary: 500,
+  maximumSalary: 65000,
+  /** Market salary = curveBase * exp((OVR - curvePivot) / curveScale). */
+  curveBase: 1400,
+  curvePivot: 45,
+  curveScale: 15,
+  compressionStart: 30000,
+  /** Veterans past this age are paid for the decline the market expects. */
+  declineAge: 32,
+  declinePerYear: 0.1,
+  minimumAgeFactor: 0.45,
+  /** Before free agency a player earns a share of his market salary that grows with
+   * service: the club holds his rights, so a young star is underpaid. */
+  preFreeAgencyShareBase: 0.45,
+  preFreeAgencySharePerYear: 0.07,
+  /** A good or bad season moves the renewal by up to this share. */
+  performanceShare: 0.2,
+  /** NPB's reduction limits (減額制限): 40% above 1億, 25% otherwise. */
+  reductionLimitHigh: 0.4,
+  reductionLimitLow: 0.25,
+  reductionLimitThreshold: 10000,
+  maximumRaiseMultiplier: 2.5,
+  /** Service years for domestic FA rights: 8 for high-school draftees, 7 otherwise;
+   * overseas FA at 9; rights return 4 years after they were exercised. */
+  domesticFreeAgencyYearsHighSchool: 8,
+  domesticFreeAgencyYears: 7,
+  overseasFreeAgencyYears: 9,
+  reacquireYears: 4,
+  /** A season counts toward service when the player was part of the top team. */
+  serviceMinimumBatterGames: 40,
+  serviceMinimumBatterPlateAppearances: 120,
+  serviceMinimumPitcherGames: 20,
+  serviceMinimumPitcherOuts: 150,
+  /** Without season statistics (the silent burn-in), the best players by OVR count. */
+  serviceFallbackPitchers: 14,
+  serviceFallbackFielders: 17,
+} as const;
+
+/**
+ * Club finances, deliberately light: each club has a payroll budget set by its market
+ * (TINFO bd) and moved by results. Revenue follows winning and the postseason, and the
+ * budget follows revenue slowly, so a winning club gains some spending room while its
+ * players' raises eat into it.
+ */
+export const FINANCE_BALANCE = {
+  /** Budget at market size bd = budgetAtBd60 + (bd - 60) * budgetPerBd. */
+  budgetAtBd60: 220000,
+  budgetPerBd: 6000,
+  winPctRevenueEffect: 0.8,
+  postseasonRevenue: { climax: 0.02, japanSeries: 0.04, champion: 0.06 },
+  /** Share of the gap to this season's revenue closed each winter. */
+  budgetAdjustment: 0.35,
+  minimumBudgetShare: 0.8,
+  maximumBudgetShare: 1.3,
+  /** Clubs may overspend the budget by this share to complete a signing. */
+  overspendAllowance: 0.03,
+  /** A club over budget scales renewals by budget / payroll, down to this factor. */
+  minimumRenewalFactor: 0.85,
+} as const;
+
+/** Free agency among the league's own players, and the stars leaving for MLB. */
+export const FREE_AGENCY_BALANCE = {
+  /** Players below this OVR rarely have a market worth declaring for. */
+  minimumDeclareOvr: 55,
+  baseDeclareChance: 0.1,
+  underpaidDeclareWeight: 0.2,
+  maximumUnderpaidBonus: 0.25,
+  starOvr: 80,
+  starDeclareBonus: 0.1,
+  losingClubDeclareBonus: 0.08,
+  tightBudgetDeclareBonus: 0.08,
+  veteranAge: 34,
+  veteranDeclarePenalty: 0.08,
+  maximumDeclareChance: 0.55,
+  /** Bidding: the former club's pull, a contender's pull and budget room. */
+  homeBonus: 7,
+  contenderBonus: 12,
+  minimumBidScore: 2,
+  /** Each additional bidder raises the price by this share (up to maximumPremium). */
+  competitionPremium: 0.06,
+  maximumPremium: 0.25,
+  /** 人的補償: A = the former club's top 3 salaries, B = 4th-10th; C has no compensation. */
+  rankASalaryPlaces: 3,
+  rankBSalaryPlaces: 10,
+  protectedPlayers: 28,
+  minimumCompensationOvr: 48,
+  /** Stars leaving for MLB, by overseas FA rights or the posting system. */
+  mlbMinimumOvr: 95,
+  mlbMinimumAge: 23,
+  mlbMaximumAge: 33,
+  overseasFreeAgencyChance: 0.25,
+  postingMinimumServiceYears: 6,
+  postingChance: 0.06,
+  mlbChancePerOvr: 0.01,
+  mlbMaximumChance: 0.5,
+  lateCareerAge: 31,
+  lateCareerMultiplier: 0.5,
+  /** Returning from MLB: not before two seasons abroad, more often with age. */
+  minimumYearsAbroad: 2,
+  returnChance: 0.12,
+  returnAge: 31,
+  returnChancePerYearOfAge: 0.08,
+  maximumReturnChance: 0.6,
+  retireAbroadAge: 38,
+} as const;
+
 export const POSITION_CONVERSION_BALANCE = {
   startingAptitude: { minimum: 15, maximum: 28 },
   ceiling: 80,
@@ -285,7 +397,7 @@ export const AT_BAT_BALANCE = {
   // Stage 4 — does the ball fall in. These are hit rates on contact BEFORE the fielder's
   // ability is applied, so they sit above the finished BABIP.
   hitOnContact: {
-    base: { ground: 0.232, line: 0.62, fly: 0.195, popup: 0.02 },
+    base: { ground: 0.24, line: 0.64, fly: 0.2, popup: 0.02 },
     /** Rating points of fielder defence needed to move the hit rate by one unit. */
     defenseScale: 240,
     /** Batter speed matters most on ground balls, least in the air. */
@@ -298,14 +410,14 @@ export const AT_BAT_BALANCE = {
   // Stage 4b — a fly ball that carries out. Only outfield fly balls and line drives are
   // eligible; the batter's power moves this far more than anything else.
   homeRunOnFly: {
-    flyBase: 0.039,
+    flyBase: 0.0355,
     lineDriveFactor: 0.28,
     powerCurveReference: 60,
     // A slightly steeper curve moves home runs from ordinary hitters toward genuine
     // sluggers without imposing a cap on record seasons or raising the league total.
-    powerCurveScale: 19,
+    powerCurveScale: 16,
     minimumPowerLogMultiplier: -1.6,
-    maximumPowerLogMultiplier: 1.25,
+    maximumPowerLogMultiplier: 1.6,
     velocityScale: 3400,
     movementScale: 3400,
     directionFactor: { pull: 1.4, center: 0.85, oppo: 0.62 },

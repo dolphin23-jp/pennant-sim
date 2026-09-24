@@ -371,7 +371,7 @@ export function stealAttemptRate(
 ): number {
   if (context.outs >= 2) return 0;
   // Tuned on the settled league, whose runners are faster than freshly generated rosters.
-  let abilityRate = clamp((((runner.p.sp ?? 50) - 30) / 260) * 0.5, 0.01, 0.13);
+  let abilityRate = clamp((((runner.p.sp ?? 50) - 30) / 260) * 0.47, 0.01, 0.13);
   if (hasSpecial(runner, 'sb')) abilityRate *= 1.4;
   if (hasGold(runner, 'sb_gold')) abilityRate *= 1.6;
   const catcherArm =

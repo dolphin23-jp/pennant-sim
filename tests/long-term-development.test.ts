@@ -18,5 +18,6 @@ test('multi-seed 30-year development audit keeps generations cycling without quo
     report.summary.maturity.超晩成.averagePeakAge - report.summary.maturity.超早熟.averagePeakAge >=
       4.5,
   );
-  assert.ok((report.summary.final?.ovr100Plus ?? 0) >= 8);
+  assert.ok((report.summary.final?.ovr100Plus ?? 0) >= 3);
+  assert.ok((report.summary.final?.ovr85Plus ?? 0) >= 30);
 });

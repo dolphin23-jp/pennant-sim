@@ -22,7 +22,10 @@ import {
   cancelPositionConversion,
   displayOVRBreakdown,
   effectiveOVR,
+  formatManYen,
+  isForeignPlayer,
   specialLevel,
+  yearsUntilFreeAgency,
   startPositionConversion,
   statItems,
   velocityKmhText,
@@ -354,6 +357,33 @@ function BasicTab({
               {player.hand.th ?? '-'}投 {player.hand.bat ?? '-'}打
             </dd>
           </div>
+          {player.salary != null && (
+            <div>
+              <dt>年俸</dt>
+              <dd>
+                {formatManYen(player.salary)}
+                {!isForeignPlayer(player) && (player.contractYears ?? 0) > 1
+                  ? `（残り${player.contractYears}年）`
+                  : ''}
+              </dd>
+            </div>
+          )}
+          {!isForeignPlayer(player) && player.serviceYears != null && (
+            <div>
+              <dt>
+                <TermTooltip
+                  term="FA権"
+                  description="一軍で過ごしたシーズン数が一定（高卒8年、大卒・社会人7年）に達すると国内FA権を得ます。行使した後は4年で再取得します。9年で海外FA権も得ます。"
+                />
+              </dt>
+              <dd>
+                {yearsUntilFreeAgency(player) === 0
+                  ? '保有'
+                  : `あと${yearsUntilFreeAgency(player)}年`}
+                （一軍{player.serviceYears}年）
+              </dd>
+            </div>
+          )}
           {player.foreignProfile && (
             <>
               <div>
