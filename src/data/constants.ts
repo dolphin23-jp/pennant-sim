@@ -309,6 +309,8 @@ export const AT_BAT_BALANCE = {
     scoreFromSecondOnSingle: { standard: 0.45, fast: 0.58 },
     scoreFromThirdOnGroundOut: 0.55,
     scoreFromThirdOnFlyOut: 0.38,
+    // An unforced runner on second taking third on a ground out (typically to the right side).
+    advanceFromSecondOnGroundOut: 0.45,
     // A runner counts as "fast" from their own speed rating, not the batter's.
     fastRunnerSpeed: 72,
     // 走塁センス lifts a runner over the fast threshold without needing raw speed.

@@ -225,8 +225,10 @@ function hitChanceOnContact(input: {
   if (input.isPinch)
     chance *= 1 + specialLevel(input.batter, 'win') * AT_BAT_BALANCE.specials.clutchHitPerLevel;
   // 初球○ puts more balls in play; 初球× wastes the count's best pitch.
-  chance *= 1 + specialLevel(input.batter, 'fbo') * AT_BAT_BALANCE.specials.firstPitchContactPerLevel;
-  chance *= 1 - specialLevel(input.batter, 'fbx') * AT_BAT_BALANCE.specials.firstPitchContactPerLevel;
+  chance *=
+    1 + specialLevel(input.batter, 'fbo') * AT_BAT_BALANCE.specials.firstPitchContactPerLevel;
+  chance *=
+    1 - specialLevel(input.batter, 'fbx') * AT_BAT_BALANCE.specials.firstPitchContactPerLevel;
   if (hasGold(input.batter, 'avg_gold')) chance *= 1.12;
   if (hasGold(input.batter, 'spray_gold')) chance *= 1.08;
   chance *= input.batterContextMultiplier * input.park.hit;
@@ -292,11 +294,14 @@ export function simAB(
     // 対エース○ gives the batter back part of what a high-quality pitcher takes away.
     pitcherQualityEdge = Math.max(
       0,
-      ((pitcherParams.vel ?? 50) + (pitcherParams.nobi ?? 50) + (pitcherParams.ctrl ?? 50)) / 3 - 50,
+      ((pitcherParams.vel ?? 50) + (pitcherParams.nobi ?? 50) + (pitcherParams.ctrl ?? 50)) / 3 -
+        50,
     ),
     aceKillerMultiplier =
       1 +
-      (specialLevel(batter, 'ace') * AT_BAT_BALANCE.specials.aceKillerPerLevel * pitcherQualityEdge) /
+      (specialLevel(batter, 'ace') *
+        AT_BAT_BALANCE.specials.aceKillerPerLevel *
+        pitcherQualityEdge) /
         50,
     batterContextMultiplier = platoonMultiplier * familiarityMultiplier * aceKillerMultiplier;
   const catcherLeadMultiplier = catcherGameCalling
@@ -472,6 +477,7 @@ export function advBases(
   result: PlateAppearanceResult,
   batter: Player,
   outs: number,
+  battedBall?: BattedBallType,
 ): { bases: BaseState; runs: number; scorers: Player[] } {
   const [runnerOnFirst, runnerOnSecond, runnerOnThird] = bases;
   switch (result) {
@@ -538,19 +544,36 @@ export function advBases(
       };
     }
     case 'GO': {
-      const scores =
+      // The batter is retired at first. With two out that is the third out and nothing moves.
+      if (outs >= 2) return { bases: [...bases], runs: 0, scorers: [] };
+      const loaded = Boolean(runnerOnFirst && runnerOnSecond && runnerOnThird);
+      // Forced runners must advance; the runner on third scores only if forced or if he
+      // beats the throw home, and the runner on second moves up only into an empty base.
+      const thirdScores =
         Boolean(runnerOnThird) &&
-        outs < 2 &&
-        random() < AT_BAT_BALANCE.baseRunning.scoreFromThirdOnGroundOut;
-      const scorer = scores ? asPlayer(runnerOnThird) : null;
+        (loaded || random() < AT_BAT_BALANCE.baseRunning.scoreFromThirdOnGroundOut);
+      const thirdAfter = thirdScores ? false : runnerOnThird;
+      const secondAdvances =
+        Boolean(runnerOnSecond) &&
+        !thirdAfter &&
+        (Boolean(runnerOnFirst) ||
+          random() < AT_BAT_BALANCE.baseRunning.advanceFromSecondOnGroundOut);
+      const scorer = thirdScores ? asPlayer(runnerOnThird) : null;
       return {
-        bases: [runnerOnFirst, runnerOnSecond, scores ? false : runnerOnThird],
+        bases: [
+          false,
+          runnerOnFirst || (secondAdvances ? false : runnerOnSecond),
+          secondAdvances ? runnerOnSecond : thirdAfter,
+        ],
         runs: scorer ? 1 : 0,
         scorers: scorer ? [scorer] : [],
       };
     }
     case 'FO': {
+      // Only a ball caught in the outfield lets the runner on third tag up; an infield
+      // pop-up holds him.
       const scores =
+        battedBall !== 'popup' &&
         Boolean(runnerOnThird) &&
         outs < 2 &&
         random() < AT_BAT_BALANCE.baseRunning.scoreFromThirdOnFlyOut;
@@ -577,8 +600,21 @@ export function advBases(
         runs: 0,
         scorers: [],
       };
-    case 'DP':
-      return { bases: [false, runnerOnSecond, runnerOnThird], runs: 0, scorers: [] };
+    case 'DP': {
+      // Batter and the runner from first are out. With nobody out the runner on third can
+      // still score (a run, but no RBI); the runner on second moves up into an empty third.
+      const thirdScores =
+        outs === 0 &&
+        Boolean(runnerOnThird) &&
+        random() < AT_BAT_BALANCE.baseRunning.scoreFromThirdOnGroundOut;
+      const scorer = thirdScores ? asPlayer(runnerOnThird) : null;
+      const thirdAfter = thirdScores ? false : runnerOnThird;
+      return {
+        bases: [false, thirdAfter ? runnerOnSecond : false, thirdAfter || runnerOnSecond],
+        runs: scorer ? 1 : 0,
+        scorers: scorer ? [scorer] : [],
+      };
+    }
     default:
       return { bases: [...bases], runs: 0, scorers: [] };
   }

@@ -213,8 +213,8 @@ function buildInterleagueSeries(): SeriesUnit[] {
 function spanIncludesMonday(start: Date, day: number, games: number): boolean {
   for (let offset = 0; offset < games; offset += 1) {
     const gameDate = new Date(start);
-    gameDate.setDate(gameDate.getDate() + day + offset);
-    if (gameDate.getDay() === 1) return true;
+    gameDate.setUTCDate(gameDate.getUTCDate() + day + offset);
+    if (gameDate.getUTCDay() === 1) return true;
   }
   return false;
 }
@@ -236,7 +236,7 @@ function fillDayFromPool(
     if (spanIncludesMonday(start, day, unit.games)) continue;
     for (let offset = 0; offset < unit.games; offset += 1) {
       const gameDate = new Date(start);
-      gameDate.setDate(gameDate.getDate() + day + offset);
+      gameDate.setUTCDate(gameDate.getUTCDate() + day + offset);
       const dateString = gameDate.toISOString().slice(0, 10);
       schedule.push({
         id: uid(),
@@ -282,7 +282,9 @@ export function generateSchedule(
   shuffleInPlace(interleagueSeries);
 
   const schedule: ScheduleGame[] = [],
-    start = new Date(year, 2, 28),
+    // UTC throughout, like addDays: a local-time date serialized with toISOString shifts a
+    // day early east of Greenwich (every JST date, and the Monday off day, moved to Sunday).
+    start = new Date(Date.UTC(year, 2, 28)),
     teamKeys = Object.keys(TINFO) as TeamKey[],
     busyUntil = Object.fromEntries(teamKeys.map((key) => [key, 0])) as Record<TeamKey, number>;
   let day = 0,
@@ -292,8 +294,8 @@ export function generateSchedule(
   while (leagueSeries.length > 0 || interleagueSeries.length > 0) {
     if (day > SCHEDULING_DAY_LIMIT) throw new Error('Schedule generation exceeded its day limit.');
     const date = new Date(start);
-    date.setDate(date.getDate() + day);
-    const isMonday = date.getDay() === 1;
+    date.setUTCDate(date.getUTCDate() + day);
+    const isMonday = date.getUTCDay() === 1;
 
     if (
       !allStarBreakInserted &&

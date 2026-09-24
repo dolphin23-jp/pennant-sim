@@ -68,12 +68,7 @@ function simulateGames(count: number, seed: number): GameState[] {
  */
 function replay(
   game: GameState,
-  onEvent: (context: {
-    result: string;
-    outs: number;
-    onFirst: boolean;
-    pitcherId: string;
-  }) => void,
+  onEvent: (context: { result: string; outs: number; onFirst: boolean; pitcherId: string }) => void,
 ): Map<string, number> {
   const outsByPitcher = new Map<string, number>();
   const halves = new Map<string, typeof game.atBatLog>();
@@ -402,7 +397,8 @@ test('勝利投手・敗戦投手・セーブは公式の成立条件を満た�
     assert.notEqual(loser?.side, winningSide, '敗戦投手は負けたチームの投手');
     if (winner && !winner.isStarter) reliefWins += 1;
     // A starter only gets the win after five innings.
-    if (winner?.isStarter) assert.ok(winner.outsRecorded >= 15, '先発の勝利投手は5回以上投げている');
+    if (winner?.isStarter)
+      assert.ok(winner.outsRecorded >= 15, '先発の勝利投手は5回以上投げている');
 
     if (game.savePitcherId) {
       saves += 1;
@@ -450,5 +446,131 @@ test('打球はすべて種別と守備位置を持ち、失策は守備側の�
     }
   }
   assert.ok(contacted > 0, '検証に足りるインプレー打球が発生していること');
+  resetRandom();
+});
+
+test('継投時の登板・降板スコアは、その時点の実際のスコアと一致する', () => {
+  const games = simulateGames(300, 97531);
+  let checked = 0;
+  for (const game of games) {
+    for (const appearance of game.appearances ?? []) {
+      if (appearance.isStarter) continue;
+      const firstIndex = game.atBatLog.findIndex(
+        (entry) => entry.pitcherId === appearance.pitcherId,
+      );
+      if (firstIndex < 0) continue;
+      const previous = game.atBatLog
+        .slice(0, firstIndex)
+        .reverse()
+        .find((entry) => entry.snap);
+      const scoreBefore = previous?.snap ?? { home: 0, away: 0 };
+      assert.deepEqual(appearance.scoreOnEntry, scoreBefore, '登板時のスコアは直前の実スコア');
+      checked += 1;
+    }
+  }
+  assert.ok(checked > 100, '検証に足りる救援登板があること');
+  resetRandom();
+});
+
+test('勝利投手は最終的な勝ち越し時点の記録上の投手、セーブは公式の3条件のいずれかを満たす', () => {
+  const games = simulateGames(858, 86420);
+  let starterWinsChecked = 0;
+  for (const game of games) {
+    if (game.score.home === game.score.away) continue;
+    const winningSide = game.score.home > game.score.away ? 'home' : 'away';
+    const lead = (score: { home: number; away: number }) =>
+      winningSide === 'home' ? score.home - score.away : score.away - score.home;
+    const scoring = game.scoringSequence ?? [];
+    let goAhead = -1;
+    for (let index = scoring.length - 1; index >= 0; index -= 1) {
+      const event = scoring[index]!;
+      const before =
+        index > 0
+          ? lead({ home: scoring[index - 1]!.homeScore, away: scoring[index - 1]!.awayScore })
+          : 0;
+      if (
+        event.scoringSide === winningSide &&
+        before <= 0 &&
+        lead({ home: event.homeScore, away: event.awayScore }) > 0
+      ) {
+        goAhead = index;
+        break;
+      }
+    }
+    const winners = (game.appearances ?? []).filter((entry) => entry.side === winningSide);
+    const pitcherOfRecord = [...winners]
+      .reverse()
+      .find((entry) => (entry.entrySeq ?? 0) <= goAhead);
+    assert.ok(pitcherOfRecord);
+    if (!pitcherOfRecord.isStarter || pitcherOfRecord.outsRecorded >= 15) {
+      assert.equal(
+        game.winnerPitcherId,
+        pitcherOfRecord.pitcherId,
+        '勝ち越し時点の記録上の投手が勝利投手',
+      );
+    }
+    // A starter whose lead was lost after he left cannot be the winner.
+    const winner = winners.find((entry) => entry.pitcherId === game.winnerPitcherId);
+    if (winner?.isStarter) {
+      starterWinsChecked += 1;
+      assert.equal(pitcherOfRecord, winner, '先発の勝利はリードが最後まで保たれた場合のみ');
+    }
+
+    if (game.savePitcherId) {
+      const saver = winners.find((entry) => entry.pitcherId === game.savePitcherId)!;
+      const leadOnEntry = lead(saver.scoreOnEntry);
+      assert.ok(
+        (leadOnEntry > 0 && leadOnEntry <= 3 && saver.outsRecorded >= 3) ||
+          (leadOnEntry > 0 && leadOnEntry - saver.enteredRunners <= 2) ||
+          saver.outsRecorded >= 9,
+        'セーブは「3点以内で1回以上」「同点の走者が塁上・打席・次打者」「3回以上」のいずれか',
+      );
+    }
+  }
+  assert.ok(starterWinsChecked > 100, '先発勝利が十分に発生していること');
+  resetRandom();
+});
+
+test('サヨナラは決勝点で試合が終わり、本塁打以外なら1点差で決着する', () => {
+  const games = simulateGames(858, 11223);
+  let walkOffs = 0;
+  for (const game of games) {
+    const last = game.atBatLog.at(-1);
+    if (!last || !last.isBot || last.inning < 9 || game.score.home <= game.score.away) continue;
+    if (!last.runsScored?.length || last.result === 'HR') continue;
+    walkOffs += 1;
+    assert.equal(game.score.home - game.score.away, 1, 'サヨナラは1点差で終了する');
+    const [hitBase] = ['1B', '2B', '3B'].filter((hit) => hit === last.result);
+    if (
+      hitBase &&
+      last.basesBefore?.[2] &&
+      last.snap.home - last.runsScored.length === game.score.away
+    ) {
+      assert.equal(last.result, '1B', '三塁走者がサヨナラの走者なら打者は単打');
+    }
+  }
+  assert.ok(walkOffs > 5, 'サヨナラ試合が十分に発生していること');
+  resetRandom();
+});
+
+test('ゴロアウトで押し出された走者は一塁に残らず、内野フライは犠飛にならない、延長は12回まで', () => {
+  const games = simulateGames(300, 55667);
+  let forcedGroundOuts = 0;
+  for (const game of games) {
+    assert.ok(game.innings.length <= 12, '延長は12回まで');
+    const plateAppearances = game.atBatLog.filter((entry) => entry.basesBefore);
+    plateAppearances.forEach((entry, index) => {
+      assert.ok(
+        !(entry.result === 'SF' && entry.battedBall === 'popup'),
+        '内野フライは犠飛にならない',
+      );
+      if (entry.result !== 'GO' || !entry.basesBefore?.[0] || (entry.outsBefore ?? 0) >= 2) return;
+      const next = plateAppearances[index + 1];
+      if (!next || next.inning !== entry.inning || next.isBot !== entry.isBot) return;
+      forcedGroundOuts += 1;
+      assert.equal(next.basesBefore?.[0], false, 'ゴロアウトで一塁走者は二塁へ進む');
+    });
+  }
+  assert.ok(forcedGroundOuts > 50, '一塁走者ありのゴロアウトが十分に発生していること');
   resetRandom();
 });
