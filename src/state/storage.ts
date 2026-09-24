@@ -31,6 +31,7 @@ import {
   contentRevision,
   createEmptyWorldArchiveIndex,
   createWorldId,
+  gameMonthArchiveKey,
   readArchiveChunk,
   retiredPlayerArchiveKey,
   seasonArchiveKey,
@@ -162,10 +163,19 @@ interface SeasonArchiveChunk {
   championHistory: ChampionRecord[];
   awardHistory: SeasonTitleRecord[];
   achievementHistory: AchievementEvent[];
-  gameSummaries: Record<string, GameSummary>;
-  gameBoxScores: Record<string, GameBoxScore>;
+  /** Only on chunks written before games moved to month chunks; read, never written. */
+  gameSummaries?: Record<string, GameSummary>;
+  gameBoxScores?: Record<string, GameBoxScore>;
   /** Load-time only: events in this chunk that failed validation. Never written. */
   rejectedNarrativeEvents?: unknown[];
+}
+
+interface GameMonthArchiveChunk {
+  schemaVersion: typeof WORLD_ARCHIVE_SCHEMA_VERSION;
+  /** `YYYY-MM` of the games' dates. */
+  month: string;
+  gameSummaries: Record<string, GameSummary>;
+  gameBoxScores: Record<string, GameBoxScore>;
 }
 
 interface RetiredPlayerArchiveEntry {
@@ -857,8 +867,6 @@ function emptySeasonArchive(year: number): SeasonArchiveChunk {
     championHistory: [],
     awardHistory: [],
     achievementHistory: [],
-    gameSummaries: {},
-    gameBoxScores: {},
   };
 }
 
@@ -879,15 +887,38 @@ function buildSeasonArchives(data: GameSaveData): Map<number, SeasonArchiveChunk
   for (const record of data.championHistory) getChunk(record.year).championHistory.push(record);
   for (const record of data.awardHistory) getChunk(record.year).awardHistory.push(record);
   for (const event of data.achievementHistory) getChunk(event.year).achievementHistory.push(event);
-  for (const [gameId, summary] of Object.entries(data.gameSummaries ?? {})) {
-    getChunk(yearFromDate(summary.date, data.season.year)).gameSummaries[gameId] = summary;
-  }
-  for (const [gameId, boxScore] of Object.entries(data.gameBoxScores ?? {})) {
-    getChunk(yearFromDate(boxScore.date, data.season.year)).gameBoxScores[gameId] = boxScore;
-  }
   for (const [year, events] of Object.entries(data.narrativeEvents ?? {})) {
     if (events.length) getChunk(Number(year)).narrativeEvents = events;
   }
+  return chunks;
+}
+
+function monthFromDate(date: string, fallbackYear: number): string {
+  const match = /^(\d{4})-(\d{2})/.exec(date);
+  return match ? `${match[1]}-${match[2]}` : `${yearFromDate(date, fallbackYear)}-00`;
+}
+
+/** Games are the bulk of a season; grouping them by month keeps each autosave's rewrite to
+ * the month being played instead of the whole season so far. */
+function buildGameMonthArchives(data: GameSaveData): Map<string, GameMonthArchiveChunk> {
+  const chunks = new Map<string, GameMonthArchiveChunk>();
+  const getChunk = (month: string): GameMonthArchiveChunk => {
+    let chunk = chunks.get(month);
+    if (!chunk) {
+      chunk = {
+        schemaVersion: WORLD_ARCHIVE_SCHEMA_VERSION,
+        month,
+        gameSummaries: {},
+        gameBoxScores: {},
+      };
+      chunks.set(month, chunk);
+    }
+    return chunk;
+  };
+  for (const [gameId, summary] of Object.entries(data.gameSummaries ?? {}))
+    getChunk(monthFromDate(summary.date, data.season.year)).gameSummaries[gameId] = summary;
+  for (const [gameId, boxScore] of Object.entries(data.gameBoxScores ?? {}))
+    getChunk(monthFromDate(boxScore.date, data.season.year)).gameBoxScores[gameId] = boxScore;
   return chunks;
 }
 
@@ -980,7 +1011,8 @@ function parsePersistedSaveV4(value: unknown): PersistedSaveV4 | null {
   const seasons = parseArchiveRefMap(raw.archive.seasons);
   const retiredPlayerBuckets = parseArchiveRefMap(raw.archive.retiredPlayerBuckets);
   const articleYears = parseArchiveRefMap(raw.archive.articleYears ?? {}) ?? {};
-  if (!seasons || !retiredPlayerBuckets) return null;
+  const gameMonths = parseArchiveRefMap(raw.archive.gameMonths ?? {});
+  if (!seasons || !retiredPlayerBuckets || !gameMonths) return null;
   return {
     storageVersion: WORLD_STORAGE_VERSION,
     uiVersion: 2,
@@ -991,6 +1023,7 @@ function parsePersistedSaveV4(value: unknown): PersistedSaveV4 | null {
       seasons,
       retiredPlayerBuckets,
       ...(Object.keys(articleYears).length ? { articleYears } : {}),
+      ...(Object.keys(gameMonths).length ? { gameMonths } : {}),
     },
     ts: raw.ts,
   };
@@ -1040,6 +1073,22 @@ function seasonNarrativeEvents(
   };
 }
 
+function migrateGameMonthArchive(
+  value: unknown,
+  expectedMonth: string,
+): GameMonthArchiveChunk | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Partial<GameMonthArchiveChunk>;
+  if (raw.schemaVersion !== WORLD_ARCHIVE_SCHEMA_VERSION || raw.month !== expectedMonth)
+    return null;
+  return {
+    schemaVersion: WORLD_ARCHIVE_SCHEMA_VERSION,
+    month: expectedMonth,
+    gameSummaries: migrateGameSummaries(raw.gameSummaries),
+    gameBoxScores: migrateGameBoxScores(raw.gameBoxScores),
+  };
+}
+
 function migrateRetiredPlayerArchive(
   value: unknown,
   expectedBucket: number,
@@ -1071,6 +1120,15 @@ function migrateRetiredPlayerArchive(
   return { schemaVersion: WORLD_ARCHIVE_SCHEMA_VERSION, bucket: expectedBucket, entries };
 }
 
+function allArchiveRefs(archive: WorldArchiveIndex): ArchiveChunkRef[] {
+  return [
+    ...Object.values(archive.seasons),
+    ...Object.values(archive.gameMonths ?? {}),
+    ...Object.values(archive.retiredPlayerBuckets),
+    ...Object.values(archive.articleYears ?? {}),
+  ];
+}
+
 function changedArchiveRefs(
   before: Record<string, ArchiveChunkRef>,
   after: Record<string, ArchiveChunkRef>,
@@ -1078,53 +1136,125 @@ function changedArchiveRefs(
   return Object.entries(before).flatMap(([id, ref]) => (after[id]?.key === ref.key ? [] : [ref]));
 }
 
-async function writeSeasonArchives(
-  data: GameSaveData,
+/**
+ * Object references that make up a chunk. State updates are immutable, so while every
+ * reference is unchanged the chunk's content is unchanged, and serializing and hashing it
+ * again (the dominant autosave cost once decades of history accumulate) can be skipped.
+ * Array lengths are included so moving an element between arrays is still a change.
+ */
+function seasonChunkParts(chunk: SeasonArchiveChunk): unknown[] {
+  const events = chunk.narrativeEvents ?? [];
+  return [
+    chunk.yearlyStats.length,
+    ...chunk.yearlyStats,
+    chunk.championHistory.length,
+    ...chunk.championHistory,
+    chunk.awardHistory.length,
+    ...chunk.awardHistory,
+    chunk.achievementHistory.length,
+    ...chunk.achievementHistory,
+    events.length,
+    ...events,
+  ];
+}
+
+function gameMonthChunkParts(chunk: GameMonthArchiveChunk): unknown[] {
+  const summaries = Object.entries(chunk.gameSummaries).flat();
+  const boxScores = Object.entries(chunk.gameBoxScores).flat();
+  return [summaries.length, ...summaries, boxScores.length, ...boxScores];
+}
+
+function retiredChunkParts(chunk: RetiredPlayerArchiveChunk): unknown[] {
+  return chunk.entries.flatMap((entry) => [
+    entry.order,
+    entry.player,
+    entry.careerStats,
+    entry.leagueCareerStats,
+  ]);
+}
+
+/** Chunk parts from the caller's (un-migrated) data, whose references persist across saves. */
+function rawChunkParts<T>(
+  build: () => Map<string | number, T>,
+  partsOf: (chunk: T) => unknown[],
+): Map<string, unknown[]> {
+  try {
+    return new Map([...build()].map(([id, chunk]) => [String(id), partsOf(chunk)]));
+  } catch {
+    // Malformed input simply gets no cache hits; the migrated copy is still written.
+    return new Map();
+  }
+}
+
+interface CachedChunk {
+  parts: readonly unknown[];
+  key: string;
+}
+
+const chunkCaches = new WeakMap<
+  StorageBackend,
+  Map<SaveSlot, { worldId: string; chunks: Map<string, CachedChunk> }>
+>();
+
+/** Per backend, slot and world; switching worlds drops the old world's references. */
+function chunkCacheFor(
+  backend: StorageBackend,
   slot: SaveSlot,
   worldId: string,
+): Map<string, CachedChunk> {
+  let slots = chunkCaches.get(backend);
+  if (!slots) {
+    slots = new Map();
+    chunkCaches.set(backend, slots);
+  }
+  let entry = slots.get(slot);
+  if (!entry || entry.worldId !== worldId) {
+    entry = { worldId, chunks: new Map() };
+    slots.set(slot, entry);
+  }
+  return entry.chunks;
+}
+
+const sameParts = (first: readonly unknown[], second: readonly unknown[]): boolean =>
+  first.length === second.length && first.every((part, index) => part === second[index]);
+
+async function writeArchiveChunks<T>(
+  kind: string,
+  chunks: Array<[string, T]>,
+  rawParts: Map<string, unknown[]>,
+  keyFor: (id: string, revision: string) => string,
   previous: Record<string, ArchiveChunkRef>,
+  cache: Map<string, CachedChunk>,
   backend: StorageBackend,
 ): Promise<Record<string, ArchiveChunkRef>> {
   const refs: Record<string, ArchiveChunkRef> = {};
-  for (const [year, chunk] of [...buildSeasonArchives(data)].sort(([a], [b]) => a - b)) {
-    const serialized = JSON.stringify(chunk);
-    const revision = contentRevision(serialized);
-    const id = String(year);
+  for (const [id, chunk] of chunks) {
     const oldRef = previous[id];
-    if (oldRef?.revision === revision) {
+    const parts = rawParts.get(id);
+    const cacheId = `${kind}:${id}`;
+    const cached = cache.get(cacheId);
+    // Unchanged since the save that produced the committed reference: reuse it as is.
+    if (oldRef && parts && cached?.key === oldRef.key && sameParts(cached.parts, parts)) {
       refs[id] = oldRef;
       continue;
     }
-    const key = seasonArchiveKey(slot, worldId, year, revision);
-    await writeArchiveChunk(backend, key, serialized);
-    refs[id] = { key, revision };
+    const serialized = JSON.stringify(chunk);
+    const revision = contentRevision(serialized);
+    let ref = oldRef;
+    if (oldRef?.revision !== revision) {
+      ref = { key: keyFor(id, revision), revision };
+      await writeArchiveChunk(backend, ref.key, serialized);
+    }
+    refs[id] = ref as ArchiveChunkRef;
+    if (parts) cache.set(cacheId, { parts, key: (ref as ArchiveChunkRef).key });
   }
   return refs;
 }
 
-async function writeRetiredPlayerArchives(
-  data: GameSaveData,
-  slot: SaveSlot,
-  worldId: string,
-  previous: Record<string, ArchiveChunkRef>,
-  backend: StorageBackend,
-): Promise<Record<string, ArchiveChunkRef>> {
-  const refs: Record<string, ArchiveChunkRef> = {};
-  for (const [bucket, chunk] of [...buildRetiredPlayerArchives(data)].sort(([a], [b]) => a - b)) {
-    const serialized = JSON.stringify(chunk);
-    const revision = contentRevision(serialized);
-    const id = String(bucket);
-    const oldRef = previous[id];
-    if (oldRef?.revision === revision) {
-      refs[id] = oldRef;
-      continue;
-    }
-    const key = retiredPlayerArchiveKey(slot, worldId, bucket, revision);
-    await writeArchiveChunk(backend, key, serialized);
-    refs[id] = { key, revision };
-  }
-  return refs;
-}
+const sortedEntries = <T>(chunks: Map<string | number, T>): Array<[string, T]> =>
+  [...chunks]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([id, chunk]) => [String(id), chunk]);
 
 async function persistGameV4(
   data: GameSaveData,
@@ -1163,30 +1293,41 @@ async function persistGameV4(
   if (previous && previousRaw && previous.worldId !== worldId) {
     try {
       await loadPersistedSaveV4(previous, backend);
-      replacedWorldRefs = [
-        ...Object.values(previous.archive.seasons),
-        ...Object.values(previous.archive.retiredPlayerBuckets),
-        ...Object.values(previous.archive.articleYears ?? {}),
-      ];
+      replacedWorldRefs = allArchiveRefs(previous.archive);
     } catch {
       await backend.set(quarantineSaveKey(slot, timestamp), previousRaw);
     }
   }
-  const seasons = await writeSeasonArchives(
-    migrated,
-    slot,
-    worldId,
+  const cache = chunkCacheFor(backend, slot, worldId);
+  const seasons = await writeArchiveChunks(
+    'season',
+    sortedEntries(buildSeasonArchives(migrated)),
+    rawChunkParts(() => buildSeasonArchives(data), seasonChunkParts),
+    (id, revision) => seasonArchiveKey(slot, worldId, Number(id), revision),
     previousArchive.seasons,
+    cache,
     backend,
   );
-  const retiredPlayerBuckets = await writeRetiredPlayerArchives(
-    migrated,
-    slot,
-    worldId,
+  const gameMonths = await writeArchiveChunks(
+    'games',
+    sortedEntries(buildGameMonthArchives(migrated)),
+    rawChunkParts(() => buildGameMonthArchives(data), gameMonthChunkParts),
+    (id, revision) => gameMonthArchiveKey(slot, worldId, id, revision),
+    previousArchive.gameMonths ?? {},
+    cache,
+    backend,
+  );
+  const retiredPlayerBuckets = await writeArchiveChunks(
+    'retired',
+    sortedEntries(buildRetiredPlayerArchives(migrated)),
+    rawChunkParts(() => buildRetiredPlayerArchives(data), retiredChunkParts),
+    (id, revision) => retiredPlayerArchiveKey(slot, worldId, Number(id), revision),
     previousArchive.retiredPlayerBuckets,
+    cache,
     backend,
   );
   const articleYears = { ...(previousArchive.articleYears ?? {}) };
+  // Optional prose is re-read on every save (not cached) so a damaged sidecar is repaired.
   for (const [year, entries] of Object.entries(migrated.narrativeArticles ?? {})) {
     const serialized = JSON.stringify({ schemaVersion: 1, year: Number(year), entries });
     const revision = contentRevision(serialized);
@@ -1205,6 +1346,7 @@ async function persistGameV4(
     seasons,
     retiredPlayerBuckets,
     ...(Object.keys(articleYears).length ? { articleYears } : {}),
+    ...(Object.keys(gameMonths).length ? { gameMonths } : {}),
   };
   const envelope: PersistedSaveV4 = {
     storageVersion: WORLD_STORAGE_VERSION,
@@ -1222,6 +1364,7 @@ async function persistGameV4(
   const stale = [
     ...replacedWorldRefs,
     ...changedArchiveRefs(previousArchive.seasons, seasons),
+    ...changedArchiveRefs(previousArchive.gameMonths ?? {}, gameMonths),
     ...changedArchiveRefs(previousArchive.retiredPlayerBuckets, retiredPlayerBuckets),
     ...changedArchiveRefs(previousArchive.articleYears ?? {}, articleYears),
   ];
@@ -1281,6 +1424,16 @@ async function loadPersistedSaveV4(
     if (chunk.narrativeEvents?.length) {
       narrativeEvents[yearKey] = [...(narrativeEvents[yearKey] ?? []), ...chunk.narrativeEvents];
     }
+  }
+
+  // Games written after the month split; older saves carried them in the season chunks above.
+  for (const [month, ref] of Object.entries(persisted.archive.gameMonths ?? {}).sort(([a], [b]) =>
+    a < b ? -1 : a > b ? 1 : 0,
+  )) {
+    const chunk = migrateGameMonthArchive(parseJson(await readArchiveChunk(backend, ref)), month);
+    if (!chunk) throw new Error(`Game archive ${month} is corrupted or incompatible.`);
+    Object.assign(gameSummaries, chunk.gameSummaries);
+    Object.assign(gameBoxScores, chunk.gameBoxScores);
   }
 
   const retiredEntries: RetiredPlayerArchiveEntry[] = [];
@@ -1400,11 +1553,7 @@ export async function clearSaveSlot(
         try {
           const persisted = parsePersistedSaveV4(parseJson(raw));
           if (persisted) {
-            for (const ref of [
-              ...Object.values(persisted.archive.seasons),
-              ...Object.values(persisted.archive.retiredPlayerBuckets),
-              ...Object.values(persisted.archive.articleYears ?? {}),
-            ]) {
+            for (const ref of allArchiveRefs(persisted.archive)) {
               try {
                 await tombstoneArchiveChunk(backend, ref);
               } catch {

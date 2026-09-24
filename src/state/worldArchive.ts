@@ -18,6 +18,9 @@ export interface WorldArchiveIndex {
   /** Optional, independently recoverable generated prose; never factual history. */
   articleYears?: Record<string, ArchiveChunkRef>;
   retiredPlayerBuckets: Record<string, ArchiveChunkRef>;
+  /** Game summaries and box scores by `YYYY-MM`, so a game only rewrites its own month.
+   * Absent on saves written before the split, whose season chunks hold the games inline. */
+  gameMonths?: Record<string, ArchiveChunkRef>;
 }
 
 export function createEmptyWorldArchiveIndex(): WorldArchiveIndex {
@@ -66,6 +69,15 @@ export function retiredPlayerArchiveKey(
   revision: string,
 ): string {
   return `npb_sim_v4_slot_${slot}_world_${safeSegment(worldId)}_retired_${bucket}_${revision}`;
+}
+
+export function gameMonthArchiveKey(
+  slot: number,
+  worldId: string,
+  month: string,
+  revision: string,
+): string {
+  return `npb_sim_v4_slot_${slot}_world_${safeSegment(worldId)}_games_${safeSegment(month)}_${revision}`;
 }
 
 export async function writeArchiveChunk(
