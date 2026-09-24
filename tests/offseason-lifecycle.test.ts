@@ -51,6 +51,34 @@ test('CPU roster preparation creates draft space without changing the user team'
   }
 });
 
+test('mandatory retirement at 42 happens even when a CPU roster is at its minimum size', () => {
+  configureRandom(mulberry32(20260730), () => 1_700_000_000_000);
+  try {
+    const teams = initTeams();
+    const veteran = (player: (typeof teams.tigers.pitchers)[number]) => ({ ...player, age: 43 });
+    const pitchers = teams.tigers.pitchers.slice(0, 18);
+    const fielders = teams.tigers.fielders.slice(0, 22);
+    teams.tigers = {
+      ...teams.tigers,
+      pitchers: [veteran(pitchers[0]!), veteran(pitchers[1]!), ...pitchers.slice(2)],
+      fielders: [veteran(fielders[0]!), ...fielders.slice(1)],
+    };
+    const veteranIds = [pitchers[0]!.id, pitchers[1]!.id, fielders[0]!.id];
+
+    const prepared = prepareCpuRostersForDraft(teams, { excludedTeam: 'giants' });
+    const tigersExits = prepared.exits.filter((exit) => exit.teamKey === 'tigers');
+    for (const id of veteranIds) {
+      assert.equal(tigersExits.find((exit) => exit.playerId === id)?.reason, 'mandatoryRetirement');
+    }
+    const remaining = rosterIds(prepared.teams.tigers);
+    assert.ok(veteranIds.every((id) => !remaining.includes(id)));
+    // Only the mandatory retirements leave a roster that was already at its minimum.
+    assert.equal(tigersExits.length, veteranIds.length);
+  } finally {
+    resetRandom();
+  }
+});
+
 test('CPU market bidding never signs players for the excluded user team', () => {
   configureRandom(mulberry32(20260729), () => 1_700_000_000_000);
   try {
