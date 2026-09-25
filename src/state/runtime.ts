@@ -3,7 +3,11 @@ import type { ArticleArchive } from '../narrative/protocol';
 import { appendNarrativeEventsSafe } from '../narrative/ledger';
 
 import type { NarrativeEvent, NarrativeEventLedger } from '../narrative/types';
-import { breakthroughEvents, seasonReviewEvents } from '../engine/narrativeEvents';
+import {
+  breakthroughEvents,
+  pennantClinchEvents,
+  seasonReviewEvents,
+} from '../engine/narrativeEvents';
 import {
   aggregateTeamStats,
   assignAllActiveRosters,
@@ -308,7 +312,10 @@ export function applySkip(
     careerAccumulated: mergeStats(current.careerAccumulated, result.distStats),
     leagueCareerAccumulated,
     achievementHistory: [...current.achievementHistory, ...achievements],
-    ...withNarrativeEvents(current, result.narrativeEvents),
+    ...withNarrativeEvents(current, [
+      ...result.narrativeEvents,
+      ...pennantClinchEvents(current.season.year, current.season.schedule, result.sched),
+    ]),
     gameSummaries: { ...current.gameSummaries, ...result.gameSummaries },
     gameBoxScores: { ...current.gameBoxScores, ...result.gameBoxScores },
     recentPlayLogs: withPlayLogs(current.recentPlayLogs, result.playLogs),

@@ -55,6 +55,7 @@ function eventAsOfDate(event: NarrativeEvent): string {
 function playerIdsFromEvent(event: NarrativeEvent): string[] {
   if (event.type === 'seasonReview')
     return (event.titleHolders ?? []).map((holder) => holder.playerId);
+  if (event.type === 'pennantClinch') return [];
   if (event.type === 'transaction') {
     return [
       ...new Set([event.playerId, ...(event.movements ?? []).map((movement) => movement.playerId)]),

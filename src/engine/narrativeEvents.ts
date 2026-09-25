@@ -7,7 +7,7 @@ import type {
 import type { RosterExit } from './offseason';
 import { CENTRAL, PACIFIC } from '../data';
 import type { SeasonTitleRecord } from './awards';
-import { clinchDate } from './pennantRace';
+import { clinchDate, pennantRace } from './pennantRace';
 import { gameAttendance } from './popularity';
 import { averageText, earnedRunAverage } from './statsFormat';
 import type {
@@ -167,6 +167,86 @@ export interface SeasonReviewContext {
   teams?: Teams;
   /** The owner's goal and grade for the user's club. */
   ownerReview?: { teamKey: TeamKey; targetLabel: string; grade: string; gradeLabel: string };
+}
+
+/**
+ * Pennants clinched by a stretch of games: every club, in either league, that had not
+ * clinched before and has now. Frozen with the record and the game on the clinching day.
+ */
+export function pennantClinchEvents(
+  year: number,
+  before: ScheduleGame[],
+  after: ScheduleGame[],
+): NarrativeEvent[] {
+  return [CENTRAL, PACIFIC].flatMap((league) => {
+    const was = pennantRace(before, league);
+    const now = pennantRace(after, league);
+    return league.flatMap((teamKey) => {
+      if (was[teamKey]?.clinchedPennant || !now[teamKey]?.clinchedPennant) return [];
+      const day = clinchDate(after, league, teamKey);
+      if (!day) return [];
+      const tally = Object.fromEntries(league.map((key) => [key, { w: 0, l: 0, d: 0 }]));
+      let remaining = 0;
+      for (const game of after) {
+        const involved = game.homeKey === teamKey || game.awayKey === teamKey;
+        if (!game.played || game.date > day) {
+          if (involved) remaining += 1;
+          continue;
+        }
+        const home = game.hs ?? 0;
+        const away = game.as ?? 0;
+        for (const [key, own, other] of [
+          [game.homeKey, home, away],
+          [game.awayKey, away, home],
+        ] as const) {
+          const record = tally[key];
+          if (!record) continue;
+          if (own > other) record.w += 1;
+          else if (own < other) record.l += 1;
+          else record.d += 1;
+        }
+      }
+      const own = tally[teamKey]!;
+      const second = league
+        .filter((key) => key !== teamKey)
+        .map((key) => tally[key]!)
+        .sort(
+          (first, other) =>
+            other.w / Math.max(1, other.w + other.l) - first.w / Math.max(1, first.w + first.l),
+        )[0]!;
+      const gamesAhead = Math.max(0, (own.w - second.w + second.l - own.l) / 2);
+      const game = after.find(
+        (candidate) =>
+          candidate.played &&
+          candidate.date === day &&
+          (candidate.homeKey === teamKey || candidate.awayKey === teamKey),
+      );
+      const home = game?.homeKey === teamKey;
+      return [
+        {
+          type: 'pennantClinch' as const,
+          id: `pennant-clinch:${year}:${teamKey}`,
+          year,
+          date: day,
+          teamKey,
+          wins: own.w,
+          losses: own.l,
+          draws: own.d,
+          remaining,
+          gamesAhead,
+          ...(game
+            ? {
+                clinchingGame: {
+                  opponentKey: home ? game.awayKey : game.homeKey,
+                  runsFor: (home ? game.hs : game.as) ?? 0,
+                  runsAgainst: (home ? game.as : game.hs) ?? 0,
+                },
+              }
+            : {}),
+        },
+      ];
+    });
+  });
 }
 
 const monthDay = (date: string) => `${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日`;

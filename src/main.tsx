@@ -8,6 +8,7 @@ import './styles/dashboard.css';
 import './styles/game-detail.css';
 import './styles/game-results.css';
 import './styles/manager.css';
+import './styles/newspaper.css';
 import './styles/history.css';
 import './styles/live.css';
 import './styles/play-by-play.css';

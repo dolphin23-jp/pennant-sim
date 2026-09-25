@@ -1,0 +1,327 @@
+/* Newspaper front page (components/newspaper/NewspaperFront.tsx). Newsprint in both
+   themes: a paper is a physical object, like the scoreboard. */
+.paper-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 210;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  overflow-y: auto;
+  background: rgb(8 6 3 / 80%);
+}
+
+.paper-dialog {
+  display: grid;
+  gap: 10px;
+  width: min(100%, 820px);
+  outline: none;
+}
+
+.paper-dialog__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.paper {
+  --paper-ink: #1b1712;
+  --paper-red: #b3261e;
+  display: grid;
+  gap: 14px;
+  padding: 22px 26px 16px;
+  border-radius: 4px;
+  background:
+    radial-gradient(ellipse at 50% 45%, rgb(255 255 255 / 0%) 55%, rgb(120 90 40 / 14%) 100%),
+    #f2ecdf;
+  box-shadow:
+    0 20px 50px rgb(0 0 0 / 50%),
+    inset 0 0 0 1px rgb(0 0 0 / 8%);
+  color: var(--paper-ink);
+  font-family: 'Shippori Mincho B1', 'Noto Serif JP', 'Yu Mincho', serif;
+  animation: paper-in 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes paper-in {
+  from {
+    opacity: 0;
+    transform: rotate(-6deg) scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.paper__masthead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 5px double var(--paper-ink);
+}
+
+.paper__title {
+  font-size: clamp(1.5rem, 6vw, 3rem);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.paper__date {
+  margin-top: 4px;
+  color: #5b5247;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.paper__edition {
+  padding: 6px 16px;
+  background: var(--paper-red);
+  color: #fff;
+  font-size: clamp(1.5rem, 6vw, 3rem);
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.paper__front {
+  display: flex;
+  flex-direction: row-reverse;
+  gap: 16px;
+  min-height: 460px;
+}
+
+.paper__banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+}
+
+.paper__kicker,
+.paper__banner-text {
+  writing-mode: vertical-rl;
+}
+
+/* Latin letters and long numbers stand upright in vertical columns, as in print. */
+.paper__kicker,
+.paper__banner-text,
+.paper__subhead,
+.paper__body {
+  text-orientation: upright;
+}
+
+.paper__banner-text {
+  display: block;
+  padding: 18px 10px 26px;
+  border-bottom: 10px solid var(--paper-team);
+  background: var(--paper-ink);
+  color: #fff;
+  font-size: clamp(4rem, 12vw, 7.5rem);
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: 0.04em;
+}
+
+.paper__kicker {
+  display: block;
+  color: var(--paper-red);
+  font-size: clamp(1.6rem, 4.6vw, 2.6rem);
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.paper__subhead {
+  margin: 0;
+  max-height: 460px;
+  font-size: clamp(1rem, 2.6vw, 1.45rem);
+  font-weight: 700;
+  line-height: 1.5;
+  writing-mode: vertical-rl;
+}
+
+.paper__photo {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 2px solid var(--paper-ink);
+}
+
+.paper__photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: sepia(0.15) contrast(1.05);
+}
+
+.paper__plate {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  min-height: 200px;
+  background: linear-gradient(135deg, var(--paper-team), var(--paper-ink));
+  color: rgb(255 255 255 / 92%);
+  font-size: clamp(2.4rem, 8vw, 5rem);
+  font-weight: 900;
+}
+
+.paper__body {
+  height: 300px;
+  padding-top: 12px;
+  overflow: hidden;
+  border-top: 1.5px solid var(--paper-ink);
+  font-size: var(--text-lg);
+  line-height: 1.75;
+  writing-mode: vertical-rl;
+}
+
+.paper__body p {
+  margin: 0 0 0 0.6em;
+}
+
+.paper__lead {
+  font-weight: 700;
+}
+
+.paper__tcy {
+  text-combine-upright: all;
+}
+
+.paper__footer {
+  padding-top: 6px;
+  border-top: 1.5px solid var(--paper-ink);
+  color: #6b6154;
+  font-family: var(--font-body);
+  font-size: var(--text-2xs);
+}
+
+@media (max-width: 640px) {
+  .paper {
+    padding: 16px 14px 12px;
+  }
+
+  .paper__front {
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .paper__kicker,
+  .paper__banner-text,
+  .paper__subhead,
+  .paper__body {
+    writing-mode: horizontal-tb;
+  }
+
+  .paper__banner {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .paper__banner-text {
+    padding: 8px 14px;
+    border-bottom-width: 6px;
+    font-size: 3.4rem;
+  }
+
+  .paper__subhead {
+    max-height: none;
+  }
+
+  .paper__photo {
+    height: 180px;
+    flex: none;
+  }
+
+  .paper__body {
+    height: auto;
+  }
+
+  .paper__body p {
+    margin: 0 0 0.6em;
+  }
+
+  .paper__tcy {
+    text-combine-upright: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paper {
+    animation: none;
+  }
+}
+
+/* 号外 buttons and the dashboard banner */
+.paper-open {
+  justify-self: start;
+  padding: 4px 10px;
+  border: 1px solid #b3261e;
+  border-radius: 4px;
+  background: #b3261e;
+  color: #fff;
+  font-family: 'Shippori Mincho B1', serif;
+  font-size: var(--text-sm);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.paper-open:focus-visible {
+  outline: 2px solid var(--color-leader);
+  outline-offset: 2px;
+}
+
+.extra-banner {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #d9cfbb;
+  border-left: 8px solid #b3261e;
+  border-radius: var(--radius-md);
+  background: #f2ecdf;
+  color: #1b1712;
+  font-family: 'Shippori Mincho B1', serif;
+  text-align: left;
+  cursor: pointer;
+  animation: extra-banner 2.4s ease-in-out 2;
+}
+
+.extra-banner__stamp {
+  padding: 2px 8px;
+  background: #b3261e;
+  color: #fff;
+  font-size: var(--text-xl);
+  font-weight: 900;
+}
+
+.extra-banner__headline {
+  flex: 1;
+  font-size: var(--text-lg);
+  font-weight: 900;
+}
+
+.extra-banner__close {
+  padding: 4px 8px;
+  border: 0;
+  background: transparent;
+  color: #6b6154;
+  font-size: var(--text-lg);
+  cursor: pointer;
+}
+
+@keyframes extra-banner {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(179 38 30 / 0%);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgb(179 38 30 / 35%);
+  }
+}

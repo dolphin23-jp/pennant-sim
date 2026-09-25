@@ -11,7 +11,14 @@ import {
   type TeamKey,
   type Teams,
 } from '../src/engine';
-import { breakthroughEvents, debutEvents, seasonReviewEvents } from '../src/engine/narrativeEvents';
+import {
+  breakthroughEvents,
+  debutEvents,
+  pennantClinchEvents,
+  seasonReviewEvents,
+} from '../src/engine/narrativeEvents';
+import { articleFromFutureEvent } from '../src/narrative/generate';
+import { appendNarrativeEventsSafe } from '../src/narrative/ledger';
 
 let serial = 0;
 const game = (
@@ -45,6 +52,36 @@ test('the clinch date is the first day no rival could still catch the leader', (
   // the Giants finish d-(6-d) at worst and a rival (6-d)-d at best, clinched once d > 3.
   assert.equal(date, '2026-09-04');
   assert.equal(clinchDate(schedule, CENTRAL, 'tigers'), null);
+});
+
+test('a pennant clinch is recorded once, on the clinching day, with the record that day', () => {
+  const schedule: ScheduleGame[] = [];
+  const days = ['2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05'];
+  for (const day of days) {
+    schedule.push(game('giants', 'hawks', true, day));
+    for (const rival of CENTRAL.slice(1)) schedule.push(game(rival, 'hawks', false, day));
+  }
+  for (const team of CENTRAL) schedule.push(game(team, 'hawks', null, '2026-09-30'));
+  const before = schedule.map((scheduled) =>
+    scheduled.date > '2026-09-02' ? { ...scheduled, played: false, hs: null, as: null } : scheduled,
+  );
+  const events = pennantClinchEvents(2026, before, schedule);
+  assert.equal(events.length, 1);
+  const [event] = events;
+  assert.ok(event && event.type === 'pennantClinch');
+  assert.equal(event.teamKey, 'giants');
+  assert.equal(event.date, '2026-09-04');
+  assert.deepEqual([event.wins, event.losses, event.draws], [4, 0, 0]);
+  assert.equal(event.remaining, 2);
+  assert.equal(event.gamesAhead, 4);
+  assert.deepEqual(event.clinchingGame, { opponentKey: 'hawks', runsFor: 3, runsAgainst: 1 });
+  assert.deepEqual(pennantClinchEvents(2026, schedule, schedule), []);
+  const { rejected } = appendNarrativeEventsSafe({}, events);
+  assert.deepEqual(rejected, []);
+  const article = articleFromFutureEvent(event);
+  assert.equal(article.kind, 'pennantClinch');
+  assert.match(article.segments.map((segment) => segment.text).join(''), /9月4日.*優勝を決めた/);
+  assert.ok(article.segments.every((segment) => segment.class === 'FACTUAL'));
 });
 
 test('season reviews carry titles, games behind, the clinch day, crowds and the owner verdict', () => {

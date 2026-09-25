@@ -1,3 +1,4 @@
+import { ExtraBanner } from '../../newspaper/ExtraBanner';
 import { useMemo, type CSSProperties } from 'react';
 
 import { CENTRAL, PACIFIC, TINFO } from '../../../data';
@@ -215,6 +216,7 @@ export function DashboardTab({
 
   return (
     <div className="stack">
+      <ExtraBanner />
       <div className="dashboard-lead">
         <MatchupHero nextGame={nextGame} />
         <LatestGameCard />

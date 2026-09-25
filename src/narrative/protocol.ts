@@ -139,6 +139,7 @@ export function validPacket(v: unknown): v is FactPacket {
       'championship',
       'seasonAwards',
       'seasonReview',
+      'pennantClinch',
       'transaction',
       'draft',
       'career',

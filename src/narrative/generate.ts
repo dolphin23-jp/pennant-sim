@@ -22,6 +22,7 @@ import {
   type NarrativeFactRef,
   type NarrativeFeedFilter,
   type NarrativeSegment,
+  type PennantClinchNarrativeEvent,
   type SeasonReviewNarrativeEvent,
   type TransactionNarrativeEvent,
 } from './types';
@@ -512,6 +513,48 @@ function articleFromSeasonReview(event: SeasonReviewNarrativeEvent): NarrativeAr
   });
 }
 
+function articleFromPennantClinch(event: PennantClinchNarrativeEvent): NarrativeArticle {
+  const team = TINFO[event.teamKey];
+  const league = team.lg === 'central' ? 'セ・リーグ' : 'パ・リーグ';
+  const clinchRef = ref('SEASON_STANDING', event.id);
+  const day = `${Number(event.date.slice(5, 7))}月${Number(event.date.slice(8, 10))}日`;
+  const segments: NarrativeSegment[] = [
+    factual(`${team.n}が${day}、${event.year}年の${league}優勝を決めた。`, [clinchRef]),
+  ];
+  if (event.clinchingGame) {
+    const { opponentKey, runsFor, runsAgainst } = event.clinchingGame;
+    const outcome = runsFor > runsAgainst ? '勝利' : runsFor < runsAgainst ? '敗戦' : '引き分け';
+    segments.push(
+      factual(`この日は${TINFO[opponentKey].ab}戦で${runsFor}対${runsAgainst}の${outcome}。`, [
+        clinchRef,
+      ]),
+    );
+  } else {
+    segments.push(factual('この日は試合がなく、2位球団の結果で優勝が決まった。', [clinchRef]));
+  }
+  segments.push(
+    factual(
+      `優勝決定時点で${event.wins}勝${event.losses}敗${event.draws}分、2位に${event.gamesAhead}ゲーム差${event.remaining ? `をつけ、残り${event.remaining}試合。` : 'で全日程を終えた。'}`,
+      [clinchRef],
+    ),
+  );
+  return makeArticle({
+    id: narrativeEventArticleId(event),
+    kind: 'pennantClinch',
+    year: event.year,
+    publishedAt: event.date,
+    asOfDate: normalizeAsOfDate(event.date, event.year),
+    viewMode: 'archival',
+    headline: `${team.ab}、${event.year}年${league}優勝`,
+    dek: event.remaining
+      ? `${day}、残り${event.remaining}試合で決める`
+      : `${day}、全日程を終えて決まる`,
+    teamKeys: [event.teamKey],
+    playerIds: [],
+    segments,
+  });
+}
+
 function articleFromInjury(event: InjuryNarrativeEvent): NarrativeArticle {
   const severityLabel = { light: '軽傷', mid: '中程度', heavy: '重傷' }[event.severity];
   const eventRef = ref('INJURY', event.id);
@@ -607,6 +650,8 @@ export function articleFromFutureEvent(event: FutureNarrativeEvent): NarrativeAr
       return articleFromCareer(event);
     case 'seasonReview':
       return articleFromSeasonReview(event);
+    case 'pennantClinch':
+      return articleFromPennantClinch(event);
     case 'injury':
       return articleFromInjury(event);
     case 'development':
@@ -675,9 +720,11 @@ function eventCandidate(event: FutureNarrativeEvent): ArticleCandidate {
   const playerIds =
     event.type === 'seasonReview'
       ? (event.titleHolders ?? []).map((p) => p.playerId)
-      : event.type === 'transaction'
-        ? [event.playerId, ...(event.movements ?? []).map((m) => m.playerId)]
-        : [event.playerId];
+      : event.type === 'pennantClinch'
+        ? []
+        : event.type === 'transaction'
+          ? [event.playerId, ...(event.movements ?? []).map((m) => m.playerId)]
+          : [event.playerId];
   const teamKeys =
     event.type === 'transaction'
       ? [

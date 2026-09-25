@@ -1,3 +1,4 @@
+import { ExtraBanner } from '../newspaper/ExtraBanner';
 import { retirePlayers } from '../../engine/offseason';
 import type { NarrativeEvent, NarrativeEventContext } from '../../narrative/types';
 import { useEffect, useMemo, useState } from 'react';
@@ -284,6 +285,9 @@ function OffseasonContent({
 
   return (
     <PageShell>
+      <div style={{ marginBottom: 12 }}>
+        <ExtraBanner />
+      </div>
       <header style={{ marginBottom: 16 }}>
         <div
           style={{
