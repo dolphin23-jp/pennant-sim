@@ -63,7 +63,8 @@ export function planNarrativeStory(
     const event = Object.values(source.narrativeEvents ?? {})
       .flat()
       .find((candidate) => narrativeEventArticleId(candidate) === article.id);
-    if (event?.type === 'seasonReview') {
+    if (event?.type === 'pennantClinch') add(95, 'pennant-clinch');
+    else if (event?.type === 'seasonReview') {
       if (event.champion || event.rank === 1) add(78, 'league-champion-review');
       else if (event.rank <= 3) add(48, 'contender-review');
       else add(18, 'season-review');

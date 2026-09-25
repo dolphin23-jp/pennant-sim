@@ -1,3 +1,5 @@
+import { useOpenNewspaper } from '../../newspaper/newspaperContext';
+import { FRONT_PAGE_KINDS } from '../../newspaper/newspaperLayout';
 import { AiArticle } from './AiArticle';
 import { loadNarrativeConnection, saveNarrativeConnection } from '../../../narrative/connection';
 import { narrativeArticleService, validProxyUrl } from '../../../narrative/service';
@@ -20,6 +22,7 @@ const KIND_LABEL: Record<NarrativeArticleKind, string> = {
   championship: '日本一',
   seasonAwards: '表彰',
   seasonReview: '総括',
+  pennantClinch: 'リーグ優勝',
   transaction: '移籍',
   draft: 'ドラフト',
   career: 'キャリア',
@@ -48,11 +51,12 @@ const CATEGORY_KINDS: Record<Exclude<FeedCategory, 'all'>, NarrativeArticleKind[
   career: ['career'],
   injury: ['injury'],
   development: ['development'],
-  seasonReview: ['seasonReview'],
+  seasonReview: ['seasonReview', 'pennantClinch'],
   games: ['gameRecap'],
   records: ['achievement', 'seasonAwards'],
   history: [
     'championship',
+    'pennantClinch',
     'seasonReview',
     'transaction',
     'draft',
@@ -64,6 +68,7 @@ const CATEGORY_KINDS: Record<Exclude<FeedCategory, 'all'>, NarrativeArticleKind[
 
 function ArticleCard({ article }: { article: NarrativeArticle }) {
   const primaryTeam = article.teamKeys[0] ? TINFO[article.teamKeys[0]] : null;
+  const openNewspaper = useOpenNewspaper();
   return (
     <Card
       ariaLabel={`${article.publishedAt} ${article.headline}`}
@@ -139,6 +144,11 @@ function ArticleCard({ article }: { article: NarrativeArticle }) {
           </p>
         ))}
       </div>
+      {FRONT_PAGE_KINDS.has(article.kind) && (
+        <button type="button" className="paper-open" onClick={() => openNewspaper(article)}>
+          紙面で読む
+        </button>
+      )}
       <div style={{ color: 'var(--color-text-faint)', fontSize: 10 }}>
         archive v{article.generatorVersion} / as of {article.asOfDate}
       </div>

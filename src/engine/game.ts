@@ -390,6 +390,8 @@ export function simHalf(
               rbi: 0,
               desc: `${runnerPlayer.name}、盗塁成功`,
               snap: snapshot,
+              outsBefore: outs,
+              basesAfter: [Boolean(bases[0]), Boolean(bases[1]), Boolean(bases[2])],
             });
           } else {
             decision.success = false;
@@ -410,6 +412,8 @@ export function simHalf(
               rbi: 0,
               desc: `${runnerPlayer.name}、盗塁失敗`,
               snap: snapshot,
+              outsBefore: outs - 1,
+              basesAfter: [Boolean(bases[0]), Boolean(bases[1]), Boolean(bases[2])],
             });
             if (outs >= 3) break;
           }
@@ -480,6 +484,8 @@ export function simHalf(
               rbi: 0,
               desc: `${runnerPlayer.name}、盗塁成功（三塁）`,
               snap: snapshot,
+              outsBefore: outs,
+              basesAfter: [Boolean(bases[0]), Boolean(bases[1]), Boolean(bases[2])],
             });
           } else {
             decision.success = false;
@@ -500,6 +506,8 @@ export function simHalf(
               rbi: 0,
               desc: `${runnerPlayer.name}、盗塁失敗（三塁）`,
               snap: snapshot,
+              outsBefore: outs - 1,
+              basesAfter: [Boolean(bases[0]), Boolean(bases[1]), Boolean(bases[2])],
             });
             if (outs >= 3) break;
           }
@@ -545,6 +553,8 @@ export function simHalf(
     let result: PlateAppearanceResult, pitchCount: number, direction: string | null;
     let battedBall: BattedBallType | undefined;
     let errorFielderId: string | undefined;
+    let fieldingSlot: string | undefined;
+    let spray: 'pull' | 'center' | 'oppo' | undefined;
     const liveScore = {
         home: gameState.score.home + (battingSide === 'home' ? runs : 0),
         away: gameState.score.away + (battingSide === 'away' ? runs : 0),
@@ -614,6 +624,8 @@ export function simHalf(
       pitchCount = outcome.pc;
       direction = outcome.dir;
       battedBall = outcome.battedBall;
+      fieldingSlot = outcome.fieldingSlot;
+      spray = outcome.spray;
       errorFielderId = outcome.errorFielderId ?? undefined;
     }
     gameState.matchupCounts[matchupKey] = priorMatchups + 1;
@@ -751,6 +763,9 @@ export function simHalf(
       errorFielderId,
       basesBefore,
       outsBefore,
+      ...(fieldingSlot ? { fieldingSlot } : {}),
+      ...(spray ? { spray } : {}),
+      basesAfter: [Boolean(bases[0]), Boolean(bases[1]), Boolean(bases[2])],
       desc: buildDesc(batter.name, officialResult, direction, runsBattedIn),
     });
     if (battingSide === 'home' && inning >= 8 && snapshot.home > snapshot.away) {

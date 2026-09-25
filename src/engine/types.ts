@@ -227,6 +227,8 @@ export interface AtBatOutcome {
   dir: string | null;
   battedBall?: BattedBallType;
   fieldingSlot?: string;
+  /** Where the ball went relative to the batter: pulled, up the middle or the other way. */
+  spray?: 'pull' | 'center' | 'oppo';
   errorFielderId?: string | null;
 }
 export interface Score {
@@ -271,6 +273,12 @@ export interface AtBatLogEntry {
   basesBefore?: [boolean, boolean, boolean];
   /** Outs before the play. */
   outsBefore?: number;
+  /** Who fielded the ball ('投手' for the pitcher), for replaying the play. */
+  fieldingSlot?: string;
+  /** Pulled, up the middle or the other way, for replaying the play. */
+  spray?: 'pull' | 'center' | 'oppo';
+  /** Occupied bases after the play. */
+  basesAfter?: [boolean, boolean, boolean];
 }
 export type ManagementDecisionType = 'bunt' | 'steal' | 'pitchingChange';
 /**

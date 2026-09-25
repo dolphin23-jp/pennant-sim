@@ -166,6 +166,40 @@ input:focus-visible,
     100% 620px;
 }
 
+/* The season's scene behind the season screens (App.tsx sets data-scene): cherry blossoms
+   for the opening weeks, the lights of a summer night game, and the quiet scoreboard of
+   the postseason and the winter. The spring day game also shows in the light theme. */
+:root:not([data-theme='light'])[data-scene='night'] .page-shell {
+  background-image:
+    linear-gradient(180deg, rgb(7 12 9 / 10%) 0%, var(--color-bg) 100%),
+    url('./assets/stadium-lights.webp');
+}
+
+:root:not([data-theme='light'])[data-scene='winter'] .page-shell {
+  background-image:
+    linear-gradient(180deg, rgb(7 12 9 / 25%) 0%, var(--color-bg) 100%),
+    url('./assets/scoreboard-night.webp');
+}
+
+:root:not([data-theme='light'])[data-scene='spring'] .page-shell {
+  background-image:
+    linear-gradient(180deg, rgb(7 12 9 / 55%) 0%, var(--color-bg) 100%),
+    url('./assets/spring-opening.webp');
+}
+
+:root[data-theme='light'][data-scene='spring'] .page-shell {
+  background-image:
+    linear-gradient(180deg, rgb(255 255 255 / 35%) 0%, var(--color-bg) 100%),
+    url('./assets/spring-opening.webp');
+  background-repeat: no-repeat, no-repeat;
+  background-position:
+    top center,
+    top center;
+  background-size:
+    100% 620px,
+    100% 620px;
+}
+
 .page-shell__inner {
   max-width: 1180px;
   margin: 0 auto;

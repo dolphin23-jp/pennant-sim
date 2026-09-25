@@ -7,6 +7,7 @@ const prefixes = {
   draft: 'draft',
   career: 'career',
   seasonReview: 'season-review',
+  pennantClinch: 'pennant-clinch',
   injury: 'injury',
   development: 'development',
 } as const;
@@ -62,7 +63,8 @@ function validEvent(value: unknown, year: number): value is NarrativeEvent {
     !validDate(value.date, year)
   )
     return false;
-  if (value.type !== 'seasonReview' && !player(value)) return false;
+  if (value.type !== 'seasonReview' && value.type !== 'pennantClinch' && !player(value))
+    return false;
   if (value.type !== 'transaction' && !team(value.teamKey)) return false;
   switch (value.type) {
     case 'transaction': {
@@ -140,6 +142,21 @@ function validEvent(value: unknown, year: number): value is NarrativeEvent {
             text(value.ownerReview.targetLabel) &&
             text(value.ownerReview.grade) &&
             text(value.ownerReview.gradeLabel)))
+      );
+    case 'pennantClinch':
+      return (
+        /^\d{4}-\d{2}-\d{2}$/.test(String(value.date)) &&
+        integer(value.wins) &&
+        integer(value.losses) &&
+        integer(value.draws) &&
+        integer(value.remaining) &&
+        number(value.gamesAhead) &&
+        value.gamesAhead >= 0 &&
+        (value.clinchingGame === undefined ||
+          (object(value.clinchingGame) &&
+            team(value.clinchingGame.opponentKey) &&
+            integer(value.clinchingGame.runsFor) &&
+            integer(value.clinchingGame.runsAgainst)))
       );
     case 'development':
       if (value.developmentKind === undefined) return text(value.detail);

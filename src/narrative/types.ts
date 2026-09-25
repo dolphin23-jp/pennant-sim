@@ -16,6 +16,7 @@ export type NarrativeArticleKind =
   | 'championship'
   | 'seasonAwards'
   | 'seasonReview'
+  | 'pennantClinch'
   | 'transaction'
   | 'draft'
   | 'career'
@@ -188,6 +189,26 @@ export interface SeasonReviewNarrativeEvent {
   ownerReview?: { targetLabel: string; grade: string; gradeLabel: string };
 }
 
+/** A club clinching its league pennant, frozen on the day it happened. */
+export interface PennantClinchNarrativeEvent {
+  type: 'pennantClinch';
+  id: string;
+  year: number;
+  /** The day the pennant was clinched (YYYY-MM-DD). */
+  date: string;
+  teamKey: TeamKey;
+  /** Record on the day it clinched. */
+  wins: number;
+  losses: number;
+  draws: number;
+  /** Games still to play after that day. */
+  remaining: number;
+  /** Games ahead of the second-place club that day. */
+  gamesAhead: number;
+  /** The club's own game that day, if it played (it can clinch on a rival's loss). */
+  clinchingGame?: { opponentKey: TeamKey; runsFor: number; runsAgainst: number };
+}
+
 export interface InjuryNarrativeEvent {
   type: 'injury';
   id: string;
@@ -244,6 +265,7 @@ export type FutureNarrativeEvent =
   | DraftNarrativeEvent
   | CareerNarrativeEvent
   | SeasonReviewNarrativeEvent
+  | PennantClinchNarrativeEvent
   | InjuryNarrativeEvent
   | DevelopmentNarrativeEvent;
 
