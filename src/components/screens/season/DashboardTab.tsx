@@ -1,15 +1,125 @@
 import { useMemo, type CSSProperties } from 'react';
 
-import { TINFO } from '../../../data';
-import { recommendedLineup, deriveTeamForm } from '../../../engine';
-import type { TeamKey } from '../../../engine';
+import { CENTRAL, PACIFIC, TINFO } from '../../../data';
+import { earnedRunAverage, probableStarter, recommendedLineup } from '../../../engine';
+import type { Player, ScheduleGame, TeamKey } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
-import { useBusyAction } from '../../useBusyAction';
-import { Button, Card, LampFigure, SectionTitle, StatChip, teamTextColor } from '../../ui';
-import { Linescore } from '../../widgets/Linescore';
+import { Button, Card, SectionTitle, teamTextColor } from '../../ui';
 import { AutoAdvancePanel } from '../../widgets/AutoAdvancePanel';
+import { Linescore } from '../../widgets/Linescore';
 import { NoticeCenter } from '../../widgets/NoticeCenter';
-import { StandingsTable } from '../../widgets/StandingsTable';
+import { FavoritesCard } from '../../widgets/FavoritesCard';
+import { RaceCard } from '../../widgets/RaceCard';
+import { LeagueTable } from '../../widgets/StandingsTable';
+
+const shortDate = (date: string) => {
+  const [, month, day] = date.split('-').map(Number);
+  return `${month}月${day}日`;
+};
+
+/** One side of the matchup: the club, its record, and who is expected to start. */
+function MatchupSide({
+  teamKey,
+  starter,
+  side,
+}: {
+  teamKey: TeamKey;
+  starter: Player | null;
+  side: 'home' | 'away';
+}) {
+  const game = useGameState();
+  const info = TINFO[teamKey];
+  const record = game.standings[teamKey];
+  const stats = starter ? game.leagueAccumulated[starter.id] : undefined;
+  const pitching = stats?.type === 'pit' ? stats : null;
+  const era = pitching ? earnedRunAverage(pitching) : null;
+  return (
+    <div
+      className={`matchup-side matchup-side--${side}${teamKey === game.playerTeam ? ' matchup-side--own' : ''}`}
+      style={{ '--matchup-color': info.c } as CSSProperties}
+    >
+      <div className="matchup-side__venue">{side === 'home' ? 'ホーム' : 'ビジター'}</div>
+      <div className="matchup-side__team" style={{ color: teamTextColor(info.c) }}>
+        {info.ab}
+      </div>
+      <div className="matchup-side__record">
+        {record.rank ?? '-'}位 ・ {record.w}勝{record.l}敗{record.d ? `${record.d}分` : ''}
+      </div>
+      {starter && (
+        <button
+          type="button"
+          className="matchup-side__starter"
+          onClick={() => game.selectPlayer(starter)}
+          aria-label={`予告先発 ${starter.name}の詳細を表示`}
+        >
+          <span className="matchup-side__starter-label">予告先発</span>
+          <span className="matchup-side__starter-name">{starter.name}</span>
+          <span className="matchup-side__starter-line">
+            {pitching
+              ? `${pitching.w}勝${pitching.l}敗 防${era === null ? '-.--' : era.toFixed(2)}`
+              : '今季初登板'}
+          </span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Tonight's game as the page's lead: who plays whom, where, and the probable starters. */
+function MatchupHero({ nextGame }: { nextGame: ScheduleGame | null }) {
+  const game = useGameState();
+  const starters = useMemo(() => {
+    if (!nextGame || !game.teams) return null;
+    const plan =
+      game.pitcherPlan.rotationOrder.length || game.pitcherPlan.closerPriority.length
+        ? game.pitcherPlan
+        : null;
+    const pick = (teamKey: TeamKey) =>
+      probableStarter(
+        game.teams![teamKey],
+        game.rotN[teamKey] || 0,
+        teamKey === game.playerTeam ? plan : null,
+        game.leagueAccumulated,
+        nextGame.date,
+      );
+    return { home: pick(nextGame.homeKey), away: pick(nextGame.awayKey) };
+  }, [nextGame, game.teams, game.pitcherPlan, game.rotN, game.leagueAccumulated, game.playerTeam]);
+
+  if (!nextGame) {
+    return (
+      <Card ariaLabel="次の試合" className="matchup-hero matchup-hero--ended">
+        <SectionTitle>次の試合</SectionTitle>
+        <div className="matchup-hero__ended">レギュラーシーズン終了</div>
+        <p className="matchup-hero__note">
+          下のバーの「ポストシーズンへ」から、クライマックスシリーズと日本シリーズへ進めます。
+        </p>
+      </Card>
+    );
+  }
+  return (
+    <Card ariaLabel="次の試合" className="matchup-hero">
+      <div className="matchup-hero__header">
+        <SectionTitle>次の試合</SectionTitle>
+        <span className="matchup-hero__date">
+          {shortDate(nextGame.date)}
+          {nextGame.isInterleague ? ' ・ 交流戦' : ''}
+          {nextGame.doubleHeaderGame ? ` ・ ダブルヘッダー第${nextGame.doubleHeaderGame}試合` : ''}
+        </span>
+      </div>
+      <div className="matchup-hero__body">
+        <MatchupSide teamKey={nextGame.awayKey} starter={starters?.away ?? null} side="away" />
+        <div className="matchup-hero__vs" aria-hidden="true">
+          VS
+        </div>
+        <MatchupSide teamKey={nextGame.homeKey} starter={starters?.home ?? null} side="home" />
+      </div>
+      <div className="matchup-hero__park">
+        {TINFO[nextGame.homeKey].n}の本拠地
+        {nextGame.postponedFrom ? ` ・ 雨天順延（当初 ${shortDate(nextGame.postponedFrom)}）` : ''}
+      </div>
+    </Card>
+  );
+}
 
 /** The user's latest game, whether played one at a time or skipped, with a way into its
  * box score and play-by-play. */
@@ -23,15 +133,32 @@ function LatestGameCard() {
     )
     .sort((first, second) => second.date.localeCompare(first.date))[0];
   const box = latest ? (game.gameBoxScores[latest.id] ?? game.gameSummaries[latest.id]) : null;
-  if (!latest || !box) return null;
+  if (!latest || !box || !playerTeam) {
+    return (
+      <Card ariaLabel="直近の試合" className="dashboard-card">
+        <SectionTitle>直近の試合</SectionTitle>
+        <p className="dashboard-latest__empty">
+          まだ試合をしていません。下のバーの「次の試合」で開幕戦へ。
+        </p>
+      </Card>
+    );
+  }
   const home = TINFO[box.homeKey];
   const away = TINFO[box.awayKey];
+  const own = latest.homeKey === playerTeam ? latest.hs : latest.as;
+  const other = latest.homeKey === playerTeam ? latest.as : latest.hs;
+  const outcome = (own ?? 0) > (other ?? 0) ? 'win' : (own ?? 0) < (other ?? 0) ? 'loss' : 'tie';
   const hasPlayLog = Boolean(game.recentPlayLogs[latest.id]);
   return (
     <Card ariaLabel="直近の試合" className="dashboard-card">
-      <SectionTitle>直近の試合</SectionTitle>
+      <div className="dashboard-latest__header">
+        <SectionTitle>直近の試合</SectionTitle>
+        <span className={`dashboard-latest__result dashboard-latest__result--${outcome}`}>
+          {outcome === 'win' ? '勝利' : outcome === 'loss' ? '敗戦' : '引分'}
+        </span>
+      </div>
       <div className="dashboard-latest__date">
-        {box.date}
+        {shortDate(box.date)}
         {box.headline ? ` ・ ${box.headline}` : ''}
       </div>
       <Linescore
@@ -66,9 +193,7 @@ export function DashboardTab({
   onOpenYearReview?(): void;
 }) {
   const game = useGameState();
-  const { busy: actionBusy, run } = useBusyAction();
-  // Manual progress is locked while whole years are being advanced automatically.
-  const busy = actionBusy || game.advanceProgress !== null;
+  const busy = game.advanceProgress !== null;
   const nextGame = useMemo(
     () =>
       game.season.schedule.find(
@@ -81,148 +206,38 @@ export function DashboardTab({
 
   if (!game.teams || !game.playerTeam) return null;
   const playerTeam = game.teams[game.playerTeam];
+  const central = CENTRAL.includes(game.playerTeam);
   const lastReviewedYear = game.championHistory.some(
     (record) => record.year === game.season.year - 1,
   )
     ? game.season.year - 1
     : null;
-  const record = game.standings[game.playerTeam];
-  const form = deriveTeamForm(game.season.schedule, game.playerTeam);
-  const pctText = record.pct === undefined ? '.---' : record.pct.toFixed(3).replace(/^0/, '');
-  const streakTone = form.streak.includes('連勝')
-    ? 'var(--color-success)'
-    : form.streak.includes('連敗')
-      ? 'var(--color-danger)'
-      : undefined;
 
   return (
-    <>
-      <Card ariaLabel="順位状況" className="dashboard-card">
-        <SectionTitle>順位</SectionTitle>
-        <div className="dashboard-standing">
-          <LampFigure
-            label={TINFO[game.playerTeam].ab}
-            value={record.rank ? `${record.rank}位` : '-'}
-            elite={Boolean(record.rank && record.rank <= 3)}
-            ariaLabel={`${playerTeam.n} 現在${record.rank ?? '-'}位`}
-          />
-          <div className="dashboard-standing__chips">
-            <StatChip label="勝敗分" value={`${record.w}-${record.l}-${record.d}`} />
-            <StatChip label="勝率" value={pctText} />
-            <StatChip label="差" value={record.gb ?? '-'} />
-            <StatChip label="直近10" value={`${form.last10.w}-${form.last10.l}-${form.last10.d}`} />
-            <StatChip label="連続" value={form.streak} tone={streakTone} />
-          </div>
-        </div>
-      </Card>
+    <div className="stack">
+      <div className="dashboard-lead">
+        <MatchupHero nextGame={nextGame} />
+        <LatestGameCard />
+      </div>
 
-      <div className="dashboard-standings-table">
-        <StandingsTable
+      <RaceCard
+        schedule={game.season.schedule}
+        standings={game.standings}
+        team={game.playerTeam}
+        manager={game.manager}
+      />
+
+      <div className="dashboard-grid">
+        <LeagueTable
+          title={central ? 'セ・リーグ' : 'パ・リーグ'}
+          teams={central ? CENTRAL : PACIFIC}
           standings={game.standings}
           schedule={game.season.schedule}
           onSelectTeam={onSelectTeam}
+          ownTeam={game.playerTeam}
         />
-      </div>
-
-      <div className="dashboard-grid">
-        <Card ariaLabel="次の試合">
-          <SectionTitle>次の試合</SectionTitle>
-          {nextGame ? (
-            <>
-              <div className="dashboard-matchup">
-                <span
-                  className="dashboard-matchup__team"
-                  style={
-                    {
-                      '--dashboard-team-color': TINFO[nextGame.awayKey].c,
-                      color: teamTextColor(TINFO[nextGame.awayKey].c),
-                    } as CSSProperties
-                  }
-                >
-                  {TINFO[nextGame.awayKey].ab}
-                </span>
-                <span className="dashboard-matchup__at">@</span>
-                <span
-                  className="dashboard-matchup__team"
-                  style={
-                    {
-                      '--dashboard-team-color': TINFO[nextGame.homeKey].c,
-                      color: teamTextColor(TINFO[nextGame.homeKey].c),
-                    } as CSSProperties
-                  }
-                >
-                  {TINFO[nextGame.homeKey].ab}
-                </span>
-              </div>
-              <div className="dashboard-next__date">
-                {nextGame.date}
-                {nextGame.doubleHeaderGame
-                  ? ` / ダブルヘッダー第${nextGame.doubleHeaderGame}試合`
-                  : ''}
-              </div>
-              {nextGame.postponedFrom && (
-                <div className="dashboard-next__postponed">
-                  雨天順延（当初 {nextGame.postponedFrom}）
-                </div>
-              )}
-              {!nextGame.postponedFrom && <div className="dashboard-next__spacer" />}
-              <nav aria-label="試合進行" className="dashboard-controls">
-                <Button
-                  onClick={() => run(game.simulateNextGame)}
-                  disabled={busy}
-                  color={playerTeam.c}
-                  ariaLabel="次の試合を実行"
-                >
-                  次戦を実行
-                </Button>
-                <Button
-                  onClick={() => run(() => game.skip('week'))}
-                  disabled={busy}
-                  color="var(--color-surface-muted)"
-                  ariaLabel="1週間分の試合をスキップ"
-                >
-                  1週スキップ
-                </Button>
-                <Button
-                  onClick={() => run(() => game.skip('month'))}
-                  disabled={busy}
-                  color="var(--color-surface-muted)"
-                  ariaLabel="1か月分の試合をスキップ"
-                >
-                  1ヶ月スキップ
-                </Button>
-                <Button
-                  onClick={() => run(() => game.skip('season'))}
-                  disabled={busy}
-                  color="var(--color-growth)"
-                  ariaLabel="レギュラーシーズンの残り全試合を実行"
-                >
-                  残り全試合
-                </Button>
-                {actionBusy && (
-                  <span role="status" aria-live="polite" className="dashboard-controls__status">
-                    処理中…
-                  </span>
-                )}
-              </nav>
-            </>
-          ) : (
-            <>
-              <div className="dashboard-next__ended">レギュラーシーズン終了</div>
-              <Button
-                onClick={() => game.setScreen('postseason')}
-                disabled={busy}
-                color={playerTeam.c}
-                ariaLabel="ポストシーズン画面へ移動"
-              >
-                ポストシーズンへ
-              </Button>
-            </>
-          )}
-        </Card>
         <Card ariaLabel="現在の先発オーダー">
           <SectionTitle>スタメン</SectionTitle>
-          <div className="dashboard-lineup__count">現在の先発野手 {game.lineup.length}名</div>
           <div role="group" aria-label="先発オーダーの選手詳細ボタン" className="dashboard-lineup">
             {game.lineup.map((player, index) => (
               <button
@@ -233,7 +248,10 @@ export function DashboardTab({
                 className="dashboard-lineup__player"
               >
                 <span className="dashboard-lineup__order">{index + 1}</span>
-                {player.name}
+                <span className="dashboard-lineup__name">{player.name}</span>
+                <span className="dashboard-lineup__pos">
+                  {player._isDH ? 'DH' : (player._assignedPos ?? player.pos)}
+                </span>
               </button>
             ))}
           </div>
@@ -248,6 +266,17 @@ export function DashboardTab({
         </Card>
       </div>
 
+      <FavoritesCard />
+
+      <NoticeCenter
+        notices={game.notices}
+        teams={game.teams}
+        onSelectPlayer={game.selectPlayer}
+        onSelectGame={game.selectGame}
+        onDismiss={game.dismissNotice}
+        onClear={game.clearNotices}
+      />
+
       <div className="dashboard-auto">
         <AutoAdvancePanel onFinished={onOpenYearReview} />
         {onOpenYearReview && lastReviewedYear !== null && (
@@ -258,17 +287,6 @@ export function DashboardTab({
           </div>
         )}
       </div>
-
-      <LatestGameCard />
-
-      <NoticeCenter
-        notices={game.notices}
-        teams={game.teams}
-        onSelectPlayer={game.selectPlayer}
-        onSelectGame={game.selectGame}
-        onDismiss={game.dismissNotice}
-        onClear={game.clearNotices}
-      />
-    </>
+    </div>
   );
 }

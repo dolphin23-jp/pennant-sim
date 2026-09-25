@@ -1,0 +1,377 @@
+/* Season scoreboard header (widgets/SeasonScoreboard.tsx) and the game control bar
+   (widgets/GameControlBar.tsx). Both are lamp panels: dark in either theme. */
+.season-board {
+  --season-board-color: var(--color-accent);
+
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: center;
+  margin-bottom: var(--space-4);
+  padding: 12px var(--space-4);
+  border: 1px solid var(--lamp-border);
+  border-top: 4px solid var(--season-board-color);
+  border-radius: var(--radius-md);
+  background:
+    radial-gradient(circle, rgb(255 255 255 / 4%) 1px, transparent 1.5px) 0 0 / 6px 6px,
+    var(--lamp-bg);
+  box-shadow: 0 14px 34px rgb(0 0 0 / 28%);
+  color: var(--lamp-text);
+}
+
+.season-board__identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.season-board__swatch {
+  width: 10px;
+  height: 40px;
+  border-radius: 3px;
+  background: var(--season-board-color);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--season-board-color) 60%, transparent);
+}
+
+.season-board__team {
+  color: var(--lamp-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.season-board__title {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.25rem, 2.6vw, 1.6rem);
+  line-height: 1.2;
+}
+
+.season-board__stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 18px;
+  margin: 0;
+}
+
+.season-board__cell {
+  display: grid;
+  justify-items: center;
+  min-width: 48px;
+}
+
+.season-board__cell dt {
+  color: var(--lamp-text-muted);
+  font-size: var(--text-2xs);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.season-board__value {
+  margin: 0;
+  color: var(--lamp-text);
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.season-board__value--rank {
+  color: var(--color-signature);
+  font-size: var(--text-2xl);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--color-signature) 50%, transparent);
+}
+
+.season-board__value--magic {
+  color: var(--color-signature-elite);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--color-signature-elite) 50%, transparent);
+}
+
+.season-board__value--hot {
+  color: var(--color-signature-elite);
+}
+
+.season-board__value--cold {
+  color: #ff8a93;
+}
+
+.season-board__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.season-board__status {
+  color: var(--lamp-text-muted);
+  font-size: var(--text-xs);
+}
+
+/* Buttons on the lamp panel keep the dark surface in either theme. */
+.season-board,
+.game-bar {
+  --color-surface-muted: #26392c;
+  --color-text: #f4f7f1;
+  --color-bg: #070c09;
+}
+
+.season-menu {
+  position: relative;
+}
+
+.season-menu summary {
+  display: grid;
+  min-height: 40px;
+  place-items: center;
+  padding: 8px 12px;
+  border: 1px solid var(--lamp-border);
+  border-radius: 8px;
+  color: var(--lamp-text);
+  font-weight: 700;
+  list-style: none;
+  cursor: pointer;
+}
+
+.season-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.season-menu[open] summary {
+  background: var(--lamp-bg-soft);
+}
+
+.season-menu__panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  gap: 8px;
+  min-width: 200px;
+  padding: var(--space-3);
+  border: 1px solid var(--lamp-border);
+  border-radius: var(--radius-md);
+  background: var(--lamp-bg);
+  box-shadow: 0 18px 40px rgb(0 0 0 / 45%);
+}
+
+@media (max-width: 760px) {
+  .season-board {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-3);
+  }
+
+  .season-board__stats {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: space-between;
+    gap: 4px 8px;
+  }
+
+  .season-board__cell {
+    min-width: 0;
+  }
+
+  .season-board__value {
+    font-size: var(--text-lg);
+  }
+
+  .season-board__value--rank {
+    font-size: var(--text-xl);
+  }
+
+  .season-board__title {
+    font-size: var(--text-lg);
+    white-space: nowrap;
+  }
+
+  .season-board__swatch {
+    height: 32px;
+  }
+
+  .season-board__actions .ui-button,
+  .season-menu summary {
+    min-height: 36px;
+    padding: 6px 10px;
+  }
+}
+
+/* Game control bar: sticks to the bottom of the viewport on every tab. */
+.game-bar {
+  --game-bar-color: var(--color-accent);
+
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  margin: var(--space-4) calc(-1 * var(--space-5)) calc(-1 * var(--space-5));
+  padding: 0 var(--space-5) var(--space-3);
+  pointer-events: none;
+}
+
+.game-bar__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 10px var(--space-4);
+  border: 1px solid var(--lamp-border);
+  border-left: 4px solid var(--game-bar-color);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--lamp-bg) 94%, transparent);
+  box-shadow: 0 -6px 30px rgb(0 0 0 / 35%);
+  color: var(--lamp-text);
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+}
+
+.game-bar__next {
+  display: grid;
+  line-height: 1.3;
+}
+
+.game-bar__label {
+  color: var(--lamp-text-muted);
+  font-size: var(--text-2xs);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.game-bar__matchup {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+
+.game-bar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.game-bar__primary {
+  min-width: 112px;
+  font-weight: 900;
+}
+
+.game-bar__busy {
+  color: var(--color-signature);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .game-bar {
+    margin: var(--space-4) -14px -14px;
+    padding: 0 var(--space-2) var(--space-2);
+  }
+
+  .game-bar__inner {
+    padding: 8px 10px;
+  }
+
+  .game-bar__actions {
+    flex: 1 1 100%;
+    display: grid;
+    grid-template-columns: 1.6fr 1fr 1fr 1fr;
+  }
+
+  .game-bar__actions .ui-button {
+    min-width: 0;
+    padding: 8px 6px;
+  }
+
+  .game-bar__primary {
+    min-width: 0;
+  }
+}
+
+/* Result flash: lights up above the bar after an advance, then fades. */
+.game-flash {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  max-width: 1180px;
+  margin: 0 auto 8px;
+  padding: 10px var(--space-4);
+  border: 1px solid var(--lamp-border);
+  border-radius: var(--radius-md);
+  background: var(--lamp-bg);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 40%);
+  color: var(--lamp-text);
+  animation: game-flash-in 260ms ease-out;
+  pointer-events: auto;
+}
+
+.game-flash__lamp {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--lamp-text-muted);
+}
+
+.game-flash__headline {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 900;
+}
+
+.game-flash__detail {
+  color: var(--lamp-text-muted);
+  font-size: var(--text-sm);
+}
+
+.game-flash--win .game-flash__lamp {
+  background: var(--color-signature-elite);
+  box-shadow: 0 0 12px var(--color-signature-elite);
+}
+
+.game-flash--win .game-flash__headline {
+  color: var(--color-signature-elite);
+}
+
+.game-flash--loss .game-flash__lamp {
+  background: #ff6b76;
+  box-shadow: 0 0 12px #ff6b76;
+}
+
+.game-flash--loss .game-flash__headline {
+  color: #ff8a93;
+}
+
+.game-flash__link,
+.game-flash__close {
+  border: 0;
+  background: transparent;
+  color: var(--lamp-text);
+  cursor: pointer;
+}
+
+.game-flash__link {
+  margin-left: auto;
+  color: var(--color-signature);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.game-flash__close {
+  padding: 2px 6px;
+  font-size: var(--text-lg);
+}
+
+@keyframes game-flash-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

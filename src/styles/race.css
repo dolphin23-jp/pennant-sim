@@ -1,0 +1,219 @@
+/* Pennant race card and chart (widgets/RaceCard.tsx, widgets/RaceChart.tsx) */
+.race-card__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.race-card__remaining {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.race-card__headline {
+  display: inline-block;
+  margin: 2px 0 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--lamp-border);
+  border-radius: var(--radius-sm);
+  background: var(--lamp-bg);
+  color: var(--lamp-text);
+  font-size: clamp(1.3rem, 3vw, 1.7rem);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.race-card__headline--gold {
+  color: var(--color-signature);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--color-signature) 55%, transparent);
+}
+
+.race-card__headline--hot {
+  color: var(--color-signature-elite);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--color-signature-elite) 45%, transparent);
+}
+
+.race-card__headline--cold {
+  color: var(--lamp-text-muted);
+}
+
+.race-card__lines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-bottom: 8px;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.race-card__line--key {
+  color: var(--color-leader);
+  font-weight: 800;
+}
+
+.race-chart {
+  /* The chart measures this box to size itself, so the box must not size from the chart. */
+  min-width: 0;
+  contain: inline-size;
+}
+
+.race-chart__empty {
+  margin: var(--space-2) 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.race-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin-bottom: 4px;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.race-chart__key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.race-chart__swatch {
+  width: 16px;
+  height: 2px;
+  border-radius: 2px;
+}
+
+.race-chart__swatch--other {
+  background: var(--color-text-faint);
+}
+
+.race-chart__axis-note {
+  margin-left: auto;
+  color: var(--color-text-faint);
+}
+
+.race-chart__plot {
+  position: relative;
+}
+
+.race-chart__plot svg {
+  display: block;
+  overflow: visible;
+}
+
+.race-chart__grid {
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.race-chart__tick {
+  fill: var(--color-text-faint);
+  font-size: 10px;
+}
+
+.race-chart__line {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.race-chart__line--other {
+  stroke: var(--color-text-faint);
+  stroke-width: 1.5;
+  opacity: 0.55;
+}
+
+.race-chart__line--own {
+  stroke-width: 2.5;
+}
+
+.race-chart__end {
+  fill: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.race-chart__end--own {
+  fill: var(--color-text);
+  font-weight: 800;
+}
+
+.race-chart__crosshair {
+  stroke: var(--color-text-faint);
+  stroke-width: 1;
+}
+
+.race-chart__dot {
+  stroke: var(--color-surface);
+  stroke-width: 2;
+}
+
+.race-chart__hit {
+  cursor: crosshair;
+  outline: none;
+}
+
+.race-chart__hit:focus-visible {
+  stroke: var(--color-accent);
+  stroke-width: 2;
+}
+
+.race-chart__tooltip {
+  position: absolute;
+  top: 6px;
+  z-index: 2;
+  min-width: 112px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 25%);
+  font-size: var(--text-xs);
+  pointer-events: none;
+}
+
+.race-chart__tooltip-date {
+  margin-bottom: 4px;
+  color: var(--color-text-muted);
+  font-weight: 800;
+}
+
+.race-chart__tooltip-row {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.race-chart__tooltip-key {
+  width: 12px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--color-text-faint);
+}
+
+.race-chart__tooltip-own {
+  font-weight: 800;
+}
+
+.race-chart__tooltip-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.race-chart__table {
+  margin-top: 6px;
+  font-size: var(--text-sm);
+}
+
+.race-chart__table summary {
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.race-chart__table td {
+  text-align: center;
+  white-space: nowrap;
+}

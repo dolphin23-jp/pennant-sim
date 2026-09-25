@@ -1,6 +1,11 @@
 import { TINFO } from '../data';
-import { calcOVR } from '../engine';
-import type { ForeignLifecycleEvent, LineupSubstitution } from '../engine';
+import { calcOVR, magicLit } from '../engine';
+import type {
+  ForeignLifecycleEvent,
+  LineupSubstitution,
+  PopularityChange,
+  RaceStatus,
+} from '../engine';
 import type {
   AchievementEvent,
   GameBoxScore,
@@ -382,4 +387,112 @@ export function createLineupRepairNotice(
     date,
     teamKey: playerTeam,
   };
+}
+
+/**
+ * Milestones of the user's pennant race, each announced once when it first happens:
+ * the magic number lighting, a clinched Climax Series place or pennant, and the day the
+ * pennant or a Climax Series place slips out of reach.
+ */
+export function createRaceNotices(
+  before: RaceStatus | undefined,
+  after: RaceStatus | undefined,
+  playerTeam: TeamKey,
+  year: number,
+  date: string,
+): Notice[] {
+  if (!after) return [];
+  const team = TINFO[playerTeam].ab;
+  const notice = (key: string, title: string, body: string, tone: Notice['tone']): Notice => ({
+    id: noticeId(['race', year, playerTeam, key]),
+    title,
+    body,
+    tone,
+    date,
+    kind: 'race',
+    teamKey: playerTeam,
+  });
+  const notices: Notice[] = [];
+  if (after.clinchedPennant && !before?.clinchedPennant)
+    notices.push(
+      notice(
+        'pennant',
+        `${team} リーグ優勝！`,
+        `${year}年のリーグ優勝が決まりました。日本シリーズ進出をかけたクライマックスシリーズへ。`,
+        'good',
+      ),
+    );
+  else if (after.clinchedClimax && !before?.clinchedClimax)
+    notices.push(
+      notice(
+        'climax',
+        `${team} CS進出決定`,
+        `3位以内が確定し、クライマックスシリーズ進出が決まりました。`,
+        'good',
+      ),
+    );
+  if (magicLit(after) && !magicLit(before) && !after.clinchedPennant)
+    notices.push(
+      notice(
+        'magic',
+        `マジック${after.magic} 点灯`,
+        `残り${after.remaining}試合。あと${after.magic}勝で自力でのリーグ優勝が決まります。`,
+        'good',
+      ),
+    );
+  if (after.eliminatedPennant && !before?.eliminatedPennant)
+    notices.push(
+      notice(
+        'out-pennant',
+        `${team} 優勝の可能性が消滅`,
+        `残り試合をすべて勝っても首位に届かなくなりました。`,
+        'warn',
+      ),
+    );
+  if (after.eliminatedClimax && !before?.eliminatedClimax)
+    notices.push(
+      notice(
+        'out-climax',
+        `${team} CS進出の可能性が消滅`,
+        `3位以内に入る可能性がなくなりました。来季へ向けた戦いが始まります。`,
+        'warn',
+      ),
+    );
+  return notices;
+}
+
+/** The user's players whose following grew the most over the season, and new stars. */
+export function createPopularityNotices(
+  changes: PopularityChange[],
+  playerTeam: TeamKey,
+  year: number,
+): Notice[] {
+  const own = changes.filter((change) => change.teamKey === playerTeam);
+  const stars = own.filter((change) => change.before < 85 && change.after >= 85);
+  const risers = own
+    .filter((change) => change.after - change.before >= 8 && !stars.includes(change))
+    .sort((first, second) => second.after - second.before - (first.after - first.before))
+    .slice(0, 3);
+  return [
+    ...stars.map((change): Notice => ({
+      id: noticeId(['popularity', year, 'star', change.playerId]),
+      title: `${change.playerName}、球界のスターに`,
+      body: `${year}年の活躍で人気が${change.before}→${change.after}に。観客動員と球団収入を押し上げます。`,
+      tone: 'good',
+      date: `${year}年オフ`,
+      kind: 'achievement',
+      playerId: change.playerId,
+      teamKey: playerTeam,
+    })),
+    ...risers.map((change): Notice => ({
+      id: noticeId(['popularity', year, 'rise', change.playerId]),
+      title: `${change.playerName}の人気が急上昇`,
+      body: `${year}年の活躍で人気が${change.before}→${change.after}（+${change.after - change.before}）。`,
+      tone: 'good',
+      date: `${year}年オフ`,
+      kind: 'achievement',
+      playerId: change.playerId,
+      teamKey: playerTeam,
+    })),
+  ];
 }

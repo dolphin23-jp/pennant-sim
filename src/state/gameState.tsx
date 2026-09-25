@@ -22,6 +22,9 @@ import {
   repairLineup,
   buildGameBoxScore,
   calcStandings,
+  leagueRace,
+  INITIAL_TRUST,
+  seasonExpectation,
   createFictionalLeagueHistory,
   detectAchievements,
   generateSchedule,
@@ -37,6 +40,7 @@ import {
   createAchievementNotices,
   createGameResultNotice,
   createLineupRepairNotice,
+  createRaceNotices,
   createInSeasonDevelopmentNotices,
   mergeNotices,
 } from './notices';
@@ -53,6 +57,7 @@ import {
   applyChampionship,
   applyOffseasonCompletion,
   applySkip,
+  expectationNotice,
   initialState,
   mergeStats,
   nextAutosaveSeq,
@@ -85,6 +90,8 @@ interface GameContextValue extends RuntimeState {
   setPitcherPlan(plan: PitcherPlan): void;
   selectPlayer(player: Player | null): void;
   selectGame(gameId: string | null): void;
+  /** Follow or unfollow a player (推し選手). */
+  toggleFavorite(playerId: string): void;
   dismissNotice(noticeId: string): void;
   clearNotices(): void;
   replaceTeams(teams: Teams): void;
@@ -141,6 +148,8 @@ function snapshotFromState(state: RuntimeState): GameSaveData | null {
     gameSummaries: state.gameSummaries,
     gameBoxScores: state.gameBoxScores,
     recentPlayLogs: state.recentPlayLogs,
+    manager: state.manager,
+    favorites: state.favorites,
     uiVersion: 1,
   };
 }
@@ -206,6 +215,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
           overseasPlayers: saved.overseasPlayers ?? [],
           honorHistory: saved.honorHistory ?? [],
           recentPlayLogs: saved.recentPlayLogs ?? {},
+          favorites: saved.favorites ?? [],
+          // Saves from before owner goals start with this season's goal already set.
+          manager:
+            saved.manager ??
+            (saved.teams && saved.playerTeam
+              ? {
+                  trust: INITIAL_TRUST,
+                  expectation: seasonExpectation(saved.teams, saved.playerTeam, saved.season.year),
+                  history: [],
+                }
+              : initialState.manager),
           lineup,
           loading: false,
           screen: resumeSeasonScreen(saved),
@@ -259,6 +279,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       });
       registerExistingNames(history.teams);
       const openingTeams = assignAllActiveRosters(history.teams);
+      const openingExpectation = seasonExpectation(openingTeams, teamKey, 2026);
       const schedule = generateSchedule(2026);
       const rotations = createEmptyRotations();
       const prepared = simCpuUntilNext(schedule, openingTeams, rotations, teamKey, {});
@@ -284,7 +305,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
         gameSummaries: prepared.gameSummaries,
         gameBoxScores: prepared.gameBoxScores,
         ...withNarrativeEvents({ narrativeEvents: {} }, prepared.narrativeEvents),
+        manager: { trust: INITIAL_TRUST, expectation: openingExpectation, history: [] },
         notices: [
+          expectationNotice(openingExpectation, teamKey, INITIAL_TRUST),
           {
             id: `system:2026:start:${teamKey}`,
             kind: 'system',
@@ -422,6 +445,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
           [nextGame.id]: buildPlayLog(nextGame.id, nextGame.date, result),
         }),
         notices: mergeNotices(current.notices, [
+          // Race milestones lead: a month skip adds 25+ game results and the list shows 20.
+          ...createRaceNotices(
+            leagueRace(current.season.schedule, current.playerTeam)[current.playerTeam],
+            leagueRace(prepared.sched, current.playerTeam)[current.playerTeam],
+            current.playerTeam,
+            current.season.year,
+            nextGame.date,
+          ),
           ...(gameNotice ? [gameNotice] : []),
           ...(repairNotice ? [repairNotice] : []),
           ...developmentNotices,
@@ -581,6 +612,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setLineup: (lineup) => setState((current) => ({ ...current, lineup })),
       setPitcherPlan: (pitcherPlan) => setState((current) => ({ ...current, pitcherPlan })),
       selectPlayer: (selectedPlayer) => setState((current) => ({ ...current, selectedPlayer })),
+      toggleFavorite: (playerId: string) =>
+        setState((current) => ({
+          ...current,
+          favorites: current.favorites.includes(playerId)
+            ? current.favorites.filter((id) => id !== playerId)
+            : [...current.favorites, playerId],
+          autosaveSeq: nextAutosaveSeq(),
+        })),
       selectGame: (selectedGameId) => setState((current) => ({ ...current, selectedGameId })),
       dismissNotice: (noticeId) =>
         setState((current) => ({

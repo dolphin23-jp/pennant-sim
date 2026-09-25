@@ -7,9 +7,12 @@ import {
   configureRandom,
   generateSchedule,
   initTeams,
+  probableStarter,
   recommendedLineup,
   repairLineup,
   resetRandom,
+  seasonExpectation,
+  simulateGame,
   strategicBestLineup,
   type Player,
   type Teams,
@@ -199,6 +202,56 @@ test('a skip finishes the whole day its last game fell on', () => {
       (game) => !game.played && game.date <= lastDate,
     );
     assert.deepEqual(leftBehind, []);
+  } finally {
+    resetRandom();
+  }
+});
+
+test('the probable starter shown before a game is the one who starts it', () => {
+  configureRandom(mulberry32(7), () => Date.UTC(2026, 0, 1));
+  try {
+    const teams = assignAllActiveRosters(initTeams());
+    for (let turn = 0; turn < 6; turn += 1) {
+      const expectedHome = probableStarter(teams.giants, turn, null, {}, '2026-04-01');
+      const expectedAway = probableStarter(teams.tigers, turn + 2, null, {}, '2026-04-01');
+      const result = simulateGame(
+        'giants',
+        'tigers',
+        { ...teams },
+        null,
+        null,
+        turn,
+        turn + 2,
+        {},
+        null,
+        null,
+        '2026-04-01',
+      );
+      assert.equal(result.starterH.id, expectedHome.id);
+      assert.equal(result.starterA.id, expectedAway.id);
+    }
+  } finally {
+    resetRandom();
+  }
+});
+
+test('a finished year leaves the owner evaluation and sets next year goal', () => {
+  configureRandom(mulberry32(8), () => Date.UTC(2026, 0, 1));
+  try {
+    const state = openingState();
+    const expectation = seasonExpectation(state.teams!, 'giants', 2026);
+    const next = advanceOneYear({
+      ...state,
+      manager: { trust: 60, expectation, history: [] },
+    });
+    assert.equal(next.manager.history.length, 1);
+    const season = next.manager.history[0]!;
+    assert.equal(season.year, 2026);
+    assert.ok(season.finalRank >= 1 && season.finalRank <= 6);
+    assert.equal(next.manager.trust, season.trustAfter);
+    assert.equal(next.manager.expectation?.year, 2027);
+    assert.ok(next.notices.some((notice) => notice.id === 'manager:2026:giants'));
+    assert.ok(next.notices.some((notice) => notice.id === 'manager:goal:2027:giants'));
   } finally {
     resetRandom();
   }

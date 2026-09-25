@@ -12,6 +12,8 @@ import {
   withTeamContractDefaults,
 } from '../engine';
 import type {
+  ManagerRecord,
+  ManagerSeason,
   AccumulatedStats,
   AchievementEvent,
   GameBoxScore,
@@ -67,7 +69,7 @@ export interface Notice {
   body: string;
   tone?: 'good' | 'warn' | 'info';
   date?: string;
-  kind?: 'system' | 'awakening' | 'growth' | 'game' | 'achievement';
+  kind?: 'system' | 'awakening' | 'growth' | 'game' | 'achievement' | 'race';
   playerId?: string;
   teamKey?: TeamKey;
   gameId?: string;
@@ -133,6 +135,10 @@ export interface GameSaveData {
   gameBoxScores?: Record<string, GameBoxScore>;
   /** Play-by-play of the user's latest games; part of the current state, never archived. */
   recentPlayLogs?: Record<string, GamePlayLog>;
+  /** Missing on saves before owner goals and manager evaluations. */
+  manager?: ManagerRecord;
+  /** Missing on saves before 推し選手. */
+  favorites?: string[];
   narrativeEvents?: NarrativeEventLedger;
   /** Narrative events that failed validation, kept verbatim instead of blocking the save. */
   narrativeQuarantine?: unknown[];
@@ -540,7 +546,8 @@ function migrateNotices(value: unknown): Notice[] {
       raw.kind === 'awakening' ||
       raw.kind === 'growth' ||
       raw.kind === 'game' ||
-      raw.kind === 'achievement'
+      raw.kind === 'achievement' ||
+      raw.kind === 'race'
         ? raw.kind
         : 'system';
     const teamKey =
@@ -610,6 +617,31 @@ function migrateHonorHistory(value: unknown): SeasonHonorRecord[] {
       return [];
     return [raw as SeasonHonorRecord];
   });
+}
+
+const GRADES = ['S', 'A', 'B', 'C', 'D'];
+
+function migrateManager(value: unknown): ManagerRecord | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Partial<ManagerRecord>;
+  if (typeof raw.trust !== 'number' || !Number.isFinite(raw.trust)) return undefined;
+  const expectation =
+    raw.expectation &&
+    typeof raw.expectation.year === 'number' &&
+    typeof raw.expectation.targetRank === 'number' &&
+    typeof raw.expectation.label === 'string'
+      ? raw.expectation
+      : null;
+  const history = Array.isArray(raw.history)
+    ? raw.history.filter(
+        (season: ManagerSeason) =>
+          season &&
+          typeof season.year === 'number' &&
+          typeof season.finalRank === 'number' &&
+          GRADES.includes(season.grade),
+      )
+    : [];
+  return { trust: Math.max(0, Math.min(100, raw.trust)), expectation, history };
 }
 
 function migratePlayLogs(value: unknown): Record<string, GamePlayLog> {
@@ -900,6 +932,10 @@ export function migrateSaveData(raw: unknown): GameSaveData | null {
     gameSummaries: migrateGameSummaries(legacy.gameSummaries),
     gameBoxScores: migrateGameBoxScores(legacy.gameBoxScores),
     recentPlayLogs: migratePlayLogs(legacy.recentPlayLogs),
+    manager: migrateManager(legacy.manager),
+    favorites: Array.isArray(legacy.favorites)
+      ? legacy.favorites.filter((id): id is string => typeof id === 'string')
+      : [],
     narrativeEvents: narrative.ledger,
     ...(narrativeQuarantine ? { narrativeQuarantine } : {}),
     ts: legacy.ts,

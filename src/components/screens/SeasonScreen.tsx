@@ -2,7 +2,9 @@ import { useEffect, useState, type KeyboardEvent } from 'react';
 
 import { useGameState } from '../../state/gameState';
 import { useConfirm } from '../ConfirmDialog';
-import { BackToTitleButton, Button, NewGameButton, PageShell, teamTextColor } from '../ui';
+import { PageShell } from '../ui';
+import { GameControlBar } from '../widgets/GameControlBar';
+import { SeasonScoreboard } from '../widgets/SeasonScoreboard';
 import { DashboardTab } from './season/DashboardTab';
 import { GameResultsTab } from './season/GameResultsTab';
 import { HistoryTab } from './season/HistoryTab';
@@ -87,7 +89,6 @@ const groupOf = (tab: SeasonTab): TabGroup =>
 export function SeasonScreen() {
   const game = useGameState();
   const confirm = useConfirm();
-  const [saveStatus, setSaveStatus] = useState('');
   const [activeTab, setActiveTab] = useState<SeasonTab>('dashboard');
   /** The tab last open in each group, so returning to a group lands where the user left it. */
   const [lastInGroup, setLastInGroup] = useState<Partial<Record<TabGroup, SeasonTab>>>({});
@@ -102,15 +103,7 @@ export function SeasonScreen() {
   }, [activeTab]);
 
   if (!game.teams || !game.playerTeam) return null;
-  const playerTeam = game.teams[game.playerTeam];
-  const record = game.standings[game.playerTeam];
   const activeGroup = groups.find((group) => group.id === groupOf(activeTab))!;
-
-  const handleSave = async () => {
-    const success = await game.saveCurrent();
-    setSaveStatus(success ? '✓ 保存完了' : '✗ 保存失敗');
-    window.setTimeout(() => setSaveStatus(''), 1800);
-  };
 
   const requestTabChange = async (nextTab: SeasonTab): Promise<boolean> => {
     if (nextTab === activeTab) return true;
@@ -158,33 +151,7 @@ export function SeasonScreen() {
 
   return (
     <PageShell ariaLabel={`${game.season.year}年シーズン画面`}>
-      <header aria-labelledby="season-screen-title" className="season-header">
-        <div>
-          <div style={{ color: teamTextColor(playerTeam.c), fontSize: 12, fontWeight: 900 }}>
-            {playerTeam.ab}
-          </div>
-          <h1 id="season-screen-title" style={{ margin: '3px 0' }}>
-            {game.season.year}年シーズン
-          </h1>
-          <div style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
-            {record.rank ?? '-'}位 / {record.w}勝 {record.l}敗 {record.d}分
-          </div>
-        </div>
-        <div className="season-header__actions">
-          <span className="inline-status" role="status" aria-live="polite">
-            {saveStatus}
-          </span>
-          <Button
-            onClick={() => void handleSave()}
-            color="var(--color-surface-muted)"
-            ariaLabel="現在のゲームを保存"
-          >
-            保存
-          </Button>
-          <NewGameButton onStartNewGame={game.startNewGame} />
-          <BackToTitleButton onGoToTitle={() => game.setScreen('welcome')} />
-        </div>
-      </header>
+      <SeasonScoreboard />
 
       <nav className="season-nav" aria-label="シーズン画面のメニュー">
         <div className="season-nav__groups" role="group" aria-label="表示する分類">
@@ -266,6 +233,7 @@ export function SeasonScreen() {
         {activeTab === 'squad' && <SquadTab />}
         {activeTab === 'history' && <HistoryTab />}
       </section>
+      <GameControlBar />
     </PageShell>
   );
 }

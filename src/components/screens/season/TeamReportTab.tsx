@@ -8,6 +8,8 @@ import {
   deriveTeamForm,
   financeOf,
   formatManYen,
+  gameAttendance,
+  teamPopularity,
   isForeignPlayer,
   resolveCloserOrder,
   resolveStarterRotation,
@@ -16,7 +18,14 @@ import {
   teamStrategyFor,
   yearsUntilFreeAgency,
 } from '../../../engine';
-import type { Player, StandingRecord, Team, TeamKey, TeamPhilosophy } from '../../../engine';
+import type {
+  Player,
+  ScheduleGame,
+  StandingRecord,
+  Team,
+  TeamKey,
+  TeamPhilosophy,
+} from '../../../engine';
 
 const PHILOSOPHY_LABEL: Record<TeamPhilosophy, string> = {
   balanced: 'バランス型',
@@ -27,6 +36,7 @@ const PHILOSOPHY_LABEL: Record<TeamPhilosophy, string> = {
   youth: '若手育成',
   veteran: 'ベテラン重用',
 };
+import { ManagerHistoryCard } from '../../widgets/ManagerReport';
 import { useGameState } from '../../../state/gameState';
 import { Card, LampFigure, SectionTitle, StatChip, teamTextColor } from '../../ui';
 import { TeamFormationOverview } from '../../widgets/TeamFormationOverview';
@@ -66,12 +76,23 @@ function PlayerChips({
 function ClubFinances({
   team,
   standings,
+  schedule,
   onSelect,
 }: {
   team: Team;
   standings: Record<TeamKey, StandingRecord>;
+  schedule: ScheduleGame[];
   onSelect(player: Player): void;
 }) {
+  const homeGames = schedule.filter((game) => game.played && game.homeKey === team.key);
+  const attendance = homeGames.length
+    ? Math.round(
+        homeGames.reduce(
+          (sum, game) => sum + gameAttendance(team, game.id, game.date, standings[team.key]?.rank),
+          0,
+        ) / homeGames.length,
+      )
+    : null;
   const finance = financeOf(team);
   const plan = clubPlanFor(team, { standings });
   const payroll = teamPayroll(team);
@@ -102,6 +123,10 @@ function ClubFinances({
           tone={room >= 0 ? 'var(--color-success)' : 'var(--color-warning)'}
         />
         <StatChip label="前年収入" value={formatManYen(finance.revenue)} />
+        <StatChip label="ファン人気" value={String(teamPopularity(team))} />
+        {attendance !== null && (
+          <StatChip label="観客動員（平均）" value={`${attendance.toLocaleString('ja-JP')}人`} />
+        )}
         <StatChip
           label="チームカラー"
           value={PHILOSOPHY_LABEL[teamStrategyFor(team.key).philosophy]}
@@ -179,6 +204,8 @@ export function TeamReportTab() {
         onChange={game.setViewTeam}
       />
 
+      {isOwnTeam && <ManagerHistoryCard record={game.manager} />}
+
       <Card ariaLabel={`${TINFO[viewedKey].n}の成績スナップショット`}>
         <div
           style={{
@@ -218,7 +245,12 @@ export function TeamReportTab() {
         </div>
       </Card>
 
-      <ClubFinances team={viewedTeam} standings={game.standings} onSelect={game.selectPlayer} />
+      <ClubFinances
+        team={viewedTeam}
+        standings={game.standings}
+        schedule={game.season.schedule}
+        onSelect={game.selectPlayer}
+      />
 
       <TeamFormationOverview
         lineup={lineup}

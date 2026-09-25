@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 
 import { TINFO } from '../../../data';
 import { SEASON_HONOR_LABEL, type TeamKey } from '../../../engine';
+import { ManagerSeasonCard } from '../../widgets/ManagerReport';
 import { useGameState } from '../../../state/gameState';
 import {
   availableReviewYears,
@@ -154,6 +155,7 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
 
   if (!game.playerTeam) return null;
   const playerTeam = game.playerTeam;
+  const managerSeason = game.manager.history.find((season) => season.year === year);
   const selectPlayer = (playerId: string) => {
     const active = game.teams
       ? Object.values(game.teams)
@@ -220,6 +222,8 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
           ) : null}
         </Card>
       )}
+
+      {managerSeason && <ManagerSeasonCard season={managerSeason} />}
 
       <StandingsSection review={review} playerTeam={playerTeam} />
 

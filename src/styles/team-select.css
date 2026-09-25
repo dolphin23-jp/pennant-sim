@@ -1,0 +1,165 @@
+/* Team select (screens/TeamSelectScreen.tsx) */
+.team-select__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.team-select__eyebrow {
+  margin: 0;
+  color: var(--color-leader);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  letter-spacing: 0.24em;
+}
+
+.team-select__title {
+  margin: 4px 0 8px;
+  font-size: clamp(1.5rem, 3.6vw, 2.2rem);
+}
+
+.team-select__lead {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  line-height: 1.7;
+}
+
+.team-select__league {
+  margin-bottom: var(--space-5);
+}
+
+.team-select__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+@media (max-width: 900px) {
+  .team-select__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .team-select__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* --team-choice-color is the club's color, set inline. */
+.team-choice {
+  display: flex;
+  flex-direction: column;
+  border-color: color-mix(in srgb, var(--team-choice-color) 60%, var(--color-border));
+  border-top: 4px solid var(--team-choice-color);
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.team-choice:hover,
+.team-choice:focus-within {
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--team-choice-color) 22%, transparent);
+  transform: translateY(-2px);
+}
+
+.team-choice__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.team-choice__names {
+  min-width: 0;
+  flex: 1;
+}
+
+.team-choice__abbr {
+  font-size: var(--text-xl);
+  font-weight: 900;
+}
+
+.team-choice__name {
+  margin-top: 2px;
+  font-size: var(--text-md);
+}
+
+.team-choice__outlook {
+  flex: none;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.team-choice__outlook--favorite {
+  background: color-mix(in srgb, var(--color-gold) 18%, transparent);
+  color: var(--color-gold);
+}
+
+.team-choice__outlook--contender {
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  color: var(--color-accent);
+}
+
+.team-choice__outlook--middle {
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+
+.team-choice__outlook--underdog {
+  background: color-mix(in srgb, var(--color-growth) 16%, transparent);
+  color: var(--color-growth);
+}
+
+.team-choice__strength {
+  margin: 10px 0 12px;
+}
+
+.team-choice__strength-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 3px;
+  color: var(--color-text-faint);
+  font-size: var(--text-xs);
+}
+
+.team-choice__strength-row strong {
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+}
+
+.team-choice__meter {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+}
+
+.team-choice__meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--team-choice-color);
+}
+
+.team-choice .ui-button {
+  margin-top: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .team-choice {
+    transition: none;
+  }
+
+  .team-choice:hover,
+  .team-choice:focus-within {
+    transform: none;
+  }
+}

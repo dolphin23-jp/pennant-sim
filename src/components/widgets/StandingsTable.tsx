@@ -9,13 +9,15 @@ function recordText(record: { w: number; l: number; d: number }): string {
 
 const CLIMAX_SERIES_SPOTS = 3;
 
-function LeagueTable({
+/** One league's standings; the dashboard shows only the user's league. */
+export function LeagueTable({
   title,
   teams,
   standings,
   schedule,
   onSelectTeam,
   variant = 'league',
+  ownTeam,
 }: {
   title: string;
   teams: readonly TeamKey[];
@@ -25,6 +27,8 @@ function LeagueTable({
   /** "interleague" drops the climax-series cutoff and recent-form columns, which are
    * pennant-race concepts that don't apply to a 交流戦-only standings snapshot. */
   variant?: 'league' | 'interleague';
+  /** The user's club, marked in the table. */
+  ownTeam?: TeamKey | null;
 }) {
   const sorted = [...teams].sort(
     (first, second) => (standings[first].rank ?? 99) - (standings[second].rank ?? 99),
@@ -75,6 +79,7 @@ function LeagueTable({
                   key={teamKey}
                   className={[
                     isLeader && 'standings-table__row--leader',
+                    teamKey === ownTeam && 'standings-table__row--own',
                     showForm && index === CLIMAX_SERIES_SPOTS - 1 && 'standings-table__row--cutoff',
                   ]
                     .filter(Boolean)

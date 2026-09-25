@@ -75,3 +75,15 @@
     display: none;
   }
 }
+
+.standings-table__row--own th,
+.standings-table__row--own td {
+  box-shadow: inset 0 0 0 9999px color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+
+.standings-table__row--own th:first-child,
+.standings-table__row--own td:first-child {
+  box-shadow:
+    inset 3px 0 0 var(--color-accent),
+    inset 0 0 0 9999px color-mix(in srgb, var(--color-accent) 8%, transparent);
+}

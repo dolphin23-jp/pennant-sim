@@ -11,6 +11,7 @@ import {
   calcInterleagueStandings,
   calcOVR,
   calcStandings,
+  leagueRace,
   CLUB_PLAN_LABEL,
   clubPlanFor,
   createPlayerSeasonRecords,
@@ -29,6 +30,17 @@ import {
   selectSeasonTitles,
   simCpuUntilNext,
   skipGamesWithPitcherPlan,
+  CLIMAX_SERIES_SPOTS,
+  GRADE_LABEL,
+  INITIAL_TRUST,
+  applyOwnerBudget,
+  evaluateSeason,
+  seasonExpectation,
+  trustLabel,
+  updateSeasonPopularity,
+  type ManagerRecord,
+  type PostseasonReach,
+  type SeasonExpectation,
 } from '../engine';
 import type {
   AccumulatedStats,
@@ -54,6 +66,8 @@ import {
   createFreeAgencyNotices,
   createGameResultNotice,
   createLineupRepairNotice,
+  createPopularityNotices,
+  createRaceNotices,
   createOffseasonDevelopmentNotices,
   createSkippedInSeasonDevelopmentNotices,
   mergeNotices,
@@ -104,6 +118,10 @@ export interface RuntimeState {
   gameBoxScores: Record<string, GameBoxScore>;
   /** Play-by-play of the user's most recent games (kept short; not archived). */
   recentPlayLogs: Record<string, GamePlayLog>;
+  /** The owner's goal for this season, trust in the manager, and past evaluations. */
+  manager: ManagerRecord;
+  /** Players the user follows (推し選手), by id; they may move clubs or retire. */
+  favorites: string[];
   selectedGameId: string | null;
   /** Set to a fresh sequence number by any update that should be persisted; the autosave
    * effect saves whenever it changes. */
@@ -142,6 +160,8 @@ export const initialState: RuntimeState = {
   gameSummaries: {},
   gameBoxScores: {},
   recentPlayLogs: {},
+  manager: { trust: INITIAL_TRUST, expectation: null, history: [] },
+  favorites: [],
   selectedGameId: null,
   autosaveSeq: 0,
 };
@@ -288,6 +308,14 @@ export function applySkip(
     lastGame: null,
     lineup: repaired.lineup,
     notices: mergeNotices(current.notices, [
+      // Race milestones lead: a month skip adds 25+ game results and the list shows 20.
+      ...createRaceNotices(
+        leagueRace(current.season.schedule, current.playerTeam)[current.playerTeam],
+        leagueRace(result.sched, current.playerTeam)[current.playerTeam],
+        current.playerTeam,
+        current.season.year,
+        noticeDate,
+      ),
       ...gameNotices,
       ...[createLineupRepairNotice(repaired.substitutions, current.playerTeam, noticeDate)].filter(
         (notice): notice is Notice => notice !== null,
@@ -298,6 +326,57 @@ export function applySkip(
     autosaveSeq: nextAutosaveSeq(),
   };
   return next;
+}
+
+/**
+ * The owner's verdict on the season just finished, once per year: the grade, the trust it
+ * moves, the budget it grants or cuts for next year, and a notice with the owner's words.
+ */
+function managerEvaluation(
+  current: RuntimeState,
+  champion: TeamKey,
+  runnerUp: TeamKey,
+): Pick<RuntimeState, 'manager' | 'teams' | 'notices'> | null {
+  const team = current.playerTeam;
+  const expectation = current.manager.expectation;
+  if (!team || !current.teams || !expectation || expectation.year !== current.season.year)
+    return null;
+  if (current.manager.history.some((season) => season.year === expectation.year)) return null;
+  const finalRank = current.standings[team].rank ?? 6;
+  const postseason: PostseasonReach =
+    champion === team
+      ? 'champion'
+      : runnerUp === team
+        ? 'japanSeries'
+        : finalRank <= CLIMAX_SERIES_SPOTS
+          ? 'climax'
+          : 'none';
+  const season = evaluateSeason(current.manager, expectation, finalRank, postseason);
+  const budgetText =
+    season.budgetChange > 0
+      ? `来季の予算は${Math.round(season.budgetChange * 100)}%増額。`
+      : season.budgetChange < 0
+        ? `来季の予算は${Math.round(-season.budgetChange * 100)}%削減。`
+        : '';
+  return {
+    manager: {
+      trust: season.trustAfter,
+      expectation: current.manager.expectation,
+      history: [...current.manager.history, season],
+    },
+    teams: { ...current.teams, [team]: applyOwnerBudget(current.teams[team], season.budgetChange) },
+    notices: mergeNotices(current.notices, [
+      {
+        id: `manager:${season.year}:${team}`,
+        kind: 'race',
+        title: `監督評価 ${season.grade}（${GRADE_LABEL[season.grade]}）`,
+        body: `目標「${season.targetLabel}」に対して${season.finalRank}位。オーナー「${season.comment}」 信頼度 ${season.trustBefore}→${season.trustAfter}。${budgetText}`,
+        tone: season.grade === 'C' || season.grade === 'D' ? 'warn' : 'good',
+        date: `${season.year}年オフ`,
+        teamKey: team,
+      },
+    ]),
+  };
 }
 
 /** Record the Japan Series champion and the postseason's facts. */
@@ -336,8 +415,10 @@ export function applyChampionship(
     teamStats,
     record: standing ? { w: standing.w, l: standing.l, d: standing.d } : undefined,
   };
+  const evaluation = managerEvaluation(current, champion, runnerUp);
   const next: RuntimeState = {
     ...current,
+    ...(evaluation ?? {}),
     ...withNarrativeEvents(current, events),
     championHistory: [
       ...current.championHistory.filter((entry) => entry.year !== current.season.year),
@@ -363,13 +444,13 @@ export function applyOffseasonCompletion(
   overseas: Player[] = current.overseasPlayers,
 ): RuntimeState {
   // Every club, the user's included, opens the season with a fresh 一軍 registration.
-  const nextTeams = assignAllActiveRosters(teams);
+  const rosteredTeams = assignAllActiveRosters(teams);
   if (!current.playerTeam) return current;
   // A duplicate completion callback belongs to the already committed old year.
   if (events.some((event) => event.year !== current.season.year)) return current;
   const completedYear = current.season.year;
   const activeIds = new Set(
-    Object.values(nextTeams).flatMap((team) =>
+    Object.values(rosteredTeams).flatMap((team) =>
       [...team.pitchers, ...team.fielders].map((player) => player.id),
     ),
   );
@@ -389,7 +470,18 @@ export function applyOffseasonCompletion(
   const seasonHonors = current.teams
     ? selectSeasonHonors(completedYear, current.teams, current.leagueAccumulated, current.standings)
     : [];
+  // The season just finished moves every player's popularity.
+  const popularity = updateSeasonPopularity(rosteredTeams, {
+    year: completedYear,
+    stats: current.leagueAccumulated,
+    titles: seasonTitles,
+    honors: seasonHonors,
+    achievements: current.achievementHistory.filter((event) => event.year === completedYear),
+    champion: current.championHistory.find((record) => record.year === completedYear)?.champion,
+  });
+  const nextTeams = popularity.teams;
   const year = completedYear + 1;
+  const nextExpectation = seasonExpectation(nextTeams, current.playerTeam, year);
   const schedule = generateSchedule(year);
   const prepared = simCpuUntilNext(
     schedule,
@@ -439,7 +531,10 @@ export function applyOffseasonCompletion(
     ],
     gameSummaries: { ...current.gameSummaries, ...prepared.gameSummaries },
     gameBoxScores: { ...current.gameBoxScores, ...prepared.gameBoxScores },
+    manager: { ...current.manager, expectation: nextExpectation },
     notices: mergeNotices(current.notices, [
+      expectationNotice(nextExpectation, current.playerTeam, current.manager.trust),
+      ...createPopularityNotices(popularity.changes, current.playerTeam, completedYear),
       ...developmentNotices,
       {
         id: `active-roster:${year}:${current.playerTeam}`,
@@ -455,6 +550,23 @@ export function applyOffseasonCompletion(
     autosaveSeq: nextAutosaveSeq(),
   };
   return next;
+}
+
+/** The owner's goal for the new season, announced on opening day. */
+export function expectationNotice(
+  expectation: SeasonExpectation,
+  playerTeam: TeamKey,
+  trust: number,
+): Notice {
+  return {
+    id: `manager:goal:${expectation.year}:${playerTeam}`,
+    kind: 'race',
+    title: `${expectation.year}年の目標は「${expectation.label}」`,
+    body: `戦力はリーグ${expectation.strengthRank}番手。オーナーは${expectation.targetRank === 1 ? '優勝' : `${expectation.targetRank}位以内`}を求めています（信頼度 ${trust}・${trustLabel(trust)}）。`,
+    tone: 'info',
+    date: `${expectation.year}年開幕`,
+    teamKey: playerTeam,
+  };
 }
 
 /** The winter plan the CPU chose for the user's club when it manages the offseason. */

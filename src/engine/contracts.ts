@@ -1,5 +1,6 @@
 import { CENTRAL, CONTRACT_BALANCE, FINANCE_BALANCE, PACIFIC, TINFO } from '../data';
 import { isForeignPlayer } from './foreign';
+import { popularityRevenueFactor } from './popularity';
 import { clamp } from './random';
 import { calcOVR } from './ratings';
 import type {
@@ -354,7 +355,10 @@ export function updateTeamFinances(teams: Teams, outcome?: SeasonOutcome): Teams
       next[teamKey] = { ...team, finance: current };
       continue;
     }
-    const revenue = seasonRevenue(teamKey, outcome);
+    // Fan following against the league average moves revenue by up to 5% either way.
+    const revenue = roundBudget(
+      seasonRevenue(teamKey, outcome) * popularityRevenueFactor(team, teams),
+    );
     const base = baseBudget(teamKey);
     const budget = roundBudget(
       clamp(

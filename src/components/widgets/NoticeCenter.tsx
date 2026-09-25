@@ -10,6 +10,7 @@ const KIND_ICONS: Record<NonNullable<Notice['kind']>, typeof IconSparkle> = {
   growth: IconSparkle,
   game: IconBaseball,
   achievement: IconTrophy,
+  race: IconTrophy,
 };
 
 function noticePlayer(notice: Notice, teams: Teams): Player | null {
@@ -38,6 +39,7 @@ function kindLabel(notice: Notice): string {
   if (notice.kind === 'growth') return '成長';
   if (notice.kind === 'game') return '試合結果';
   if (notice.kind === 'achievement') return '記録';
+  if (notice.kind === 'race') return 'ペナント';
   return 'チーム情報';
 }
 

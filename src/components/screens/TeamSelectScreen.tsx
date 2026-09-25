@@ -1,10 +1,25 @@
+import type { CSSProperties } from 'react';
+
 import { CENTRAL, PACIFIC, TINFO } from '../../data';
 import type { TeamKey } from '../../engine';
 import { useGameState } from '../../state/gameState';
-import { BackToTitleButton, Button, Card, PageShell, SectionTitle, teamTextColor } from '../ui';
+import { BackToTitleButton, Button, PageShell, SectionTitle, teamTextColor } from '../ui';
 
 const STRENGTH_MIN = 55;
 const STRENGTH_MAX = 85;
+
+/** Where the club starts among all twelve, as a line a manager would say at the first
+ * press conference. */
+function outlook(teamKey: TeamKey): { label: string; tone: string } {
+  const ranked = (Object.keys(TINFO) as TeamKey[]).sort(
+    (first, second) => TINFO[second].bd - TINFO[first].bd,
+  );
+  const place = ranked.indexOf(teamKey);
+  if (place < 2) return { label: '優勝候補', tone: 'favorite' };
+  if (place < 6) return { label: 'Aクラス争い', tone: 'contender' };
+  if (place < 10) return { label: '上位進出を狙う', tone: 'middle' };
+  return { label: '下剋上に挑む', tone: 'underdog' };
+}
 
 function TeamPennant({ color }: { color: string }) {
   return (
@@ -15,16 +30,16 @@ function TeamPennant({ color }: { color: string }) {
   );
 }
 
-function StrengthMeter({ value, color }: { value: number; color: string }) {
+function StrengthMeter({ value }: { value: number }) {
   const percentage = Math.min(
     100,
     Math.max(0, ((value - STRENGTH_MIN) / (STRENGTH_MAX - STRENGTH_MIN)) * 100),
   );
   return (
-    <div style={{ margin: '8px 0 12px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-        <span style={{ color: 'var(--color-text-faint)', fontSize: 11 }}>初期地力</span>
-        <strong style={{ fontFamily: 'var(--font-display)', fontSize: 12 }}>{value}</strong>
+    <div className="team-choice__strength">
+      <div className="team-choice__strength-row">
+        <span>初期地力</span>
+        <strong>{value}</strong>
       </div>
       <div
         role="meter"
@@ -32,21 +47,9 @@ function StrengthMeter({ value, color }: { value: number; color: string }) {
         aria-valuemin={STRENGTH_MIN}
         aria-valuemax={STRENGTH_MAX}
         aria-valuenow={value}
-        style={{
-          height: 6,
-          overflow: 'hidden',
-          borderRadius: 999,
-          background: 'var(--color-surface-muted)',
-        }}
+        className="team-choice__meter"
       >
-        <div
-          style={{
-            width: `${percentage}%`,
-            height: '100%',
-            borderRadius: 'inherit',
-            background: color,
-          }}
-        />
+        <div className="team-choice__meter-fill" style={{ width: `${percentage}%` }} />
       </div>
     </div>
   );
@@ -55,29 +58,32 @@ function StrengthMeter({ value, color }: { value: number; color: string }) {
 function LeagueChoices({ title, teams }: { title: string; teams: readonly TeamKey[] }) {
   const { chooseTeam } = useGameState();
   return (
-    <section style={{ marginBottom: 20 }} aria-label={`${title}の球団選択`}>
+    <section className="team-select__league" aria-label={`${title}の球団選択`}>
       <SectionTitle>{title}</SectionTitle>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))',
-          gap: 10,
-        }}
-      >
+      <div className="team-select__grid">
         {teams.map((teamKey) => {
           const team = TINFO[teamKey];
+          const prospect = outlook(teamKey);
           return (
-            <Card key={teamKey} style={{ borderColor: team.c }} ariaLabel={team.n}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <section
+              key={teamKey}
+              className="card team-choice"
+              style={{ '--team-choice-color': team.c } as CSSProperties}
+              aria-label={team.n}
+            >
+              <div className="team-choice__head">
                 <TeamPennant color={team.c} />
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: teamTextColor(team.c) }}>
+                <div className="team-choice__names">
+                  <div className="team-choice__abbr" style={{ color: teamTextColor(team.c) }}>
                     {team.ab}
                   </div>
-                  <div style={{ fontSize: 13, marginTop: 2 }}>{team.n}</div>
+                  <div className="team-choice__name">{team.n}</div>
                 </div>
+                <span className={`team-choice__outlook team-choice__outlook--${prospect.tone}`}>
+                  {prospect.label}
+                </span>
               </div>
-              <StrengthMeter value={team.bd} color={team.c} />
+              <StrengthMeter value={team.bd} />
               <Button
                 onClick={() => chooseTeam(teamKey)}
                 color={team.c}
@@ -85,7 +91,7 @@ function LeagueChoices({ title, teams }: { title: string; teams: readonly TeamKe
               >
                 この球団で開始
               </Button>
-            </Card>
+            </section>
           );
         })}
       </div>
@@ -97,21 +103,16 @@ export function TeamSelectScreen() {
   const game = useGameState();
   return (
     <PageShell ariaLabel="球団選択画面">
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          gap: 12,
-          flexWrap: 'wrap',
-        }}
-      >
-        <h1 style={{ marginTop: 0 }}>球団選択</h1>
+      <header className="team-select__header">
+        <div>
+          <p className="team-select__eyebrow">NEW GAME</p>
+          <h1 className="team-select__title">どの球団の歴史を見届けますか？</h1>
+          <p className="team-select__lead">
+            選んだ球団の監督として、新しいペナントレースが始まります。選手と日程は12球団すべて自動で作られます。
+          </p>
+        </div>
         <BackToTitleButton onGoToTitle={() => game.setScreen('welcome')} />
-      </div>
-      <p style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>
-        選択した球団で新しいペナントレースが始まります。全球団の選手・日程が自動生成されます。
-      </p>
+      </header>
       <LeagueChoices title="セ・リーグ" teams={CENTRAL} />
       <LeagueChoices title="パ・リーグ" teams={PACIFIC} />
     </PageShell>
