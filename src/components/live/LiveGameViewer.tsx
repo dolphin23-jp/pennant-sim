@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 
 import { sound } from '../../audio/sound';
 import { TINFO } from '../../data';
-import type { GamePlayLog, TeamKey } from '../../engine';
+import type { GamePlayLog, Player, TeamKey } from '../../engine';
 import { useSettings } from '../../state/settings';
 import { useFocusTrap } from '../widgets/useFocusTrap';
 import {
@@ -11,10 +11,11 @@ import {
   HOME_PLATE,
   buildLiveGame,
   finalLine,
-  pitchSequence,
   type LiveFrame,
   type LiveMoment,
 } from './liveTimeline';
+import { replayAtBat, type ReplayPitch } from './pitchReplay';
+import { StrikeZoneView } from './StrikeZoneView';
 
 type Speed = 1 | 2 | 4;
 
@@ -55,9 +56,12 @@ function flightMs(frame: LiveFrame): number {
   return 1150;
 }
 
+/** The last pitch stays on the zone this long before the view cuts to the field. */
+const CONTACT_MS = 500;
+
 /** How long a resolved play stays up before the next batter. */
 function holdMs(frame: LiveFrame): number {
-  let hold = 1300 + flightMs(frame);
+  let hold = 1300 + flightMs(frame) + (frame.ball ? CONTACT_MS : 0);
   if (bannerFor(frame)) hold += 1300;
   if (frame.notes.length) hold += 400;
   return hold;
@@ -79,13 +83,28 @@ function halfLabel(frame: LiveFrame | undefined): string {
   return `${frame.inning}回${frame.isBot ? '裏' : '表'}`;
 }
 
+/** The field view is for plays that move the ball or runners; everything else stays at
+ * the plate. */
+const onField = (frame: LiveFrame) =>
+  Boolean(frame.ball) || frame.result === 'SB' || frame.result === 'CS';
+
+function pitchSound(pitch: ReplayPitch | undefined) {
+  if (!pitch) return;
+  if (pitch.call === 'swingingStrike') sound.play('whiff');
+  else if (pitch.call === 'foul') sound.play('foul');
+  else if (pitch.call !== 'inPlay') sound.play('mitt');
+}
+
 export function LiveGameViewer({
   log,
   ownTeam,
+  players,
   onClose,
 }: {
   log: GamePlayLog;
   ownTeam: TeamKey | null;
+  /** Everyone who might have played, to replay pitches with the pitcher's own. */
+  players?: ReadonlyMap<string, Player>;
   onClose(): void;
 }) {
   const game = useMemo(() => buildLiveGame(log), [log]);
@@ -96,10 +115,26 @@ export function LiveGameViewer({
   const dialogRef = useRef<HTMLDivElement>(null);
   const chanceHalf = useRef<string | null>(null);
   const frame = stage.frame >= 0 ? game.frames[stage.frame] : undefined;
-  const pitches = useMemo(
-    () => (frame ? pitchSequence(game.gameId, frame) : []),
-    [frame, game.gameId],
-  );
+  const atBat = useMemo(() => {
+    if (!frame) return null;
+    const pitcher = frame.pitcherId ? players?.get(frame.pitcherId) : undefined;
+    const batter = players?.get(frame.batterId);
+    return replayAtBat(
+      game.gameId,
+      frame,
+      pitcher
+        ? {
+            pitches: pitcher.p.pitches,
+            vel: pitcher.p.vel,
+            ctrl: pitcher.p.ctrl,
+            throws: pitcher.hand?.th,
+          }
+        : null,
+      batter ? { bats: batter.hand?.bat } : null,
+    );
+  }, [frame, game.gameId, players]);
+  const pitches = useMemo(() => atBat?.pitches ?? [], [atBat]);
+  const [fieldView, setFieldView] = useState(false);
   const finished = stage.frame === game.frames.length - 1 && stage.resolved;
 
   useFocusTrap(dialogRef, true);
@@ -140,11 +175,11 @@ export function LiveGameViewer({
           chanceHalf.current = half;
           sound.play('chance');
         }
-      } else if (stage.pitch > 0) sound.play('mitt');
+      } else pitchSound(pitches[stage.pitch - 1]);
       return;
     }
     if (frame.ball) sound.play(frame.result === 'HR' ? 'homeRun' : 'bat');
-    else if (frame.result === 'K') sound.play('mitt');
+    else pitchSound(pitches.at(-1));
     const own = frame.battingTeam === ownTeam;
     if (frame.result !== 'HR') {
       if (frame.runs > 0 || frame.moments.some((moment) => moment !== 'final'))
@@ -161,7 +196,21 @@ export function LiveGameViewer({
         if (ownTeam) sound.play(ownWon ? 'win' : 'lose');
       }, 900);
     }
-  }, [frame, stage.frame, stage.pitch, stage.resolved, ownTeam, game]);
+  }, [frame, stage.frame, stage.pitch, stage.resolved, ownTeam, game, pitches]);
+
+  // Cut to the field a moment after contact, and back to the plate for the next batter.
+  useEffect(() => {
+    if (!frame || !stage.resolved || !onField(frame)) {
+      setFieldView(false);
+      return;
+    }
+    if (!frame.ball || reduceEffects) {
+      setFieldView(true);
+      return;
+    }
+    const timer = window.setTimeout(() => setFieldView(true), CONTACT_MS / speed);
+    return () => window.clearTimeout(timer);
+  }, [frame, stage.resolved, reduceEffects, speed]);
 
   // The replay clock.
   useEffect(() => {
@@ -173,15 +222,13 @@ export function LiveGameViewer({
       next = { frame: 0, pitch: 0, resolved: false };
     } else if (!frame) return;
     else if (!stage.resolved) {
-      const shown = Math.max(0, pitches.length - 1);
-      const step = Math.min(320, 1500 / Math.max(1, shown));
-      if (stage.pitch < shown) {
-        delay = stage.pitch === 0 ? 700 : step;
-        next = { ...stage, pitch: stage.pitch + 1 };
-      } else {
-        delay = stage.pitch === 0 ? 700 : step;
-        next = { ...stage, pitch: pitches.length, resolved: true };
-      }
+      // One pitch at a time; the last one is the play itself.
+      const beforeLast = Math.max(0, pitches.length - 1);
+      delay = stage.pitch === 0 ? 900 : 720;
+      next =
+        stage.pitch < beforeLast
+          ? { ...stage, pitch: stage.pitch + 1 }
+          : { ...stage, pitch: pitches.length, resolved: true };
     } else {
       delay = holdMs(frame);
       next = { frame: stage.frame + 1, pitch: 0, resolved: false };
@@ -239,23 +286,23 @@ export function LiveGameViewer({
       ? { away: shownFrame.away, home: shownFrame.home }
       : { away: previousFrame?.away ?? 0, home: previousFrame?.home ?? 0 }
     : { away: 0, home: 0 };
-  const shownPitches = stage.resolved ? pitches : pitches.slice(0, stage.pitch);
-  const count = shownPitches.reduce(
-    (tally, pitch) => {
-      if (pitch === 'ball') tally.balls = Math.min(3, tally.balls + 1);
-      else if (pitch === 'strike' || tally.strikes < 2)
-        tally.strikes = Math.min(2, tally.strikes + 1);
-      return tally;
-    },
-    { balls: 0, strikes: 0 },
-  );
+  const shownCount = stage.resolved ? pitches.length : Math.min(stage.pitch, pitches.length);
+  const lastShown = pitches[shownCount - 1];
+  const count = {
+    balls: Math.min(3, lastShown?.balls ?? 0),
+    strikes: Math.min(2, lastShown?.strikes ?? 0),
+  };
   const outs = shownFrame ? (stage.resolved ? shownFrame.outs : shownFrame.outsBefore) : 0;
   const bases = shownFrame
     ? stage.resolved
       ? shownFrame.bases
       : shownFrame.basesBefore
     : ([false, false, false] as const);
-  const banner = shownFrame && stage.resolved ? bannerFor(shownFrame) : null;
+  const zoneActive = Boolean(shownFrame && atBat && !fieldView);
+  const banner =
+    shownFrame && stage.resolved && (fieldView || !onField(shownFrame))
+      ? bannerFor(shownFrame)
+      : null;
   const bigMoment =
     shownFrame &&
     stage.resolved &&
@@ -364,73 +411,87 @@ export function LiveGameViewer({
           key={bigMoment ? `shake-${stage.frame}` : 'stage'}
           className={bigMoment && !reduceEffects ? 'live__stage live__stage--shake' : 'live__stage'}
         >
-          <svg className="live__field" viewBox="0 -12 100 104" aria-hidden="true">
-            <defs>
-              <pattern
-                id="live-mow"
-                width="9"
-                height="9"
-                patternUnits="userSpaceOnUse"
-                patternTransform="rotate(28)"
-              >
-                <rect width="4.5" height="9" fill="var(--field-mow-line)" />
-              </pattern>
-            </defs>
-            <rect x="0" y="-12" width="100" height="104" className="live__stands" />
-            <g className="live__crowd">
-              {Array.from({ length: 70 }, (_, index) => (
-                <circle
+          <div className={zoneActive ? 'live__view' : 'live__view live__view--on'}>
+            <svg className="live__field" viewBox="0 -12 100 104" aria-hidden="true">
+              <defs>
+                <pattern
+                  id="live-mow"
+                  width="9"
+                  height="9"
+                  patternUnits="userSpaceOnUse"
+                  patternTransform="rotate(28)"
+                >
+                  <rect width="4.5" height="9" fill="var(--field-mow-line)" />
+                </pattern>
+              </defs>
+              <rect x="0" y="-12" width="100" height="104" className="live__stands" />
+              <g className="live__crowd">
+                {Array.from({ length: 70 }, (_, index) => (
+                  <circle
+                    key={index}
+                    cx={(index * 37) % 100}
+                    cy={-10 + ((index * 53) % 11)}
+                    r={0.9}
+                  />
+                ))}
+              </g>
+              <path d="M 50 92 L 0 8 Q 50 -22 100 8 Z" className="live__grass" />
+              <path d="M 50 92 L 0 8 Q 50 -22 100 8 Z" fill="url(#live-mow)" />
+              <path d="M 0 8 Q 50 -22 100 8" className="live__fence" />
+              <polygon points="50,88 74,65 50,49 26,65" className="live__dirt" />
+              <circle cx="50" cy="71" r="4" className="live__dirt" />
+              <line x1="50" y1="88" x2="0" y2="4" className="live__chalk" />
+              <line x1="50" y1="88" x2="100" y2="4" className="live__chalk" />
+              {Object.entries(FIELDER_POINTS).map(([slot, point]) => (
+                <circle key={slot} cx={point.x} cy={point.y} r="1.7" className="live__fielder" />
+              ))}
+              {BASE_POINTS.map((point, index) => (
+                <rect
                   key={index}
-                  cx={(index * 37) % 100}
-                  cy={-10 + ((index * 53) % 11)}
-                  r={0.9}
+                  x={point.x - 1.8}
+                  y={point.y - 1.8}
+                  width="3.6"
+                  height="3.6"
+                  transform={`rotate(45 ${point.x} ${point.y})`}
+                  className={bases[index] ? 'live__base live__base--on' : 'live__base'}
                 />
               ))}
-            </g>
-            <path d="M 50 92 L 0 8 Q 50 -22 100 8 Z" className="live__grass" />
-            <path d="M 50 92 L 0 8 Q 50 -22 100 8 Z" fill="url(#live-mow)" />
-            <path d="M 0 8 Q 50 -22 100 8" className="live__fence" />
-            <polygon points="50,88 74,65 50,49 26,65" className="live__dirt" />
-            <circle cx="50" cy="71" r="4" className="live__dirt" />
-            <line x1="50" y1="88" x2="0" y2="4" className="live__chalk" />
-            <line x1="50" y1="88" x2="100" y2="4" className="live__chalk" />
-            {Object.entries(FIELDER_POINTS).map(([slot, point]) => (
-              <circle key={slot} cx={point.x} cy={point.y} r="1.7" className="live__fielder" />
-            ))}
-            {BASE_POINTS.map((point, index) => (
-              <rect
-                key={index}
-                x={point.x - 1.8}
-                y={point.y - 1.8}
-                width="3.6"
-                height="3.6"
-                transform={`rotate(45 ${point.x} ${point.y})`}
-                className={bases[index] ? 'live__base live__base--on' : 'live__base'}
-              />
-            ))}
-            <circle cx={HOME_PLATE.x} cy={HOME_PLATE.y} r="1.9" className="live__batter" />
-            {shownFrame && stage.resolved && shownFrame.ball && (
-              <g key={`ball-${stage.frame}`}>
-                <path d={ballPath(shownFrame)} className="live__trail" pathLength={1} />
-                {reduceEffects ? (
-                  <circle
-                    cx={shownFrame.ball.to.x}
-                    cy={shownFrame.ball.to.y}
-                    r="1.3"
-                    className="live__ball"
-                  />
-                ) : (
-                  <circle r="1.3" className="live__ball">
-                    <animateMotion
-                      dur={`${flightMs(shownFrame) / speed}ms`}
-                      fill="freeze"
-                      path={ballPath(shownFrame)}
+              <circle cx={HOME_PLATE.x} cy={HOME_PLATE.y} r="1.9" className="live__batter" />
+              {shownFrame && stage.resolved && fieldView && shownFrame.ball && (
+                <g key={`ball-${stage.frame}`}>
+                  <path d={ballPath(shownFrame)} className="live__trail" pathLength={1} />
+                  {reduceEffects ? (
+                    <circle
+                      cx={shownFrame.ball.to.x}
+                      cy={shownFrame.ball.to.y}
+                      r="1.3"
+                      className="live__ball"
                     />
-                  </circle>
-                )}
-              </g>
-            )}
-          </svg>
+                  ) : (
+                    <circle r="1.3" className="live__ball">
+                      <animateMotion
+                        dur={`${flightMs(shownFrame) / speed}ms`}
+                        fill="freeze"
+                        path={ballPath(shownFrame)}
+                      />
+                    </circle>
+                  )}
+                </g>
+              )}
+            </svg>
+          </div>
+          {shownFrame && atBat && (
+            <div className={zoneActive ? 'live__view live__view--on' : 'live__view'}>
+              <StrikeZoneView
+                key={shownFrame.index}
+                atBat={atBat}
+                shown={shownCount}
+                batter={shownFrame.batter}
+                pitcher={shownFrame.pitcher}
+                animate={!reduceEffects}
+              />
+            </div>
+          )}
           {banner && (
             <div key={`banner-${stage.frame}`} className="live__banner" role="status">
               {banner}

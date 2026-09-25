@@ -49,6 +49,7 @@ export interface LiveFrame {
   batter: string;
   batterId: string;
   pitcher: string;
+  pitcherId?: string;
   result: AtBatResult;
   desc: string;
   rbi: number;
@@ -62,6 +63,8 @@ export interface LiveFrame {
   home: number;
   line: LiveLineScore;
   ball: LiveBall | null;
+  /** Pulled, up the middle or the other way, when the log kept it. */
+  spray?: 'pull' | 'center' | 'oppo';
   cue: LiveCue;
   moments: LiveMoment[];
   /** Manager moves just before this play: pitching changes, bunts and steals tried. */
@@ -287,6 +290,7 @@ export function buildLiveGame(log: GamePlayLog): LiveGame {
         batter: play.batter,
         batterId: play.batterId,
         pitcher: play.pitcher,
+        ...(play.pitcherId ? { pitcherId: play.pitcherId } : {}),
         result: play.result,
         desc: play.desc,
         rbi: play.rbi,
@@ -300,6 +304,7 @@ export function buildLiveGame(log: GamePlayLog): LiveGame {
         home,
         line: { away: [...line.away], home: [...line.home] },
         ball: ballFor(play),
+        ...(play.spray ? { spray: play.spray } : {}),
         cue: cueFor(play.result),
         moments,
         notes,
@@ -337,43 +342,4 @@ export function finalLine(game: LiveGame): LiveLineScore & { homeX: boolean } {
     ...line,
     homeX: Boolean(last && !last.isBot && last.home > last.away && last.inning >= 9),
   };
-}
-
-/** Pitches shown for a play, drawn from a hash of the game and play so a replay always
- * looks the same. Only for show: the engine's pitch count is the total. */
-export function pitchSequence(gameId: string, frame: LiveFrame): Array<'ball' | 'strike' | 'foul'> {
-  const total = Math.max(1, frame.pitches || 1);
-  let seed = 2166136261;
-  for (const character of `${gameId}:${frame.index}`) {
-    seed ^= character.charCodeAt(0);
-    seed = Math.imul(seed, 16777619);
-  }
-  const next = () => {
-    seed = (seed + 0x6d2b79f5) | 0;
-    let value = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    value = (value + Math.imul(value ^ (value >>> 7), 61 | value)) ^ value;
-    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-  };
-  const sequence: Array<'ball' | 'strike' | 'foul'> = [];
-  let balls = 0;
-  let strikes = 0;
-  const walk = frame.result === 'BB';
-  const strikeout = frame.result === 'K';
-  // Everything before the last pitch, kept legal: never the fourth ball or third strike early.
-  for (let pitch = 0; pitch < total - 1; pitch += 1) {
-    const wantBall = walk ? balls < 3 && (strikes >= 2 || next() < 0.6) : next() < 0.4;
-    if (wantBall && balls < 3) {
-      balls += 1;
-      sequence.push('ball');
-    } else if (strikes < 2) {
-      strikes += 1;
-      sequence.push('strike');
-    } else if (!walk && balls < 3 && next() < 0.3) {
-      balls += 1;
-      sequence.push('ball');
-    } else sequence.push('foul');
-  }
-  if (walk) sequence.push('ball');
-  else if (strikeout) sequence.push('strike');
-  return sequence;
 }

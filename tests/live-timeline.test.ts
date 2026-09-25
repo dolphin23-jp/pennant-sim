@@ -11,7 +11,7 @@ import {
   simulateGame,
 } from '../src/engine';
 import type { AccumulatedStats, GamePlayLog, TeamKey } from '../src/engine';
-import { buildLiveGame, pitchSequence } from '../src/components/live/liveTimeline';
+import { buildLiveGame } from '../src/components/live/liveTimeline';
 
 function mulberry32(seed: number): () => number {
   let state = seed >>> 0;
@@ -109,18 +109,5 @@ test('old play logs without replay fields still play back', () => {
   assert.deepEqual(live.final, buildLiveGame(log).final);
   for (const frame of live.frames) {
     if (frame.ball) assert.ok(Number.isFinite(frame.ball.to.x) && Number.isFinite(frame.ball.to.y));
-  }
-});
-
-test('shown pitches are legal and repeat for the same play', () => {
-  const [{ log }] = playedLogs(1, 7);
-  const live = buildLiveGame(log);
-  for (const frame of live.frames) {
-    const pitches = pitchSequence(log.gameId, frame);
-    assert.deepEqual(pitches, pitchSequence(log.gameId, frame));
-    const balls = pitches.filter((pitch) => pitch === 'ball').length;
-    if (frame.result === 'BB') assert.equal(balls, 4);
-    else assert.ok(balls <= 3);
-    if (frame.result === 'K') assert.equal(pitches.at(-1), 'strike');
   }
 });

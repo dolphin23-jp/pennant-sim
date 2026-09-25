@@ -5,6 +5,8 @@ export interface PlayLogPlay {
   batter: string;
   batterId: string;
   pitcher: string;
+  /** For replaying the at-bat with the pitcher's own pitches. */
+  pitcherId?: string;
   result: AtBatResult;
   desc: string;
   rbi: number;
@@ -115,6 +117,7 @@ export function buildPlayLog(gameId: string, date: string, game: GameState): Gam
           batter: play.batter,
           batterId: play.batterId,
           pitcher: play.pitcher,
+          pitcherId: play.pitcherId,
           result: play.result,
           desc: play.desc,
           rbi: play.rbi,

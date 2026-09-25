@@ -308,6 +308,303 @@
   }
 }
 
+/* Two views share the stage: the plate (strike zone) and the field. */
+.live__stage {
+  display: grid;
+}
+
+.live__view {
+  grid-area: 1 / 1;
+  min-width: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.28s ease,
+    visibility 0s linear 0.28s;
+}
+
+.live__view--on {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 0.28s ease,
+    visibility 0s;
+}
+
+.live--calm .live__view {
+  transition: none;
+}
+
+/* Strike zone (components/live/StrikeZoneView.tsx), seen from behind the catcher */
+.zone {
+  display: grid;
+  gap: 6px;
+  height: 100%;
+  padding: 8px;
+  background: radial-gradient(ellipse at 50% 20%, #1c3a28 0%, #0b140f 75%);
+}
+
+.zone__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  justify-content: center;
+  color: var(--lamp-text-muted);
+  font-size: var(--text-sm);
+}
+
+.zone__header strong {
+  color: var(--lamp-text);
+  font-size: var(--text-base);
+}
+
+.zone__vs {
+  color: var(--color-signature);
+  font-weight: 900;
+}
+
+.zone__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 34%);
+  gap: 10px;
+  min-height: 0;
+}
+
+.zone__plate {
+  width: 100%;
+  max-height: 46dvh;
+}
+
+.zone__backdrop {
+  fill: #13261a;
+}
+
+.zone__dirt {
+  fill: rgb(178 132 76 / 55%);
+}
+
+.zone__box {
+  fill: none;
+  stroke: rgb(255 255 255 / 45%);
+  stroke-width: 0.5;
+}
+
+.zone__home {
+  fill: #f1f1ec;
+}
+
+.zone__batter {
+  opacity: 0.85;
+  fill: color-mix(in srgb, var(--live-bat) 70%, #0b100c);
+  stroke: rgb(255 255 255 / 25%);
+  stroke-width: 0.4;
+}
+
+.zone__helmet {
+  fill: var(--live-bat);
+}
+
+.zone__bat {
+  stroke: #d9b779;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.zone__frame {
+  fill: rgb(255 255 255 / 4%);
+  stroke: rgb(255 255 255 / 85%);
+  stroke-width: 0.6;
+}
+
+.zone__grid line {
+  stroke: rgb(255 255 255 / 30%);
+  stroke-width: 0.35;
+  stroke-dasharray: 1.2 1.2;
+}
+
+.zone__pitch circle {
+  stroke: #0b100c;
+  stroke-width: 0.5;
+}
+
+.zone__pitch text {
+  fill: #0b100c;
+  font-family: var(--font-display);
+  font-size: 3.6px;
+  font-weight: 900;
+  text-anchor: middle;
+}
+
+.zone__pitch--ball circle {
+  fill: #6ad98a;
+}
+
+.zone__pitch--strike circle {
+  fill: #ff6b76;
+}
+
+.zone__pitch--foul circle {
+  fill: #ffd166;
+}
+
+.zone__pitch--play circle {
+  fill: #4fb0ff;
+}
+
+.zone__pitch--hbp circle {
+  fill: #b78bff;
+}
+
+.zone__pitch--latest circle {
+  stroke: #fff;
+  stroke-width: 0.8;
+}
+
+/* The newest pitch comes in from the mound: small and high, then full size at its spot. */
+.zone__pitch--incoming .zone__pitch-body {
+  animation: zone-incoming 0.42s cubic-bezier(0.3, 0.1, 0.7, 1) both;
+}
+
+@keyframes zone-incoming {
+  from {
+    opacity: 0.2;
+    transform: translate(var(--dx), var(--dy)) scale(0.25);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.zone__list {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+
+.zone__row {
+  display: grid;
+  grid-template-columns: 1.6em minmax(0, 1fr) auto auto;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 6px;
+  border-left: 3px solid var(--row-tone);
+  background: rgb(255 255 255 / 4%);
+}
+
+.zone__row--ball {
+  --row-tone: #6ad98a;
+}
+
+.zone__row--strike {
+  --row-tone: #ff6b76;
+}
+
+.zone__row--foul {
+  --row-tone: #ffd166;
+}
+
+.zone__row--play {
+  --row-tone: #4fb0ff;
+}
+
+.zone__row--hbp {
+  --row-tone: #b78bff;
+}
+
+.zone__n {
+  color: var(--row-tone);
+  font-family: var(--font-display);
+  font-weight: 900;
+}
+
+.zone__type {
+  font-weight: 800;
+}
+
+.zone__speed {
+  color: var(--lamp-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.zone__call {
+  color: var(--row-tone);
+  font-weight: 800;
+}
+
+.zone__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: center;
+  color: var(--lamp-text-muted);
+  font-size: var(--text-2xs);
+}
+
+.zone__key::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: var(--key);
+}
+
+.zone__key--ball {
+  --key: #6ad98a;
+}
+
+.zone__key--strike {
+  --key: #ff6b76;
+}
+
+.zone__key--foul {
+  --key: #ffd166;
+}
+
+.zone__key--play {
+  --key: #4fb0ff;
+}
+
+.zone__note {
+  margin-left: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zone__pitch--incoming .zone__pitch-body {
+    animation: none;
+  }
+}
+
+.live--calm .zone__pitch--incoming .zone__pitch-body {
+  animation: none;
+}
+
+@media (max-width: 640px) {
+  .zone__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .zone__plate {
+    max-height: 30dvh;
+  }
+
+  .zone__list {
+    grid-auto-flow: row;
+    max-height: 18dvh;
+  }
+
+  .zone__note {
+    margin-left: 0;
+  }
+}
+
 /* Commentary */
 .live__telop {
   display: grid;

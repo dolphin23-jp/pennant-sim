@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { OffseasonScreen } from './components/screens/OffseasonScreen';
 import { PostseasonScreen } from './components/screens/PostseasonScreen';
@@ -45,6 +45,16 @@ function GameRouter() {
     if (scene) document.documentElement.dataset.scene = scene;
     else delete document.documentElement.dataset.scene;
   }, [scene]);
+  const liveLog = liveGameId ? game.recentPlayLogs[liveGameId] : null;
+  const livePlayers = useMemo(() => {
+    if (!liveLog) return undefined;
+    const everyone = [
+      ...Object.values(game.teams ?? {}).flatMap((team) => [...team.fielders, ...team.pitchers]),
+      ...game.retiredPlayers,
+      ...game.overseasPlayers,
+    ];
+    return new Map(everyone.map((player) => [player.id, player]));
+  }, [liveLog, game.teams, game.retiredPlayers, game.overseasPlayers]);
   if (game.loading) {
     return (
       <PageShell ariaLabel="セーブデータ読込中">
@@ -93,8 +103,6 @@ function GameRouter() {
       activePlayer ?? game.retiredPlayers.find((candidate) => candidate.id === playerId) ?? null;
     if (player) game.selectPlayer(player);
   };
-
-  const liveLog = liveGameId ? game.recentPlayLogs[liveGameId] : null;
 
   return (
     <OpenSettingsContext.Provider value={openSettings}>
@@ -152,6 +160,7 @@ function GameRouter() {
               key={liveLog.gameId}
               log={liveLog}
               ownTeam={game.playerTeam}
+              players={livePlayers}
               onClose={() => setLiveGameId(null)}
             />
           )}

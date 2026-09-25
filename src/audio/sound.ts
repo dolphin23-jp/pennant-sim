@@ -6,6 +6,8 @@
  */
 export type SoundCue =
   | 'bat'
+  | 'foul'
+  | 'whiff'
   | 'mitt'
   | 'cheer'
   | 'roar'
@@ -210,6 +212,16 @@ class SoundEngine {
         this.burst(0, 0.09, 0.9, { type: 'bandpass', frequency: 2600, q: 1.4 }, 0.002);
         this.tone(0, 1750, 0.22, 0.05, 'sine', 1500);
         this.tone(0, 190, 0.08, 0.2, 'sine', 90);
+        break;
+      case 'foul':
+        // A glancing tick off the bat and a short murmur.
+        this.burst(0, 0.06, 0.5, { type: 'bandpass', frequency: 3200, q: 1.6 }, 0.002);
+        this.burst(0.05, 0.6, 0.06, { type: 'bandpass', frequency: 900, q: 0.6 }, 0.1);
+        break;
+      case 'whiff':
+        // The swing cutting air, then the mitt.
+        this.burst(0, 0.18, 0.25, { type: 'highpass', frequency: 1800 }, 0.06);
+        this.burst(0.16, 0.07, 0.6, { type: 'lowpass', frequency: 900 }, 0.002);
         break;
       case 'mitt':
         this.burst(0, 0.07, 0.6, { type: 'lowpass', frequency: 900 }, 0.002);
