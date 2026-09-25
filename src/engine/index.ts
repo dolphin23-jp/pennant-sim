@@ -16,6 +16,7 @@ export * from './foreign';
 export * from './game';
 export * from './pennantRace';
 export * from './management';
+export * from './popularity';
 export * from './growth';
 export * from './historicalRankings';
 export * from './leagueHistory';

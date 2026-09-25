@@ -1,6 +1,11 @@
 import { TINFO } from '../data';
 import { calcOVR, magicLit } from '../engine';
-import type { ForeignLifecycleEvent, LineupSubstitution, RaceStatus } from '../engine';
+import type {
+  ForeignLifecycleEvent,
+  LineupSubstitution,
+  PopularityChange,
+  RaceStatus,
+} from '../engine';
 import type {
   AchievementEvent,
   GameBoxScore,
@@ -454,4 +459,40 @@ export function createRaceNotices(
       ),
     );
   return notices;
+}
+
+/** The user's players whose following grew the most over the season, and new stars. */
+export function createPopularityNotices(
+  changes: PopularityChange[],
+  playerTeam: TeamKey,
+  year: number,
+): Notice[] {
+  const own = changes.filter((change) => change.teamKey === playerTeam);
+  const stars = own.filter((change) => change.before < 85 && change.after >= 85);
+  const risers = own
+    .filter((change) => change.after - change.before >= 8 && !stars.includes(change))
+    .sort((first, second) => second.after - second.before - (first.after - first.before))
+    .slice(0, 3);
+  return [
+    ...stars.map((change): Notice => ({
+      id: noticeId(['popularity', year, 'star', change.playerId]),
+      title: `${change.playerName}、球界のスターに`,
+      body: `${year}年の活躍で人気が${change.before}→${change.after}に。観客動員と球団収入を押し上げます。`,
+      tone: 'good',
+      date: `${year}年オフ`,
+      kind: 'achievement',
+      playerId: change.playerId,
+      teamKey: playerTeam,
+    })),
+    ...risers.map((change): Notice => ({
+      id: noticeId(['popularity', year, 'rise', change.playerId]),
+      title: `${change.playerName}の人気が急上昇`,
+      body: `${year}年の活躍で人気が${change.before}→${change.after}（+${change.after - change.before}）。`,
+      tone: 'good',
+      date: `${year}年オフ`,
+      kind: 'achievement',
+      playerId: change.playerId,
+      teamKey: playerTeam,
+    })),
+  ];
 }

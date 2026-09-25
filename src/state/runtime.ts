@@ -37,6 +37,7 @@ import {
   evaluateSeason,
   seasonExpectation,
   trustLabel,
+  updateSeasonPopularity,
   type ManagerRecord,
   type PostseasonReach,
   type SeasonExpectation,
@@ -65,6 +66,7 @@ import {
   createFreeAgencyNotices,
   createGameResultNotice,
   createLineupRepairNotice,
+  createPopularityNotices,
   createRaceNotices,
   createOffseasonDevelopmentNotices,
   createSkippedInSeasonDevelopmentNotices,
@@ -118,6 +120,8 @@ export interface RuntimeState {
   recentPlayLogs: Record<string, GamePlayLog>;
   /** The owner's goal for this season, trust in the manager, and past evaluations. */
   manager: ManagerRecord;
+  /** Players the user follows (推し選手), by id; they may move clubs or retire. */
+  favorites: string[];
   selectedGameId: string | null;
   /** Set to a fresh sequence number by any update that should be persisted; the autosave
    * effect saves whenever it changes. */
@@ -157,6 +161,7 @@ export const initialState: RuntimeState = {
   gameBoxScores: {},
   recentPlayLogs: {},
   manager: { trust: INITIAL_TRUST, expectation: null, history: [] },
+  favorites: [],
   selectedGameId: null,
   autosaveSeq: 0,
 };
@@ -439,13 +444,13 @@ export function applyOffseasonCompletion(
   overseas: Player[] = current.overseasPlayers,
 ): RuntimeState {
   // Every club, the user's included, opens the season with a fresh 一軍 registration.
-  const nextTeams = assignAllActiveRosters(teams);
+  const rosteredTeams = assignAllActiveRosters(teams);
   if (!current.playerTeam) return current;
   // A duplicate completion callback belongs to the already committed old year.
   if (events.some((event) => event.year !== current.season.year)) return current;
   const completedYear = current.season.year;
   const activeIds = new Set(
-    Object.values(nextTeams).flatMap((team) =>
+    Object.values(rosteredTeams).flatMap((team) =>
       [...team.pitchers, ...team.fielders].map((player) => player.id),
     ),
   );
@@ -465,6 +470,16 @@ export function applyOffseasonCompletion(
   const seasonHonors = current.teams
     ? selectSeasonHonors(completedYear, current.teams, current.leagueAccumulated, current.standings)
     : [];
+  // The season just finished moves every player's popularity.
+  const popularity = updateSeasonPopularity(rosteredTeams, {
+    year: completedYear,
+    stats: current.leagueAccumulated,
+    titles: seasonTitles,
+    honors: seasonHonors,
+    achievements: current.achievementHistory.filter((event) => event.year === completedYear),
+    champion: current.championHistory.find((record) => record.year === completedYear)?.champion,
+  });
+  const nextTeams = popularity.teams;
   const year = completedYear + 1;
   const nextExpectation = seasonExpectation(nextTeams, current.playerTeam, year);
   const schedule = generateSchedule(year);
@@ -519,6 +534,7 @@ export function applyOffseasonCompletion(
     manager: { ...current.manager, expectation: nextExpectation },
     notices: mergeNotices(current.notices, [
       expectationNotice(nextExpectation, current.playerTeam, current.manager.trust),
+      ...createPopularityNotices(popularity.changes, current.playerTeam, completedYear),
       ...developmentNotices,
       {
         id: `active-roster:${year}:${current.playerTeam}`,

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 
 import { CENTRAL, PACIFIC, TINFO } from '../../../data';
-import { ops, qualifiesForRate } from '../../../engine';
-import type { Player, PlayerStats, TeamKey } from '../../../engine';
+import { ops, popularityLabel, popularityOf, qualifiesForRate } from '../../../engine';
+import type { Player, PlayerStats, TeamKey, Teams } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
 import { Card, EmptyState, SectionTitle, SegmentedControl, teamTextColor } from '../../ui';
 import { HistoricalRankings } from './HistoricalRankings';
@@ -384,7 +384,83 @@ export function RankingTab() {
         </div>
       </section>
 
+      <PopularityRanking
+        players={players}
+        teamOf={(player) => teamKeyOf(teams, player)}
+        playerTeam={playerTeam}
+        onSelect={game.selectPlayer}
+      />
+
       <HistoricalRankings />
     </div>
+  );
+}
+
+function teamKeyOf(teams: Teams, player: Player): TeamKey | null {
+  for (const [teamKey, team] of Object.entries(teams))
+    if (team.fielders.includes(player) || team.pitchers.includes(player)) return teamKey as TeamKey;
+  return null;
+}
+
+/** The league's ten best-loved players: popularity follows the field, titles and records. */
+function PopularityRanking({
+  players,
+  teamOf,
+  playerTeam,
+  onSelect,
+}: {
+  players: Player[];
+  teamOf(player: Player): TeamKey | null;
+  playerTeam: TeamKey;
+  onSelect(player: Player): void;
+}) {
+  const top = [...players].sort((a, b) => popularityOf(b) - popularityOf(a)).slice(0, 10);
+  return (
+    <Card ariaLabel="人気選手ランキング">
+      <SectionTitle>人気選手</SectionTitle>
+      <p className="popularity-ranking__note">
+        人気は成績・タイトル・記録・日本一で毎年上下し、観客動員と球団収入に影響します。
+      </p>
+      <div className="table-scroll">
+        <table className="data-table popularity-ranking">
+          <thead>
+            <tr>
+              <th scope="col">順</th>
+              <th scope="col">選手</th>
+              <th scope="col">球団</th>
+              <th scope="col">人気</th>
+            </tr>
+          </thead>
+          <tbody>
+            {top.map((player, index) => {
+              const teamKey = teamOf(player);
+              const popularity = popularityOf(player);
+              return (
+                <tr
+                  key={player.id}
+                  className={teamKey === playerTeam ? 'popularity-ranking__own' : undefined}
+                >
+                  <td>{index + 1}</td>
+                  <th scope="row">
+                    <button
+                      type="button"
+                      className="roster-player-button"
+                      onClick={() => onSelect(player)}
+                      aria-label={`${player.name}の詳細を表示`}
+                    >
+                      {player.name}
+                    </button>
+                  </th>
+                  <td>{teamKey ? TINFO[teamKey].ab : '-'}</td>
+                  <td>
+                    {popularity}・{popularityLabel(popularity)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }

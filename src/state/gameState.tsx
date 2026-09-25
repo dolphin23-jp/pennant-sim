@@ -90,6 +90,8 @@ interface GameContextValue extends RuntimeState {
   setPitcherPlan(plan: PitcherPlan): void;
   selectPlayer(player: Player | null): void;
   selectGame(gameId: string | null): void;
+  /** Follow or unfollow a player (推し選手). */
+  toggleFavorite(playerId: string): void;
   dismissNotice(noticeId: string): void;
   clearNotices(): void;
   replaceTeams(teams: Teams): void;
@@ -147,6 +149,7 @@ function snapshotFromState(state: RuntimeState): GameSaveData | null {
     gameBoxScores: state.gameBoxScores,
     recentPlayLogs: state.recentPlayLogs,
     manager: state.manager,
+    favorites: state.favorites,
     uiVersion: 1,
   };
 }
@@ -212,6 +215,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           overseasPlayers: saved.overseasPlayers ?? [],
           honorHistory: saved.honorHistory ?? [],
           recentPlayLogs: saved.recentPlayLogs ?? {},
+          favorites: saved.favorites ?? [],
           // Saves from before owner goals start with this season's goal already set.
           manager:
             saved.manager ??
@@ -608,6 +612,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setLineup: (lineup) => setState((current) => ({ ...current, lineup })),
       setPitcherPlan: (pitcherPlan) => setState((current) => ({ ...current, pitcherPlan })),
       selectPlayer: (selectedPlayer) => setState((current) => ({ ...current, selectedPlayer })),
+      toggleFavorite: (playerId: string) =>
+        setState((current) => ({
+          ...current,
+          favorites: current.favorites.includes(playerId)
+            ? current.favorites.filter((id) => id !== playerId)
+            : [...current.favorites, playerId],
+          autosaveSeq: nextAutosaveSeq(),
+        })),
       selectGame: (selectedGameId) => setState((current) => ({ ...current, selectedGameId })),
       dismissNotice: (noticeId) =>
         setState((current) => ({

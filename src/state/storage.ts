@@ -137,6 +137,8 @@ export interface GameSaveData {
   recentPlayLogs?: Record<string, GamePlayLog>;
   /** Missing on saves before owner goals and manager evaluations. */
   manager?: ManagerRecord;
+  /** Missing on saves before 推し選手. */
+  favorites?: string[];
   narrativeEvents?: NarrativeEventLedger;
   /** Narrative events that failed validation, kept verbatim instead of blocking the save. */
   narrativeQuarantine?: unknown[];
@@ -931,6 +933,9 @@ export function migrateSaveData(raw: unknown): GameSaveData | null {
     gameBoxScores: migrateGameBoxScores(legacy.gameBoxScores),
     recentPlayLogs: migratePlayLogs(legacy.recentPlayLogs),
     manager: migrateManager(legacy.manager),
+    favorites: Array.isArray(legacy.favorites)
+      ? legacy.favorites.filter((id): id is string => typeof id === 'string')
+      : [],
     narrativeEvents: narrative.ledger,
     ...(narrativeQuarantine ? { narrativeQuarantine } : {}),
     ts: legacy.ts,

@@ -171,6 +171,9 @@ export interface Player {
   homeTeam?: TeamKey;
   /** Seasons played in MLB before returning to NPB. A returnee does not leave again. */
   mlbSeasons?: number;
+  /** Fan following, 0-100 (engine/popularity.ts). Missing until the first season is
+   * scored; popularityOf() then falls back to a value from ability. */
+  popularity?: number;
   [key: string]: unknown;
 }
 /** 人的補償 ranks: A and B bring the former club a player (or cash); C brings nothing. */

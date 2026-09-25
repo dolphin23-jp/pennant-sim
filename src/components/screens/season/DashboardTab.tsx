@@ -8,6 +8,7 @@ import { Button, Card, SectionTitle, teamTextColor } from '../../ui';
 import { AutoAdvancePanel } from '../../widgets/AutoAdvancePanel';
 import { Linescore } from '../../widgets/Linescore';
 import { NoticeCenter } from '../../widgets/NoticeCenter';
+import { FavoritesCard } from '../../widgets/FavoritesCard';
 import { RaceCard } from '../../widgets/RaceCard';
 import { LeagueTable } from '../../widgets/StandingsTable';
 
@@ -264,6 +265,8 @@ export function DashboardTab({
           </Button>
         </Card>
       </div>
+
+      <FavoritesCard />
 
       <NoticeCenter
         notices={game.notices}

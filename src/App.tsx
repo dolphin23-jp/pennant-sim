@@ -98,6 +98,8 @@ function GameRouter() {
         debugMode={game.debugMode}
         onUpdatePlayer={game.updatePlayer}
         isOwnTeam={isPlayerTeam}
+        isFavorite={Boolean(game.selectedPlayer && game.favorites.includes(game.selectedPlayer.id))}
+        onToggleFavorite={game.toggleFavorite}
       />
       <GameDetailModal
         box={selectedGameBox}

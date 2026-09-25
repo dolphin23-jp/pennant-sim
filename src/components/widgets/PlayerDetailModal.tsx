@@ -25,6 +25,8 @@ import {
   formatManYen,
   SEASON_HONOR_LABEL,
   isForeignPlayer,
+  popularityLabel,
+  popularityOf,
   specialLevel,
   yearsUntilFreeAgency,
   startPositionConversion,
@@ -527,6 +529,8 @@ export function PlayerDetailModal({
   debugMode = false,
   onUpdatePlayer,
   isOwnTeam = false,
+  isFavorite = false,
+  onToggleFavorite,
 }: {
   player: Player | null;
   accumulated: AccumulatedStats;
@@ -542,6 +546,9 @@ export function PlayerDetailModal({
   onUpdatePlayer?(player: Player): void;
   /** Gates position-conversion practice to the viewer's own roster. */
   isOwnTeam?: boolean;
+  /** Whether the user follows this player (推し選手). */
+  isFavorite?: boolean;
+  onToggleFavorite?(playerId: string): void;
 }) {
   const [activeTab, setActiveTab] = useState<TabId>('basic');
   const visibleTabs = debugMode && onUpdatePlayer ? [...tabs, DEBUG_EDIT_TAB] : tabs;
@@ -673,6 +680,12 @@ export function PlayerDetailModal({
               >
                 {player.isP ? player.role : player.pos}
               </span>
+              <span
+                className="player-modal__ticket player-modal__ticket--popularity"
+                title="人気（成績・タイトル・記録で上下し、観客動員と球団収入に影響します）"
+              >
+                人気 {popularityOf(player)}・{popularityLabel(popularityOf(player))}
+              </span>
               <PlayerStatusBadges player={player} />
             </div>
           </div>
@@ -684,6 +697,21 @@ export function PlayerDetailModal({
               compact
               ariaLabel={`特殊込みOVR ${headline.total}、基本総合値 ${headline.base}から算出`}
             />
+            {onToggleFavorite && (
+              <button
+                type="button"
+                className={`favorite-toggle${isFavorite ? ' favorite-toggle--on' : ''}`}
+                aria-pressed={isFavorite}
+                aria-label={
+                  isFavorite ? `${player.name}を推し選手から外す` : `${player.name}を推し選手にする`
+                }
+                title={isFavorite ? '推し選手から外す' : '推し選手にする'}
+                onClick={() => onToggleFavorite(player.id)}
+              >
+                <span aria-hidden="true">{isFavorite ? '★' : '☆'}</span>
+                推し
+              </button>
+            )}
             <Button
               onClick={onClose}
               color="var(--color-surface-muted)"
