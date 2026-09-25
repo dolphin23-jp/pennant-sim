@@ -391,7 +391,7 @@ export function SortableStatsTable({
 
   return (
     <Card ariaLabel="選手成績テーブル">
-      <SectionTitle>Stats Table</SectionTitle>
+      <SectionTitle>成績一覧</SectionTitle>
       <div
         style={{
           display: 'flex',

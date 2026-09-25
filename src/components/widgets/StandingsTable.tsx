@@ -210,14 +210,14 @@ export function StandingsTable({
         }}
       >
         <LeagueTable
-          title="Central League"
+          title="セ・リーグ"
           teams={CENTRAL}
           standings={standings}
           schedule={schedule}
           onSelectTeam={onSelectTeam}
         />
         <LeagueTable
-          title="Pacific League"
+          title="パ・リーグ"
           teams={PACIFIC}
           standings={standings}
           schedule={schedule}

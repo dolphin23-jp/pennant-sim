@@ -270,7 +270,7 @@ export function FieldDiagram({
           flexWrap: 'wrap',
         }}
       >
-        <SectionTitle>Field Diagram</SectionTitle>
+        <SectionTitle>守備位置</SectionTitle>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <TermTooltip
             term="平均特殊込みOVR"

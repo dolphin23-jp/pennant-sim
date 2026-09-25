@@ -98,7 +98,7 @@ export function DashboardTab({
   return (
     <>
       <Card ariaLabel="順位状況" style={{ marginBottom: 12 }}>
-        <SectionTitle>Standings Snapshot</SectionTitle>
+        <SectionTitle>順位</SectionTitle>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
           <LampFigure
             label={TINFO[game.playerTeam].ab}
@@ -133,7 +133,7 @@ export function DashboardTab({
         }}
       >
         <Card ariaLabel="次の試合">
-          <SectionTitle>Next Game</SectionTitle>
+          <SectionTitle>次の試合</SectionTitle>
           {nextGame ? (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
@@ -249,7 +249,7 @@ export function DashboardTab({
           )}
         </Card>
         <Card ariaLabel="現在の先発オーダー">
-          <SectionTitle>Lineup</SectionTitle>
+          <SectionTitle>スタメン</SectionTitle>
           <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginBottom: 8 }}>
             現在の先発野手 {game.lineup.length}名
           </div>

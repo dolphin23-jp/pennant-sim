@@ -109,7 +109,7 @@ export function BullpenBoard({
 
   return (
     <Card ariaLabel="ブルペン編成">
-      <SectionTitle>Bullpen Board</SectionTitle>
+      <SectionTitle>ブルペン</SectionTitle>
       <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginBottom: 10 }}>
         抑え枠をタップして優先順位を変更できます。中継ぎは、試合ごとに疲労・連投・能力からAIが選びます。
       </div>

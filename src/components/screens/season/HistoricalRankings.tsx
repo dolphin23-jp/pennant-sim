@@ -62,7 +62,7 @@ export function HistoricalRankings() {
 
   return (
     <section aria-label="歴代ランキング">
-      <SectionTitle>Historical Records</SectionTitle>
+      <SectionTitle>歴代記録</SectionTitle>
       <Card ariaLabel="歴代ランキング条件">
         <div style={{ display: 'grid', gap: 12 }}>
           <SegmentedControl<HistoricalRankingScope>

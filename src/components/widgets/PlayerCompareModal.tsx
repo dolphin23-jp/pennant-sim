@@ -363,7 +363,7 @@ export function PlayerCompareModal({
                   style={{ marginBottom: 12 }}
                   ariaLabel="能力比較レーダー"
                 >
-                  <SectionTitle>Ability Overlay</SectionTitle>
+                  <SectionTitle>能力の比較</SectionTitle>
                   <AbilityRadarChart series={radarSeries} />
                 </Card>
               )}
@@ -403,7 +403,7 @@ export function PlayerCompareModal({
                         colSpan={players.length + 1}
                         style={{ textAlign: 'left', color: 'var(--color-accent)' }}
                       >
-                        <SectionTitle>Basic</SectionTitle>
+                        <SectionTitle>基本情報</SectionTitle>
                       </th>
                     </tr>
                     <MetricRows metrics={basicMetrics} players={players} />
@@ -414,7 +414,7 @@ export function PlayerCompareModal({
                             colSpan={players.length + 1}
                             style={{ textAlign: 'left', color: 'var(--color-accent)' }}
                           >
-                            <SectionTitle>Batter Abilities</SectionTitle>
+                            <SectionTitle>打者能力</SectionTitle>
                           </th>
                         </tr>
                         <MetricRows metrics={batterAbilityMetrics} players={players} />
@@ -427,7 +427,7 @@ export function PlayerCompareModal({
                             colSpan={players.length + 1}
                             style={{ textAlign: 'left', color: 'var(--color-accent)' }}
                           >
-                            <SectionTitle>Pitcher Abilities</SectionTitle>
+                            <SectionTitle>投手能力</SectionTitle>
                           </th>
                         </tr>
                         <MetricRows metrics={pitcherAbilityMetrics} players={players} />
@@ -438,7 +438,7 @@ export function PlayerCompareModal({
                         colSpan={players.length + 1}
                         style={{ textAlign: 'left', color: 'var(--color-accent)' }}
                       >
-                        <SectionTitle>Current Season</SectionTitle>
+                        <SectionTitle>今季成績</SectionTitle>
                       </th>
                     </tr>
                     <MetricRows metrics={metrics} players={players} />

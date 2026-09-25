@@ -24,7 +24,7 @@ export function RotationCandidatesList({
 
   return (
     <Card ariaLabel="ローテーション候補の先発投手">
-      <SectionTitle>Rotation Candidates</SectionTitle>
+      <SectionTitle>先発候補</SectionTitle>
       <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginBottom: 10 }}>
         ローテーション外の先発投手です。「昇格」でローテーションの枠と入れ替えます。
       </div>

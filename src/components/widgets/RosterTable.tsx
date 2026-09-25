@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { FIELD_POSITIONS, SPECIAL_INDEX } from '../../data';
-import { calcOVR, displayOVR, effectiveOVR } from '../../engine';
+import {
+  averageText,
+  calcOVR,
+  displayOVR,
+  earnedRunAverage,
+  effectiveOVR,
+  inningsText,
+  ops,
+  whip,
+} from '../../engine';
 import type { AccumulatedStats, Player, Team } from '../../engine';
 import { Button, Card, EmptyState, SectionTitle, TermTooltip } from '../ui';
 import { DisplayOVRValue } from './DisplayOVRValue';
@@ -77,24 +86,29 @@ function compareValues(
 function batterValues(player: Player, accumulated: AccumulatedStats) {
   const stats = accumulated[player.id];
   if (!stats || stats.type !== 'bat') {
-    return { average: '.---', homeRuns: '-', runsBattedIn: '-' };
+    return { average: '.---', homeRuns: '-', runsBattedIn: '-', ops: '.---' };
   }
+  const onBasePlusSlugging = ops(stats);
   return {
-    average: stats.ab > 0 ? (stats.h / stats.ab).toFixed(3).replace(/^0/, '') : '.---',
+    average: averageText(stats.h, stats.ab),
     homeRuns: String(stats.hr),
     runsBattedIn: String(stats.rbi),
+    ops: onBasePlusSlugging === null ? '.---' : onBasePlusSlugging.toFixed(3).replace(/^0/, ''),
   };
 }
 
 function pitcherValues(player: Player, accumulated: AccumulatedStats) {
   const stats = accumulated[player.id];
   if (!stats || stats.type !== 'pit') {
-    return { era: '-.--', record: '-', saves: '-' };
+    return { era: '-.--', record: '-', innings: '-', whip: '-.--' };
   }
+  const era = earnedRunAverage(stats);
+  const walksHitsPerInning = whip(stats);
   return {
-    era: stats.ip3 > 0 ? ((stats.er * 27) / stats.ip3).toFixed(2) : '-.--',
-    record: `${stats.w}-${stats.l}`,
-    saves: String(stats.sv),
+    era: era === null ? '-.--' : era.toFixed(2),
+    record: `${stats.w}-${stats.l}${stats.sv > 0 ? ` ${stats.sv}S` : ''}`,
+    innings: inningsText(stats.ip3),
+    whip: walksHitsPerInning === null ? '-.--' : walksHitsPerInning.toFixed(2),
   };
 }
 
@@ -191,12 +205,14 @@ function RosterMobileCard({
     ? [
         { label: '防御率', value: pitching.era },
         { label: '勝敗', value: pitching.record },
-        { label: 'セーブ', value: pitching.saves },
+        { label: '投球回', value: pitching.innings },
+        { label: 'WHIP', value: pitching.whip },
       ]
     : [
         { label: '打率', value: batting.average },
         { label: '本塁打', value: batting.homeRuns },
         { label: '打点', value: batting.runsBattedIn },
+        { label: 'OPS', value: batting.ops },
       ];
   return (
     <article className={`player-summary-card${gold ? ' player-summary-card--gold' : ''}`}>
@@ -337,7 +353,7 @@ export function RosterTable({
   return (
     <>
       <Card ariaLabel={`${team.n}のロスター`}>
-        <SectionTitle>Roster</SectionTitle>
+        <SectionTitle>選手一覧</SectionTitle>
         <div
           style={{
             display: 'flex',
@@ -588,9 +604,9 @@ export function RosterTable({
                         </td>
                         <td style={{ color: 'var(--color-text-muted)' }}>
                           {player.isP ? (
-                            <PitcherStatLine player={player} accumulated={accumulated} />
+                            <PitcherStatLine player={player} accumulated={accumulated} detailed />
                           ) : (
-                            <BatterStatLine player={player} accumulated={accumulated} />
+                            <BatterStatLine player={player} accumulated={accumulated} detailed />
                           )}
                         </td>
                       </tr>

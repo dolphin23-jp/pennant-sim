@@ -181,7 +181,7 @@ export function SquadBoard({
   const full = activeTotal >= ACTIVE_ROSTER_BALANCE.limit;
   return (
     <Card ariaLabel="一軍・二軍の登録状況" style={{ marginBottom: 12 }}>
-      <SectionTitle>Squad Board</SectionTitle>
+      <SectionTitle>一軍・二軍の登録</SectionTitle>
       <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginBottom: 12 }}>
         選手のボタンで一軍・二軍を切り替えます。一軍登録は{ACTIVE_ROSTER_BALANCE.limit}
         人までです。開幕時とおまかせ進行中は、投手{ACTIVE_ROSTER_BALANCE.pitchers}

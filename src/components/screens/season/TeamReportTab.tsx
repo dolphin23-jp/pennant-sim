@@ -92,7 +92,7 @@ function ClubFinances({
     .slice(0, 8);
   return (
     <Card ariaLabel={`${team.n}の球団経営`}>
-      <SectionTitle>Club Finances</SectionTitle>
+      <SectionTitle>球団財務</SectionTitle>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
         <StatChip label="予算" value={formatManYen(finance.budget)} />
         <StatChip label="年俸総額" value={formatManYen(payroll)} />
@@ -171,7 +171,7 @@ export function TeamReportTab() {
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <TeamSwitcher
-        title="Team Report"
+        title="球団情報"
         cardAriaLabel="表示する球団を選択"
         selectAriaLabel="編成・成績を表示する球団"
         value={viewedKey}
@@ -189,7 +189,7 @@ export function TeamReportTab() {
             flexWrap: 'wrap',
           }}
         >
-          <SectionTitle>Team Snapshot</SectionTitle>
+          <SectionTitle>チーム概況</SectionTitle>
           <span style={{ color: teamTextColor(TINFO[viewedKey].c), fontWeight: 800, fontSize: 13 }}>
             {TINFO[viewedKey].n}
           </span>

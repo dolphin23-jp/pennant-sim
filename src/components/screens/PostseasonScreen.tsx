@@ -53,7 +53,7 @@ function SeasonTitlesPanel({
 }) {
   return (
     <section aria-label="レギュラーシーズン個人タイトル">
-      <SectionTitle>Season Titles</SectionTitle>
+      <SectionTitle>今季のタイトル</SectionTitle>
       <div
         style={{
           display: 'grid',

@@ -326,7 +326,7 @@ function LineupEditor({
           }}
         >
           <div>
-            <SectionTitle>Lineup Editor</SectionTitle>
+            <SectionTitle>オーダー編集</SectionTitle>
             <div style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
               守備位置はタップまたはグリップのドラッグ、打順はドラッグまたは矢印、ベンチ選手はタップしてから配置先をタップで変更します。
             </div>

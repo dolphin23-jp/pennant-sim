@@ -185,3 +185,21 @@ test('skips keep play-by-play for the latest games, with the AI decisions in pla
     resetRandom();
   }
 });
+
+test('a skip finishes the whole day its last game fell on', () => {
+  configureRandom(mulberry32(6), () => Date.UTC(2026, 0, 1));
+  try {
+    const after = applySkip(openingState(), 'week');
+    const lastDate = after.season.schedule
+      .filter((game) => game.played && (game.homeKey === 'giants' || game.awayKey === 'giants'))
+      .map((game) => game.date)
+      .sort()
+      .at(-1)!;
+    const leftBehind = after.season.schedule.filter(
+      (game) => !game.played && game.date <= lastDate,
+    );
+    assert.deepEqual(leftBehind, []);
+  } finally {
+    resetRandom();
+  }
+});

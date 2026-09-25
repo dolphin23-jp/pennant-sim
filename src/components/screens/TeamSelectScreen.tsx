@@ -112,8 +112,8 @@ export function TeamSelectScreen() {
       <p style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>
         選択した球団で新しいペナントレースが始まります。全球団の選手・日程が自動生成されます。
       </p>
-      <LeagueChoices title="Central League" teams={CENTRAL} />
-      <LeagueChoices title="Pacific League" teams={PACIFIC} />
+      <LeagueChoices title="セ・リーグ" teams={CENTRAL} />
+      <LeagueChoices title="パ・リーグ" teams={PACIFIC} />
     </PageShell>
   );
 }

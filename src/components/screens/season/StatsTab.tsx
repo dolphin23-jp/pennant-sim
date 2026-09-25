@@ -33,7 +33,7 @@ export function StatsTab() {
   return (
     <>
       <Card style={{ marginBottom: 12 }} ariaLabel="成績の表示範囲">
-        <SectionTitle>Stats Scope</SectionTitle>
+        <SectionTitle>表示範囲</SectionTitle>
         <SegmentedControl<StatsScope>
           ariaLabel="成績を表示する範囲"
           value={scope}

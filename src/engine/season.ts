@@ -646,9 +646,13 @@ export function skipGames(
             ? Math.min(25, remaining.length)
             : remaining.length;
   let skipped = 0;
+  // The day the user's last game fell on: the rest of that day's games are played too, so a
+  // skip never leaves the league half a day behind (results and standings stay whole days).
+  let lastDate: string | null = null;
   const rosterReviews = new Map<TeamKey, string>();
-  for (let index = 0; index < nextSchedule.length && skipped < target; index += 1) {
+  for (let index = 0; index < nextSchedule.length; index += 1) {
     const game = nextSchedule[index] as ScheduleGame;
+    if (skipped >= target && game.date !== lastDate) break;
     if (game.played) continue;
     manageActiveRosters(
       teams,
@@ -690,6 +694,7 @@ export function skipGames(
       playLogs[game.id] = buildPlayLog(game.id, game.date, result);
       distributedStats = accumulateStats(result, playerTeam, distributedStats);
       skipped += 1;
+      if (skipped >= target) lastDate = game.date;
     }
     nextRotations[game.homeKey] = (nextRotations[game.homeKey] || 0) + 1;
     nextRotations[game.awayKey] = (nextRotations[game.awayKey] || 0) + 1;

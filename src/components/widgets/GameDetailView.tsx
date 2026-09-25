@@ -370,7 +370,7 @@ export function GameDetailView({
           </div>
           {fullBox.notableEvents.length > 0 && (
             <Card ariaLabel="注目記録">
-              <SectionTitle>Notable Events</SectionTitle>
+              <SectionTitle>試合のポイント</SectionTitle>
               <div style={{ display: 'grid', gap: 6 }}>
                 {fullBox.notableEvents.map((event, index) => (
                   <div

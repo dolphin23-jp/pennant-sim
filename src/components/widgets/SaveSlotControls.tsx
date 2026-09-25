@@ -14,6 +14,7 @@ import {
   type SaveSlotSummary,
 } from '../../state/storage';
 import { Button } from '../ui';
+import { useConfirm } from '../ConfirmDialog';
 
 export function SaveSlotControls({
   beforeExport,
@@ -48,6 +49,7 @@ export function SaveSlotControls({
   onActiveSlotCleared?(): void;
 }) {
   const { skipConfirmations } = useSettings();
+  const confirm = useConfirm();
   const [activeSlot, setActiveSlot] = useState<SaveSlot>(1);
   const [selectedSlot, setSelectedSlot] = useState<SaveSlot>(1);
   const [summaries, setSummaries] = useState<SaveSlotSummary[]>([]);
@@ -80,7 +82,12 @@ export function SaveSlotControls({
         warnBeforeSwitch &&
         slot !== activeSlot &&
         !skipConfirmations &&
-        !window.confirm('未保存の変更は失われます。別のセーブスロットへ切り替えますか？')
+        !(await confirm({
+          title: '別のセーブスロットへ切り替えますか？',
+          message: '未保存の変更は失われます。',
+          confirmLabel: '切り替える',
+          danger: true,
+        }))
       )
         return;
       await setActiveSaveSlot(slot);
@@ -114,7 +121,12 @@ export function SaveSlotControls({
     if (
       selectedSummary?.exists &&
       !skipConfirmations &&
-      !window.confirm(`スロット${selectedSlot}のセーブをアップロード内容で上書きしますか？`)
+      !(await confirm({
+        title: `スロット${selectedSlot}を上書きしますか？`,
+        message: `スロット${selectedSlot}のセーブをアップロードした内容で上書きします。`,
+        confirmLabel: '上書きする',
+        danger: true,
+      }))
     )
       return;
     const success = await importSaveFileToSlot(file, selectedSlot);
@@ -127,9 +139,12 @@ export function SaveSlotControls({
 
   const handleClear = async () => {
     if (
-      !window.confirm(
-        `スロット${selectedSlot}のセーブデータを完全に削除しますか？この操作は元に戻せません。`,
-      )
+      !(await confirm({
+        title: `スロット${selectedSlot}を削除しますか？`,
+        message: `スロット${selectedSlot}のセーブデータを完全に削除します。この操作は元に戻せません。`,
+        confirmLabel: '削除する',
+        danger: true,
+      }))
     )
       return;
     const wasActiveSlot = selectedSlot === activeSlot;

@@ -74,7 +74,7 @@ export function NoticeCenter({
         }}
       >
         <div>
-          <SectionTitle>Team News</SectionTitle>
+          <SectionTitle>チームのお知らせ</SectionTitle>
           <div style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>
             覚醒やオフシーズンの大きな能力変動を記録します。
           </div>

@@ -106,14 +106,14 @@ export function TeamStatsComparison({
       }}
     >
       <TeamStatsLeagueTable
-        title="Central League"
+        title="セ・リーグ"
         teamKeys={CENTRAL}
         teams={teams}
         statsSource={statsSource}
         standings={standings}
       />
       <TeamStatsLeagueTable
-        title="Pacific League"
+        title="パ・リーグ"
         teamKeys={PACIFIC}
         teams={teams}
         statsSource={statsSource}
@@ -207,13 +207,13 @@ export function HeadToHeadComparison({
       }}
     >
       <HeadToHeadLeagueTable
-        title="Central League"
+        title="セ・リーグ"
         teamKeys={CENTRAL}
         schedule={schedule}
         standings={standings}
       />
       <HeadToHeadLeagueTable
-        title="Pacific League"
+        title="パ・リーグ"
         teamKeys={PACIFIC}
         schedule={schedule}
         standings={standings}

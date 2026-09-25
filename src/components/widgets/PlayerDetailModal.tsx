@@ -332,7 +332,7 @@ function BasicTab({
   return (
     <div className="detail-grid">
       <Card className="detail-card" ariaLabel="選手基本情報">
-        <SectionTitle>Profile</SectionTitle>
+        <SectionTitle>プロフィール</SectionTitle>
         <dl className="identity-list">
           <div>
             <dt>年齢</dt>
@@ -425,7 +425,7 @@ function BasicTab({
         </dl>
       </Card>
       <Card className="detail-card detail-card--wide" ariaLabel="能力値">
-        <SectionTitle>Abilities</SectionTitle>
+        <SectionTitle>能力</SectionTitle>
         <div className="abilities-layout">
           <AbilityRadarChart items={radarAbilities} />
           <div className="ability-list">
@@ -442,7 +442,7 @@ function BasicTab({
       </Card>
       {!player.isP && (
         <Card className="detail-card detail-card--wide" ariaLabel="ポジション適性">
-          <SectionTitle>Position Aptitude</SectionTitle>
+          <SectionTitle>守備適性</SectionTitle>
           {positions.length ? (
             <>
               <AptitudeFieldMap positions={positions} />
@@ -474,7 +474,7 @@ function BasicTab({
         </Card>
       )}
       <Card className="detail-card detail-card--wide" ariaLabel="能力値推移">
-        <SectionTitle>Growth History</SectionTitle>
+        <SectionTitle>成長の記録</SectionTitle>
         <GrowthChart player={player} overall={overall} />
       </Card>
     </div>
@@ -486,7 +486,7 @@ function SpecialTab({ player }: { player: Player }) {
   if (!specials.length) return <EmptyState>特殊能力はありません。</EmptyState>;
   return (
     <Card className="detail-card" ariaLabel="特殊能力一覧">
-      <SectionTitle>Special Abilities</SectionTitle>
+      <SectionTitle>特殊能力</SectionTitle>
       <div className="special-list">
         {specials.map((special) => {
           const definition = SPECIAL_INDEX[special.id] ?? special;
@@ -735,14 +735,14 @@ export function PlayerDetailModal({
             )}
             {activeTab === 'season' && (
               <Card className="detail-card" ariaLabel="今季成績">
-                <SectionTitle>Current Season</SectionTitle>
+                <SectionTitle>今季成績</SectionTitle>
                 <StatGrid stats={current} />
               </Card>
             )}
             {activeTab === 'career' && (
               <div className="detail-grid">
                 <Card className="detail-card detail-card--wide" ariaLabel="獲得タイトル">
-                  <SectionTitle>Titles</SectionTitle>
+                  <SectionTitle>タイトル</SectionTitle>
                   {honors.length > 0 && (
                     <div
                       aria-label="表彰"
@@ -776,11 +776,11 @@ export function PlayerDetailModal({
                   )}
                 </Card>
                 <Card className="detail-card detail-card--wide" ariaLabel="通算成績">
-                  <SectionTitle>Career</SectionTitle>
+                  <SectionTitle>通算成績</SectionTitle>
                   <StatGrid stats={career} />
                 </Card>
                 <Card className="detail-card detail-card--wide" ariaLabel="年度別成績">
-                  <SectionTitle>Year by Year</SectionTitle>
+                  <SectionTitle>年度別成績</SectionTitle>
                   {history.length ? (
                     <div className="detail-grid">
                       {history.map((row, index) => (

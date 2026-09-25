@@ -274,7 +274,7 @@ function RotationEditor({
           }}
         >
           <div>
-            <SectionTitle>Pitcher Plan Editor</SectionTitle>
+            <SectionTitle>投手起用の編集</SectionTitle>
             <div style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
               ローテーションは{rotationSlotCount(team)}
               枠。先発順はドラッグまたは矢印、候補からの入れ替えは「昇格」、抑えは枠のタップで変更します。

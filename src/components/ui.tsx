@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 
 import { useSettings } from '../state/settings';
+import { useConfirm } from './ConfirmDialog';
 
 function relativeLuminance(hex: string): number {
   const channels = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
@@ -249,17 +250,22 @@ export function SettingsButton({ onClick }: { onClick(): void }) {
  */
 export function NewGameButton({ onStartNewGame }: { onStartNewGame(): void }) {
   const { skipConfirmations } = useSettings();
+  const confirm = useConfirm();
   return (
     <Button
       onClick={() => {
-        if (
-          skipConfirmations ||
-          window.confirm(
-            '新しいゲームを始めますか？現在のセーブ枠の進行状況は、新しいゲームを進めた時点で上書きされます。',
+        void (async () => {
+          if (
+            skipConfirmations ||
+            (await confirm({
+              title: '新しいゲームを始めますか？',
+              message: '現在のセーブ枠の進行状況は、新しいゲームを進めた時点で上書きされます。',
+              confirmLabel: '新しいゲームへ',
+              danger: true,
+            }))
           )
-        ) {
-          onStartNewGame();
-        }
+            onStartNewGame();
+        })();
       }}
       color="var(--color-surface-muted)"
       ariaLabel="新しいゲームを始める（チーム選択に戻る）"
