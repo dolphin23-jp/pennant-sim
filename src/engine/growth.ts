@@ -198,6 +198,8 @@ export function growPlayer(player: Player): Player {
     (params as unknown as Record<string, unknown>)[fallbackParameter] = after;
     changes.push({ param: fallbackParameter, before, after, diff: after - before });
   }
+  if (player.isP && params.pitches?.length)
+    params.pitches = developPitchRepertoire(player.p, params);
   const overallBefore = calcOVR(player, player.pos),
     // A player only reaches growPlayer once their rookie season has been fully played out
     // (the draft assigns rookieSeason after this offseason's growth step, so it survives
@@ -215,6 +217,31 @@ export function growPlayer(player: Player): Player {
     },
   ];
   return updatedPlayer;
+}
+
+/**
+ * Breaking balls develop and fade with the pitcher's command and movement instead of
+ * staying at their generation-day value. Otherwise a pitcher drafted at 18 kept a
+ * teenager's breaking ball for his whole career while hitters' breaking-ball contact kept
+ * growing, and league offence inflated decade by decade as generated veterans retired.
+ * The fastball entry mirrors velocity. Deterministic: no random draws are added.
+ */
+export function developPitchRepertoire(
+  before: PlayerParams,
+  after: PlayerParams,
+): NonNullable<PlayerParams['pitches']> {
+  const change = (key: 'nobi' | 'ctrl') => Number(after[key] ?? 50) - Number(before[key] ?? 50),
+    stuffChange = (change('nobi') + change('ctrl')) / 2,
+    { minimumRating, maximumRating } = PLAYER_DEVELOPMENT_BALANCE.annualRandomVariation;
+  return (after.pitches ?? []).map((pitch) =>
+    pitch.type === '直球'
+      ? { ...pitch, shr: Number(after.vel ?? pitch.shr) }
+      : {
+          ...pitch,
+          shr: clamp(Math.round(pitch.shr + stuffChange), minimumRating, maximumRating),
+          brk: clamp(Math.round(pitch.brk + stuffChange), minimumRating, maximumRating),
+        },
+  );
 }
 
 /** Point a batter at an unfamiliar position, starting from a low, deliberately shaky

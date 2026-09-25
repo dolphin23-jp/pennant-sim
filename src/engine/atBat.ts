@@ -215,7 +215,7 @@ function hitChanceOnContact(input: {
   const config = AT_BAT_BALANCE.hitOnContact;
   let chance = config.base[input.battedBall];
   // Better defence turns more of the same batted balls into outs.
-  chance -= (input.defenseScore - 50) / config.defenseScale;
+  chance -= (input.defenseScore - config.defenseReference) / config.defenseScale;
   chance += (input.adjustedSpeed - 50) / config.speedScale[input.battedBall];
   chance += (input.adjustedContact - 50) / AT_BAT_BALANCE.ballsInPlay.contactScale;
   chance *= config.directionFactor[input.direction];

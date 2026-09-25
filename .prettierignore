@@ -2,3 +2,5 @@ dist
 node_modules
 legacy
 baseline/season-stats.json
+baseline/franchise-drift.json
+baseline/long-term-development.json

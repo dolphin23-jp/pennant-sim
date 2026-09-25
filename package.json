@@ -21,6 +21,7 @@
     "audit:ai": "tsx scripts/audit-ai-management.ts --strict",
     "audit:development": "tsx scripts/audit-long-term-development.ts --strict",
     "drift": "tsx scripts/franchise-drift.ts",
+    "parity": "tsx scripts/parity-probe.ts",
     "worker:check": "wrangler deploy --dry-run --config worker/wrangler.toml --outdir build",
     "eval:narrative:live": "tsx scripts/eval-narrative-openai.ts"
   },

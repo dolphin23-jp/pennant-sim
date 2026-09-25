@@ -1,5 +1,6 @@
 import { TINFO } from '../data';
 import { calcOVR } from '../engine';
+import type { ForeignLifecycleEvent } from '../engine';
 import type {
   AchievementEvent,
   GameBoxScore,
@@ -10,6 +11,7 @@ import type {
   Team,
   TeamKey,
 } from '../engine';
+import type { NarrativeEvent, TransactionNarrativeEvent } from '../narrative/types';
 import type { Notice } from './storage';
 
 const PARAMETER_LABELS: Partial<Record<keyof PlayerParams, string>> = {
@@ -252,4 +254,103 @@ export function createGameResultNotice(box: GameBoxScore, playerTeam: TeamKey): 
     teamKey: playerTeam,
     gameId: box.gameId,
   };
+}
+
+/** Renewals, releases, MLB moves and adaptation of the user's foreign players. */
+export function createForeignLifecycleNotices(
+  events: ForeignLifecycleEvent[],
+  playerTeam: TeamKey,
+  year: number,
+): Notice[] {
+  return events
+    .filter((event) => event.teamKey === playerTeam)
+    .map((event) => ({
+      id: `foreign:${year}:${event.playerId}:${event.type}`,
+      kind: 'system',
+      title:
+        event.type === 'renewed'
+          ? `${event.name}と${event.contractYearsRemaining}年契約で更新`
+          : event.type === 'mlbTransfer'
+            ? `${event.name}がMLBへ移籍`
+            : event.type === 'released'
+              ? `${event.name}が契約満了で退団`
+              : event.adaptationAfter >= event.adaptationBefore
+                ? `${event.name}が日本野球へ適応`
+                : `${event.name}が日本野球への対応に苦戦`,
+      body: `${event.origin}出身・NPB ${event.npbSeasons}季・適応 ${event.adaptationAfter.toFixed(2)}・OVR ${event.ovr}`,
+      tone:
+        event.type === 'renewed' ||
+        (event.type === 'adaptation' && event.adaptationAfter >= event.adaptationBefore)
+          ? 'good'
+          : event.type === 'mlbTransfer'
+            ? 'info'
+            : 'warn',
+      date: `${year}年オフ`,
+      playerId: event.playerId,
+      teamKey: playerTeam,
+    }));
+}
+
+function freeAgencyNotice(
+  event: TransactionNarrativeEvent,
+  playerTeam: TeamKey,
+): Pick<Notice, 'title' | 'tone'> | null {
+  const from = event.fromTeamKey ? TINFO[event.fromTeamKey].ab : null;
+  const to = event.toTeamKey ? TINFO[event.toTeamKey].ab : null;
+  if (event.transactionKind === 'faSigning') {
+    if (event.fromTeamKey === playerTeam && event.toTeamKey === playerTeam)
+      return { title: `${event.playerName}がFA宣言残留`, tone: 'good' };
+    if (event.fromTeamKey === playerTeam)
+      return { title: `${event.playerName}がFAで${to}へ移籍`, tone: 'warn' };
+    if (event.toTeamKey === playerTeam)
+      return {
+        title: event.returnFromMlb
+          ? `${event.playerName}がMLBから復帰`
+          : from
+            ? `FAで${from}の${event.playerName}を獲得`
+            : `${event.playerName}と契約`,
+        tone: 'good',
+      };
+    return null;
+  }
+  if (event.transactionKind === 'compensation') {
+    if (event.toTeamKey === playerTeam)
+      return { title: `人的補償で${from}の${event.playerName}を獲得`, tone: 'good' };
+    if (event.fromTeamKey === playerTeam)
+      return { title: `${event.playerName}が人的補償で${to}へ移籍`, tone: 'warn' };
+    return null;
+  }
+  // Japanese players' MLB moves carry terms; foreign players' have their own notices.
+  if (
+    event.transactionKind === 'release' &&
+    event.exitReason === 'mlbTransfer' &&
+    event.terms &&
+    event.fromTeamKey === playerTeam
+  )
+    return { title: `${event.playerName}がMLBへ移籍`, tone: 'info' };
+  return null;
+}
+
+/** FA moves, compensation and MLB departures that involve the user's club. */
+export function createFreeAgencyNotices(
+  events: readonly NarrativeEvent[],
+  playerTeam: TeamKey,
+  year: number,
+): Notice[] {
+  return events.flatMap((event) => {
+    if (event.type !== 'transaction') return [];
+    const notice = freeAgencyNotice(event, playerTeam);
+    if (!notice) return [];
+    return [
+      {
+        id: `fa:${event.id}`,
+        kind: 'system' as const,
+        ...notice,
+        body: event.terms ?? '',
+        date: `${year}年オフ`,
+        playerId: event.playerId,
+        teamKey: playerTeam,
+      },
+    ];
+  });
 }

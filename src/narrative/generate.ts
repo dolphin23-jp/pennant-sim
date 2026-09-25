@@ -339,9 +339,24 @@ function articleFromTransaction(event: TransactionNarrativeEvent): NarrativeArti
   if (event.transactionKind === 'trade' && from && to) {
     headline = `${event.playerName}、${from}から${to}へトレード`;
     sentence = `${event.playerName}が${from}から${to}へトレードで移籍した。`;
+  } else if (event.transactionKind === 'faSigning' && to && event.returnFromMlb) {
+    headline = `${event.playerName}、MLBから${to}で日本球界復帰`;
+    sentence = `MLBでプレーしていた${event.playerName}が${to}と契約し、日本球界に復帰した。`;
+  } else if (event.transactionKind === 'faSigning' && to && event.fromTeamKey === event.toTeamKey) {
+    headline = `${event.playerName}、FA宣言して${to}に残留`;
+    sentence = `FA権を行使した${event.playerName}が${to}と再契約した。`;
+  } else if (event.transactionKind === 'faSigning' && to && from) {
+    headline = `${to}、FAで${from}の${event.playerName}を獲得`;
+    sentence = `${from}からFA宣言した${event.playerName}が${to}へ移籍した。`;
   } else if (event.transactionKind === 'faSigning' && to) {
     headline = `${to}、FAで${event.playerName}を獲得`;
     sentence = `${event.playerName}がFAで${to}へ加入した。`;
+  } else if (event.transactionKind === 'compensation' && from && to) {
+    headline = `${event.playerName}、人的補償で${to}へ`;
+    sentence = `${event.playerName}が人的補償として${from}から${to}へ移籍した。`;
+  } else if (event.transactionKind === 'release' && from && event.exitReason === 'mlbTransfer') {
+    headline = `${event.playerName}、${from}からMLBへ移籍`;
+    sentence = `${event.playerName}が${from}を退団し、MLB球団へ移籍した。`;
   } else if (event.transactionKind === 'foreignSigning' && to) {
     headline = `${to}、${event.playerName}を新外国人として獲得`;
     sentence = `${event.playerName}が新外国人選手として${to}へ加入した。`;
@@ -364,7 +379,7 @@ function articleFromTransaction(event: TransactionNarrativeEvent): NarrativeArti
   const segments = [factual(sentence, [eventRef])];
   if (event.cashAmountManYen)
     segments.push(factual(`金銭${event.cashAmountManYen}万円を含むトレードとなった。`, [eventRef]));
-  if (event.exitReason === 'mlbTransfer')
+  if (event.exitReason === 'mlbTransfer' && !event.terms)
     segments.push(factual('MLBへの移籍に伴い退団した。', [eventRef]));
   if (event.terms) segments.push(factual(event.terms, [eventRef]));
   return makeArticle({

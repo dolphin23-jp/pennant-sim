@@ -245,7 +245,8 @@ export function simHalf(
       },
       fieldingLead =
         fieldingSide === 'home' ? liveScore.home - liveScore.away : liveScore.away - liveScore.home,
-      close = Math.abs(fieldingLead) <= 3,
+      // The closer protects a lead (or holds a tie) late, not a deficit.
+      close = fieldingLead >= 0 && fieldingLead <= 3,
       closers = available.filter((p) => p.role === 'クローザー'),
       relievers = available.filter((p) => p.role === 'リリーフ');
     const forceLateCloser =
@@ -263,7 +264,7 @@ export function simHalf(
     let reason: string;
     if (forceLateCloser) {
       nextPitcher = selectCloserByPriority(closers, closerPriority) as Player;
-      reason = '終盤3点差以内のためクローザーを投入';
+      reason = '9回以降の同点または3点差以内のリードでクローザーを投入';
     } else if (relievers.length) {
       const ordered = orderByPriority(relievers, bullpenPriority, strategicScores);
       const lowLeverage = inning < 6 || Math.abs(fieldingLead) >= 4;

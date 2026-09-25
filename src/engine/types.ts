@@ -152,13 +152,41 @@ export interface Player {
   foreignProfile?: ForeignPlayerProfile;
   /** 守備位置コンバート練習の対象。オフシーズンごとに当該ポジションの適性が徐々に上がる。 */
   conversionTarget?: { pos: FieldPosition; startedAge: number };
+  /** 年俸（万円）。旧セーブでは読み込み時に推定値が入る。 */
+  salary?: number;
+  /** Seasons left on the current contract, the coming one included; 0 means expired. */
+  contractYears?: number;
+  /** Seasons of top-team service, the basis of FA rights. */
+  serviceYears?: number;
+  /** serviceYears when FA rights were last exercised; they return after four more. */
+  faExercisedAt?: number;
+  /** Market-only: the club a declared free agent left and his compensation rank. */
+  faFrom?: TeamKey;
+  faRank?: FreeAgentRank;
+  /** Market-only: contract length the player asks for, with `ask` as the yearly salary. */
+  askYears?: number;
+  /** Playing in MLB since this offseason; `homeTeam` is the NPB club he left (and the one
+   * he is drawn back to on his return). */
+  abroadSince?: number;
+  homeTeam?: TeamKey;
+  /** Seasons played in MLB before returning to NPB. A returnee does not leave again. */
+  mlbSeasons?: number;
   [key: string]: unknown;
+}
+/** 人的補償 ranks: A and B bring the former club a player (or cash); C brings nothing. */
+export type FreeAgentRank = 'A' | 'B' | 'C';
+/** A club's money, in 万円: the payroll budget for the coming season and the revenue it
+ * followed from. Missing on legacy saves; defaults come from the club's market size. */
+export interface TeamFinance {
+  budget: number;
+  revenue: number;
 }
 export interface Team extends TeamInfo {
   key: TeamKey;
   pitchers: Player[];
   fielders: Player[];
   rotSize: number;
+  finance?: TeamFinance;
 }
 export type Teams = Record<TeamKey, Team>;
 export type Side = 'home' | 'away';

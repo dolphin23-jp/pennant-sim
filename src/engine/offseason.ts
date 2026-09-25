@@ -1,18 +1,49 @@
 import { emitRosterExits } from './narrativeEvents';
 import type { NarrativeEvent, NarrativeEventContext } from '../narrative/types';
-import { CENTRAL, FOREIGN_PLAYER_BALANCE, MATURITY_PEAK_AGE, PACIFIC } from '../data';
+import {
+  CENTRAL,
+  FIELD_POSITIONS,
+  FOREIGN_PLAYER_BALANCE,
+  MATURITY_PEAK_AGE,
+  PACIFIC,
+  RETIREMENT_BALANCE,
+} from '../data';
+import {
+  accrueServiceTime,
+  estimatedSalary,
+  performanceSignal,
+  renewContracts,
+  updateTeamFinances,
+  withTeamContractDefaults,
+  type SeasonOutcome,
+} from './contracts';
+import { clubPlanFor, planRetentionAdjustment, type ClubPlan } from './clubPlan';
 import type { DraftPick } from './draft';
 import { runCpuDraft } from './draftPrePro';
 import { foreignPerformanceMultiplier, isForeignPlayer } from './foreign';
+import {
+  advanceOverseasPlayers,
+  declareFreeAgents,
+  resolveMlbDepartures,
+  returnUnsignedFreeAgents,
+  type MlbDeparture,
+} from './freeAgency';
 import { growthPhase } from './growth';
-import { cpuAutoSignMarketRounds, genForeignMarket, genFreeAgentMarket } from './market';
-import { clamp, gaussian, random, randomInt } from './random';
+import {
+  cpuAutoSignMarketRounds,
+  cpuAutoTradeBetweenTeams,
+  genForeignMarket,
+  genFreeAgentMarket,
+  withoutMarketFields,
+} from './market';
+import { clamp, gaussian, random, randomChoice, randomInt } from './random';
+import { generateBatter, generatePitcher, initTeams } from './players';
 import { calcOVR } from './ratings';
 import type {
   AccumulatedStats,
+  FieldPosition,
   ForeignPlayerProfile,
   Player,
-  PlayerStats,
   Team,
   TeamKey,
   Teams,
@@ -20,6 +51,7 @@ import type {
 
 export type RosterExitReason =
   | 'mandatoryRetirement'
+  | 'voluntaryRetirement'
   | 'ageAndPerformance'
   | 'draftOpportunity'
   | 'rosterCompetition'
@@ -34,6 +66,8 @@ export interface RosterExit {
   isPitcher: boolean;
   ovr: number;
   reason: RosterExitReason;
+  /** The player as he left, so his record can be archived with the retired players. */
+  player: Player;
 }
 
 export interface CpuRosterOptions {
@@ -45,6 +79,8 @@ export interface CpuRosterOptions {
   minimumFielders?: number;
   year?: number;
   seasonStats?: AccumulatedStats;
+  /** Last season, so each club's winter plan can shape its cuts. */
+  outcome?: SeasonOutcome;
 }
 
 export interface ForeignLifecycleEvent {
@@ -72,6 +108,13 @@ export interface AutomatedOffseasonResult {
   foreignRenewals: number;
   foreignReleases: number;
   mlbTransfers: number;
+  /** Japanese stars who left for MLB this winter (also in exits). */
+  mlbDepartures: MlbDeparture[];
+  /** Players who declared free agency, and how many of them changed clubs. */
+  declaredFreeAgents: Player[];
+  freeAgentMoves: number;
+  /** Players in MLB after this winter. */
+  overseas: Player[];
   narrativeEvents: NarrativeEvent[];
 }
 
@@ -96,24 +139,6 @@ function legacyForeignProfile(player: Player, year: number): ForeignPlayerProfil
       adaptationFactor: 1,
     }
   );
-}
-
-function performanceSignal(player: Player, stats: PlayerStats | undefined): number {
-  if (!stats) return 0;
-  if (!player.isP && stats.type === 'bat') {
-    const onBase = stats.ab + stats.bb > 0 ? (stats.h + stats.bb) / (stats.ab + stats.bb) : 0;
-    const totalBases = stats.s + stats.d * 2 + stats.t * 3 + stats.hr * 4;
-    const slugging = stats.ab > 0 ? totalBases / stats.ab : 0;
-    const reliability = clamp(stats.pa / 360, 0, 1);
-    return clamp(((onBase + slugging - 0.7) / 0.35) * reliability, -1, 1);
-  }
-  if (player.isP && stats.type === 'pit') {
-    const era = stats.ip3 > 0 ? (stats.er * 27) / stats.ip3 : 9;
-    const strikeoutWalkSignal = (stats.k - stats.bb * 2) / Math.max(40, stats.ip3 / 3);
-    const reliability = clamp(stats.ip3 / 240, 0, 1);
-    return clamp(((3.4 - era) / 2.5 + strikeoutWalkSignal * 0.15) * reliability, -1, 1);
-  }
-  return 0;
 }
 
 function evolvedAdaptation(current: number, performance: number): number {
@@ -205,6 +230,7 @@ export function reviewForeignPlayers(
           isPitcher: player.isP,
           ovr,
           reason: 'mlbTransfer',
+          player,
         });
         return null;
       }
@@ -221,6 +247,7 @@ export function reviewForeignPlayers(
           isPitcher: player.isP,
           ovr,
           reason: 'foreignRelease',
+          player,
         });
         return null;
       }
@@ -251,7 +278,7 @@ export function reviewForeignPlayers(
   return { teams: next, exits, events };
 }
 
-function retentionScore(player: Player): number {
+function retentionScore(player: Player, plan?: ClubPlan): number {
   const agePenalty = player.age <= 30 ? 0 : (player.age - 30) * (player.age >= 38 ? 1.8 : 1.05);
   const potentialGap = Math.max(
     0,
@@ -270,20 +297,50 @@ function retentionScore(player: Player): number {
   const foreignContractBonus = isForeignPlayer(player)
     ? 16 + (player.foreignProfile?.contractYearsRemaining ?? 1) * 4
     : 0;
-  return playerOvr(player) - agePenalty + potentialBonus + foreignContractBonus;
+  return (
+    playerOvr(player) -
+    agePenalty +
+    potentialBonus +
+    foreignContractBonus +
+    planRetentionAdjustment(plan, player)
+  );
 }
 
-function exitReason(player: Player, forcedForDraft: boolean): RosterExitReason {
+function voluntaryRetirementChance(player: Player): number {
+  if (player.age < RETIREMENT_BALANCE.startAge || player.age >= 42) return 0;
+  const byAge =
+      RETIREMENT_BALANCE.chanceByAge[player.age as keyof typeof RETIREMENT_BALANCE.chanceByAge] ??
+      0,
+    ovr = playerOvr(player);
+  return (
+    byAge *
+    (ovr >= RETIREMENT_BALANCE.legendOvr
+      ? RETIREMENT_BALANCE.legendMultiplier
+      : ovr >= RETIREMENT_BALANCE.starOvr
+        ? RETIREMENT_BALANCE.starMultiplier
+        : ovr <= RETIREMENT_BALANCE.fringeOvr
+          ? RETIREMENT_BALANCE.fringeMultiplier
+          : 1)
+  );
+}
+
+function exitReason(
+  player: Player,
+  forcedForDraft: boolean,
+  retiring: ReadonlySet<string>,
+): RosterExitReason {
   if (player.age >= 42) return 'mandatoryRetirement';
+  if (retiring.has(player.id)) return 'voluntaryRetirement';
   if (player.age >= 35 && playerOvr(player) <= 55) return 'ageAndPerformance';
   return forcedForDraft ? 'draftOpportunity' : 'rosterCompetition';
 }
 
-function removalPriority(player: Player): number {
+function removalPriority(player: Player, retiring: ReadonlySet<string>): number {
   if (player.age >= 42) return 0;
-  if (player.age >= 35 && playerOvr(player) <= 55) return 1;
-  if (isForeignPlayer(player) && (player.foreignProfile?.contractYearsRemaining ?? 0) > 0) return 3;
-  return 2;
+  if (retiring.has(player.id)) return 1;
+  if (player.age >= 35 && playerOvr(player) <= 55) return 2;
+  if (isForeignPlayer(player) && (player.foreignProfile?.contractYearsRemaining ?? 0) > 0) return 4;
+  return 3;
 }
 
 function removePlayers(
@@ -292,18 +349,30 @@ function removePlayers(
   pitcherRemovals: number,
   fielderRemovals: number,
   reasonMode: 'draft' | 'competition',
-  options: Required<Omit<CpuRosterOptions, 'excludedTeam'>>,
+  options: ReturnType<typeof resolvedOptions>,
 ): { team: Team; exits: RosterExit[] } {
   const exits: RosterExit[] = [];
+  const plan = clubPlanFor(team, options.outcome);
+  // Veterans decide once per winter, before the draft, whether this is their last season.
+  const retiring = new Set(
+    reasonMode === 'draft'
+      ? [...team.pitchers, ...team.fielders]
+          .filter((player) => {
+            const chance = voluntaryRetirementChance(player);
+            return chance > 0 && random() < chance;
+          })
+          .map((player) => player.id)
+      : [],
+  );
   const choose = (players: Player[], count: number, minimum: number): Player[] => {
     const ordered = [...players].sort(
       (first, second) =>
-        removalPriority(first) - removalPriority(second) ||
-        retentionScore(first) - retentionScore(second),
+        removalPriority(first, retiring) - removalPriority(second, retiring) ||
+        retentionScore(first, plan) - retentionScore(second, plan),
     );
     // Mandatory retirements (sorted first) always happen; the roster minimum only limits
     // discretionary releases. The draft and free-agent phases refill the roster afterwards.
-    const mandatory = ordered.filter((player) => removalPriority(player) === 0).length;
+    const mandatory = ordered.filter((player) => removalPriority(player, retiring) === 0).length;
     const removable = Math.max(mandatory, players.length - minimum);
     return ordered.slice(0, Math.min(Math.max(count, mandatory), removable));
   };
@@ -318,7 +387,8 @@ function removePlayers(
       age: player.age,
       isPitcher: player.isP,
       ovr: playerOvr(player),
-      reason: exitReason(player, reasonMode === 'draft'),
+      reason: exitReason(player, reasonMode === 'draft', retiring),
+      player,
     });
   }
   return {
@@ -332,10 +402,11 @@ function removePlayers(
 }
 
 function resolvedOptions(options: CpuRosterOptions): Required<
-  Omit<CpuRosterOptions, 'excludedTeam' | 'seasonStats'>
+  Omit<CpuRosterOptions, 'excludedTeam' | 'seasonStats' | 'outcome'>
 > & {
   excludedTeam: TeamKey | null;
   seasonStats: AccumulatedStats;
+  outcome: SeasonOutcome | undefined;
 } {
   return {
     excludedTeam: options.excludedTeam ?? null,
@@ -346,6 +417,7 @@ function resolvedOptions(options: CpuRosterOptions): Required<
     minimumFielders: options.minimumFielders ?? DEFAULTS.minimumFielders,
     year: options.year ?? 2026,
     seasonStats: options.seasonStats ?? {},
+    outcome: options.outcome,
   };
 }
 
@@ -406,16 +478,168 @@ export function finalizeCpuRosters(
       'competition',
       resolved,
     );
-    next[teamKey] = result.team;
+    next[teamKey] = withRosterShortfallsFilled(result.team, teamKey, resolved);
     exits.push(...result.exits);
   }
   emitRosterExits(context, exits);
   return { teams: next, exits };
 }
 
+/** A development-squad (育成) player promoted to the roster. */
+function promotedPlayer(teamKey: TeamKey, pitcher: boolean, position?: FieldPosition): Player {
+  const age = randomInt(19, 23);
+  const quality = clamp(gaussian(50, 7), 36, 66);
+  const generated = pitcher
+    ? generatePitcher(teamKey, age, quality, random() < 0.45 ? '先発' : 'リリーフ')
+    : generateBatter(teamKey, age, position ?? randomChoice(FIELD_POSITIONS), quality);
+  const promoted: Player = {
+    ...generated,
+    tk: teamKey,
+    draftOrigin: age <= 20 ? '高卒' : '大卒',
+    signedVia: '育成から支配下登録',
+    serviceYears: 0,
+    contractYears: 1,
+  };
+  return { ...promoted, salary: estimatedSalary(promoted) };
+}
+
+/**
+ * A club that ended the winter short (players who left in free agency or for MLB and were
+ * not replaced) promotes development-squad players to keep its roster at the target.
+ */
+function withRosterShortfallsFilled(
+  team: Team,
+  teamKey: TeamKey,
+  options: { targetPitchers: number; targetFielders: number },
+): Team {
+  const pitcherShortfall = Math.max(0, options.targetPitchers - team.pitchers.length);
+  const fielderShortfall = Math.max(0, options.targetFielders - team.fielders.length);
+  if (!pitcherShortfall && !fielderShortfall) return team;
+  const fielders = [...team.fielders];
+  for (let index = 0; index < fielderShortfall; index += 1) {
+    const thinnest = [...FIELD_POSITIONS].sort(
+      (first, second) =>
+        fielders.filter((player) => player.pos === first).length -
+        fielders.filter((player) => player.pos === second).length,
+    )[0];
+    fielders.push(promotedPlayer(teamKey, false, thinnest));
+  }
+  return {
+    ...team,
+    pitchers: [
+      ...team.pitchers,
+      ...Array.from({ length: pitcherShortfall }, () => promotedPlayer(teamKey, true)),
+    ],
+    fielders,
+  };
+}
+
+/**
+ * The first half of every winter, shared by the automated and interactive offseasons:
+ * foreign contract reviews, service time, growth, the budgets that follow last season's
+ * revenue, stars leaving for MLB, FA declarations, and the CPU clubs' pre-draft cuts.
+ * `userTeam` (when the user manages the winter) makes its own cuts and never posts.
+ */
+export function openOffseason(
+  teams: Teams,
+  options: {
+    year: number;
+    seasonStats?: AccumulatedStats;
+    outcome?: SeasonOutcome;
+    userTeam?: TeamKey | null;
+    /** Players currently in MLB. */
+    overseas?: readonly Player[];
+  },
+  context?: NarrativeEventContext,
+) {
+  const seasonStats = options.seasonStats ?? {};
+  const abroad = advanceOverseasPlayers(options.overseas ?? [], options.year);
+  const foreignReview = reviewForeignPlayers(
+    withTeamContractDefaults(teams),
+    seasonStats,
+    options.year,
+    context,
+  );
+  const served = accrueServiceTime(foreignReview.teams, seasonStats);
+  const growth = growthPhase(served, context);
+  const funded = updateTeamFinances(growth.teams, options.outcome);
+  const mlb = resolveMlbDepartures(
+    funded,
+    { year: options.year, outcome: options.outcome, consentWithheldBy: options.userTeam ?? null },
+    context,
+  );
+  const declaration = declareFreeAgents(mlb.teams, { outcome: options.outcome });
+  const prepared = prepareCpuRostersForDraft(
+    declaration.teams,
+    { excludedTeam: options.userTeam ?? null, year: options.year, outcome: options.outcome },
+    context,
+  );
+  return {
+    foreignReview,
+    growth,
+    mlb,
+    declared: declaration.declared,
+    prepared,
+    teams: prepared.teams,
+    /** The domestic market: this winter's declared free agents, players back from MLB and
+     * the journeymen. */
+    freeAgentMarket: [...declaration.declared, ...abroad.returning, ...genFreeAgentMarket()],
+    /** Players in MLB after this winter's departures (returning players not included). */
+    overseas: [...abroad.overseas, ...mlb.abroad],
+  };
+}
+
+/** CPU bidding for the domestic market; declared free agents nobody signed go home. */
+export function settleFreeAgency(
+  teams: Teams,
+  market: Player[],
+  options: { excludedTeam?: TeamKey | null; outcome?: SeasonOutcome; rounds?: number } = {},
+  context?: NarrativeEventContext,
+): {
+  teams: Teams;
+  remaining: Player[];
+  signed: number;
+  moved: number;
+  /** Players back from MLB whom no club signed; they stay abroad. */
+  unsignedReturnees: Player[];
+} {
+  const bidding = cpuAutoSignMarketRounds(
+    teams,
+    market,
+    'fa',
+    options.rounds ?? 4,
+    options.excludedTeam ?? null,
+    context,
+    options.outcome,
+  );
+  const unsigned = returnUnsignedFreeAgents(bidding.teams, bidding.remaining, context);
+  const remainingIds = new Set(bidding.remaining.map((player) => player.id));
+  const signed = market.filter((player) => !remainingIds.has(player.id));
+  const onRoster = new Map(
+    Object.values(bidding.teams).flatMap((team) =>
+      [...team.pitchers, ...team.fielders].map((player) => [player.id, team.key] as const),
+    ),
+  );
+  return {
+    teams: unsigned.teams,
+    remaining: bidding.remaining.filter((player) => !player.faFrom),
+    unsignedReturnees: bidding.remaining
+      .filter((player) => player.abroadSince != null)
+      .map((player) => ({
+        ...withoutMarketFields(player),
+        tk: 'foreign' as const,
+        abroadSince: player.abroadSince,
+        homeTeam: player.homeTeam,
+      })),
+    signed: signed.length,
+    moved: signed.filter((player) => player.faFrom && onRoster.get(player.id) !== player.faFrom)
+      .length,
+  };
+}
+
 export function runAutomatedOffseason(
   teams: Teams,
-  options: CpuRosterOptions = {},
+  options: CpuRosterOptions & { outcome?: SeasonOutcome; overseas?: readonly Player[] } = {},
 ): AutomatedOffseasonResult {
   const resolved = resolvedOptions(options);
   const narrativeEvents: NarrativeEvent[] = [];
@@ -424,17 +648,21 @@ export function runAutomatedOffseason(
     date: `${resolved.year}年オフ`,
     emit: (e) => narrativeEvents.push(e),
   };
-  const foreignReview = reviewForeignPlayers(teams, resolved.seasonStats, resolved.year, context);
-  const growth = growthPhase(foreignReview.teams, context);
-  const prepared = prepareCpuRostersForDraft(growth.teams, resolved, context);
-  const freeAgents = genFreeAgentMarket();
+  const opened = openOffseason(
+    teams,
+    {
+      year: resolved.year,
+      seasonStats: resolved.seasonStats,
+      outcome: options.outcome,
+      overseas: options.overseas,
+    },
+    context,
+  );
   const foreignPlayers = genForeignMarket(resolved.year + 1);
-  const afterFreeAgents = cpuAutoSignMarketRounds(
-    prepared.teams,
-    freeAgents,
-    'fa',
-    4,
-    resolved.excludedTeam,
+  const afterFreeAgents = settleFreeAgency(
+    opened.teams,
+    opened.freeAgentMarket,
+    { excludedTeam: resolved.excludedTeam, outcome: options.outcome },
     context,
   );
   const afterForeign = cpuAutoSignMarketRounds(
@@ -444,23 +672,163 @@ export function runAutomatedOffseason(
     4,
     resolved.excludedTeam,
     context,
+    options.outcome,
   );
   const draft = runCpuDraft(afterForeign.teams, resolved.draftRounds, context);
   const finalized = finalizeCpuRosters(draft.teams, resolved, context);
+  const foreignReview = opened.foreignReview;
   return {
     narrativeEvents,
-    teams: finalized.teams,
-    growthTeams: growth.teams,
-    awakeningEvents: growth.awakeEvents,
-    exits: [...foreignReview.exits, ...prepared.exits, ...finalized.exits],
+    teams: renewContracts(finalized.teams, resolved.seasonStats),
+    growthTeams: opened.growth.teams,
+    awakeningEvents: opened.growth.awakeEvents,
+    exits: [
+      ...foreignReview.exits,
+      ...opened.mlb.exits,
+      ...opened.prepared.exits,
+      ...finalized.exits,
+    ],
     draftPicks: draft.picks,
-    freeAgentSignings: freeAgents.length - afterFreeAgents.remaining.length,
+    freeAgentSignings: afterFreeAgents.signed,
     foreignSignings: foreignPlayers.length - afterForeign.remaining.length,
     foreignLifecycleEvents: foreignReview.events,
     foreignRenewals: foreignReview.events.filter((event) => event.type === 'renewed').length,
     foreignReleases: foreignReview.events.filter((event) => event.type === 'released').length,
     mlbTransfers: foreignReview.events.filter((event) => event.type === 'mlbTransfer').length,
+    mlbDepartures: opened.mlb.departures,
+    declaredFreeAgents: opened.declared,
+    freeAgentMoves: afterFreeAgents.moved,
+    overseas: [...opened.overseas, ...afterFreeAgents.unsignedReturnees],
   };
+}
+
+export interface FullOffseasonResult {
+  teams: Teams;
+  /** Every player who left a roster this winter (retired, released, or moved abroad). */
+  exits: RosterExit[];
+  foreignReview: ReturnType<typeof reviewForeignPlayers>;
+  growth: ReturnType<typeof growthPhase>;
+  draftPicks: DraftPick[];
+  freeAgentSignings: number;
+  foreignSignings: number;
+  mlbDepartures: MlbDeparture[];
+  declaredFreeAgents: Player[];
+  freeAgentMoves: number;
+  overseas: Player[];
+}
+
+/**
+ * The whole offseason with every club, the user's included, managed by the CPU: the same
+ * order the interactive offseason screen follows (foreign review, service time, growth,
+ * budgets, MLB departures, FA declarations, pre-draft cuts, the FA and foreign markets, CPU
+ * trades, the draft in standings order, final cuts, contract renewals). The user's club
+ * takes part in cuts, signings and the draft but is never traded away.
+ */
+export function runFullOffseason(
+  teams: Teams,
+  options: {
+    year: number;
+    seasonStats: AccumulatedStats;
+    draftOrder: TeamKey[];
+    userTeam: TeamKey;
+    outcome?: SeasonOutcome;
+    overseas?: readonly Player[];
+  },
+  context?: NarrativeEventContext,
+): FullOffseasonResult {
+  const opened = openOffseason(
+    teams,
+    {
+      year: options.year,
+      seasonStats: options.seasonStats,
+      outcome: options.outcome,
+      overseas: options.overseas,
+    },
+    context,
+  );
+  const rosterOptions: CpuRosterOptions = {
+    excludedTeam: null,
+    year: options.year,
+    outcome: options.outcome,
+  };
+  const foreignMarket = genForeignMarket(options.year + 1);
+  const afterFreeAgents = settleFreeAgency(
+    opened.teams,
+    opened.freeAgentMarket,
+    { excludedTeam: null, outcome: options.outcome },
+    context,
+  );
+  const afterForeign = cpuAutoSignMarketRounds(
+    afterFreeAgents.teams,
+    foreignMarket,
+    'foreign',
+    4,
+    null,
+    context,
+    options.outcome,
+  );
+  const traded = cpuAutoTradeBetweenTeams(
+    afterForeign.teams,
+    options.userTeam,
+    8,
+    context,
+    options.outcome,
+  );
+  const draft = runCpuDraft(traded, DEFAULTS.draftRounds, context, options.draftOrder);
+  const finalized = finalizeCpuRosters(draft.teams, rosterOptions, context);
+  return {
+    teams: renewContracts(finalized.teams, options.seasonStats),
+    exits: [
+      ...opened.foreignReview.exits,
+      ...opened.mlb.exits,
+      ...opened.prepared.exits,
+      ...finalized.exits,
+    ],
+    foreignReview: opened.foreignReview,
+    growth: opened.growth,
+    draftPicks: draft.picks,
+    freeAgentSignings: afterFreeAgents.signed,
+    foreignSignings: foreignMarket.length - afterForeign.remaining.length,
+    mlbDepartures: opened.mlb.departures,
+    declaredFreeAgents: opened.declared,
+    freeAgentMoves: afterFreeAgents.moved,
+    overseas: [...opened.overseas, ...afterFreeAgents.unsignedReturnees],
+  };
+}
+
+/**
+ * Offseasons run on freshly generated rosters before a world opens. Generated rosters
+ * start well below the talent level the draft, growth and retirement cycle settles at,
+ * and the generated record-class stars retire before home-grown ones replace them (a dip
+ * in stars around years 10-16), so without this the first two decades of every world played
+ * in a different era from the rest, and balance tuned on the opening season did not describe
+ * the league a long-term player actually watches.
+ */
+export const SETTLED_LEAGUE_BURN_IN_YEARS = 20;
+
+export function initSettledTeams(
+  firstSeason = 2026,
+  burnInYears = SETTLED_LEAGUE_BURN_IN_YEARS,
+): Teams {
+  return initSettledWorld(firstSeason, burnInYears).teams;
+}
+
+/** The settled league and the stars it has already sent to MLB, who may come back. */
+export function initSettledWorld(
+  firstSeason = 2026,
+  burnInYears = SETTLED_LEAGUE_BURN_IN_YEARS,
+): { teams: Teams; overseas: Player[] } {
+  let teams = withTeamContractDefaults(initTeams());
+  let overseas: Player[] = [];
+  for (let index = 0; index < burnInYears; index += 1) {
+    const offseason = runAutomatedOffseason(teams, {
+      year: firstSeason - burnInYears + index,
+      overseas,
+    });
+    teams = offseason.teams;
+    overseas = offseason.overseas;
+  }
+  return { teams, overseas };
 }
 
 /** Called by the user-retirement command, before removing the explicitly selected players. */

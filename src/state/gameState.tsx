@@ -1,8 +1,8 @@
-import { type ArticleArchive, type ArticleSnapshot, validSnapshot } from '../narrative/protocol';
-import { appendNarrativeEventsSafe } from '../narrative/ledger';
+import { type ArticleSnapshot, validSnapshot } from '../narrative/protocol';
+
 import { resumeSeasonScreen } from './seasonProgress';
-import type { NarrativeEvent, NarrativeEventLedger } from '../narrative/types';
-import { narrativeEventsFromPostGame, seasonReviewEvents } from '../engine/narrativeEvents';
+import type { NarrativeEvent } from '../narrative/types';
+import { narrativeEventsFromPostGame } from '../engine/narrativeEvents';
 import {
   createContext,
   useCallback,
@@ -17,93 +17,48 @@ import {
 import {
   accumulateStats,
   accumulateStatsAll,
-  aggregateTeamStats,
   bestLineup,
   buildGameBoxScore,
-  calcOVR,
   calcStandings,
   createFictionalLeagueHistory,
-  createPlayerSeasonRecords,
   detectAchievements,
   generateSchedule,
-  initTeams,
+  initSettledWorld,
   registerExistingNames,
-  selectSeasonTitles,
   simCpuUntilNext,
   simulateGame,
-  skipGamesWithPitcherPlan,
   toSummary,
 } from '../engine';
-import type {
-  AccumulatedStats,
-  AchievementEvent,
-  GameBoxScore,
-  GameState,
-  GameSummary,
-  Player,
-  PlayerStats,
-  SeasonTitleRecord,
-  StandingRecord,
-  TeamKey,
-  Teams,
-  YearlyPlayerRecords,
-} from '../engine';
+import type { Player, TeamKey, Teams } from '../engine';
 import {
   createAchievementNotices,
   createGameResultNotice,
   createInSeasonDevelopmentNotices,
-  createSkippedInSeasonDevelopmentNotices,
   mergeNotices,
 } from './notices';
 import {
-  createEmptyPitcherPlan,
   createEmptyRotations,
   loadGame,
   saveGame,
-  type ChampionRecord,
   type GameSaveData,
   type Notice,
   type PitcherPlan,
-  type SeasonState,
 } from './storage';
+import {
+  advanceOneYear,
+  applyChampionship,
+  applyOffseasonCompletion,
+  applySkip,
+  initialState,
+  mergeStats,
+  nextAutosaveSeq,
+  withNarrativeEvents,
+  type AdvanceProgress,
+  type GameScreen,
+  type RuntimeState,
+} from './runtime';
 
-export type GameScreen = 'welcome' | 'teamSelect' | 'season' | 'postseason' | 'offseason';
-
-interface RuntimeState {
-  worldId: string;
-  narrativeArticles: ArticleArchive;
-  loading: boolean;
-  loadError: string | null;
-  screen: GameScreen;
-  teams: Teams | null;
-  playerTeam: TeamKey | null;
-  viewTeam: TeamKey | null;
-  season: SeasonState;
-  rotN: Record<TeamKey, number>;
-  lineup: Player[];
-  pitcherPlan: PitcherPlan;
-  standings: Record<TeamKey, StandingRecord>;
-  accumulated: AccumulatedStats;
-  leagueAccumulated: AccumulatedStats;
-  careerAccumulated: AccumulatedStats;
-  leagueCareerAccumulated: AccumulatedStats;
-  yearlyStats: YearlyPlayerRecords;
-  retiredPlayers: Player[];
-  notices: Notice[];
-  championHistory: ChampionRecord[];
-  awardHistory: SeasonTitleRecord[];
-  achievementHistory: AchievementEvent[];
-  narrativeEvents: NarrativeEventLedger;
-  narrativeQuarantine?: unknown[];
-  lastGame: GameState | null;
-  selectedPlayer: Player | null;
-  gameSummaries: Record<string, GameSummary>;
-  gameBoxScores: Record<string, GameBoxScore>;
-  selectedGameId: string | null;
-  /** Set to a fresh sequence number by any update that should be persisted; the autosave
-   * effect saves whenever it changes. */
-  autosaveSeq: number;
-}
+export type { AdvanceProgress, GameScreen } from './runtime';
 
 interface GameContextValue extends RuntimeState {
   recordNarrativeArticle(world: string, snapshot: ArticleSnapshot): void;
@@ -113,6 +68,11 @@ interface GameContextValue extends RuntimeState {
   chooseTeam(teamKey: TeamKey): void;
   simulateNextGame(): void;
   skip(mode: 'next' | 'week' | 'month' | 'season'): void;
+  /** Hand whole years to the CPU (season, postseason, offseason), one year per render. */
+  advanceYears(years: number): Promise<void>;
+  /** Stop a running advanceYears after the year in progress. */
+  cancelAdvance(): void;
+  advanceProgress: AdvanceProgress | null;
   saveCurrent(): Promise<boolean>;
   setScreen(screen: GameScreen): void;
   setViewTeam(teamKey: TeamKey): void;
@@ -132,80 +92,13 @@ interface GameContextValue extends RuntimeState {
     developmentNotices?: Notice[],
     events?: NarrativeEvent[],
     retired?: Player[],
+    overseas?: Player[],
   ): void;
   recordChampionship(champion: TeamKey, runnerUp: TeamKey, events?: NarrativeEvent[]): void;
 }
 
 const DEBUG_MODE_KEY = 'pennant-sim:debugMode';
-
-const initialState: RuntimeState = {
-  worldId: '',
-  narrativeArticles: {},
-  loading: true,
-  loadError: null,
-  screen: 'welcome',
-  teams: null,
-  playerTeam: null,
-  viewTeam: null,
-  season: { year: 2026, schedule: [] },
-  rotN: createEmptyRotations(),
-  lineup: [],
-  pitcherPlan: createEmptyPitcherPlan(),
-  standings: calcStandings([]),
-  accumulated: {},
-  leagueAccumulated: {},
-  careerAccumulated: {},
-  leagueCareerAccumulated: {},
-  yearlyStats: {},
-  retiredPlayers: [],
-  notices: [],
-  championHistory: [],
-  awardHistory: [],
-  achievementHistory: [],
-  narrativeEvents: {},
-  lastGame: null,
-  selectedPlayer: null,
-  gameSummaries: {},
-  gameBoxScores: {},
-  selectedGameId: null,
-  autosaveSeq: 0,
-};
-
 const GameContext = createContext<GameContextValue | null>(null);
-
-/** Append new ledger facts inside a state update. A rejected event is quarantined (and kept
- * in the save) instead of throwing, which would abort the update and every later autosave. */
-function withNarrativeEvents(
-  current: Pick<RuntimeState, 'narrativeEvents' | 'narrativeQuarantine'>,
-  events: readonly NarrativeEvent[],
-): Pick<RuntimeState, 'narrativeEvents' | 'narrativeQuarantine'> {
-  const { ledger, rejected } = appendNarrativeEventsSafe(current.narrativeEvents, events);
-  if (!rejected.length) return { narrativeEvents: ledger };
-  console.warn(`${rejected.length} narrative event(s) failed validation and were quarantined.`);
-  return {
-    narrativeEvents: ledger,
-    narrativeQuarantine: [...(current.narrativeQuarantine ?? []), ...rejected],
-  };
-}
-
-function mergeStats(base: AccumulatedStats, addition: AccumulatedStats): AccumulatedStats {
-  const merged: AccumulatedStats = { ...base };
-  for (const [playerId, nextLine] of Object.entries(addition)) {
-    const current = merged[playerId];
-    if (!current) {
-      merged[playerId] = { ...nextLine } as PlayerStats;
-      continue;
-    }
-    const output = { ...current } as unknown as Record<string, unknown>;
-    for (const [key, value] of Object.entries(nextLine)) {
-      if (typeof value === 'number') output[key] = Number(output[key] ?? 0) + value;
-      else if (key === 'name' || key === 'type') output[key] = value;
-    }
-    merged[playerId] = output as unknown as PlayerStats;
-  }
-  return merged;
-}
-
 function snapshotFromState(state: RuntimeState): GameSaveData | null {
   if (!state.teams) return null;
   return {
@@ -225,6 +118,7 @@ function snapshotFromState(state: RuntimeState): GameSaveData | null {
     leagueCareerAccumulated: state.leagueCareerAccumulated,
     yearlyStats: state.yearlyStats,
     retiredPlayers: state.retiredPlayers,
+    overseasPlayers: state.overseasPlayers,
     notices: state.notices,
     championHistory: state.championHistory,
     awardHistory: state.awardHistory,
@@ -238,11 +132,6 @@ function snapshotFromState(state: RuntimeState): GameSaveData | null {
     uiVersion: 1,
   };
 }
-
-let autosaveCounter = 0;
-/** Monotonic across new games and loads, so a reset state can never reuse a saved sequence. */
-const nextAutosaveSeq = (): number => (autosaveCounter += 1);
-
 /**
  * Best-effort autosave: fire-and-forget, silently ignore failures. Updaters only bump
  * `autosaveSeq`; the provider's effect calls this once per committed state, so a replayed
@@ -257,26 +146,6 @@ function autosave(next: RuntimeState): void {
     console.error('Autosave failed', error);
   });
 }
-
-function lastNewPlayerGameDate(
-  before: SeasonState['schedule'],
-  after: SeasonState['schedule'],
-  playerTeam: TeamKey,
-): string | null {
-  const beforeById = new Map(before.map((game) => [game.id, game]));
-  return (
-    after
-      .filter(
-        (game) =>
-          game.played &&
-          !beforeById.get(game.id)?.played &&
-          (game.homeKey === playerTeam || game.awayKey === playerTeam),
-      )
-      .map((game) => game.date)
-      .sort((first, second) => second.localeCompare(first))[0] ?? null
-  );
-}
-
 export function GameProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<RuntimeState>(initialState);
   const [debugMode, setDebugMode] = useState<boolean>(() => {
@@ -287,6 +156,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     window.localStorage.setItem(DEBUG_MODE_KEY, debugMode ? '1' : '0');
   }, [debugMode]);
+
+  // Resolved once React has committed a state update, so advanceYears renders between years.
+  const commitWaiter = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    commitWaiter.current?.();
+    commitWaiter.current = null;
+  }, [state]);
 
   const lastAutosaveSeq = useRef(0);
   useEffect(() => {
@@ -315,6 +191,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           worldId: saved.worldId ?? crypto.randomUUID(),
           narrativeArticles: saved.narrativeArticles ?? {},
           narrativeEvents: saved.narrativeEvents ?? {},
+          overseasPlayers: saved.overseasPlayers ?? [],
           lineup,
           loading: false,
           screen: resumeSeasonScreen(saved),
@@ -339,18 +216,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const startNewGame = useCallback(() => {
+    // Rosters after twenty silent offseasons, so the first decades play at the same talent
+    // level as the rest of the world's history (see initSettledTeams).
+    const world = initSettledWorld();
     setState({
       ...initialState,
       worldId: crypto.randomUUID(),
       loading: false,
       screen: 'teamSelect',
-      teams: initTeams(),
+      teams: world.teams,
+      overseasPlayers: world.overseas,
     });
   }, []);
 
   const chooseTeam = useCallback((teamKey: TeamKey) => {
     setState((current) => {
-      const initialTeams = current.teams ?? initTeams();
+      const world = current.teams
+        ? { teams: current.teams, overseas: current.overseasPlayers }
+        : initSettledWorld();
+      const initialTeams = world.teams;
       // A fixed literal seed here would give every new game the same 20-year fictional
       // history (same legends, same past champions); draw a fresh one per new game instead.
       const history = createFictionalLeagueHistory(initialTeams, {
@@ -380,6 +264,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         leagueCareerAccumulated,
         yearlyStats: history.yearlyStats,
         retiredPlayers: history.retiredPlayers,
+        overseasPlayers: world.overseas,
         championHistory: history.championHistory,
         gameSummaries: prepared.gameSummaries,
         gameBoxScores: prepared.gameBoxScores,
@@ -518,74 +403,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const skip = useCallback((mode: 'next' | 'week' | 'month' | 'season') => {
-    setState((current) => {
-      if (!current.teams || !current.playerTeam) return current;
-      const beforeTeam = current.teams[current.playerTeam];
-      const teams = { ...current.teams };
-      const result = skipGamesWithPitcherPlan(
-        current.season.schedule,
-        teams,
-        current.rotN,
-        current.playerTeam,
-        mode,
-        current.leagueAccumulated,
-        current.pitcherPlan,
-        current.leagueAccumulated,
-      );
-      const accumulated = mergeStats(current.accumulated, result.distStats);
-      const leagueAccumulated = mergeStats(current.leagueAccumulated, result.leagueDistStats);
-      const leagueCareerAccumulated = mergeStats(
-        current.leagueCareerAccumulated,
-        result.leagueDistStats,
-      );
-      const seasonOver = result.sched.every((game) => game.played);
-      const noticeDate =
-        lastNewPlayerGameDate(current.season.schedule, result.sched, current.playerTeam) ??
-        `${current.season.year}年`;
-      const developmentNotices = createSkippedInSeasonDevelopmentNotices(
-        beforeTeam,
-        teams[current.playerTeam],
-        current.playerTeam,
-        noticeDate,
-      );
-      const gameNotices = Object.values(result.gameBoxScores)
-        .map((box) => createGameResultNotice(box, current.playerTeam as TeamKey))
-        .filter((notice): notice is Notice => notice !== null);
-      const achievements = detectAchievements({
-        year: current.season.year,
-        date: noticeDate,
-        teams,
-        beforeSeasonStats: current.leagueAccumulated,
-        afterSeasonStats: leagueAccumulated,
-        beforeCareerStats: current.leagueCareerAccumulated,
-        afterCareerStats: leagueCareerAccumulated,
-        yearlyStats: current.yearlyStats,
-      });
-      const achievementNotices = createAchievementNotices(achievements);
-      const next: RuntimeState = {
-        ...current,
-        screen: seasonOver ? 'postseason' : 'season',
-        teams,
-        season: { ...current.season, schedule: result.sched },
-        rotN: result.rotN,
-        standings: calcStandings(result.sched),
-        accumulated,
-        leagueAccumulated,
-        careerAccumulated: mergeStats(current.careerAccumulated, result.distStats),
-        leagueCareerAccumulated,
-        achievementHistory: [...current.achievementHistory, ...achievements],
-        ...withNarrativeEvents(current, result.narrativeEvents),
-        gameSummaries: { ...current.gameSummaries, ...result.gameSummaries },
-        gameBoxScores: { ...current.gameBoxScores, ...result.gameBoxScores },
-        notices: mergeNotices(current.notices, [
-          ...gameNotices,
-          ...developmentNotices,
-          ...achievementNotices,
-        ]),
-        autosaveSeq: nextAutosaveSeq(),
-      };
-      return next;
-    });
+    setState((current) => applySkip(current, mode));
   }, []);
 
   const saveCurrent = useCallback(async () => {
@@ -624,123 +442,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
       developmentNotices: Notice[] = [],
       events: NarrativeEvent[] = [],
       retired: Player[] = [],
+      overseas?: Player[],
     ) => {
-      setState((current) => {
-        const nextTeams = { ...teams };
-        if (!current.playerTeam) return current;
-        // A duplicate completion callback belongs to the already committed old year.
-        if (events.some((event) => event.year !== current.season.year)) return current;
-        const completedYear = current.season.year;
-        const seasonRecords = current.teams
-          ? createPlayerSeasonRecords(completedYear, current.teams, current.leagueAccumulated)
-          : [];
-        const seasonTitles = current.teams
-          ? selectSeasonTitles(
-              completedYear,
-              current.teams,
-              current.leagueAccumulated,
-              Object.fromEntries(
-                Object.entries(current.standings).map(([teamKey, standing]) => [
-                  teamKey,
-                  standing.g,
-                ]),
-              ),
-            )
-          : [];
-        const year = completedYear + 1;
-        const schedule = generateSchedule(year);
-        const prepared = simCpuUntilNext(
-          schedule,
-          nextTeams,
-          createEmptyRotations(),
-          current.playerTeam,
-          {},
-          {},
-        );
-        const next: RuntimeState = {
-          ...current,
-          teams: nextTeams,
-          ...withNarrativeEvents(current, [
-            ...events,
-            ...seasonReviewEvents(
-              completedYear,
-              current.standings,
-              current.championHistory.find((c) => c.year === completedYear)?.champion,
-            ),
-            ...prepared.narrativeEvents,
-          ]),
-          retiredPlayers: [
-            ...new Map([...current.retiredPlayers, ...retired].map((p) => [p.id, p])).values(),
-          ],
-          screen: 'season',
-          season: { year, schedule: prepared.sched },
-          rotN: prepared.rotN,
-          lineup: bestLineup(nextTeams[current.playerTeam]),
-          standings: calcStandings(prepared.sched),
-          accumulated: {},
-          leagueAccumulated: prepared.leagueDistStats,
-          yearlyStats: {
-            ...current.yearlyStats,
-            [String(completedYear)]: seasonRecords,
-          },
-          awardHistory: [
-            ...current.awardHistory.filter((record) => record.year !== completedYear),
-            ...seasonTitles,
-          ],
-          gameSummaries: { ...current.gameSummaries, ...prepared.gameSummaries },
-          gameBoxScores: { ...current.gameBoxScores, ...prepared.gameBoxScores },
-          notices: mergeNotices(current.notices, developmentNotices),
-          lastGame: null,
-          autosaveSeq: nextAutosaveSeq(),
-        };
-        return next;
-      });
+      setState((current) =>
+        applyOffseasonCompletion(current, teams, developmentNotices, events, retired, overseas),
+      );
     },
     [],
   );
 
   const recordChampionship = useCallback(
     (champion: TeamKey, runnerUp: TeamKey, events: NarrativeEvent[] = []) => {
-      setState((current) => {
-        if (!current.teams) return current;
-        const team = current.teams[champion];
-        const lineup = bestLineup(team).map((player) => ({
-          playerId: player.id,
-          playerName: player.name,
-          pos: player._assignedPos ?? player.pos ?? '',
-          isPitcher: player.isP,
-        }));
-        const teamStats = aggregateTeamStats(team, current.leagueAccumulated);
-        const standing = current.standings[champion];
-        const record: ChampionRecord = {
-          year: current.season.year,
-          champion,
-          runnerUp,
-          keyBatters: team.fielders
-            .slice()
-            .sort((first, second) => calcOVR(second, second.pos) - calcOVR(first, first.pos))
-            .slice(0, 2)
-            .map((player) => player.name),
-          keyPitchers: team.pitchers
-            .slice()
-            .sort((first, second) => calcOVR(second, second.pos) - calcOVR(first, first.pos))
-            .slice(0, 2)
-            .map((player) => player.name),
-          lineup,
-          teamStats,
-          record: standing ? { w: standing.w, l: standing.l, d: standing.d } : undefined,
-        };
-        const next: RuntimeState = {
-          ...current,
-          ...withNarrativeEvents(current, events),
-          championHistory: [
-            ...current.championHistory.filter((entry) => entry.year !== current.season.year),
-            record,
-          ],
-          autosaveSeq: nextAutosaveSeq(),
-        };
-        return next;
-      });
+      setState((current) => applyChampionship(current, champion, runnerUp, events));
     },
     [],
   );
@@ -764,6 +477,53 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const [advanceProgress, setAdvanceProgress] = useState<AdvanceProgress | null>(null);
+  const advanceRunning = useRef(false);
+  const advanceCancelled = useRef(false);
+  const advanceYears = useCallback(async (years: number) => {
+    if (advanceRunning.current) return;
+    advanceRunning.current = true;
+    advanceCancelled.current = false;
+    setAdvanceProgress({ done: 0, total: years });
+    try {
+      for (let done = 0; done < years && !advanceCancelled.current; done += 1) {
+        // Let the progress indicator paint before the next (multi-second) year runs.
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        await new Promise<void>((resolve) => {
+          commitWaiter.current = resolve;
+          setState((current) => {
+            try {
+              return advanceOneYear(current);
+            } catch (error) {
+              console.error('Automatic advance failed', error);
+              advanceCancelled.current = true;
+              return {
+                ...current,
+                notices: mergeNotices(current.notices, [
+                  {
+                    id: `system:advance-error:${Date.now()}`,
+                    kind: 'system',
+                    title: 'おまかせ進行を中断しました',
+                    body: '処理中にエラーが発生したため、直前の状態で停止しています。',
+                    tone: 'warn',
+                    date: `${current.season.year}年`,
+                  },
+                ]),
+              };
+            }
+          });
+        });
+        setAdvanceProgress({ done: done + 1, total: years });
+      }
+    } finally {
+      advanceRunning.current = false;
+      setAdvanceProgress(null);
+    }
+  }, []);
+  const cancelAdvance = useCallback(() => {
+    advanceCancelled.current = true;
+  }, []);
+
   const value = useMemo<GameContextValue>(
     () => ({
       ...state,
@@ -775,6 +535,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       chooseTeam,
       simulateNextGame,
       skip,
+      advanceYears,
+      cancelAdvance,
+      advanceProgress,
       saveCurrent,
       setScreen: (screen) => setState((current) => ({ ...current, screen })),
       setViewTeam: (viewTeam) => setState((current) => ({ ...current, viewTeam })),
@@ -802,6 +565,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       chooseTeam,
       simulateNextGame,
       skip,
+      advanceYears,
+      cancelAdvance,
+      advanceProgress,
       saveCurrent,
       updatePlayer,
       completeOffseason,

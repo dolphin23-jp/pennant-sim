@@ -6,7 +6,7 @@ import {
   calcOVR,
   configureRandom,
   generateSchedule,
-  initTeams,
+  initSettledTeams,
   qualifiesForRate,
   simulateGame,
   type AccumulatedStats,
@@ -207,7 +207,9 @@ const roundSummary = (summary: { mean: number; standardDeviation: number }, digi
 async function simulateSeason(seasonIndex: number, baseSeed: number) {
   const seed = baseSeed + seasonIndex;
   configureRandom(mulberry32(seed), () => Date.UTC(2024, 0, 1) + seed * 1_000);
-  const teams = initTeams(),
+  // The league the player actually watches: rosters after the draft/growth/retirement
+  // cycle has settled, not the lower-rated generated opening rosters.
+  const teams = initSettledTeams(2024 + seasonIndex),
     schedule = generateSchedule(2024 + seasonIndex, { rainoutRate: 0, maxRainouts: 0 }),
     rotations = Object.fromEntries(Object.keys(teams).map((teamKey) => [teamKey, 0])) as Record<
       TeamKey,

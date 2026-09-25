@@ -95,7 +95,13 @@ export interface NarrativeFeedFilter {
 }
 
 export type TransactionNarrativeKind =
-  'trade' | 'faSigning' | 'foreignSigning' | 'release' | 'retirement';
+  | 'trade'
+  | 'faSigning'
+  | 'foreignSigning'
+  | 'release'
+  | 'retirement'
+  /** 人的補償: a player moving to the former club of a free agent who changed clubs. */
+  | 'compensation';
 
 export interface TransactionNarrativeEvent {
   type: 'transaction';
@@ -118,6 +124,8 @@ export interface TransactionNarrativeEvent {
   }>;
   cashAmountManYen?: number;
   exitReason?: string;
+  /** A signing of a player coming back from MLB. */
+  returnFromMlb?: boolean;
 }
 
 export interface DraftNarrativeEvent {

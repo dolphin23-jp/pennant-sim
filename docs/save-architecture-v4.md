@@ -47,6 +47,8 @@ Retired players are distributed across 64 deterministic buckets. Each entry stor
 
 Only the bucket containing a changed retired-player entry needs a new revision. Active-player career totals remain in current state.
 
+A player who leaves for MLB is archived like any other departing player. While he plays abroad, the evolving `Player` is also kept in `current.overseasPlayers`, a short list of the players who may still return. When he signs with an NPB club again, he is removed from the retired archive, because a player on a roster is never a departed one. Contracts (`salary`, `contractYears`, `serviceYears`, `faExercisedAt`) live on each `Player`, and budgets (`finance`) live on each `Team`. Saves from before these fields existed get estimated values when they are migrated.
+
 ## Commit protocol
 
 Archive revisions are content-addressed.

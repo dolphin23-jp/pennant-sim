@@ -7,7 +7,7 @@ import {
 } from './draft';
 import { createPreProHistory } from './preProHistory';
 import { buildDraftProspectSnapshotMap } from './draftEvaluation';
-import type { Player, Teams } from './types';
+import type { Player, TeamKey, Teams } from './types';
 
 function enrichUnsignedProspect(player: Player): Player {
   if (player.preProHistory) return player;
@@ -72,11 +72,12 @@ export function runCpuDraft(
   teams: Teams,
   rounds = 6,
   context?: NarrativeEventContext,
+  order?: TeamKey[],
 ): { teams: Teams; picks: DraftPick[] } {
   // Run the original draft first so nominations, lotteries, picks, generated players and
   // every global RNG draw stay byte-for-byte identical. Canonical amateur history is
   // attached only after the draft outcome is already fixed.
-  const result = runCpuDraftBase(teams, rounds, context);
+  const result = runCpuDraftBase(teams, rounds, context, order);
   const picks = result.picks.map((pick) => enrichSignedPick(pick, context));
   return {
     picks,

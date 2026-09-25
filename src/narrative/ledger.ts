@@ -67,14 +67,15 @@ function validEvent(value: unknown, year: number): value is NarrativeEvent {
   switch (value.type) {
     case 'transaction': {
       if (
-        !['trade', 'faSigning', 'foreignSigning', 'release', 'retirement'].includes(
+        !['trade', 'faSigning', 'foreignSigning', 'release', 'retirement', 'compensation'].includes(
           String(value.transactionKind),
         ) ||
         !optionalTeam(value.fromTeamKey) ||
         !optionalTeam(value.toTeamKey) ||
         (value.terms != null && !text(value.terms)) ||
         (value.cashAmountManYen != null && !integer(value.cashAmountManYen)) ||
-        (value.exitReason != null && !text(value.exitReason))
+        (value.exitReason != null && !text(value.exitReason)) ||
+        (value.returnFromMlb != null && typeof value.returnFromMlb !== 'boolean')
       )
         return false;
       if (
@@ -90,6 +91,8 @@ function validEvent(value: unknown, year: number): value is NarrativeEvent {
         return Boolean(value.movements || (team(value.fromTeamKey) && team(value.toTeamKey)));
       if (value.transactionKind === 'faSigning' || value.transactionKind === 'foreignSigning')
         return team(value.toTeamKey);
+      if (value.transactionKind === 'compensation')
+        return team(value.fromTeamKey) && team(value.toTeamKey);
       return team(value.fromTeamKey);
     }
     case 'draft':

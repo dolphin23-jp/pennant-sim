@@ -317,12 +317,18 @@ export function cpuDraftPick(team: Team, prospects: Player[]): Player | undefine
       : fielderDeficit > pitcherDeficit
         ? prospects.filter((player) => !player.isP)
         : prospects;
-  return [...(positionPool.length ? positionPool : prospects)].sort(
-    (first, second) =>
-      teamNeedsScore(team, second) +
-      prospectFutureBonus(second) -
-      (teamNeedsScore(team, first) + prospectFutureBonus(first)),
-  )[0];
+  // Score each prospect once (the score is pure) and keep the first best one, which is what
+  // the stable descending sort this replaces returned, without O(n log n) roster scans.
+  let best: Player | undefined;
+  let bestScore = -Infinity;
+  for (const prospect of positionPool.length ? positionPool : prospects) {
+    const score = teamNeedsScore(team, prospect) + prospectFutureBonus(prospect);
+    if (score > bestScore) {
+      best = prospect;
+      bestScore = score;
+    }
+  }
+  return best;
 }
 
 export function applyDraftPicks(
@@ -365,8 +371,9 @@ export function runCpuDraft(
   teams: Teams,
   rounds = 6,
   context?: NarrativeEventContext,
+  /** Waiver order; defaults to reverse team strength when standings are not available. */
+  order: TeamKey[] = draftOrder(teams),
 ): { teams: Teams; picks: DraftPick[] } {
-  const order = draftOrder(teams);
   let prospects = generateDraftProspects();
   const prospectSnapshots = buildDraftProspectSnapshotMap(prospects);
   let nextTeams = teams;

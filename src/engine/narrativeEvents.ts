@@ -33,7 +33,9 @@ export function emitRosterExits(
   if (!context) return;
   for (const exit of exits) {
     const kind =
-      exit.reason === 'mandatoryRetirement' || exit.reason === 'ageAndPerformance'
+      exit.reason === 'mandatoryRetirement' ||
+      exit.reason === 'voluntaryRetirement' ||
+      exit.reason === 'ageAndPerformance'
         ? 'retirement'
         : 'release';
     context.emit({

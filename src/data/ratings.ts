@@ -99,13 +99,19 @@ export const OVR_W: Record<
     stam: 0.03,
   },
 };
+/**
+ * `brk` is the pitcher's best breaking ball. It drives roughly a quarter of the pitcher's
+ * strikeout edge in the at-bat model, so an OVR that left it out misjudged which pitchers
+ * actually prevent runs, and every OVR-based CPU decision (rotation, cuts, draft, trades)
+ * with it.
+ */
 export const OVR_W_PIT: Record<
   PitcherRole,
-  Required<Pick<PlayerParams, 'vel' | 'ctrl' | 'stam' | 'nobi' | 'fld'>>
+  Required<Pick<PlayerParams, 'vel' | 'ctrl' | 'stam' | 'nobi' | 'fld'>> & { brk: number }
 > = {
-  先発: { vel: 0.22, ctrl: 0.3, stam: 0.22, nobi: 0.2, fld: 0.06 },
-  リリーフ: { vel: 0.3, ctrl: 0.28, stam: 0.12, nobi: 0.22, fld: 0.08 },
-  クローザー: { vel: 0.33, ctrl: 0.27, stam: 0.08, nobi: 0.24, fld: 0.08 },
+  先発: { vel: 0.19, ctrl: 0.27, stam: 0.2, nobi: 0.15, brk: 0.14, fld: 0.05 },
+  リリーフ: { vel: 0.26, ctrl: 0.25, stam: 0.1, nobi: 0.18, brk: 0.15, fld: 0.06 },
+  クローザー: { vel: 0.28, ctrl: 0.24, stam: 0.06, nobi: 0.2, brk: 0.16, fld: 0.06 },
 };
 export const GROW_P: Partial<Record<keyof PlayerParams, { c: number }>> = {
   vel: { c: 0.9 },

@@ -7,12 +7,21 @@ import { useGameState } from '../../../state/gameState';
 import { useBusyAction } from '../../useBusyAction';
 import { Button, Card, LampFigure, SectionTitle, StatChip, teamTextColor } from '../../ui';
 import { BoxScore } from '../../widgets/BoxScore';
+import { AutoAdvancePanel } from '../../widgets/AutoAdvancePanel';
 import { NoticeCenter } from '../../widgets/NoticeCenter';
 import { StandingsTable } from '../../widgets/StandingsTable';
 
-export function DashboardTab({ onSelectTeam }: { onSelectTeam?(teamKey: TeamKey): void }) {
+export function DashboardTab({
+  onSelectTeam,
+  onOpenYearReview,
+}: {
+  onSelectTeam?(teamKey: TeamKey): void;
+  onOpenYearReview?(): void;
+}) {
   const game = useGameState();
-  const { busy, run } = useBusyAction();
+  const { busy: actionBusy, run } = useBusyAction();
+  // Manual progress is locked while whole years are being advanced automatically.
+  const busy = actionBusy || game.advanceProgress !== null;
   const nextGame = useMemo(
     () =>
       game.season.schedule.find(
@@ -25,6 +34,11 @@ export function DashboardTab({ onSelectTeam }: { onSelectTeam?(teamKey: TeamKey)
 
   if (!game.teams || !game.playerTeam) return null;
   const playerTeam = game.teams[game.playerTeam];
+  const lastReviewedYear = game.championHistory.some(
+    (record) => record.year === game.season.year - 1,
+  )
+    ? game.season.year - 1
+    : null;
   const record = game.standings[game.playerTeam];
   const form = deriveTeamForm(game.season.schedule, game.playerTeam);
   const pctText = record.pct === undefined ? '.---' : record.pct.toFixed(3).replace(/^0/, '');
@@ -160,7 +174,7 @@ export function DashboardTab({ onSelectTeam }: { onSelectTeam?(teamKey: TeamKey)
                 >
                   残り全試合
                 </Button>
-                {busy && (
+                {actionBusy && (
                   <span
                     role="status"
                     aria-live="polite"
@@ -178,6 +192,7 @@ export function DashboardTab({ onSelectTeam }: { onSelectTeam?(teamKey: TeamKey)
               </div>
               <Button
                 onClick={() => game.setScreen('postseason')}
+                disabled={busy}
                 color={playerTeam.c}
                 ariaLabel="ポストシーズン画面へ移動"
               >
@@ -243,6 +258,29 @@ export function DashboardTab({ onSelectTeam }: { onSelectTeam?(teamKey: TeamKey)
             AIで最適オーダー
           </Button>
         </Card>
+      </div>
+
+      <div style={{ marginBottom: 12, display: 'grid', gap: 8 }}>
+        <AutoAdvancePanel onFinished={onOpenYearReview} />
+        {onOpenYearReview && lastReviewedYear !== null && (
+          <div style={{ fontSize: 12 }}>
+            <button
+              type="button"
+              onClick={onOpenYearReview}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                color: 'var(--color-accent)',
+                cursor: 'pointer',
+                font: 'inherit',
+                textDecoration: 'underline',
+              }}
+            >
+              {lastReviewedYear}年の総括を見る →
+            </button>
+          </div>
+        )}
       </div>
 
       {game.lastGame && (

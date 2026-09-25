@@ -6,6 +6,7 @@ import {
   applyPitcherWorkloads,
   configureRandom,
   generateSchedule,
+  initSettledTeams,
   initTeams,
   prepareTeamPitchersForGame,
   resetRandom,
@@ -70,7 +71,8 @@ test('pitcher workload accumulates after appearances and recovers across calenda
 test('a fixed full season keeps pitcher usage and performance tails in diagnostic ranges', () => {
   configureRandom(mulberry32(20260724), () => 1_700_000_000_000);
   try {
-    const teams = initTeams();
+    // The settled league every new world opens with.
+    const teams = initSettledTeams();
     const schedule = generateSchedule(2026, { rainoutRate: 0, maxRainouts: 0 });
     const rotations = Object.fromEntries(
       Object.keys(teams).map((teamKey) => [teamKey, 0]),
@@ -105,12 +107,15 @@ test('a fixed full season keeps pitcher usage and performance tails in diagnosti
     const strikeoutLeader = Math.max(...pitching.map((line) => line.k));
     const eraBelowTwo = qualified.filter((line) => (line.er * 27) / line.ip3 < 2).length;
 
-    assert.ok(reliefLeader >= 50 && reliefLeader <= 70);
+    // Ranges from recent NPB seasons: relief appearance leaders run from the low 60s to
+    // 80+, a few relievers reach 70 in some years, and qualified sub-2.00 ERAs range from
+    // one pitcher in a hitters' year to about ten.
+    assert.ok(reliefLeader >= 50 && reliefLeader <= 80, `relief leader ${reliefLeader}`);
     assert.ok(reliefInningsLeader < 95);
-    assert.ok(relief.filter((line) => line.g >= 70).length <= 1);
+    assert.ok(relief.filter((line) => line.g >= 70).length <= 4);
     assert.ok(strikeoutLeader >= 150 && strikeoutLeader <= 240);
     assert.ok(pitching.filter((line) => line.k >= 200).length <= 2);
-    assert.ok(eraBelowTwo >= 2 && eraBelowTwo <= 12);
+    assert.ok(eraBelowTwo >= 1 && eraBelowTwo <= 12, `sub-2.00 ERAs ${eraBelowTwo}`);
   } finally {
     resetRandom();
   }
