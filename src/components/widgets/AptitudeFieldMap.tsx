@@ -2,7 +2,6 @@ import { aptitudeRank } from '../../engine';
 import type { PositionAptitude } from '../../engine';
 import { aptitudeToneColor } from './aptitudeDisplay';
 import { FIELD_SLOT_ORDER, POSITION_LAYOUT } from './FieldDiagram';
-import './phaseB.css';
 
 const SHORT_LABEL: Record<(typeof FIELD_SLOT_ORDER)[number], string> = {
   捕手: '捕',

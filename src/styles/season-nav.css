@@ -1,0 +1,93 @@
+/* Season screen navigation: tab groups, then the tabs within the chosen group */
+.season-nav {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.season-nav__groups {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.season-nav__group {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.season-nav__group[aria-pressed='true'] {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+.season-nav__tabs {
+  display: flex;
+  gap: 6px;
+  padding-bottom: 4px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-border);
+  -webkit-overflow-scrolling: touch;
+}
+
+.season-nav__tab {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 8px 13px;
+  border: 1px solid var(--color-border);
+  border-bottom: 3px solid transparent;
+  border-radius: 8px 8px 0 0;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.season-nav__tab[aria-selected='true'] {
+  border-bottom-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.season-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.season-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .season-nav__groups {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .season-nav__group {
+    padding: 8px 4px;
+    font-size: var(--text-md);
+  }
+
+  .season-nav__tab {
+    padding: 8px 10px;
+    font-size: var(--text-md);
+  }
+}

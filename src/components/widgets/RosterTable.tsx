@@ -24,7 +24,6 @@ import {
 } from './playerFilters';
 import { hasGoldSpecial } from './specialDisplay';
 import { BatterStatLine, PitcherStatLine } from './StatLine';
-import './phaseB.css';
 
 type SortKey = 'name' | 'age' | 'ovr' | 'effective' | 'display' | 'status';
 type SortDirection = 'asc' | 'desc';

@@ -37,7 +37,7 @@
 
 .ability-radar__label {
   fill: var(--color-text-muted);
-  font-size: 10px;
+  font-size: var(--text-2xs);
   font-weight: 800;
 }
 

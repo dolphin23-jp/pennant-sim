@@ -15,7 +15,6 @@ import type { AccumulatedStats, Player, PlayerStats, TeamKey } from '../../engin
 import { Card, EmptyState, SectionTitle, SegmentedControl } from '../ui';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
 import { hasGoldSpecial } from './specialDisplay';
-import './phaseB.css';
 
 type StatsSource = 'current' | 'career' | 'yearly';
 type PlayerKind = 'bat' | 'pit';
