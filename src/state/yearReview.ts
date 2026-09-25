@@ -4,6 +4,7 @@ import type {
   AccumulatedStats,
   AchievementEvent,
   PlayerSeasonRecord,
+  SeasonHonorRecord,
   SeasonTitleRecord,
   TeamKey,
   YearlyPlayerRecords,
@@ -22,6 +23,8 @@ import type { ChampionRecord } from './storage';
 export interface YearReviewSource {
   championHistory: ChampionRecord[];
   awardHistory: SeasonTitleRecord[];
+  /** Optional so callers without honors (older tests, generated years) still work. */
+  honorHistory?: SeasonHonorRecord[];
   achievementHistory: AchievementEvent[];
   narrativeEvents: NarrativeEventLedger;
   yearlyStats: YearlyPlayerRecords;
@@ -50,6 +53,8 @@ export interface YearReview {
   standings: Record<'central' | 'pacific', SeasonReviewNarrativeEvent[]>;
   champion: ChampionRecord | null;
   titles: Record<'central' | 'pacific', SeasonTitleRecord[]>;
+  /** MVP and 新人王 first, then Best Nine and Golden Gloves. */
+  honors: SeasonHonorRecord[];
   leaders: Array<{ label: string; entries: YearReviewLeader[] }>;
   achievements: AchievementEvent[];
   moves: { total: number; highlights: TransactionNarrativeEvent[] };
@@ -100,6 +105,13 @@ export function moveLabel(event: TransactionNarrativeEvent): string {
       return event.fromTeamKey ? 'FA移籍' : '入団';
   }
 }
+
+const HONOR_ORDER: Record<SeasonHonorRecord['honorId'], number> = {
+  mvp: 0,
+  rookieOfYear: 1,
+  bestNine: 2,
+  goldenGlove: 3,
+};
 
 const rate = (numerator: number, denominator: number): number =>
   denominator > 0 ? numerator / denominator : 0;
@@ -235,6 +247,9 @@ export function buildYearReview(source: YearReviewSource, year: number): YearRev
       central: yearTitles.filter((title) => title.league === 'central'),
       pacific: yearTitles.filter((title) => title.league === 'pacific'),
     },
+    honors: (source.honorHistory ?? [])
+      .filter((honor) => honor.year === year)
+      .sort((first, second) => HONOR_ORDER[first.honorId] - HONOR_ORDER[second.honorId]),
     leaders: seasonLeaders(source.yearlyStats[String(year)] ?? []),
     achievements: source.achievementHistory
       .filter((event) => event.year === year)

@@ -1,6 +1,7 @@
 export * from './achievements';
 export * from './aiStrategy';
 export * from './awards';
+export * from './honors';
 export * from './atBat';
 export * from './boxScore';
 export * from './careerLedger';

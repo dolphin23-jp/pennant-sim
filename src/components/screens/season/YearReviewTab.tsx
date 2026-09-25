@@ -1,7 +1,7 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { TINFO } from '../../../data';
-import type { TeamKey } from '../../../engine';
+import { SEASON_HONOR_LABEL, type TeamKey } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
 import {
   availableReviewYears,
@@ -134,6 +134,7 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
         {
           championHistory: game.championHistory,
           awardHistory: game.awardHistory,
+          honorHistory: game.honorHistory,
           achievementHistory: game.achievementHistory,
           narrativeEvents: game.narrativeEvents,
           yearlyStats: game.yearlyStats,
@@ -144,6 +145,7 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
     [
       game.championHistory,
       game.awardHistory,
+      game.honorHistory,
       game.achievementHistory,
       game.narrativeEvents,
       game.yearlyStats,
@@ -161,6 +163,7 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
             {
               championHistory: game.championHistory,
               awardHistory: game.awardHistory,
+              honorHistory: game.honorHistory,
               achievementHistory: game.achievementHistory,
               narrativeEvents: game.narrativeEvents,
               yearlyStats: game.yearlyStats,
@@ -172,6 +175,7 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
       year,
       game.championHistory,
       game.awardHistory,
+      game.honorHistory,
       game.achievementHistory,
       game.narrativeEvents,
       game.yearlyStats,
@@ -282,6 +286,40 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
                 </div>
               ) : null,
             )}
+          </Section>
+        )}
+
+        {review.honors.length > 0 && (
+          <Section title="表彰">
+            {YEAR_REVIEW_LEAGUES.map((league) => {
+              const honors = review.honors.filter((honor) => honor.league === league.id);
+              return honors.length ? (
+                <div key={league.id} style={{ marginBottom: 8 }}>
+                  <div style={{ ...mutedStyle, fontWeight: 700 }}>{league.label}</div>
+                  <ul style={listStyle}>
+                    {honors.map((honor) => (
+                      <li
+                        key={`${honor.honorId}:${honor.position ?? ''}:${honor.playerId}`}
+                        style={rowStyle}
+                      >
+                        <span>
+                          {honor.honorId === 'bestNine' || honor.honorId === 'goldenGlove'
+                            ? `${honor.honorId === 'bestNine' ? 'B9' : 'GG'}・${honor.position}`
+                            : SEASON_HONOR_LABEL[honor.honorId]}{' '}
+                          <PlayerLink
+                            playerId={honor.playerId}
+                            name={honor.playerName}
+                            onSelect={selectPlayer}
+                          />{' '}
+                          <TeamName teamKey={honor.teamKey} short />
+                        </span>
+                        <span style={mutedStyle}>{honor.summary}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null;
+            })}
           </Section>
         )}
 

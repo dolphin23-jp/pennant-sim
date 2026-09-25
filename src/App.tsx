@@ -181,6 +181,7 @@ function GameRouter() {
         careerAccumulated={isPlayerTeam ? game.careerAccumulated : game.leagueCareerAccumulated}
         yearlyStats={game.yearlyStats}
         awardHistory={game.awardHistory}
+        honorHistory={game.honorHistory}
         roster={modalRoster}
         onSelect={game.selectPlayer}
         onClose={() => game.selectPlayer(null)}

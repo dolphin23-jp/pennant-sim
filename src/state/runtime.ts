@@ -19,6 +19,7 @@ import {
   postseasonRunnerUp,
   runFullOffseason,
   runPostseason,
+  selectSeasonHonors,
   selectSeasonTitles,
   simCpuUntilNext,
   skipGamesWithPitcherPlan,
@@ -31,6 +32,7 @@ import type {
   GameSummary,
   Player,
   PlayerStats,
+  SeasonHonorRecord,
   SeasonOutcome,
   SeasonTitleRecord,
   StandingRecord,
@@ -85,6 +87,7 @@ export interface RuntimeState {
   championHistory: ChampionRecord[];
   awardHistory: SeasonTitleRecord[];
   achievementHistory: AchievementEvent[];
+  honorHistory: SeasonHonorRecord[];
   narrativeEvents: NarrativeEventLedger;
   narrativeQuarantine?: unknown[];
   lastGame: GameState | null;
@@ -122,6 +125,7 @@ export const initialState: RuntimeState = {
   championHistory: [],
   awardHistory: [],
   achievementHistory: [],
+  honorHistory: [],
   narrativeEvents: {},
   lastGame: null,
   selectedPlayer: null,
@@ -339,6 +343,9 @@ export function applyOffseasonCompletion(
         ),
       )
     : [];
+  const seasonHonors = current.teams
+    ? selectSeasonHonors(completedYear, current.teams, current.leagueAccumulated, current.standings)
+    : [];
   const year = completedYear + 1;
   const schedule = generateSchedule(year);
   const prepared = simCpuUntilNext(
@@ -380,6 +387,10 @@ export function applyOffseasonCompletion(
     awardHistory: [
       ...current.awardHistory.filter((record) => record.year !== completedYear),
       ...seasonTitles,
+    ],
+    honorHistory: [
+      ...current.honorHistory.filter((record) => record.year !== completedYear),
+      ...seasonHonors,
     ],
     gameSummaries: { ...current.gameSummaries, ...prepared.gameSummaries },
     gameBoxScores: { ...current.gameBoxScores, ...prepared.gameBoxScores },

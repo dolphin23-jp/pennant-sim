@@ -19,6 +19,7 @@ import type {
   Player,
   PlayerStats,
   ScheduleGame,
+  SeasonHonorRecord,
   SeasonTitleRecord,
   StandingRecord,
   TeamKey,
@@ -125,6 +126,8 @@ export interface GameSaveData {
   championHistory: ChampionRecord[];
   awardHistory: SeasonTitleRecord[];
   achievementHistory: AchievementEvent[];
+  /** MVP, 新人王, ベストナイン, ゴールデングラブ. Missing on saves before honors. */
+  honorHistory?: SeasonHonorRecord[];
   gameSummaries?: Record<string, GameSummary>;
   gameBoxScores?: Record<string, GameBoxScore>;
   narrativeEvents?: NarrativeEventLedger;
@@ -166,6 +169,8 @@ interface SeasonArchiveChunk {
   championHistory: ChampionRecord[];
   awardHistory: SeasonTitleRecord[];
   achievementHistory: AchievementEvent[];
+  /** Written only for years that have honors, so older chunks keep their revisions. */
+  honorHistory?: SeasonHonorRecord[];
   /** Only on chunks written before games moved to month chunks; read, never written. */
   gameSummaries?: Record<string, GameSummary>;
   gameBoxScores?: Record<string, GameBoxScore>;
@@ -582,6 +587,28 @@ function migrateAwardHistory(value: unknown): SeasonTitleRecord[] {
   });
 }
 
+const HONOR_IDS = new Set(['mvp', 'rookieOfYear', 'bestNine', 'goldenGlove']);
+
+function migrateHonorHistory(value: unknown): SeasonHonorRecord[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((candidate) => {
+    if (!candidate || typeof candidate !== 'object') return [];
+    const raw = candidate as Partial<SeasonHonorRecord>;
+    if (
+      typeof raw.year !== 'number' ||
+      (raw.league !== 'central' && raw.league !== 'pacific') ||
+      !HONOR_IDS.has(String(raw.honorId)) ||
+      (raw.position != null && typeof raw.position !== 'string') ||
+      typeof raw.playerId !== 'string' ||
+      typeof raw.playerName !== 'string' ||
+      !teamKeys.includes(raw.teamKey as TeamKey) ||
+      typeof raw.summary !== 'string'
+    )
+      return [];
+    return [raw as SeasonHonorRecord];
+  });
+}
+
 function isValidGameSummaryShape(value: unknown): value is GameSummary {
   if (!value || typeof value !== 'object') return false;
   const raw = value as Partial<GameSummary>;
@@ -850,6 +877,7 @@ export function migrateSaveData(raw: unknown): GameSaveData | null {
     championHistory: migrateChampionHistory(legacy.championHistory),
     awardHistory: migrateAwardHistory(legacy.awardHistory),
     achievementHistory: migrateAchievementHistory(legacy.achievementHistory),
+    honorHistory: migrateHonorHistory(legacy.honorHistory),
     gameSummaries: migrateGameSummaries(legacy.gameSummaries),
     gameBoxScores: migrateGameBoxScores(legacy.gameBoxScores),
     narrativeEvents: narrative.ledger,
@@ -893,6 +921,10 @@ function buildSeasonArchives(data: GameSaveData): Map<number, SeasonArchiveChunk
   for (const record of data.championHistory) getChunk(record.year).championHistory.push(record);
   for (const record of data.awardHistory) getChunk(record.year).awardHistory.push(record);
   for (const event of data.achievementHistory) getChunk(event.year).achievementHistory.push(event);
+  for (const honor of data.honorHistory ?? []) {
+    const chunk = getChunk(honor.year);
+    chunk.honorHistory = [...(chunk.honorHistory ?? []), honor];
+  }
   for (const [year, events] of Object.entries(data.narrativeEvents ?? {})) {
     if (events.length) getChunk(Number(year)).narrativeEvents = events;
   }
@@ -974,6 +1006,7 @@ function currentStateWithoutArchive(data: GameSaveData, timestamp: number): Game
     championHistory: [],
     awardHistory: [],
     achievementHistory: [],
+    honorHistory: [],
     gameSummaries: {},
     gameBoxScores: {},
     narrativeEvents: {},
@@ -1060,6 +1093,9 @@ function migrateSeasonArchive(value: unknown, expectedYear: number): SeasonArchi
     championHistory: migrateChampionHistory(raw.championHistory),
     awardHistory: migrateAwardHistory(raw.awardHistory),
     achievementHistory: migrateAchievementHistory(raw.achievementHistory),
+    ...(raw.honorHistory === undefined
+      ? {}
+      : { honorHistory: migrateHonorHistory(raw.honorHistory) }),
     gameSummaries: migrateGameSummaries(raw.gameSummaries),
     gameBoxScores: migrateGameBoxScores(raw.gameBoxScores),
     ...(raw.narrativeEvents === undefined ? {} : seasonNarrativeEvents(raw, expectedYear)),
@@ -1159,6 +1195,8 @@ function seasonChunkParts(chunk: SeasonArchiveChunk): unknown[] {
     ...chunk.awardHistory,
     chunk.achievementHistory.length,
     ...chunk.achievementHistory,
+    chunk.honorHistory?.length ?? 0,
+    ...(chunk.honorHistory ?? []),
     events.length,
     ...events,
   ];
@@ -1409,6 +1447,7 @@ async function loadPersistedSaveV4(
   const championHistory: ChampionRecord[] = [];
   const awardHistory: SeasonTitleRecord[] = [];
   const achievementHistory: AchievementEvent[] = [];
+  const honorHistory: SeasonHonorRecord[] = [];
   const gameSummaries: Record<string, GameSummary> = {};
   const gameBoxScores: Record<string, GameBoxScore> = {};
   const rejectedEvents: unknown[] = [];
@@ -1424,6 +1463,7 @@ async function loadPersistedSaveV4(
     championHistory.push(...chunk.championHistory);
     awardHistory.push(...chunk.awardHistory);
     achievementHistory.push(...chunk.achievementHistory);
+    honorHistory.push(...(chunk.honorHistory ?? []));
     Object.assign(gameSummaries, chunk.gameSummaries);
     Object.assign(gameBoxScores, chunk.gameBoxScores);
     if (chunk.rejectedNarrativeEvents) rejectedEvents.push(...chunk.rejectedNarrativeEvents);
@@ -1472,6 +1512,7 @@ async function loadPersistedSaveV4(
     championHistory,
     awardHistory,
     achievementHistory,
+    honorHistory,
     gameSummaries,
     gameBoxScores,
     ...mergedNarrative(current.narrativeQuarantine, narrativeEvents, rejectedEvents),

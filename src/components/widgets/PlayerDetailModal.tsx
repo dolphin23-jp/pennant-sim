@@ -23,6 +23,7 @@ import {
   displayOVRBreakdown,
   effectiveOVR,
   formatManYen,
+  SEASON_HONOR_LABEL,
   isForeignPlayer,
   specialLevel,
   yearsUntilFreeAgency,
@@ -36,6 +37,7 @@ import type {
   FieldPosition,
   Player,
   PlayerStats,
+  SeasonHonorRecord,
   SeasonTitleRecord,
   TeamKey,
 } from '../../engine';
@@ -518,6 +520,7 @@ export function PlayerDetailModal({
   careerAccumulated,
   yearlyStats,
   awardHistory,
+  honorHistory = [],
   roster,
   onSelect,
   onClose,
@@ -530,6 +533,7 @@ export function PlayerDetailModal({
   careerAccumulated: AccumulatedStats;
   yearlyStats: Record<string, unknown[]>;
   awardHistory: SeasonTitleRecord[];
+  honorHistory?: SeasonHonorRecord[];
   roster: Player[];
   onSelect(player: Player): void;
   onClose(): void;
@@ -578,6 +582,9 @@ export function PlayerDetailModal({
   const career = careerAccumulated[player.id];
   const history = yearlyRows(yearlyStats, player.id);
   const titles = awardHistory
+    .filter((record) => record.playerId === player.id)
+    .sort((first, second) => second.year - first.year);
+  const honors = honorHistory
     .filter((record) => record.playerId === player.id)
     .sort((first, second) => second.year - first.year);
   const currentIndex = roster.findIndex((candidate) => candidate.id === player.id);
@@ -736,6 +743,22 @@ export function PlayerDetailModal({
               <div className="detail-grid">
                 <Card className="detail-card detail-card--wide" ariaLabel="獲得タイトル">
                   <SectionTitle>Titles</SectionTitle>
+                  {honors.length > 0 && (
+                    <div
+                      aria-label="表彰"
+                      style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 8 }}
+                    >
+                      {honors.map((record) => (
+                        <span
+                          className="special-badge special-badge--gold"
+                          key={`${record.year}:${record.honorId}:${record.position ?? ''}`}
+                        >
+                          {record.year} {SEASON_HONOR_LABEL[record.honorId]}
+                          {record.position ? `（${record.position}）` : ''}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {titles.length ? (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
                       {titles.map((record) => (

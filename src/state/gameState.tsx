@@ -123,6 +123,7 @@ function snapshotFromState(state: RuntimeState): GameSaveData | null {
     championHistory: state.championHistory,
     awardHistory: state.awardHistory,
     achievementHistory: state.achievementHistory,
+    honorHistory: state.honorHistory,
     narrativeEvents: state.narrativeEvents,
     ...(state.narrativeQuarantine?.length
       ? { narrativeQuarantine: state.narrativeQuarantine }
@@ -192,6 +193,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           narrativeArticles: saved.narrativeArticles ?? {},
           narrativeEvents: saved.narrativeEvents ?? {},
           overseasPlayers: saved.overseasPlayers ?? [],
+          honorHistory: saved.honorHistory ?? [],
           lineup,
           loading: false,
           screen: resumeSeasonScreen(saved),
