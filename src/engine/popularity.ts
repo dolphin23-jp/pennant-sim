@@ -1,4 +1,5 @@
 import type { AchievementEvent } from './achievements';
+import type { GameBoxScore, NotableEventType } from './boxScore';
 import type { SeasonTitleRecord } from './awards';
 import type { SeasonHonorRecord } from './honors';
 import { calcOVR } from './ratings';
@@ -13,10 +14,39 @@ import type { AccumulatedStats, Player, Team, TeamKey, Teams } from './types';
  */
 const clamp = (value: number) => Math.max(0, Math.min(100, value));
 
-/** What a player's popularity is before anything has happened: his ability, a little. */
+/**
+ * Amateur fame: a national-tournament star or a first-round pick arrives already known,
+ * however raw. It fades over his first four years as a pro, as the pro record takes over.
+ */
+export function amateurFame(player: Player): number {
+  const history = player.preProHistory;
+  let fame = 0;
+  if (history) {
+    fame += { 'national-elite': 22, national: 12, regional: 5, developmental: 0 }[
+      history.profileTier
+    ];
+    for (const highlight of history.highlights) {
+      if (highlight.kind === 'national-tournament')
+        fame += /優勝|準優勝/.test(highlight.text) ? 8 : 3;
+      if (
+        highlight.kind === 'national-team' ||
+        highlight.kind === 'corporate-tournament' ||
+        highlight.kind === 'university-award'
+      )
+        fame += 4;
+    }
+  }
+  if (player.generationalTalent) fame += 12;
+  if (player.draftRound === 1) fame += 6;
+  const yearsPro = history ? Math.max(0, player.age - history.entryAge) : 4;
+  return Math.min(35, fame) * Math.max(0, 1 - yearsPro / 4);
+}
+
+/** What a player's popularity is before anything has happened on the field: his ability,
+ * a little, and the name he made as an amateur. */
 export function basePopularity(player: Player): number {
   const ovr = calcOVR(player);
-  return Math.round(clamp(12 + (ovr - 50) * 1.3));
+  return Math.round(clamp(12 + (ovr - 50) * 1.3 + amateurFame(player)));
 }
 
 export const popularityOf = (player: Player): number =>
@@ -72,10 +102,12 @@ export interface PopularityChange {
 export function nextPopularity(player: Player, team: TeamKey, season: PopularitySeason): number {
   const before = popularityOf(player);
   const performance = performanceScore(player, season.stats);
-  // A season on the bench lets a name fade toward what his ability alone would earn.
+  // A season on the bench lets a name fade toward what his ability alone would earn; a
+  // long-serving player (生え抜き or veteran) keeps his name longer.
+  const fade = (player.serviceYears ?? 0) >= 8 ? 0.92 : 0.85;
   let after =
     performance === null
-      ? before * 0.85 + basePopularity(player) * 0.15
+      ? before * fade + basePopularity(player) * (1 - fade)
       : before * 0.6 + performance * 0.4;
   after += 6 * season.titles.filter((title) => title.playerId === player.id).length;
   for (const honor of season.honors)
@@ -150,4 +182,58 @@ export function gameAttendance(
   const noise = 0.94 + (((hash >>> 0) % 1000) / 1000) * 0.12;
   const crowd = (17_000 + teamPopularity(home) * 330) * weekend * race * noise;
   return Math.round(Math.min(46_000, crowd) / 10) * 10;
+}
+
+/** Popularity gained from single games in a season is capped, so a hot month cannot make
+ * a star by itself; the season's whole record decides that at the end of the year. */
+export const IN_SEASON_POPULARITY_CAP = 15;
+
+const GAME_MOMENT_BONUS: Partial<Record<NotableEventType, number>> = {
+  walkoffHr: 3,
+  walkoff: 2,
+  grandSlam: 2,
+  shutout: 2,
+  tenK: 1,
+  multiHr: 1,
+  completeGame: 1,
+};
+
+/**
+ * Moments during the season raise a player's popularity at once: walk-offs, grand slams,
+ * shutouts, ten-strikeout games, milestones and records.
+ */
+export function applyInSeasonPopularity(
+  teams: Teams,
+  year: number,
+  boxes: GameBoxScore[],
+  achievements: AchievementEvent[],
+): Teams {
+  const gains = new Map<string, number>();
+  const add = (playerId: string | undefined, value: number) => {
+    if (playerId && value > 0) gains.set(playerId, (gains.get(playerId) ?? 0) + value);
+  };
+  for (const box of boxes)
+    for (const event of box.notableEvents) add(event.playerId, GAME_MOMENT_BONUS[event.type] ?? 0);
+  for (const event of achievements) add(event.playerId, 3);
+  if (!gains.size) return teams;
+  const update = (player: Player): Player => {
+    const gain = gains.get(player.id);
+    if (!gain) return player;
+    const gained = player.popularityGain?.year === year ? player.popularityGain.value : 0;
+    const allowed = Math.max(0, Math.min(gain, IN_SEASON_POPULARITY_CAP - gained));
+    if (!allowed) return player;
+    return {
+      ...player,
+      popularity: Math.round(clamp(popularityOf(player) + allowed)),
+      popularityGain: { year, value: gained + allowed },
+    };
+  };
+  const next = { ...teams };
+  for (const [teamKey, team] of Object.entries(teams) as Array<[TeamKey, Team]>)
+    next[teamKey] = {
+      ...team,
+      fielders: team.fielders.map(update),
+      pitchers: team.pitchers.map(update),
+    };
+  return next;
 }

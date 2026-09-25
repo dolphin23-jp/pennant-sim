@@ -419,7 +419,7 @@ function PopularityRanking({
     <Card ariaLabel="人気選手ランキング">
       <SectionTitle>人気選手</SectionTitle>
       <p className="popularity-ranking__note">
-        人気は成績・タイトル・記録・日本一で毎年上下し、観客動員と球団収入に影響します。
+        人気は、アマチュア時代の実績（甲子園・日本代表など）やドラフト1位の前評判から始まり、サヨナラや完封などの活躍でシーズン中にも上がります。オフには成績・タイトル・表彰・日本一で見直されます。観客動員と球団収入に影響し、気質によっては大舞台での力にも少し影響します。
       </p>
       <div className="table-scroll">
         <table className="data-table popularity-ranking">

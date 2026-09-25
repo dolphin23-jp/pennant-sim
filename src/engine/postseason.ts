@@ -78,6 +78,11 @@ export function simulateSeries(
       home === first ? firstRotation : secondRotation,
       away === first ? firstRotation : secondRotation,
       accumulated,
+      null,
+      null,
+      // No date: postseason pitchers keep the rest rules they have always had.
+      undefined,
+      'postseason',
     );
     narrativeEvents.push(
       ...narrativeEventsFromPostGame(

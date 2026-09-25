@@ -114,7 +114,7 @@ test('a fixed full season keeps pitcher usage and performance tails in diagnosti
     // 80+, a few relievers reach 70 in some years, and qualified sub-2.00 ERAs range from
     // one pitcher in a hitters' year to about ten.
     assert.ok(reliefLeader >= 50 && reliefLeader <= 80, `relief leader ${reliefLeader}`);
-    assert.ok(reliefInningsLeader < 95);
+    assert.ok(reliefInningsLeader < 95, `relief innings leader ${reliefInningsLeader}`);
     assert.ok(relief.filter((line) => line.g >= 70).length <= 4);
     assert.ok(strikeoutLeader >= 150 && strikeoutLeader <= 240);
     assert.ok(pitching.filter((line) => line.k >= 200).length <= 2);

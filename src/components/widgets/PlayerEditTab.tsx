@@ -18,6 +18,8 @@ import {
   salaryOf,
   specialLevel,
   syncSpecialsFromLevels,
+  TEMPERAMENT_LABEL,
+  temperamentOf,
   velocityToKmh,
 } from '../../engine';
 import type {
@@ -384,6 +386,15 @@ export function PlayerEditTab({ player, onSave }: { player: Player; onSave(next:
             min={0}
             max={100}
             onChange={(fatigue) => update({ fatigue })}
+          />
+          <SelectField
+            label="気質"
+            value={temperamentOf(draft)}
+            options={(['bigStage', 'steady', 'pressure'] as const).map((value) => ({
+              value,
+              label: TEMPERAMENT_LABEL[value],
+            }))}
+            onChange={(temperament) => update({ temperament })}
           />
           <SelectField
             label="登録"

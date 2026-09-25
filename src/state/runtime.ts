@@ -32,6 +32,7 @@ import {
   CLIMAX_SERIES_SPOTS,
   GRADE_LABEL,
   INITIAL_TRUST,
+  applyInSeasonPopularity,
   applyOwnerBudget,
   evaluateSeason,
   seasonExpectation,
@@ -288,10 +289,17 @@ export function applySkip(
     yearlyStats: current.yearlyStats,
   });
   const achievementNotices = createAchievementNotices(achievements);
+  // Walk-offs, shutouts, milestones and records make names during the season too.
+  const popularTeams = applyInSeasonPopularity(
+    teams,
+    current.season.year,
+    Object.values(result.gameBoxScores),
+    achievements,
+  );
   const next: RuntimeState = {
     ...current,
     screen: seasonOver ? 'postseason' : 'season',
-    teams,
+    teams: popularTeams,
     season: { ...current.season, schedule: result.sched },
     rotN: result.rotN,
     standings: calcStandings(result.sched),

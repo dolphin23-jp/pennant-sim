@@ -14,6 +14,7 @@ export type TeamKey =
 export type League = 'central' | 'pacific';
 export type FieldPosition =
   '捕手' | '一塁手' | '二塁手' | '三塁手' | '遊撃手' | '左翼手' | '中堅手' | '右翼手';
+export type Temperament = 'bigStage' | 'steady' | 'pressure';
 export type PitcherRole = '先発' | 'リリーフ' | 'クローザー';
 export type Maturity = '超早熟' | '早熟' | '通常' | '晩成' | '超晩成';
 export type PotentialClass = 'standard' | 'elite';
@@ -174,6 +175,12 @@ export interface Player {
   /** Fan following, 0-100 (engine/popularity.ts). Missing until the first season is
    * scored; popularityOf() then falls back to a value from ability. */
   popularity?: number;
+  /** Popularity gained from single games this season, against the in-season cap. */
+  popularityGain?: { year: number; value: number };
+  /** Draft round when he signed (1 = 1位指名). Missing for players from before it was kept. */
+  draftRound?: number;
+  /** How he takes the spotlight: raised by it, unmoved, or tightened by it. */
+  temperament?: Temperament;
   [key: string]: unknown;
 }
 /** 人的補償 ranks: A and B bring the former club a player (or cash); C brings nothing. */
@@ -211,6 +218,8 @@ export interface AtBatSituation {
   bases: BaseState;
   /** The defence on the field, so a batted ball can be resolved against a real fielder. */
   fieldingLineup?: Player[];
+  /** A moment that matters: late and close, or any postseason plate appearance. */
+  highLeverage?: boolean;
 }
 export interface AtBatOutcome {
   result: PlateAppearanceResult;
@@ -343,6 +352,8 @@ export interface DatedPostGameEvents {
   events: PostGameEvents;
 }
 export interface GameState {
+  /** A postseason game makes every plate appearance a big moment. */
+  stage?: 'regular' | 'postseason';
   teams: Record<Side, Team>;
   lineups: Record<Side, Player[]>;
   park: ParkFactors;

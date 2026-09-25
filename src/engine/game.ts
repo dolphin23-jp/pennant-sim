@@ -601,6 +601,8 @@ export function simHalf(
           bases,
           // The defence actually on the field decides whether a batted ball is fielded.
           fieldingLineup: gameState.lineups[fieldingSide],
+          highLeverage:
+            gameState.stage === 'postseason' || (inning >= 6 && Math.abs(scoreDifference) <= 1),
         },
         catcherGameCalling,
         pitcherMastery,
@@ -958,6 +960,7 @@ export function simulateGame(
   homePitcherPlan?: PitcherPlanInput | null,
   awayPitcherPlan?: PitcherPlanInput | null,
   gameDate?: string,
+  stage: 'regular' | 'postseason' = 'regular',
 ): GameState {
   const homeTeam = prepareTeamPitchersForGame(teams[homeKey], gameDate),
     awayTeam = prepareTeamPitchersForGame(teams[awayKey], gameDate),
@@ -972,6 +975,7 @@ export function simulateGame(
     homeStarter = pickStarter(homeTeam, resolvedHomePitcherPlan.rotationOrder, homeStarterIndex),
     awayStarter = pickStarter(awayTeam, resolvedAwayPitcherPlan.rotationOrder, awayStarterIndex);
   const gameState: GameState = {
+    stage,
     teams: { home: homeTeam, away: awayTeam },
     lineups: { home: resolvedHomeLineup, away: resolvedAwayLineup },
     park: homeTeam.park,
