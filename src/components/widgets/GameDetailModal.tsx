@@ -11,12 +11,15 @@ export function GameDetailModal({
   playLog,
   onSelectPlayer,
   onClose,
+  onWatchLive,
 }: {
   box: GameSummary | GameBoxScore | null;
   /** Play-by-play, kept for the user's most recent games. */
   playLog?: GamePlayLog | null;
   onSelectPlayer?(playerId: string, teamKey: TeamKey): void;
   onClose(): void;
+  /** Replays the game in the live viewer, for games whose play-by-play is kept. */
+  onWatchLive?: () => void;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -66,9 +69,20 @@ export function GameDetailModal({
             </h1>
             <div className="player-modal__meta">{box.date}</div>
           </div>
-          <Button onClick={onClose} color="var(--color-surface-muted)" ariaLabel="試合詳細を閉じる">
-            閉じる
-          </Button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {onWatchLive && (
+              <Button onClick={onWatchLive} ariaLabel="この試合をライブで見る">
+                ライブで見る
+              </Button>
+            )}
+            <Button
+              onClick={onClose}
+              color="var(--color-surface-muted)"
+              ariaLabel="試合詳細を閉じる"
+            >
+              閉じる
+            </Button>
+          </div>
         </header>
         <div className="player-modal__body">
           <div className="stack">

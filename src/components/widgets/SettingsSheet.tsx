@@ -7,6 +7,7 @@ import {
   type Theme,
 } from '../../state/settings';
 import { Button, SectionTitle, SegmentedControl } from '../ui';
+import { SOUND_PREVIEW, sound } from '../../audio/sound';
 import { SaveSlotControls } from './SaveSlotControls';
 import { useFocusTrap } from './useFocusTrap';
 
@@ -38,6 +39,14 @@ export function SettingsSheet({
     setSkipConfirmations,
     hiddenNoticeKinds,
     toggleNoticeKind,
+    soundEnabled,
+    setSoundEnabled,
+    volume,
+    setVolume,
+    reduceEffects,
+    setReduceEffects,
+    autoLiveWatch,
+    setAutoLiveWatch,
   } = useSettings();
 
   useEffect(() => {
@@ -94,6 +103,95 @@ export function SettingsSheet({
                 onChange={setTheme}
                 ariaLabel="テーマ"
               />
+            </div>
+          </section>
+
+          <section className="settings-sheet__section">
+            <SectionTitle>サウンドと演出</SectionTitle>
+            <div className="settings-sheet__row">
+              <div>
+                <span>効果音</span>
+                <div className="settings-sheet__description">
+                  打球音・歓声・オルガン・サイレンなど。音声ファイルは使わず、ブラウザ内で合成します。
+                </div>
+              </div>
+              <label className="settings-sheet__checkbox">
+                <input
+                  type="checkbox"
+                  checked={soundEnabled}
+                  onChange={(event) => {
+                    setSoundEnabled(event.target.checked);
+                    if (event.target.checked) {
+                      sound.configure(true, volume);
+                      sound.unlock();
+                      sound.play('chime');
+                    }
+                  }}
+                  aria-label="効果音を鳴らす"
+                />
+                {soundEnabled ? 'ON' : 'OFF'}
+              </label>
+            </div>
+            {soundEnabled && (
+              <div className="settings-sheet__row">
+                <label htmlFor="settings-volume">音量</label>
+                <div className="settings-sheet__volume">
+                  <input
+                    id="settings-volume"
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={Math.round(volume * 100)}
+                    onChange={(event) => setVolume(Number(event.target.value) / 100)}
+                  />
+                  <Button
+                    onClick={() => {
+                      sound.unlock();
+                      SOUND_PREVIEW.forEach((cue, index) =>
+                        window.setTimeout(() => sound.play(cue), index * 700),
+                      );
+                    }}
+                    color="var(--color-surface-muted)"
+                  >
+                    試し聴き
+                  </Button>
+                </div>
+              </div>
+            )}
+            <div className="settings-sheet__row">
+              <div>
+                <span>演出を控えめに</span>
+                <div className="settings-sheet__description">
+                  画面の揺れ・紙吹雪・アニメーションを止めます。
+                </div>
+              </div>
+              <label className="settings-sheet__checkbox">
+                <input
+                  type="checkbox"
+                  checked={reduceEffects}
+                  onChange={(event) => setReduceEffects(event.target.checked)}
+                  aria-label="演出を控えめにする"
+                />
+                {reduceEffects ? 'ON' : 'OFF'}
+              </label>
+            </div>
+            <div className="settings-sheet__row">
+              <div>
+                <span>次の試合をライブで観戦</span>
+                <div className="settings-sheet__description">
+                  「次の試合」のあと、自球団の試合を1打席ずつ再生します。スキップやおまかせ進行では開きません。
+                </div>
+              </div>
+              <label className="settings-sheet__checkbox">
+                <input
+                  type="checkbox"
+                  checked={autoLiveWatch}
+                  onChange={(event) => setAutoLiveWatch(event.target.checked)}
+                  aria-label="次の試合をライブで観戦する"
+                />
+                {autoLiveWatch ? 'ON' : 'OFF'}
+              </label>
             </div>
           </section>
 

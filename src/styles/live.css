@@ -1,0 +1,463 @@
+/* Live viewer (components/live/LiveGameViewer.tsx): a night game replayed under the lights.
+   The panel stays dark in both themes, like the scoreboard it imitates. */
+.live-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: rgb(2 5 3 / 82%);
+  backdrop-filter: blur(3px);
+}
+
+.live {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: 10px;
+  width: min(100%, 760px);
+  max-height: calc(100dvh - 24px);
+  padding: 12px;
+  overflow: hidden;
+  border: 1px solid var(--lamp-border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, #0a0f0b 0%, #060907 100%);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 55%);
+  color: var(--lamp-text);
+  outline: none;
+}
+
+/* Scoreboard */
+.live__board {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.live__line {
+  flex: 1;
+  min-width: 0;
+  border-collapse: collapse;
+  background: var(--lamp-bg);
+  font-family: var(--font-display);
+  table-layout: fixed;
+}
+
+.live__line th,
+.live__line td {
+  padding: 3px 0;
+  border: 1px solid #1b2419;
+  text-align: center;
+  font-size: var(--text-base);
+}
+
+.live__line thead th {
+  color: var(--lamp-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.live__line tbody th {
+  width: 3.6em;
+  padding-left: 6px;
+  border-left: 4px solid var(--team);
+  color: var(--lamp-text);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 900;
+  text-align: left;
+}
+
+.live__line td {
+  color: var(--color-signature);
+  font-size: 1.15rem;
+  font-weight: 700;
+  text-shadow: 0 0 8px color-mix(in srgb, var(--color-signature) 55%, transparent);
+}
+
+.live__line .live__total {
+  width: 2.4em;
+  color: var(--lamp-text);
+  text-shadow: 0 0 8px rgb(255 255 255 / 35%);
+}
+
+.live__lamp--now {
+  background: color-mix(in srgb, var(--color-signature) 14%, transparent);
+}
+
+.live__batting th {
+  background: color-mix(in srgb, var(--team) 20%, transparent);
+}
+
+.live__bso {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--lamp-bg);
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+.live__bso-row {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.live__bso-row span {
+  width: 1em;
+  color: var(--lamp-text-muted);
+}
+
+.live__bso-lamp {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #1f2a1e;
+}
+
+.live__bso-lamp--ball {
+  background: #6ad98a;
+  box-shadow: 0 0 8px #6ad98a;
+}
+
+.live__bso-lamp--strike {
+  background: #ffd166;
+  box-shadow: 0 0 8px #ffd166;
+}
+
+.live__bso-lamp--out {
+  background: #ff6b76;
+  box-shadow: 0 0 8px #ff6b76;
+}
+
+/* Field */
+.live__stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+}
+
+.live__field {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: 52dvh;
+  margin: 0 auto;
+}
+
+.live__stands {
+  fill: #0c1310;
+}
+
+.live__crowd circle {
+  fill: rgb(255 214 150 / 28%);
+}
+
+.live__grass {
+  fill: #13301f;
+}
+
+.live__fence {
+  fill: none;
+  stroke: #e0b25a;
+  stroke-width: 0.8;
+}
+
+.live__dirt {
+  fill: rgb(178 132 76 / 60%);
+  stroke: rgb(214 176 122 / 45%);
+  stroke-width: 0.3;
+}
+
+.live__chalk {
+  stroke: rgb(240 244 238 / 45%);
+  stroke-width: 0.45;
+}
+
+.live__fielder {
+  fill: var(--live-field);
+  stroke: #fff;
+  stroke-width: 0.35;
+}
+
+.live__batter {
+  fill: var(--live-bat);
+  stroke: #fff;
+  stroke-width: 0.4;
+}
+
+.live__base {
+  fill: #e9ecef;
+  opacity: 0.55;
+  transition:
+    fill 0.3s,
+    opacity 0.3s;
+}
+
+.live__base--on {
+  fill: var(--color-signature);
+  opacity: 1;
+  filter: drop-shadow(0 0 1.4px var(--color-signature));
+}
+
+.live__trail {
+  fill: none;
+  stroke: rgb(255 255 255 / 55%);
+  stroke-width: 0.5;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: live-trail 0.9s ease-out forwards;
+}
+
+.live__ball {
+  fill: #fff;
+  filter: drop-shadow(0 0 1.2px #fff);
+}
+
+@keyframes live-trail {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.live__banner {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--color-signature);
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 9vw, 4.4rem);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-shadow:
+    0 0 18px color-mix(in srgb, var(--color-signature) 70%, transparent),
+    0 4px 0 #000;
+  pointer-events: none;
+  animation: live-banner 1.8s ease-out both;
+}
+
+@keyframes live-banner {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  18% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  30% {
+    transform: scale(1);
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.9;
+  }
+}
+
+.live__stage--shake {
+  animation: live-shake 0.5s 0.9s ease-in-out;
+}
+
+@keyframes live-shake {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  20% {
+    transform: translate(-4px, 2px);
+  }
+  40% {
+    transform: translate(4px, -2px);
+  }
+  60% {
+    transform: translate(-3px, -1px);
+  }
+  80% {
+    transform: translate(2px, 1px);
+  }
+}
+
+.live__confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.live__confetti i {
+  position: absolute;
+  top: -12px;
+  left: var(--x);
+  width: 7px;
+  height: 12px;
+  border-radius: 2px;
+  background: hsl(var(--hue) 85% 62%);
+  animation: live-confetti 2.6s var(--delay) linear forwards;
+}
+
+@keyframes live-confetti {
+  to {
+    transform: translate(18px, 110%) rotate(540deg);
+    top: 100%;
+  }
+}
+
+/* Commentary */
+.live__telop {
+  display: grid;
+  gap: 4px;
+  min-height: 72px;
+  padding: 8px 12px;
+  border-left: 4px solid var(--live-bat);
+  background: #0f1712;
+}
+
+.live__telop-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--lamp-text-muted);
+  font-size: var(--text-sm);
+}
+
+.live__telop-meta strong {
+  color: var(--lamp-text);
+}
+
+.live__half {
+  color: var(--color-signature);
+  font-weight: 900;
+}
+
+.live__note {
+  color: #ffd166;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.live__desc {
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+
+.live__final {
+  color: var(--color-signature);
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 900;
+}
+
+/* Controls */
+.live__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.live__speed {
+  display: flex;
+  gap: 2px;
+}
+
+.live__button {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid #2f3e31;
+  border-radius: 8px;
+  background: #16211a;
+  color: var(--lamp-text);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.live__button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.live__button:focus-visible {
+  outline: 2px solid var(--color-signature);
+  outline-offset: 2px;
+}
+
+.live__button--primary {
+  min-width: 7em;
+  border-color: var(--live-bat);
+  background: color-mix(in srgb, var(--live-bat) 35%, #16211a);
+}
+
+.live__button--on {
+  border-color: var(--color-signature);
+  color: var(--color-signature);
+}
+
+.live--calm .live__banner,
+.live--calm .live__trail,
+.live--calm .live__stage--shake {
+  animation: none;
+}
+
+.live--calm .live__trail {
+  stroke-dashoffset: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live__banner,
+  .live__stage--shake,
+  .live__confetti i {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .live-backdrop {
+    padding: 0;
+  }
+
+  .live {
+    max-height: 100dvh;
+    border-radius: 0;
+    padding: 10px;
+  }
+
+  .live__board {
+    flex-direction: column;
+  }
+
+  .live__line th,
+  .live__line td {
+    font-size: var(--text-xs);
+  }
+
+  .live__line td {
+    font-size: var(--text-base);
+  }
+
+  .live__bso {
+    grid-auto-flow: column;
+    justify-content: start;
+    gap: 14px;
+  }
+
+  .live__field {
+    max-height: 42dvh;
+  }
+
+  .live__button {
+    padding: 8px 10px;
+  }
+}
+
+/* Entry points */
+.settings-sheet__volume {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}

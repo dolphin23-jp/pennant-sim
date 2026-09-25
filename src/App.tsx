@@ -7,6 +7,8 @@ import { TeamSelectScreen } from './components/screens/TeamSelectScreen';
 import { TitleScreen } from './components/screens/TitleScreen';
 import { ConfirmProvider } from './components/ConfirmDialog';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { LiveGameViewer } from './components/live/LiveGameViewer';
+import { OpenLiveViewerContext } from './components/live/liveViewerContext';
 import { OpenSettingsContext } from './components/settingsSheetContext';
 import { PageShell, SettingsButton } from './components/ui';
 import { GameDetailModal } from './components/widgets/GameDetailModal';
@@ -19,6 +21,7 @@ function GameRouter() {
   const game = useGameState();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const [liveGameId, setLiveGameId] = useState<string | null>(null);
   if (game.loading) {
     return (
       <PageShell ariaLabel="セーブデータ読込中">
@@ -68,45 +71,67 @@ function GameRouter() {
     if (player) game.selectPlayer(player);
   };
 
+  const liveLog = liveGameId ? game.recentPlayLogs[liveGameId] : null;
+
   return (
     <OpenSettingsContext.Provider value={openSettings}>
-      {game.screen !== 'season' && <SettingsButton onClick={() => setSettingsOpen(true)} />}
-      {settingsOpen && (
-        <SettingsSheet
+      <OpenLiveViewerContext.Provider value={setLiveGameId}>
+        {game.screen !== 'season' && <SettingsButton onClick={() => setSettingsOpen(true)} />}
+        {settingsOpen && (
+          <SettingsSheet
+            debugMode={game.debugMode}
+            onToggleDebugMode={game.toggleDebugMode}
+            hasActiveGame={Boolean(game.teams && game.playerTeam)}
+            onSaveCurrent={game.saveCurrent}
+            onActiveSlotCleared={() => {
+              game.startNewGame();
+              setSettingsOpen(false);
+            }}
+            onClose={() => setSettingsOpen(false)}
+          />
+        )}
+        {screen}
+        <PlayerDetailModal
+          player={game.selectedPlayer}
+          accumulated={isPlayerTeam ? game.accumulated : game.leagueAccumulated}
+          careerAccumulated={isPlayerTeam ? game.careerAccumulated : game.leagueCareerAccumulated}
+          yearlyStats={game.yearlyStats}
+          awardHistory={game.awardHistory}
+          honorHistory={game.honorHistory}
+          roster={modalRoster}
+          onSelect={game.selectPlayer}
+          onClose={() => game.selectPlayer(null)}
           debugMode={game.debugMode}
-          onToggleDebugMode={game.toggleDebugMode}
-          hasActiveGame={Boolean(game.teams && game.playerTeam)}
-          onSaveCurrent={game.saveCurrent}
-          onActiveSlotCleared={() => {
-            game.startNewGame();
-            setSettingsOpen(false);
-          }}
-          onClose={() => setSettingsOpen(false)}
+          onUpdatePlayer={game.updatePlayer}
+          isOwnTeam={isPlayerTeam}
+          isFavorite={Boolean(
+            game.selectedPlayer && game.favorites.includes(game.selectedPlayer.id),
+          )}
+          onToggleFavorite={game.toggleFavorite}
         />
-      )}
-      {screen}
-      <PlayerDetailModal
-        player={game.selectedPlayer}
-        accumulated={isPlayerTeam ? game.accumulated : game.leagueAccumulated}
-        careerAccumulated={isPlayerTeam ? game.careerAccumulated : game.leagueCareerAccumulated}
-        yearlyStats={game.yearlyStats}
-        awardHistory={game.awardHistory}
-        honorHistory={game.honorHistory}
-        roster={modalRoster}
-        onSelect={game.selectPlayer}
-        onClose={() => game.selectPlayer(null)}
-        debugMode={game.debugMode}
-        onUpdatePlayer={game.updatePlayer}
-        isOwnTeam={isPlayerTeam}
-        isFavorite={Boolean(game.selectedPlayer && game.favorites.includes(game.selectedPlayer.id))}
-        onToggleFavorite={game.toggleFavorite}
-      />
-      <GameDetailModal
-        box={selectedGameBox}
-        playLog={game.selectedGameId ? game.recentPlayLogs[game.selectedGameId] : null}
-        onSelectPlayer={selectBoxScorePlayer}
-        onClose={() => game.selectGame(null)}
-      />
+        <GameDetailModal
+          box={selectedGameBox}
+          playLog={game.selectedGameId ? game.recentPlayLogs[game.selectedGameId] : null}
+          onSelectPlayer={selectBoxScorePlayer}
+          onClose={() => game.selectGame(null)}
+          onWatchLive={
+            game.selectedGameId && game.recentPlayLogs[game.selectedGameId]
+              ? () => {
+                  setLiveGameId(game.selectedGameId);
+                  game.selectGame(null);
+                }
+              : undefined
+          }
+        />
+        {liveLog && (
+          <LiveGameViewer
+            key={liveLog.gameId}
+            log={liveLog}
+            ownTeam={game.playerTeam}
+            onClose={() => setLiveGameId(null)}
+          />
+        )}
+      </OpenLiveViewerContext.Provider>
     </OpenSettingsContext.Provider>
   );
 }

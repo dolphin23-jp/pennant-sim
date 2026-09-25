@@ -96,6 +96,7 @@ function finishContact(
     dir: describeContact(result, battedBall, slot, direction),
     battedBall,
     fieldingSlot: slot,
+    spray: direction,
     errorFielderId,
   };
 }

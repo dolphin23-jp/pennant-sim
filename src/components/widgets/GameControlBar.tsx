@@ -2,7 +2,10 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 
 import { TINFO } from '../../data';
 import type { ScheduleGame, TeamKey } from '../../engine';
+import { sound } from '../../audio/sound';
 import { useGameState } from '../../state/gameState';
+import { useSettings } from '../../state/settings';
+import { useOpenLiveViewer } from '../live/liveViewerContext';
 import { useBusyAction } from '../useBusyAction';
 import { Button } from '../ui';
 
@@ -65,7 +68,12 @@ export function GameControlBar() {
   const busy = actionBusy || game.advanceProgress !== null;
   const [flash, setFlash] = useState<Flash | null>(null);
   const seen = useRef<{ year: number; ids: Set<string> } | null>(null);
+  // Set when 次の試合 is pressed, so only that (not a skip) opens the live viewer.
+  const pressedNext = useRef(false);
   const team = game.playerTeam;
+  const { autoLiveWatch } = useSettings();
+  const openLive = useOpenLiveViewer();
+  const playLogs = game.recentPlayLogs;
 
   // Compare the user's played games with the last render to find what an advance just
   // played. A new season or a year-by-year auto advance resets the baseline silently.
@@ -77,16 +85,30 @@ export function GameControlBar() {
     const ids = new Set(own.map((scheduled) => scheduled.id));
     const previous = seen.current;
     seen.current = { year: game.season.year, ids };
+    const next = pressedNext.current;
     if (!previous || previous.year !== game.season.year || game.advanceProgress) return;
     const fresh = own
       .filter((scheduled) => !previous.ids.has(scheduled.id))
       .sort((first, second) => first.date.localeCompare(second.date));
     if (!fresh.length) return;
-    setFlash({
-      key: Date.now(),
-      ...describe(fresh, team, game.standings[team]?.rank),
-    });
-  }, [game.season.schedule, game.season.year, game.advanceProgress, game.standings, team]);
+    pressedNext.current = false;
+    const described = describe(fresh, team, game.standings[team]?.rank);
+    if (next && autoLiveWatch && described.gameId && playLogs[described.gameId]) {
+      openLive(described.gameId);
+      return;
+    }
+    setFlash({ key: Date.now(), ...described });
+    sound.play(described.tone === 'win' ? 'win' : described.tone === 'loss' ? 'lose' : 'chime');
+  }, [
+    game.season.schedule,
+    game.season.year,
+    game.advanceProgress,
+    game.standings,
+    team,
+    autoLiveWatch,
+    openLive,
+    playLogs,
+  ]);
 
   useEffect(() => {
     if (!flash) return;
@@ -112,6 +134,19 @@ export function GameControlBar() {
           <span className="game-flash__lamp" aria-hidden="true" />
           <span className="game-flash__headline">{flash.headline}</span>
           <span className="game-flash__detail">{flash.detail}</span>
+          {flash.gameId && playLogs[flash.gameId] && (
+            <button
+              type="button"
+              className="game-flash__link"
+              onClick={() => {
+                sound.unlock();
+                openLive(flash.gameId);
+                setFlash(null);
+              }}
+            >
+              ライブで見る
+            </button>
+          )}
           {flash.gameId && (
             <button
               type="button"
@@ -145,7 +180,11 @@ export function GameControlBar() {
             </div>
             <div className="game-bar__actions">
               <Button
-                onClick={() => run(game.simulateNextGame)}
+                onClick={() => {
+                  sound.unlock();
+                  pressedNext.current = true;
+                  run(game.simulateNextGame);
+                }}
                 disabled={busy}
                 color={teamColor}
                 ariaLabel="次の試合を実行"

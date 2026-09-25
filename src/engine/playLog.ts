@@ -10,6 +10,12 @@ export interface PlayLogPlay {
   rbi: number;
   outsBefore?: number;
   basesBefore?: [boolean, boolean, boolean];
+  /** For replaying the play: what was hit, where, who fielded it, and the bases after. */
+  battedBall?: 'ground' | 'line' | 'fly' | 'popup';
+  fieldingSlot?: string;
+  spray?: 'pull' | 'center' | 'oppo';
+  basesAfter?: [boolean, boolean, boolean];
+  pc?: number;
   /** Score after the play. */
   away: number;
   home: number;
@@ -114,6 +120,11 @@ export function buildPlayLog(gameId: string, date: string, game: GameState): Gam
           rbi: play.rbi,
           ...(play.outsBefore === undefined ? {} : { outsBefore: play.outsBefore }),
           ...(play.basesBefore ? { basesBefore: play.basesBefore } : {}),
+          ...(play.battedBall ? { battedBall: play.battedBall } : {}),
+          ...(play.fieldingSlot ? { fieldingSlot: play.fieldingSlot } : {}),
+          ...(play.spray ? { spray: play.spray } : {}),
+          ...(play.basesAfter ? { basesAfter: play.basesAfter } : {}),
+          ...(play.pc === undefined ? {} : { pc: play.pc }),
           away: play.snap.away,
           home: play.snap.home,
         },
