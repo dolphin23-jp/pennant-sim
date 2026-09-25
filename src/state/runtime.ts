@@ -28,7 +28,6 @@ import {
   selectSeasonHonors,
   toSummary,
   selectSeasonTitles,
-  simCpuUntilNext,
   skipGamesWithPitcherPlan,
   CLIMAX_SERIES_SPOTS,
   GRADE_LABEL,
@@ -483,14 +482,7 @@ export function applyOffseasonCompletion(
   const year = completedYear + 1;
   const nextExpectation = seasonExpectation(nextTeams, current.playerTeam, year);
   const schedule = generateSchedule(year);
-  const prepared = simCpuUntilNext(
-    schedule,
-    nextTeams,
-    createEmptyRotations(),
-    current.playerTeam,
-    {},
-    {},
-  );
+  // Opening day starts unplayed: the first advance plays it whole, like any other day.
   const next: RuntimeState = {
     ...current,
     teams: nextTeams,
@@ -501,7 +493,6 @@ export function applyOffseasonCompletion(
         current.standings,
         current.championHistory.find((c) => c.year === completedYear)?.champion,
       ),
-      ...prepared.narrativeEvents,
     ]),
     // A player back on a roster (returning from MLB) is no longer a departed one.
     retiredPlayers: [
@@ -509,14 +500,14 @@ export function applyOffseasonCompletion(
     ].filter((player) => !activeIds.has(player.id)),
     overseasPlayers: overseas,
     screen: 'season',
-    season: { year, schedule: prepared.sched },
-    rotN: prepared.rotN,
+    season: { year, schedule },
+    rotN: createEmptyRotations(),
     lineup: recommendedLineup(nextTeams[current.playerTeam]),
     // A new season starts from the AI's staff; last year's plan names departed pitchers.
     pitcherPlan: createEmptyPitcherPlan(),
-    standings: calcStandings(prepared.sched),
+    standings: calcStandings(schedule),
     accumulated: {},
-    leagueAccumulated: prepared.leagueDistStats,
+    leagueAccumulated: {},
     yearlyStats: {
       ...current.yearlyStats,
       [String(completedYear)]: seasonRecords,
@@ -529,8 +520,6 @@ export function applyOffseasonCompletion(
       ...current.honorHistory.filter((record) => record.year !== completedYear),
       ...seasonHonors,
     ],
-    gameSummaries: { ...current.gameSummaries, ...prepared.gameSummaries },
-    gameBoxScores: { ...current.gameBoxScores, ...prepared.gameBoxScores },
     manager: { ...current.manager, expectation: nextExpectation },
     notices: mergeNotices(current.notices, [
       expectationNotice(nextExpectation, current.playerTeam, current.manager.trust),
