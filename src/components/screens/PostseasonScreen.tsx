@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 
 import { CENTRAL, PACIFIC, TINFO } from '../../data';
 import {
+  postseasonBoxScores,
   postseasonNarrativeEvents,
   postseasonRunnerUp,
   runPostseason as runPostseasonSeries,
@@ -9,6 +10,7 @@ import {
 } from '../../engine';
 import type {
   AwardLeague,
+  GameBoxScore,
   PostseasonResults,
   SeriesResult,
   Player,
@@ -18,6 +20,7 @@ import type {
 import { useGameState } from '../../state/gameState';
 import { useBusyAction } from '../useBusyAction';
 import { AutoAdvancePanel } from '../widgets/AutoAdvancePanel';
+import { GameDetailModal } from '../widgets/GameDetailModal';
 import { TitleIcon } from '../icons';
 import {
   BackToTitleButton,
@@ -186,6 +189,9 @@ function PendingPill({ teamKey }: { teamKey: TeamKey }) {
   );
 }
 
+/** Opens a postseason game's box score from any series card. */
+const OpenGameContext = createContext<(box: GameBoxScore) => void>(() => undefined);
+
 function SeriesCard({
   title,
   series,
@@ -199,6 +205,7 @@ function SeriesCard({
   second: TeamKey;
   note?: string;
 }) {
+  const openGame = useContext(OpenGameContext);
   return (
     <Card ariaLabel={title}>
       <SectionTitle>{title}</SectionTitle>
@@ -228,16 +235,24 @@ function SeriesCard({
           </div>
           <div style={{ display: 'grid', gap: 4 }}>
             {series.games.map((game) => (
-              <div
+              <button
+                type="button"
                 key={game.game}
+                onClick={() => openGame(game.box)}
+                aria-label={`第${game.game}戦の試合詳細を開く`}
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
                   padding: '5px 7px',
                   background: 'var(--color-surface-muted)',
+                  border: 'none',
                   borderRadius: 5,
                   color: 'var(--color-text-muted)',
                   fontSize: 11,
+                  font: 'inherit',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  width: '100%',
                 }}
               >
                 <span>
@@ -248,7 +263,7 @@ function SeriesCard({
                   {game.homeScore}-{game.awayScore}
                   {game.winner ? '' : '（引分）'}
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         </>
@@ -349,6 +364,7 @@ function ChampionPennant({ teamKey }: { teamKey: TeamKey }) {
 export function PostseasonScreen() {
   const game = useGameState();
   const [results, setResults] = useState<PostseasonResults | null>(null);
+  const [openedBox, setOpenedBox] = useState<GameBoxScore | null>(null);
   const { busy, run } = useBusyAction();
   const centralRanking = useMemo(
     () =>
@@ -392,105 +408,109 @@ export function PostseasonScreen() {
   };
 
   return (
-    <PageShell>
-      <header
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          gap: 12,
-          alignItems: 'center',
-          marginBottom: 16,
-          flexWrap: 'wrap',
-        }}
-      >
-        <div>
-          <h1 style={{ margin: 0 }}>ポストシーズン</h1>
-          <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 5 }}>
-            クライマックスシリーズと日本シリーズをまとめて実行します。
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          {!results ? (
-            <>
-              <Button
-                onClick={() => run(runPostseason)}
-                disabled={busy || game.advanceProgress !== null}
-              >
-                全シリーズを実行
-              </Button>
-              {busy && (
-                <span
-                  role="status"
-                  aria-live="polite"
-                  style={{ color: 'var(--color-text-muted)', fontSize: 12 }}
-                >
-                  処理中…
-                </span>
-              )}
-            </>
-          ) : (
-            <Button
-              onClick={() => {
-                game.recordChampionship(
-                  results.japanSeries.winner,
-                  postseasonRunnerUp(results),
-                  postseasonNarrativeEvents(results),
-                );
-                game.setScreen('offseason');
-              }}
-            >
-              オフシーズンへ
-            </Button>
-          )}
-          <NewGameButton onStartNewGame={game.startNewGame} />
-          <BackToTitleButton onGoToTitle={() => game.setScreen('welcome')} />
-        </div>
-      </header>
-
-      <div style={{ display: 'grid', gap: 14 }}>
-        {!results && <AutoAdvancePanel />}
-        <SeasonTitlesPanel titles={titles} players={players} onSelect={game.selectPlayer} />
-        <LeagueBracketRow
-          leagueLabel="セ・リーグ"
-          first={centralRanking[0]}
-          second={centralRanking[1]}
-          third={centralRanking[2]}
-          firstSeries={results?.centralFirst ?? null}
-          finalSeries={results?.centralFinal ?? null}
-        />
-        <LeagueBracketRow
-          leagueLabel="パ・リーグ"
-          first={pacificRanking[0]}
-          second={pacificRanking[1]}
-          third={pacificRanking[2]}
-          firstSeries={results?.pacificFirst ?? null}
-          finalSeries={results?.pacificFinal ?? null}
-        />
-
-        <div
+    <OpenGameContext.Provider value={setOpenedBox}>
+      <PageShell>
+        <header
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0,1fr) 30px minmax(200px,320px)',
-            gap: 8,
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 12,
             alignItems: 'center',
+            marginBottom: 16,
+            flexWrap: 'wrap',
           }}
         >
-          <div />
-          <BracketArrow />
-          <SeriesCard
-            title="日本シリーズ"
-            series={results?.japanSeries ?? null}
-            first={results?.centralFinal.winner ?? centralRanking[0]}
-            second={results?.pacificFinal.winner ?? pacificRanking[0]}
-          />
-        </div>
-
-        {results && (
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
-            <ChampionPennant teamKey={results.japanSeries.winner} />
+          <div>
+            <h1 style={{ margin: 0 }}>ポストシーズン</h1>
+            <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 5 }}>
+              クライマックスシリーズと日本シリーズをまとめて実行します。
+            </div>
           </div>
-        )}
-      </div>
-    </PageShell>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {!results ? (
+              <>
+                <Button
+                  onClick={() => run(runPostseason)}
+                  disabled={busy || game.advanceProgress !== null}
+                >
+                  全シリーズを実行
+                </Button>
+                {busy && (
+                  <span
+                    role="status"
+                    aria-live="polite"
+                    style={{ color: 'var(--color-text-muted)', fontSize: 12 }}
+                  >
+                    処理中…
+                  </span>
+                )}
+              </>
+            ) : (
+              <Button
+                onClick={() => {
+                  game.recordChampionship(
+                    results.japanSeries.winner,
+                    postseasonRunnerUp(results),
+                    postseasonNarrativeEvents(results),
+                    postseasonBoxScores(results),
+                  );
+                  game.setScreen('offseason');
+                }}
+              >
+                オフシーズンへ
+              </Button>
+            )}
+            <NewGameButton onStartNewGame={game.startNewGame} />
+            <BackToTitleButton onGoToTitle={() => game.setScreen('welcome')} />
+          </div>
+        </header>
+
+        <div style={{ display: 'grid', gap: 14 }}>
+          {!results && <AutoAdvancePanel />}
+          <SeasonTitlesPanel titles={titles} players={players} onSelect={game.selectPlayer} />
+          <LeagueBracketRow
+            leagueLabel="セ・リーグ"
+            first={centralRanking[0]}
+            second={centralRanking[1]}
+            third={centralRanking[2]}
+            firstSeries={results?.centralFirst ?? null}
+            finalSeries={results?.centralFinal ?? null}
+          />
+          <LeagueBracketRow
+            leagueLabel="パ・リーグ"
+            first={pacificRanking[0]}
+            second={pacificRanking[1]}
+            third={pacificRanking[2]}
+            firstSeries={results?.pacificFirst ?? null}
+            finalSeries={results?.pacificFinal ?? null}
+          />
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(0,1fr) 30px minmax(200px,320px)',
+              gap: 8,
+              alignItems: 'center',
+            }}
+          >
+            <div />
+            <BracketArrow />
+            <SeriesCard
+              title="日本シリーズ"
+              series={results?.japanSeries ?? null}
+              first={results?.centralFinal.winner ?? centralRanking[0]}
+              second={results?.pacificFinal.winner ?? pacificRanking[0]}
+            />
+          </div>
+
+          {results && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
+              <ChampionPennant teamKey={results.japanSeries.winner} />
+            </div>
+          )}
+        </div>
+      </PageShell>
+      <GameDetailModal box={openedBox} onClose={() => setOpenedBox(null)} />
+    </OpenGameContext.Provider>
   );
 }

@@ -1,16 +1,20 @@
 import { useEffect, useRef } from 'react';
 
-import type { GameBoxScore, GameSummary, TeamKey } from '../../engine';
+import type { GameBoxScore, GamePlayLog, GameSummary, TeamKey } from '../../engine';
+import { PlayByPlay } from './PlayByPlay';
 import { Button } from '../ui';
 import { GameDetailView } from './GameDetailView';
 import { useFocusTrap } from './useFocusTrap';
 
 export function GameDetailModal({
   box,
+  playLog,
   onSelectPlayer,
   onClose,
 }: {
   box: GameSummary | GameBoxScore | null;
+  /** Play-by-play, kept for the user's most recent games. */
+  playLog?: GamePlayLog | null;
   onSelectPlayer?(playerId: string, teamKey: TeamKey): void;
   onClose(): void;
 }) {
@@ -67,7 +71,10 @@ export function GameDetailModal({
           </Button>
         </header>
         <div className="player-modal__body">
-          <GameDetailView box={box} onSelectPlayer={onSelectPlayer} />
+          <div style={{ display: 'grid', gap: 12 }}>
+            {playLog && <PlayByPlay log={playLog} />}
+            <GameDetailView box={box} onSelectPlayer={onSelectPlayer} />
+          </div>
         </div>
       </div>
     </div>

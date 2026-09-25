@@ -6,10 +6,57 @@ import type { TeamKey } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
 import { useBusyAction } from '../../useBusyAction';
 import { Button, Card, LampFigure, SectionTitle, StatChip, teamTextColor } from '../../ui';
-import { BoxScore } from '../../widgets/BoxScore';
+import { Linescore } from '../../widgets/Linescore';
 import { AutoAdvancePanel } from '../../widgets/AutoAdvancePanel';
 import { NoticeCenter } from '../../widgets/NoticeCenter';
 import { StandingsTable } from '../../widgets/StandingsTable';
+
+/** The user's latest game, whether played one at a time or skipped, with a way into its
+ * box score and play-by-play. */
+function LatestGameCard() {
+  const game = useGameState();
+  const playerTeam = game.playerTeam;
+  const latest = [...game.season.schedule]
+    .filter(
+      (scheduled) =>
+        scheduled.played && (scheduled.homeKey === playerTeam || scheduled.awayKey === playerTeam),
+    )
+    .sort((first, second) => second.date.localeCompare(first.date))[0];
+  const box = latest ? (game.gameBoxScores[latest.id] ?? game.gameSummaries[latest.id]) : null;
+  if (!latest || !box) return null;
+  const home = TINFO[box.homeKey];
+  const away = TINFO[box.awayKey];
+  const hasPlayLog = Boolean(game.recentPlayLogs[latest.id]);
+  return (
+    <Card ariaLabel="直近の試合" style={{ marginBottom: 12 }}>
+      <SectionTitle>直近の試合</SectionTitle>
+      <div style={{ fontSize: 12, color: 'var(--color-text-faint)', marginBottom: 6 }}>
+        {box.date}
+        {box.headline ? ` ・ ${box.headline}` : ''}
+      </div>
+      <Linescore
+        homeAbbreviation={home.ab}
+        awayAbbreviation={away.ab}
+        innings={box.innings}
+        homeScore={box.homeScore}
+        awayScore={box.awayScore}
+        homeHits={box.homeHits}
+        awayHits={box.awayHits}
+        homeErrors={box.homeErrors}
+        awayErrors={box.awayErrors}
+      />
+      <div style={{ marginTop: 10 }}>
+        <Button
+          onClick={() => game.selectGame(latest.id)}
+          color="var(--color-surface-muted)"
+          ariaLabel="直近の試合の詳細を開く"
+        >
+          {hasPlayLog ? '試合詳細・プレイバイプレイ' : '試合詳細'}
+        </Button>
+      </div>
+    </Card>
+  );
+}
 
 export function DashboardTab({
   onSelectTeam,
@@ -284,11 +331,7 @@ export function DashboardTab({
         )}
       </div>
 
-      {game.lastGame && (
-        <div style={{ marginBottom: 12 }}>
-          <BoxScore game={game.lastGame} />
-        </div>
-      )}
+      <LatestGameCard />
 
       <NoticeCenter
         notices={game.notices}

@@ -1,3 +1,4 @@
+import { buildPlayLog, type GamePlayLog } from './playLog';
 import { manageActiveRosters } from './activeRoster';
 import { narrativeEventsFromPostGame } from './narrativeEvents';
 import type { NarrativeEvent } from '../narrative/types';
@@ -622,6 +623,8 @@ export function skipGames(
   gameSummaries: Record<string, GameSummary>;
   gameBoxScores: Record<string, GameBoxScore>;
   narrativeEvents: NarrativeEvent[];
+  /** Play-by-play of the user's games in this run. */
+  playLogs: Record<string, GamePlayLog>;
 } {
   const nextSchedule = [...schedule],
     nextRotations = { ...rotationNumbers };
@@ -630,6 +633,7 @@ export function skipGames(
   const gameSummaries: Record<string, GameSummary> = {};
   const gameBoxScores: Record<string, GameBoxScore> = {};
   const narrativeEvents: NarrativeEvent[] = [];
+  const playLogs: Record<string, GamePlayLog> = {};
   const remaining = nextSchedule.filter(
       (game) => !game.played && (game.homeKey === playerTeam || game.awayKey === playerTeam),
     ),
@@ -683,6 +687,7 @@ export function skipGames(
     gameSummaries[game.id] = toSummary(box);
     if (playerGame || isNotableGame(box)) gameBoxScores[game.id] = box;
     if (playerGame) {
+      playLogs[game.id] = buildPlayLog(game.id, game.date, result);
       distributedStats = accumulateStats(result, playerTeam, distributedStats);
       skipped += 1;
     }
@@ -697,5 +702,6 @@ export function skipGames(
     gameSummaries,
     gameBoxScores,
     narrativeEvents,
+    playLogs,
   };
 }

@@ -15,6 +15,7 @@ import type {
   AccumulatedStats,
   AchievementEvent,
   GameBoxScore,
+  GamePlayLog,
   GameSummary,
   Player,
   PlayerStats,
@@ -130,6 +131,8 @@ export interface GameSaveData {
   honorHistory?: SeasonHonorRecord[];
   gameSummaries?: Record<string, GameSummary>;
   gameBoxScores?: Record<string, GameBoxScore>;
+  /** Play-by-play of the user's latest games; part of the current state, never archived. */
+  recentPlayLogs?: Record<string, GamePlayLog>;
   narrativeEvents?: NarrativeEventLedger;
   /** Narrative events that failed validation, kept verbatim instead of blocking the save. */
   narrativeQuarantine?: unknown[];
@@ -609,6 +612,22 @@ function migrateHonorHistory(value: unknown): SeasonHonorRecord[] {
   });
 }
 
+function migratePlayLogs(value: unknown): Record<string, GamePlayLog> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).filter(([, log]) => {
+      const raw = log as Partial<GamePlayLog> | null;
+      return (
+        raw !== null &&
+        typeof raw === 'object' &&
+        typeof raw.gameId === 'string' &&
+        typeof raw.date === 'string' &&
+        Array.isArray(raw.halves)
+      );
+    }),
+  ) as Record<string, GamePlayLog>;
+}
+
 function isValidGameSummaryShape(value: unknown): value is GameSummary {
   if (!value || typeof value !== 'object') return false;
   const raw = value as Partial<GameSummary>;
@@ -880,6 +899,7 @@ export function migrateSaveData(raw: unknown): GameSaveData | null {
     honorHistory: migrateHonorHistory(legacy.honorHistory),
     gameSummaries: migrateGameSummaries(legacy.gameSummaries),
     gameBoxScores: migrateGameBoxScores(legacy.gameBoxScores),
+    recentPlayLogs: migratePlayLogs(legacy.recentPlayLogs),
     narrativeEvents: narrative.ledger,
     ...(narrativeQuarantine ? { narrativeQuarantine } : {}),
     ts: legacy.ts,

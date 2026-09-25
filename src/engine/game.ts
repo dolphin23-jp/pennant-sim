@@ -297,6 +297,7 @@ export function simHalf(
     gameState.managementLog?.push({
       teamKey: teamKeyForSide(gameState, fieldingSide),
       inning: inning + 1,
+      playIndex: atBats.length,
       type: 'pitchingChange',
       playerId: nextPitcher.id,
       playerName: nextPitcher.name,
@@ -365,6 +366,7 @@ export function simHalf(
                   : '走力・相手バッテリー・球団方針から判断',
             runsAtDecision: runs,
           };
+        decision.playIndex = atBats.length;
         gameState.managementLog?.push(decision);
         if (attempted) {
           const successRate = stealSuccessRate(runnerPlayer, catcher, pitcher),
@@ -454,6 +456,7 @@ export function simHalf(
                   : '走力・相手バッテリー・球団方針から三塁を判断',
             runsAtDecision: runs,
           };
+        decision.playIndex = atBats.length;
         gameState.managementLog?.push(decision);
         if (attempted) {
           const successRate = stealThirdSuccessRate(runnerPlayer, catcher, pitcher),
@@ -563,6 +566,7 @@ export function simHalf(
       gameState.managementLog?.push({
         teamKey: teamKeyForSide(gameState, battingSide),
         inning: inning + 1,
+        playIndex: atBats.length,
         type: 'bunt',
         playerId: batter.id,
         playerName: batter.name,

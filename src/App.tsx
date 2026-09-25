@@ -191,6 +191,7 @@ function GameRouter() {
       />
       <GameDetailModal
         box={selectedGameBox}
+        playLog={game.selectedGameId ? game.recentPlayLogs[game.selectedGameId] : null}
         onSelectPlayer={selectBoxScorePlayer}
         onClose={() => game.selectGame(null)}
       />

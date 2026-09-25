@@ -153,3 +153,35 @@ test('a new season drops last year pitching plan', () => {
     resetRandom();
   }
 });
+
+test('skips keep play-by-play for the latest games, with the AI decisions in place', () => {
+  configureRandom(mulberry32(5), () => Date.UTC(2026, 0, 1));
+  try {
+    const after = applySkip(openingState(), 'month');
+    const logs = Object.values(after.recentPlayLogs);
+    assert.equal(logs.length, 10, 'only the latest ten games are kept');
+    const latestPlayed = after.season.schedule
+      .filter((game) => game.played && (game.homeKey === 'giants' || game.awayKey === 'giants'))
+      .sort((first, second) => second.date.localeCompare(first.date))[0]!;
+    const log = after.recentPlayLogs[latestPlayed.id]!;
+    assert.ok(log, 'the latest game has a play log');
+    assert.ok(log.halves.length >= 17);
+    assert.equal(log.halves[0]!.inning, 1);
+    assert.equal(log.halves[0]!.isBot, false);
+    const plays = log.halves.flatMap((half) => half.events.filter((event) => 'play' in event));
+    assert.ok(plays.length >= 50);
+    const runs = log.halves.reduce((total, half) => total + half.runs, 0);
+    assert.equal(runs, (latestPlayed.hs ?? 0) + (latestPlayed.as ?? 0));
+    assert.ok(
+      logs.some((entry) =>
+        entry.halves.some((half) =>
+          half.events.some(
+            (event) => 'decision' in event && event.decision.type === 'pitchingChange',
+          ),
+        ),
+      ),
+    );
+  } finally {
+    resetRandom();
+  }
+});

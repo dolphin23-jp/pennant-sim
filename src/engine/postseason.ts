@@ -1,11 +1,14 @@
 import { CENTRAL, PACIFIC } from '../data';
 import type { NarrativeEvent } from '../narrative/types';
+import { buildGameBoxScore, type GameBoxScore } from './boxScore';
 import { simulateGame } from './game';
 import { narrativeEventsFromPostGame } from './narrativeEvents';
 import { addDays, postseasonSeriesDates } from './season';
 import type { AccumulatedStats, ScheduleGame, StandingRecord, TeamKey, Teams } from './types';
 
 export interface SeriesGame {
+  /** Stable id, so the box score can be stored and opened like a regular-season game. */
+  id: string;
   game: number;
   date: string;
   home: TeamKey;
@@ -13,6 +16,7 @@ export interface SeriesGame {
   homeScore: number;
   awayScore: number;
   winner: TeamKey | null;
+  box: GameBoxScore;
 }
 
 export interface SeriesResult {
@@ -92,7 +96,11 @@ export function simulateSeries(
           : away;
     if (winner === first) firstWins += 1;
     if (winner === second) secondWins += 1;
+    const id = `postseason:${startDate}:${first}:${second}:${gameNumber}`;
+    const date = dates[gameNumber - 1] as string;
     games.push({
+      id,
+      box: buildGameBoxScore(result, id, date, Number(date.slice(0, 4)), accumulated),
       game: gameNumber,
       date: dates[gameNumber - 1] as string,
       home,
@@ -198,3 +206,16 @@ export const postseasonRunnerUp = (results: PostseasonResults): TeamKey =>
 
 export const postseasonNarrativeEvents = (results: PostseasonResults): NarrativeEvent[] =>
   Object.values(results).flatMap((series) => series.narrativeEvents);
+
+/** Every postseason game's box score, keyed by game id. */
+export function postseasonBoxScores(results: PostseasonResults): Record<string, GameBoxScore> {
+  return Object.fromEntries(
+    [
+      results.centralFirst,
+      results.pacificFirst,
+      results.centralFinal,
+      results.pacificFinal,
+      results.japanSeries,
+    ].flatMap((series) => series.games.map((game) => [game.id, game.box])),
+  );
+}

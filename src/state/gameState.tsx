@@ -17,6 +17,7 @@ import {
 import {
   accumulateStats,
   accumulateStatsAll,
+  buildPlayLog,
   recommendedLineup,
   repairLineup,
   buildGameBoxScore,
@@ -31,7 +32,7 @@ import {
   simulateGame,
   toSummary,
 } from '../engine';
-import type { Player, TeamKey, Teams } from '../engine';
+import type { GameBoxScore, Player, TeamKey, Teams } from '../engine';
 import {
   createAchievementNotices,
   createGameResultNotice,
@@ -56,6 +57,7 @@ import {
   mergeStats,
   nextAutosaveSeq,
   withNarrativeEvents,
+  withPlayLogs,
   type AdvanceProgress,
   type GameScreen,
   type RuntimeState,
@@ -97,7 +99,12 @@ interface GameContextValue extends RuntimeState {
     retired?: Player[],
     overseas?: Player[],
   ): void;
-  recordChampionship(champion: TeamKey, runnerUp: TeamKey, events?: NarrativeEvent[]): void;
+  recordChampionship(
+    champion: TeamKey,
+    runnerUp: TeamKey,
+    events?: NarrativeEvent[],
+    boxScores?: Record<string, GameBoxScore>,
+  ): void;
 }
 
 const DEBUG_MODE_KEY = 'pennant-sim:debugMode';
@@ -133,6 +140,7 @@ function snapshotFromState(state: RuntimeState): GameSaveData | null {
       : {}),
     gameSummaries: state.gameSummaries,
     gameBoxScores: state.gameBoxScores,
+    recentPlayLogs: state.recentPlayLogs,
     uiVersion: 1,
   };
 }
@@ -197,6 +205,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           narrativeEvents: saved.narrativeEvents ?? {},
           overseasPlayers: saved.overseasPlayers ?? [],
           honorHistory: saved.honorHistory ?? [],
+          recentPlayLogs: saved.recentPlayLogs ?? {},
           lineup,
           loading: false,
           screen: resumeSeasonScreen(saved),
@@ -409,6 +418,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
           ...prepared.gameBoxScores,
         },
         lineup: repaired.lineup,
+        recentPlayLogs: withPlayLogs(current.recentPlayLogs, {
+          [nextGame.id]: buildPlayLog(nextGame.id, nextGame.date, result),
+        }),
         notices: mergeNotices(current.notices, [
           ...(gameNotice ? [gameNotice] : []),
           ...(repairNotice ? [repairNotice] : []),
@@ -472,8 +484,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
   );
 
   const recordChampionship = useCallback(
-    (champion: TeamKey, runnerUp: TeamKey, events: NarrativeEvent[] = []) => {
-      setState((current) => applyChampionship(current, champion, runnerUp, events));
+    (
+      champion: TeamKey,
+      runnerUp: TeamKey,
+      events: NarrativeEvent[] = [],
+      boxScores: Record<string, GameBoxScore> = {},
+    ) => {
+      setState((current) => applyChampionship(current, champion, runnerUp, events, boxScores));
     },
     [],
   );
