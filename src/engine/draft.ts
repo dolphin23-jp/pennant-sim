@@ -344,7 +344,7 @@ export function applyDraftPicks(
     )
       continue;
     const team = { ...next[pick.teamKey] };
-    const signed = { ...pick, tk: pick.teamKey, rookieSeason: true };
+    const signed = { ...pick, tk: pick.teamKey, rookieSeason: true, draftRound: pick.round };
     if (signed.isP) team.pitchers = [...team.pitchers, signed];
     else team.fielders = [...team.fielders, signed];
     next[pick.teamKey] = team;

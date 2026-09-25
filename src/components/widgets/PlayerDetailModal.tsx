@@ -27,6 +27,9 @@ import {
   isForeignPlayer,
   popularityLabel,
   popularityOf,
+  TEMPERAMENT_DESCRIPTION,
+  TEMPERAMENT_LABEL,
+  temperamentOf,
   specialLevel,
   yearsUntilFreeAgency,
   startPositionConversion,
@@ -685,6 +688,12 @@ export function PlayerDetailModal({
                 title="人気（成績・タイトル・記録で上下し、観客動員と球団収入に影響します）"
               >
                 人気 {popularityOf(player)}・{popularityLabel(popularityOf(player))}
+              </span>
+              <span
+                className={`player-modal__ticket player-modal__ticket--temperament player-modal__ticket--${temperamentOf(player)}`}
+                title={TEMPERAMENT_DESCRIPTION[temperamentOf(player)]}
+              >
+                {TEMPERAMENT_LABEL[temperamentOf(player)]}
               </span>
               <PlayerStatusBadges player={player} />
             </div>

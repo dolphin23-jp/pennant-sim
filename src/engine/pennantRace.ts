@@ -190,3 +190,29 @@ export function raceTimeline(
   }
   return points;
 }
+
+/** The day a club clinched its pennant (YYYY-MM-DD), or null. Clinching never undoes
+ * itself, so the first clinched day is found by binary search over the played days. */
+export function clinchDate(
+  schedule: ScheduleGame[],
+  league: readonly TeamKey[],
+  team: TeamKey,
+): string | null {
+  const days = [...new Set(schedule.filter((game) => game.played).map((game) => game.date))].sort();
+  const clinchedBy = (day: string) =>
+    pennantRace(
+      schedule.map((game) =>
+        game.played && game.date > day ? { ...game, played: false, hs: null, as: null } : game,
+      ),
+      league,
+    )[team]?.clinchedPennant ?? false;
+  if (!days.length || !clinchedBy(days.at(-1)!)) return null;
+  let low = 0;
+  let high = days.length - 1;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (clinchedBy(days[middle]!)) high = middle;
+    else low = middle + 1;
+  }
+  return days[low]!;
+}

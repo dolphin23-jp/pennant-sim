@@ -2,7 +2,6 @@ import { type ArticleSnapshot, validSnapshot } from '../narrative/protocol';
 
 import { resumeSeasonScreen } from './seasonProgress';
 import type { NarrativeEvent } from '../narrative/types';
-import { narrativeEventsFromPostGame } from '../engine/narrativeEvents';
 import {
   createContext,
   useCallback,
@@ -15,35 +14,18 @@ import {
 } from 'react';
 
 import {
-  accumulateStats,
-  accumulateStatsAll,
-  buildPlayLog,
   recommendedLineup,
-  repairLineup,
-  buildGameBoxScore,
   calcStandings,
-  leagueRace,
   INITIAL_TRUST,
   seasonExpectation,
   createFictionalLeagueHistory,
-  detectAchievements,
   generateSchedule,
   assignAllActiveRosters,
   initSettledWorld,
   registerExistingNames,
-  simCpuUntilNext,
-  simulateGame,
-  toSummary,
 } from '../engine';
 import type { GameBoxScore, Player, TeamKey, Teams } from '../engine';
-import {
-  createAchievementNotices,
-  createGameResultNotice,
-  createLineupRepairNotice,
-  createRaceNotices,
-  createInSeasonDevelopmentNotices,
-  mergeNotices,
-} from './notices';
+import { mergeNotices } from './notices';
 import {
   createEmptyRotations,
   loadGame,
@@ -59,10 +41,7 @@ import {
   applySkip,
   expectationNotice,
   initialState,
-  mergeStats,
   nextAutosaveSeq,
-  withNarrativeEvents,
-  withPlayLogs,
   type AdvanceProgress,
   type GameScreen,
   type RuntimeState,
@@ -282,8 +261,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const openingExpectation = seasonExpectation(openingTeams, teamKey, 2026);
       const schedule = generateSchedule(2026);
       const rotations = createEmptyRotations();
-      const prepared = simCpuUntilNext(schedule, openingTeams, rotations, teamKey, {});
-      const leagueCareerAccumulated = mergeStats(history.careerStats, prepared.leagueDistStats);
+      // Opening day starts unplayed: the first advance plays it whole, like any other day.
       return {
         ...initialState,
         loading: false,
@@ -292,19 +270,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
         playerTeam: teamKey,
         viewTeam: teamKey,
         lineup: recommendedLineup(openingTeams[teamKey]),
-        season: { year: 2026, schedule: prepared.sched },
-        rotN: prepared.rotN,
-        standings: calcStandings(prepared.sched),
-        leagueAccumulated: prepared.leagueDistStats,
+        season: { year: 2026, schedule },
+        rotN: rotations,
+        standings: calcStandings(schedule),
+        leagueAccumulated: {},
         careerAccumulated: history.careerStats,
-        leagueCareerAccumulated,
+        leagueCareerAccumulated: history.careerStats,
         yearlyStats: history.yearlyStats,
         retiredPlayers: history.retiredPlayers,
         overseasPlayers: world.overseas,
         championHistory: history.championHistory,
-        gameSummaries: prepared.gameSummaries,
-        gameBoxScores: prepared.gameBoxScores,
-        ...withNarrativeEvents({ narrativeEvents: {} }, prepared.narrativeEvents),
         manager: { trust: INITIAL_TRUST, expectation: openingExpectation, history: [] },
         notices: [
           expectationNotice(openingExpectation, teamKey, INITIAL_TRUST),
@@ -322,147 +297,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // The next game goes through the same path as a skip: it plays whatever of the league
+  // comes before the user's game, the game itself, and the rest of that day, so a single
+  // game and a week always leave the league on the same day boundary.
   const simulateNextGame = useCallback(() => {
-    setState((current) => {
-      if (!current.teams || !current.playerTeam) return current;
-      const nextGame = current.season.schedule.find(
-        (game) =>
-          !game.played &&
-          (game.homeKey === current.playerTeam || game.awayKey === current.playerTeam),
-      );
-      if (!nextGame) return { ...current, screen: 'postseason' };
-
-      // The engine writes post-game rosters back into the map it is given. Hand it a copy so
-      // the previous state stays untouched (StrictMode replays updaters in development).
-      const teams = { ...current.teams };
-      // An empty plan means "AI decides", the same as in skips: null hands it to the CPU's
-      // strategic pitcher plan instead of a plain OVR order.
-      const userPitcherPlan =
-        current.pitcherPlan.rotationOrder.length || current.pitcherPlan.closerPriority.length
-          ? current.pitcherPlan
-          : null;
-      const result = simulateGame(
-        nextGame.homeKey,
-        nextGame.awayKey,
-        teams,
-        nextGame.homeKey === current.playerTeam ? current.lineup : null,
-        nextGame.awayKey === current.playerTeam ? current.lineup : null,
-        current.rotN[nextGame.homeKey] || 0,
-        current.rotN[nextGame.awayKey] || 0,
-        // League-wide totals, so in-season mastery ramps identically for all 12 clubs.
-        // Passing the player-team-only map left every CPU player stuck at the opening
-        // mastery value for the whole season.
-        current.leagueAccumulated,
-        nextGame.homeKey === current.playerTeam ? userPitcherPlan : null,
-        nextGame.awayKey === current.playerTeam ? userPitcherPlan : null,
-        nextGame.date,
-      );
-      const playedSchedule = current.season.schedule.map((game) =>
-        game.id === nextGame.id
-          ? { ...game, played: true, hs: result.score.home, as: result.score.away }
-          : game,
-      );
-      const rotations = {
-        ...current.rotN,
-        [nextGame.homeKey]: (current.rotN[nextGame.homeKey] || 0) + 1,
-        [nextGame.awayKey]: (current.rotN[nextGame.awayKey] || 0) + 1,
-      };
-      const playerGameStats = accumulateStats(result, current.playerTeam, {});
-      const leagueGameStats = accumulateStatsAll(result, {});
-      const accumulated = mergeStats(current.accumulated, playerGameStats);
-      const leagueAccumulated = mergeStats(current.leagueAccumulated, leagueGameStats);
-      const careerAccumulated = mergeStats(current.careerAccumulated, playerGameStats);
-      const leagueCareerAccumulated = mergeStats(current.leagueCareerAccumulated, leagueGameStats);
-      const playerGameBox = buildGameBoxScore(
-        result,
-        nextGame.id,
-        nextGame.date,
-        current.season.year,
-        current.leagueAccumulated,
-      );
-      const gameNotice = createGameResultNotice(playerGameBox, current.playerTeam);
-      const prepared = simCpuUntilNext(
-        playedSchedule,
-        teams,
-        rotations,
-        current.playerTeam,
-        leagueAccumulated,
-        leagueAccumulated,
-      );
-      const finalLeagueStats = mergeStats(leagueAccumulated, prepared.leagueDistStats);
-      const finalCareerLeagueStats = mergeStats(leagueCareerAccumulated, prepared.leagueDistStats);
-      const developmentNotices = createInSeasonDevelopmentNotices(
-        result.postGameEvents,
-        current.playerTeam,
-        nextGame.date,
-      );
-      const achievements = detectAchievements({
-        year: current.season.year,
-        date: nextGame.date,
-        teams,
-        beforeSeasonStats: current.leagueAccumulated,
-        afterSeasonStats: finalLeagueStats,
-        beforeCareerStats: current.leagueCareerAccumulated,
-        afterCareerStats: finalCareerLeagueStats,
-        yearlyStats: current.yearlyStats,
-      });
-      const achievementNotices = createAchievementNotices(achievements);
-      const seasonOver = prepared.sched.every((game) => game.played);
-      const repaired = repairLineup(teams[current.playerTeam], current.lineup);
-      const repairNotice = createLineupRepairNotice(
-        repaired.substitutions,
-        current.playerTeam,
-        nextGame.date,
-      );
-      const next: RuntimeState = {
-        ...current,
-        screen: seasonOver ? 'postseason' : 'season',
-        teams,
-        season: { ...current.season, schedule: prepared.sched },
-        rotN: prepared.rotN,
-        standings: calcStandings(prepared.sched),
-        accumulated,
-        leagueAccumulated: finalLeagueStats,
-        careerAccumulated,
-        leagueCareerAccumulated: finalCareerLeagueStats,
-        achievementHistory: [...current.achievementHistory, ...achievements],
-        ...withNarrativeEvents(current, [
-          ...narrativeEventsFromPostGame(nextGame.id, nextGame.date, result.postGameEvents),
-          ...prepared.narrativeEvents,
-        ]),
-        gameSummaries: {
-          ...current.gameSummaries,
-          [nextGame.id]: toSummary(playerGameBox),
-          ...prepared.gameSummaries,
-        },
-        gameBoxScores: {
-          ...current.gameBoxScores,
-          [nextGame.id]: playerGameBox,
-          ...prepared.gameBoxScores,
-        },
-        lineup: repaired.lineup,
-        recentPlayLogs: withPlayLogs(current.recentPlayLogs, {
-          [nextGame.id]: buildPlayLog(nextGame.id, nextGame.date, result),
-        }),
-        notices: mergeNotices(current.notices, [
-          // Race milestones lead: a month skip adds 25+ game results and the list shows 20.
-          ...createRaceNotices(
-            leagueRace(current.season.schedule, current.playerTeam)[current.playerTeam],
-            leagueRace(prepared.sched, current.playerTeam)[current.playerTeam],
-            current.playerTeam,
-            current.season.year,
-            nextGame.date,
-          ),
-          ...(gameNotice ? [gameNotice] : []),
-          ...(repairNotice ? [repairNotice] : []),
-          ...developmentNotices,
-          ...achievementNotices,
-        ]),
-        lastGame: result,
-        autosaveSeq: nextAutosaveSeq(),
-      };
-      return next;
-    });
+    setState((current) => applySkip(current, 'next'));
   }, []);
 
   const skip = useCallback((mode: 'next' | 'week' | 'month' | 'season') => {
@@ -489,12 +328,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
           { ...team, fielders: team.fielders.map(replace), pitchers: team.pitchers.map(replace) },
         ]),
       ) as Teams;
+      // Retired and overseas players can be edited too (their records stay in the save).
+      const retiredPlayers = current.retiredPlayers.map(replace);
+      const overseasPlayers = current.overseasPlayers.map(replace);
       if (!found) return current;
       return {
         ...current,
         teams,
+        retiredPlayers,
+        overseasPlayers,
         selectedPlayer:
           current.selectedPlayer?.id === updated.id ? updated : current.selectedPlayer,
+        // A debug edit is a change like any other, so it reaches the save on its own.
+        autosaveSeq: nextAutosaveSeq(),
       };
     });
   }, []);

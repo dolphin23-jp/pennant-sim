@@ -3,7 +3,7 @@ import type { ArticleArchive } from '../narrative/protocol';
 import { appendNarrativeEventsSafe } from '../narrative/ledger';
 
 import type { NarrativeEvent, NarrativeEventLedger } from '../narrative/types';
-import { seasonReviewEvents } from '../engine/narrativeEvents';
+import { breakthroughEvents, seasonReviewEvents } from '../engine/narrativeEvents';
 import {
   aggregateTeamStats,
   assignAllActiveRosters,
@@ -28,11 +28,11 @@ import {
   selectSeasonHonors,
   toSummary,
   selectSeasonTitles,
-  simCpuUntilNext,
   skipGamesWithPitcherPlan,
   CLIMAX_SERIES_SPOTS,
   GRADE_LABEL,
   INITIAL_TRUST,
+  applyInSeasonPopularity,
   applyOwnerBudget,
   evaluateSeason,
   seasonExpectation,
@@ -289,10 +289,17 @@ export function applySkip(
     yearlyStats: current.yearlyStats,
   });
   const achievementNotices = createAchievementNotices(achievements);
+  // Walk-offs, shutouts, milestones and records make names during the season too.
+  const popularTeams = applyInSeasonPopularity(
+    teams,
+    current.season.year,
+    Object.values(result.gameBoxScores),
+    achievements,
+  );
   const next: RuntimeState = {
     ...current,
     screen: seasonOver ? 'postseason' : 'season',
-    teams,
+    teams: popularTeams,
     season: { ...current.season, schedule: result.sched },
     rotN: result.rotN,
     standings: calcStandings(result.sched),
@@ -483,14 +490,7 @@ export function applyOffseasonCompletion(
   const year = completedYear + 1;
   const nextExpectation = seasonExpectation(nextTeams, current.playerTeam, year);
   const schedule = generateSchedule(year);
-  const prepared = simCpuUntilNext(
-    schedule,
-    nextTeams,
-    createEmptyRotations(),
-    current.playerTeam,
-    {},
-    {},
-  );
+  // Opening day starts unplayed: the first advance plays it whole, like any other day.
   const next: RuntimeState = {
     ...current,
     teams: nextTeams,
@@ -500,8 +500,14 @@ export function applyOffseasonCompletion(
         completedYear,
         current.standings,
         current.championHistory.find((c) => c.year === completedYear)?.champion,
+        {
+          titles: seasonTitles,
+          schedule: current.season.schedule,
+          teams: current.teams ?? undefined,
+          ownerReview: ownerReviewFor(current, completedYear),
+        },
       ),
-      ...prepared.narrativeEvents,
+      ...breakthroughEvents(completedYear, seasonTitles, current.awardHistory),
     ]),
     // A player back on a roster (returning from MLB) is no longer a departed one.
     retiredPlayers: [
@@ -509,14 +515,14 @@ export function applyOffseasonCompletion(
     ].filter((player) => !activeIds.has(player.id)),
     overseasPlayers: overseas,
     screen: 'season',
-    season: { year, schedule: prepared.sched },
-    rotN: prepared.rotN,
+    season: { year, schedule },
+    rotN: createEmptyRotations(),
     lineup: recommendedLineup(nextTeams[current.playerTeam]),
     // A new season starts from the AI's staff; last year's plan names departed pitchers.
     pitcherPlan: createEmptyPitcherPlan(),
-    standings: calcStandings(prepared.sched),
+    standings: calcStandings(schedule),
     accumulated: {},
-    leagueAccumulated: prepared.leagueDistStats,
+    leagueAccumulated: {},
     yearlyStats: {
       ...current.yearlyStats,
       [String(completedYear)]: seasonRecords,
@@ -529,8 +535,6 @@ export function applyOffseasonCompletion(
       ...current.honorHistory.filter((record) => record.year !== completedYear),
       ...seasonHonors,
     ],
-    gameSummaries: { ...current.gameSummaries, ...prepared.gameSummaries },
-    gameBoxScores: { ...current.gameBoxScores, ...prepared.gameBoxScores },
     manager: { ...current.manager, expectation: nextExpectation },
     notices: mergeNotices(current.notices, [
       expectationNotice(nextExpectation, current.playerTeam, current.manager.trust),
@@ -550,6 +554,18 @@ export function applyOffseasonCompletion(
     autosaveSeq: nextAutosaveSeq(),
   };
   return next;
+}
+
+/** The owner's verdict on a finished season, for the season-review article. */
+function ownerReviewFor(current: RuntimeState, year: number) {
+  const season = current.manager.history.find((entry) => entry.year === year);
+  if (!season || !current.playerTeam) return undefined;
+  return {
+    teamKey: current.playerTeam,
+    targetLabel: season.targetLabel,
+    grade: season.grade,
+    gradeLabel: GRADE_LABEL[season.grade],
+  };
 }
 
 /** The owner's goal for the new season, announced on opening day. */

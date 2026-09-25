@@ -53,9 +53,18 @@ export function PlayerNarrativeProfile({ player }: { player: Player }) {
             asOfDate,
             yearlyStats: game.yearlyStats,
             championHistory: game.championHistory,
+            currentSeason: game.leagueAccumulated[player.id],
           })
         : null,
-    [player, teamKey, game.season.year, asOfDate, game.yearlyStats, game.championHistory],
+    [
+      player,
+      teamKey,
+      game.season.year,
+      asOfDate,
+      game.yearlyStats,
+      game.championHistory,
+      game.leagueAccumulated,
+    ],
   );
 
   const stored = useMemo(

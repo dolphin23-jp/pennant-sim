@@ -256,3 +256,34 @@ test('a finished year leaves the owner evaluation and sets next year goal', () =
     resetRandom();
   }
 });
+
+test('one game at a time leaves the league on the same whole-day boundary as a skip', () => {
+  configureRandom(mulberry32(9), () => Date.UTC(2026, 0, 1));
+  try {
+    let state = openingState();
+    for (let turn = 0; turn < 3; turn += 1) {
+      state = applySkip(state, 'next');
+      const lastDate = state.season.schedule
+        .filter((game) => game.played && (game.homeKey === 'giants' || game.awayKey === 'giants'))
+        .map((game) => game.date)
+        .sort()
+        .at(-1)!;
+      assert.deepEqual(
+        state.season.schedule.filter((game) => !game.played && game.date <= lastDate),
+        [],
+        'every game up to the day just played is done',
+      );
+      assert.deepEqual(
+        state.season.schedule.filter((game) => game.played && game.date > lastDate),
+        [],
+        'nothing after that day is played early',
+      );
+    }
+    const own = state.season.schedule.filter(
+      (game) => game.played && (game.homeKey === 'giants' || game.awayKey === 'giants'),
+    );
+    assert.ok(own.length >= 3);
+  } finally {
+    resetRandom();
+  }
+});

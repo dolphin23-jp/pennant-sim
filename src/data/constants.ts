@@ -362,7 +362,7 @@ export const PITCHER_USAGE_BALANCE = {
   strikeoutTail: {
     ratingDeltaSoftness: 45,
     ratingEffectSoftness: 0.24,
-    maximumRatingEffect: 0.1,
+    maximumRatingEffect: 0.102,
   },
 } as const;
 

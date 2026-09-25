@@ -21,6 +21,7 @@ import type {
   PlateAppearanceResult,
   Player,
 } from './types';
+import { spotlightMultiplier } from './temperament';
 
 // The subset of outcomes the at-bat simulation itself can produce (sacrifices are
 // determined by the game loop, not by the pitcher/batter matchup roll).
@@ -303,7 +304,13 @@ export function simAB(
         AT_BAT_BALANCE.specials.aceKillerPerLevel *
         pitcherQualityEdge) /
         50,
-    batterContextMultiplier = platoonMultiplier * familiarityMultiplier * aceKillerMultiplier;
+    // The spotlight: a popular batter who rises to it hits a little better, one who
+    // tightens a little worse; the pitcher's temperament works the other way.
+    spotlightEdge =
+      spotlightMultiplier(batter, situation.highLeverage) /
+      spotlightMultiplier(pitcher, situation.highLeverage),
+    batterContextMultiplier =
+      platoonMultiplier * familiarityMultiplier * aceKillerMultiplier * spotlightEdge;
   const catcherLeadMultiplier = catcherGameCalling
     ? AT_BAT_BALANCE.catcherLead.baseMultiplier +
       (catcherGameCalling / 100) * AT_BAT_BALANCE.catcherLead.ratingShare

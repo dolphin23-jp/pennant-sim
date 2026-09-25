@@ -212,10 +212,57 @@ export function validPacket(v: unknown): v is FactPacket {
 // These lexical checks are defense in depth. The Worker also runs an independent grounded
 // verification pass before accepting freer prose.
 const prohibited =
-  /[「」『』<>]|語った|コメント|明かした|監督は|契約金|年俸|出身校|診断|骨折|靭帯|悔し|信頼|移籍理由|ファン|観客|歓声|秘密の|特訓|悲願|執念|覚悟|意地|因縁/;
+  /[「」『』<>]|語った|コメント|明かした|監督は|契約金|年俸|出身校|診断|骨折|靭帯|悔し|信頼|移籍理由|歓声|秘密の|特訓|悲願|執念|覚悟|意地|因縁/;
 const colorFactual =
   /\d|勝|敗|優勝|日本一|移籍|加入|退団|引退|故障|復帰|記録|達成|本塁打|安打|奪三振|盗塁|首位|順位|ドラフト|指名|選手|球団|シリーズ|試合/;
-const numberList = (s: string) => s.normalize('NFKC').match(/\d+(?:\.\d+)?/g) ?? [];
+// ファン/観客 may appear only where a cited fact is about crowds or popularity: the
+// attendance and popularity figures are facts, the crowd's reaction never is.
+const crowdWords = /ファン|観客/;
+const crowdEvidence = /観客動員|人気/;
+
+const KANJI_DIGITS: Record<string, number> = {
+  〇: 0,
+  一: 1,
+  二: 2,
+  三: 3,
+  四: 4,
+  五: 5,
+  六: 6,
+  七: 7,
+  八: 8,
+  九: 9,
+};
+const KANJI_UNITS: Record<string, number> = { 十: 10, 百: 100, 千: 1000 };
+
+function kanjiNumber(text: string): number {
+  let total = 0;
+  let section = 0;
+  let digit = 0;
+  for (const character of text) {
+    if (character === '万') {
+      total += (section + digit || 1) * 10000;
+      section = 0;
+      digit = 0;
+    } else if (character in KANJI_UNITS) {
+      section += (digit || 1) * KANJI_UNITS[character]!;
+      digit = 0;
+    } else digit = digit * 10 + (KANJI_DIGITS[character] ?? 0);
+  }
+  return total + section + digit;
+}
+
+/** Kanji numerals before a counter (三年ぶり, 十二勝, 四位) count as numbers, so a model
+ * cannot slip an unsupported figure past the check by writing it in kanji. Words like
+ * 三振 or 一軍 have no counter after them and are left alone. */
+export function kanjiNumeralsToDigits(text: string): string {
+  return text.replace(
+    /([〇一二三四五六七八九十百千万]+)(?=年|本|勝|敗|試合|打点|盗塁|位|点|差|安打|個|日|月|連勝|連敗|季|シーズン|ゲーム|回|球|セーブ|ホールド|歳|ぶり)/g,
+    (numeral) => String(kanjiNumber(numeral)),
+  );
+}
+
+const numberList = (s: string) =>
+  kanjiNumeralsToDigits(s.normalize('NFKC')).match(/\d+(?:\.\d+)?/g) ?? [];
 
 function isNumberSubset(output: string[], evidence: string[]): boolean {
   let index = 0;
@@ -296,6 +343,7 @@ export function validateProse(raw: unknown, packet: FactPacket): Prose | null {
     // limited to multi-claim synthesis and are independently checked by the Worker verifier.
     const exactCanonical = !analytical && validClaims.length === 1 && text === validClaims[0].text;
     if (!exactCanonical && prohibited.test(text)) return false;
+    if (!exactCanonical && crowdWords.test(text) && !crowdEvidence.test(evidence)) return false;
     if (!isNumberSubset(numberList(text), numberList(evidence))) return false;
 
     for (const name of packet.entities) {

@@ -1,6 +1,6 @@
 import { buildPlayLog, type GamePlayLog } from './playLog';
 import { manageActiveRosters } from './activeRoster';
-import { narrativeEventsFromPostGame } from './narrativeEvents';
+import { debutEvents, narrativeEventsFromPostGame } from './narrativeEvents';
 import type { NarrativeEvent } from '../narrative/types';
 import { CENTRAL, PACIFIC, TINFO } from '../data';
 import { buildGameBoxScore, isNotableGame, toSummary } from './boxScore';
@@ -577,6 +577,15 @@ export function simCpuUntilNext(
     );
     nextSchedule[index] = { ...game, played: true, hs: result.score.home, as: result.score.away };
     narrativeEvents.push(...narrativeEventsFromPostGame(game.id, game.date, result.postGameEvents));
+    narrativeEvents.push(
+      ...debutEvents(
+        game.id,
+        game.date,
+        accumulateStatsAll(result, {}),
+        seasonStatsBeforeThisGame,
+        teams,
+      ),
+    );
     leagueStats = accumulateStatsAll(result, leagueStats);
     const box = buildGameBoxScore(
       result,
@@ -679,7 +688,14 @@ export function skipGames(
         game.date,
       );
     nextSchedule[index] = { ...game, played: true, hs: result.score.home, as: result.score.away };
-    narrativeEvents.push(...narrativeEventsFromPostGame(game.id, game.date, result.postGameEvents));
+    narrativeEvents.push(
+      ...narrativeEventsFromPostGame(
+        game.id,
+        game.date,
+        result.postGameEvents,
+        seasonStatsBeforeThisGame,
+      ),
+    );
     leagueStats = accumulateStatsAll(result, leagueStats);
     const box = buildGameBoxScore(
       result,

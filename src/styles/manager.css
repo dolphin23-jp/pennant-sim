@@ -308,3 +308,13 @@
 .popularity-ranking__own th {
   background: var(--color-accent-soft);
 }
+
+.player-modal__ticket--bigStage {
+  border-color: color-mix(in srgb, var(--color-success) 60%, var(--color-border));
+  color: var(--color-success);
+}
+
+.player-modal__ticket--pressure {
+  border-color: color-mix(in srgb, var(--color-warning) 60%, var(--color-border));
+  color: var(--color-warning);
+}
