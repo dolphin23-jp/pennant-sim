@@ -13,6 +13,7 @@ export function skipGamesWithPitcherPlan(
   pitcherPlan: PitcherPlanInput = { rotationOrder: [], closerPriority: [] },
   seasonStatsSoFar: AccumulatedStats = {},
   manageUserRoster = false,
+  userLineup: import('./types').Player[] | null = null,
 ): {
   sched: ScheduleGame[];
   rotN: Record<TeamKey, number>;
@@ -33,5 +34,6 @@ export function skipGamesWithPitcherPlan(
     seasonStatsSoFar,
     hasPlan ? pitcherPlan : null,
     manageUserRoster,
+    userLineup,
   );
 }

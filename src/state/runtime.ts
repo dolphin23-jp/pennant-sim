@@ -19,6 +19,8 @@ import {
   generateSchedule,
   postseasonNarrativeEvents,
   postseasonRunnerUp,
+  recommendedLineup,
+  repairLineup,
   runFullOffseason,
   runPostseason,
   selectSeasonHonors,
@@ -48,6 +50,7 @@ import {
   createForeignLifecycleNotices,
   createFreeAgencyNotices,
   createGameResultNotice,
+  createLineupRepairNotice,
   createOffseasonDevelopmentNotices,
   createSkippedInSeasonDevelopmentNotices,
   mergeNotices,
@@ -209,10 +212,13 @@ export function applySkip(
     current.playerTeam,
     mode,
     current.leagueAccumulated,
-    current.pitcherPlan,
+    // おまかせ進行 hands the lineup and staff to the AI; manual skips play the saved ones.
+    manageUserRoster ? createEmptyPitcherPlan() : current.pitcherPlan,
     current.leagueAccumulated,
     manageUserRoster,
+    manageUserRoster ? null : current.lineup,
   );
+  const repaired = repairLineup(teams[current.playerTeam], current.lineup);
   const accumulated = mergeStats(current.accumulated, result.distStats);
   const leagueAccumulated = mergeStats(current.leagueAccumulated, result.leagueDistStats);
   const leagueCareerAccumulated = mergeStats(
@@ -258,8 +264,12 @@ export function applySkip(
     ...withNarrativeEvents(current, result.narrativeEvents),
     gameSummaries: { ...current.gameSummaries, ...result.gameSummaries },
     gameBoxScores: { ...current.gameBoxScores, ...result.gameBoxScores },
+    lineup: repaired.lineup,
     notices: mergeNotices(current.notices, [
       ...gameNotices,
+      ...[createLineupRepairNotice(repaired.substitutions, current.playerTeam, noticeDate)].filter(
+        (notice): notice is Notice => notice !== null,
+      ),
       ...developmentNotices,
       ...achievementNotices,
     ]),
@@ -381,7 +391,9 @@ export function applyOffseasonCompletion(
     screen: 'season',
     season: { year, schedule: prepared.sched },
     rotN: prepared.rotN,
-    lineup: bestLineup(nextTeams[current.playerTeam]),
+    lineup: recommendedLineup(nextTeams[current.playerTeam]),
+    // A new season starts from the AI's staff; last year's plan names departed pitchers.
+    pitcherPlan: createEmptyPitcherPlan(),
     standings: calcStandings(prepared.sched),
     accumulated: {},
     leagueAccumulated: prepared.leagueDistStats,

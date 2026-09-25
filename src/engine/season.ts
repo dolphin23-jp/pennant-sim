@@ -10,6 +10,7 @@ import { random, uid } from './random';
 import { accumulateStats, accumulateStatsAll, mergeStatMaps } from './stats';
 import type {
   AccumulatedStats,
+  Player,
   ScheduleGame,
   StandingRecord,
   TeamForm,
@@ -610,6 +611,9 @@ export function skipGames(
   pitcherPlan: PitcherPlanInput | null = null,
   /** Manage the user's club's 一軍 registration too (おまかせ進行). */
   manageUserRoster = false,
+  /** The user's saved lineup, played (and repaired) in the user's games; null lets the
+   * AI pick the lineup, as おまかせ進行 does. */
+  userLineup: Player[] | null = null,
 ): {
   sched: ScheduleGame[];
   rotN: Record<TeamKey, number>;
@@ -657,8 +661,8 @@ export function skipGames(
         game.homeKey,
         game.awayKey,
         teams,
-        null,
-        null,
+        game.homeKey === playerTeam ? userLineup : null,
+        game.awayKey === playerTeam ? userLineup : null,
         nextRotations[game.homeKey] || 0,
         nextRotations[game.awayKey] || 0,
         accumulatedStats,

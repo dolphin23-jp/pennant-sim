@@ -1,4 +1,5 @@
 import { ACTIVE_ROSTER_BALANCE } from '../../../data';
+import { assignActiveRoster } from '../../../engine';
 import type { Player, TeamKey, Teams } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
 import { SquadBoard } from '../../widgets/SquadBoard';
@@ -33,6 +34,9 @@ export function SquadTab() {
     <SquadBoard
       team={teams[playerTeam]}
       onSelectPlayer={game.selectPlayer}
+      onAutoAssign={() =>
+        game.replaceTeams({ ...teams, [playerTeam]: assignActiveRoster(teams[playerTeam]) })
+      }
       onToggleActive={(player) =>
         game.replaceTeams(withToggledActiveRoster(teams, playerTeam, player))
       }

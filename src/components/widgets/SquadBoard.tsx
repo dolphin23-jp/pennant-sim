@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { ACTIVE_ROSTER_BALANCE } from '../../data';
 import { calcOVR, effectiveOVR } from '../../engine';
 import type { Player, Team } from '../../engine';
-import { Card, EmptyState, SectionTitle } from '../ui';
+import { Button, Card, EmptyState, SectionTitle } from '../ui';
 import { PlayerStatusBadges } from './PlayerStatusBadges';
 
 function playerOverall(player: Player): number {
@@ -154,10 +154,13 @@ export function SquadBoard({
   team,
   onSelectPlayer,
   onToggleActive,
+  onAutoAssign,
 }: {
   team: Team;
   onSelectPlayer(player: Player): void;
   onToggleActive(player: Player): void;
+  /** Let the AI register the 一軍 as CPU clubs do. */
+  onAutoAssign?(): void;
 }) {
   const grouped = useMemo(() => {
     const byActive = (players: Player[]) => ({
@@ -197,6 +200,18 @@ export function SquadBoard({
         一軍登録 {activeTotal}/{ACTIVE_ROSTER_BALANCE.limit}人（投手
         {grouped.pitchers.active.length}・野手{grouped.fielders.active.length}）
       </div>
+      {onAutoAssign && (
+        <div style={{ marginBottom: 12 }}>
+          <Button onClick={onAutoAssign} ariaLabel="AIの判断で一軍登録を組み直す">
+            AIで一軍を登録
+          </Button>
+          <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--color-text-faint)' }}>
+            故障者を外し、先発6・抑え2を含む投手
+            {ACTIVE_ROSTER_BALANCE.pitchers}人と野手
+            {ACTIVE_ROSTER_BALANCE.limit - ACTIVE_ROSTER_BALANCE.pitchers}人を選びます。
+          </span>
+        </div>
+      )}
       <div style={{ display: 'grid', gap: 16 }}>
         <div>
           <div

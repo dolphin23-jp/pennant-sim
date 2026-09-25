@@ -17,7 +17,8 @@ import {
 import {
   accumulateStats,
   accumulateStatsAll,
-  bestLineup,
+  recommendedLineup,
+  repairLineup,
   buildGameBoxScore,
   calcStandings,
   createFictionalLeagueHistory,
@@ -34,6 +35,7 @@ import type { Player, TeamKey, Teams } from '../engine';
 import {
   createAchievementNotices,
   createGameResultNotice,
+  createLineupRepairNotice,
   createInSeasonDevelopmentNotices,
   mergeNotices,
 } from './notices';
@@ -186,7 +188,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         const lineup =
           saved.lineup.length || !saved.playerTeam
             ? saved.lineup
-            : bestLineup(saved.teams[saved.playerTeam]);
+            : recommendedLineup(saved.teams[saved.playerTeam]);
         setState({
           ...initialState,
           ...saved,
@@ -259,7 +261,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         teams: openingTeams,
         playerTeam: teamKey,
         viewTeam: teamKey,
-        lineup: bestLineup(openingTeams[teamKey]),
+        lineup: recommendedLineup(openingTeams[teamKey]),
         season: { year: 2026, schedule: prepared.sched },
         rotN: prepared.rotN,
         standings: calcStandings(prepared.sched),
@@ -301,6 +303,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
       // The engine writes post-game rosters back into the map it is given. Hand it a copy so
       // the previous state stays untouched (StrictMode replays updaters in development).
       const teams = { ...current.teams };
+      // An empty plan means "AI decides", the same as in skips: null hands it to the CPU's
+      // strategic pitcher plan instead of a plain OVR order.
+      const userPitcherPlan =
+        current.pitcherPlan.rotationOrder.length || current.pitcherPlan.closerPriority.length
+          ? current.pitcherPlan
+          : null;
       const result = simulateGame(
         nextGame.homeKey,
         nextGame.awayKey,
@@ -313,8 +321,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         // Passing the player-team-only map left every CPU player stuck at the opening
         // mastery value for the whole season.
         current.leagueAccumulated,
-        nextGame.homeKey === current.playerTeam ? current.pitcherPlan : null,
-        nextGame.awayKey === current.playerTeam ? current.pitcherPlan : null,
+        nextGame.homeKey === current.playerTeam ? userPitcherPlan : null,
+        nextGame.awayKey === current.playerTeam ? userPitcherPlan : null,
         nextGame.date,
       );
       const playedSchedule = current.season.schedule.map((game) =>
@@ -368,6 +376,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
       });
       const achievementNotices = createAchievementNotices(achievements);
       const seasonOver = prepared.sched.every((game) => game.played);
+      const repaired = repairLineup(teams[current.playerTeam], current.lineup);
+      const repairNotice = createLineupRepairNotice(
+        repaired.substitutions,
+        current.playerTeam,
+        nextGame.date,
+      );
       const next: RuntimeState = {
         ...current,
         screen: seasonOver ? 'postseason' : 'season',
@@ -394,8 +408,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
           [nextGame.id]: playerGameBox,
           ...prepared.gameBoxScores,
         },
+        lineup: repaired.lineup,
         notices: mergeNotices(current.notices, [
           ...(gameNotice ? [gameNotice] : []),
+          ...(repairNotice ? [repairNotice] : []),
           ...developmentNotices,
           ...achievementNotices,
         ]),

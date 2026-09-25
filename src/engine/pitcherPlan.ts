@@ -9,9 +9,13 @@ export interface PitcherPlanInput {
 }
 
 function eligibleStarterPool(team: Team): Player[] {
+  // A starter sent to the farm no longer takes his turn, even if the saved order names him.
   const healthy = team.pitchers.filter(
     (pitcher) =>
-      pitcher.role === '先発' && (pitcher.injuryDays ?? 0) <= 0 && (pitcher.fatigue ?? 0) < 85,
+      pitcher.role === '先発' &&
+      pitcher.activeRoster !== false &&
+      (pitcher.injuryDays ?? 0) <= 0 &&
+      (pitcher.fatigue ?? 0) < 85,
   );
   return healthy.length
     ? healthy

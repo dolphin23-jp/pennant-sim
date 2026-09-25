@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { bestLineup, calcOVR, effectiveOVR } from '../../../engine';
+import { calcOVR, effectiveOVR, recommendedLineup } from '../../../engine';
 import type { AccumulatedStats, FieldPosition, Player, Team } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
 import { Button, Card, SectionTitle } from '../../ui';
@@ -307,7 +307,7 @@ function LineupEditor({
   };
 
   const applyRecommended = () => {
-    const next = createEditorState(bestLineup(team), team.fielders);
+    const next = createEditorState(recommendedLineup(team), team.fielders);
     setEditor(next);
     setArmedBenchId(null);
     setStatus('AIおすすめを反映しました。保存するまで確定しません。');

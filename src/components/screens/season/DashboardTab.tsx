@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 
 import { TINFO } from '../../../data';
-import { bestLineup, deriveTeamForm } from '../../../engine';
+import { recommendedLineup, deriveTeamForm } from '../../../engine';
 import type { TeamKey } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
 import { useBusyAction } from '../../useBusyAction';
@@ -251,8 +251,9 @@ export function DashboardTab({
             ))}
           </div>
           <Button
-            onClick={() => game.setLineup(bestLineup(playerTeam))}
+            onClick={() => game.setLineup(recommendedLineup(playerTeam))}
             color="var(--color-surface-muted)"
+            disabled={busy}
             ariaLabel="AIで最適なオーダーを自動編成"
           >
             AIで最適オーダー
