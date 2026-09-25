@@ -219,7 +219,12 @@ export function DashboardTab({
         <LatestGameCard />
       </div>
 
-      <RaceCard schedule={game.season.schedule} standings={game.standings} team={game.playerTeam} />
+      <RaceCard
+        schedule={game.season.schedule}
+        standings={game.standings}
+        team={game.playerTeam}
+        manager={game.manager}
+      />
 
       <div className="dashboard-grid">
         <LeagueTable

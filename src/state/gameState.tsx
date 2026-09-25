@@ -23,6 +23,8 @@ import {
   buildGameBoxScore,
   calcStandings,
   leagueRace,
+  INITIAL_TRUST,
+  seasonExpectation,
   createFictionalLeagueHistory,
   detectAchievements,
   generateSchedule,
@@ -55,6 +57,7 @@ import {
   applyChampionship,
   applyOffseasonCompletion,
   applySkip,
+  expectationNotice,
   initialState,
   mergeStats,
   nextAutosaveSeq,
@@ -143,6 +146,7 @@ function snapshotFromState(state: RuntimeState): GameSaveData | null {
     gameSummaries: state.gameSummaries,
     gameBoxScores: state.gameBoxScores,
     recentPlayLogs: state.recentPlayLogs,
+    manager: state.manager,
     uiVersion: 1,
   };
 }
@@ -208,6 +212,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
           overseasPlayers: saved.overseasPlayers ?? [],
           honorHistory: saved.honorHistory ?? [],
           recentPlayLogs: saved.recentPlayLogs ?? {},
+          // Saves from before owner goals start with this season's goal already set.
+          manager:
+            saved.manager ??
+            (saved.teams && saved.playerTeam
+              ? {
+                  trust: INITIAL_TRUST,
+                  expectation: seasonExpectation(saved.teams, saved.playerTeam, saved.season.year),
+                  history: [],
+                }
+              : initialState.manager),
           lineup,
           loading: false,
           screen: resumeSeasonScreen(saved),
@@ -261,6 +275,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       });
       registerExistingNames(history.teams);
       const openingTeams = assignAllActiveRosters(history.teams);
+      const openingExpectation = seasonExpectation(openingTeams, teamKey, 2026);
       const schedule = generateSchedule(2026);
       const rotations = createEmptyRotations();
       const prepared = simCpuUntilNext(schedule, openingTeams, rotations, teamKey, {});
@@ -286,7 +301,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
         gameSummaries: prepared.gameSummaries,
         gameBoxScores: prepared.gameBoxScores,
         ...withNarrativeEvents({ narrativeEvents: {} }, prepared.narrativeEvents),
+        manager: { trust: INITIAL_TRUST, expectation: openingExpectation, history: [] },
         notices: [
+          expectationNotice(openingExpectation, teamKey, INITIAL_TRUST),
           {
             id: `system:2026:start:${teamKey}`,
             kind: 'system',

@@ -7,6 +7,7 @@ import './styles/confirm-dialog.css';
 import './styles/dashboard.css';
 import './styles/game-detail.css';
 import './styles/game-results.css';
+import './styles/manager.css';
 import './styles/history.css';
 import './styles/play-by-play.css';
 import './styles/player-tables.css';

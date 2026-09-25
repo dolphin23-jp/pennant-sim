@@ -15,6 +15,7 @@ export { applyDraftPicks, generateDraftProspects, runCpuDraft } from './draftPre
 export * from './foreign';
 export * from './game';
 export * from './pennantRace';
+export * from './management';
 export * from './growth';
 export * from './historicalRankings';
 export * from './leagueHistory';

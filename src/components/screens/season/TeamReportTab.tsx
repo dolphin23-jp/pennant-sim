@@ -27,6 +27,7 @@ const PHILOSOPHY_LABEL: Record<TeamPhilosophy, string> = {
   youth: '若手育成',
   veteran: 'ベテラン重用',
 };
+import { ManagerHistoryCard } from '../../widgets/ManagerReport';
 import { useGameState } from '../../../state/gameState';
 import { Card, LampFigure, SectionTitle, StatChip, teamTextColor } from '../../ui';
 import { TeamFormationOverview } from '../../widgets/TeamFormationOverview';
@@ -178,6 +179,8 @@ export function TeamReportTab() {
         teamKeys={Object.keys(teams) as TeamKey[]}
         onChange={game.setViewTeam}
       />
+
+      {isOwnTeam && <ManagerHistoryCard record={game.manager} />}
 
       <Card ariaLabel={`${TINFO[viewedKey].n}の成績スナップショット`}>
         <div

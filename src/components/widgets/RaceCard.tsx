@@ -6,6 +6,8 @@ import {
   magicLit,
   pennantRace,
   raceTimeline,
+  trustLabel,
+  type ManagerRecord,
   type ScheduleGame,
   type StandingRecord,
   type TeamKey,
@@ -50,10 +52,13 @@ export function RaceCard({
   schedule,
   standings,
   team,
+  manager,
 }: {
   schedule: ScheduleGame[];
   standings: Record<TeamKey, StandingRecord>;
   team: TeamKey;
+  /** The owner's goal for the season, shown against where the club stands. */
+  manager?: ManagerRecord;
 }) {
   const league = CENTRAL.includes(team) ? CENTRAL : PACIFIC;
   const race = useMemo(() => pennantRace(schedule, league), [schedule, league]);
@@ -120,6 +125,24 @@ export function RaceCard({
       <div className={`race-card__headline race-card__headline--${tone}`} role="status">
         {headline}
       </div>
+      {manager?.expectation && (
+        <div className="race-card__goal">
+          <span className="race-card__goal-label">オーナーの目標</span>
+          <strong>{manager.expectation.label}</strong>
+          {record.w + record.l + record.d === 0 ? (
+            <span className="race-card__goal-status">開幕前</span>
+          ) : rank <= manager.expectation.targetRank ? (
+            <span className="race-card__goal-status race-card__goal-status--on">達成圏</span>
+          ) : (
+            <span className="race-card__goal-status race-card__goal-status--off">
+              あと{rank - manager.expectation.targetRank}つ順位を上げたい
+            </span>
+          )}
+          <span className="race-card__trust">
+            信頼度 {manager.trust}・{trustLabel(manager.trust)}
+          </span>
+        </div>
+      )}
       <div className="race-card__lines">
         {climaxLine && <span className="race-card__line">{climaxLine}</span>}
         {keySeries && (

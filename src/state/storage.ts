@@ -12,6 +12,8 @@ import {
   withTeamContractDefaults,
 } from '../engine';
 import type {
+  ManagerRecord,
+  ManagerSeason,
   AccumulatedStats,
   AchievementEvent,
   GameBoxScore,
@@ -133,6 +135,8 @@ export interface GameSaveData {
   gameBoxScores?: Record<string, GameBoxScore>;
   /** Play-by-play of the user's latest games; part of the current state, never archived. */
   recentPlayLogs?: Record<string, GamePlayLog>;
+  /** Missing on saves before owner goals and manager evaluations. */
+  manager?: ManagerRecord;
   narrativeEvents?: NarrativeEventLedger;
   /** Narrative events that failed validation, kept verbatim instead of blocking the save. */
   narrativeQuarantine?: unknown[];
@@ -613,6 +617,31 @@ function migrateHonorHistory(value: unknown): SeasonHonorRecord[] {
   });
 }
 
+const GRADES = ['S', 'A', 'B', 'C', 'D'];
+
+function migrateManager(value: unknown): ManagerRecord | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Partial<ManagerRecord>;
+  if (typeof raw.trust !== 'number' || !Number.isFinite(raw.trust)) return undefined;
+  const expectation =
+    raw.expectation &&
+    typeof raw.expectation.year === 'number' &&
+    typeof raw.expectation.targetRank === 'number' &&
+    typeof raw.expectation.label === 'string'
+      ? raw.expectation
+      : null;
+  const history = Array.isArray(raw.history)
+    ? raw.history.filter(
+        (season: ManagerSeason) =>
+          season &&
+          typeof season.year === 'number' &&
+          typeof season.finalRank === 'number' &&
+          GRADES.includes(season.grade),
+      )
+    : [];
+  return { trust: Math.max(0, Math.min(100, raw.trust)), expectation, history };
+}
+
 function migratePlayLogs(value: unknown): Record<string, GamePlayLog> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return Object.fromEntries(
@@ -901,6 +930,7 @@ export function migrateSaveData(raw: unknown): GameSaveData | null {
     gameSummaries: migrateGameSummaries(legacy.gameSummaries),
     gameBoxScores: migrateGameBoxScores(legacy.gameBoxScores),
     recentPlayLogs: migratePlayLogs(legacy.recentPlayLogs),
+    manager: migrateManager(legacy.manager),
     narrativeEvents: narrative.ledger,
     ...(narrativeQuarantine ? { narrativeQuarantine } : {}),
     ts: legacy.ts,

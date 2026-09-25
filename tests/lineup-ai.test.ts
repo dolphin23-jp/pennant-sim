@@ -11,6 +11,7 @@ import {
   recommendedLineup,
   repairLineup,
   resetRandom,
+  seasonExpectation,
   simulateGame,
   strategicBestLineup,
   type Player,
@@ -229,6 +230,28 @@ test('the probable starter shown before a game is the one who starts it', () => 
       assert.equal(result.starterH.id, expectedHome.id);
       assert.equal(result.starterA.id, expectedAway.id);
     }
+  } finally {
+    resetRandom();
+  }
+});
+
+test('a finished year leaves the owner evaluation and sets next year goal', () => {
+  configureRandom(mulberry32(8), () => Date.UTC(2026, 0, 1));
+  try {
+    const state = openingState();
+    const expectation = seasonExpectation(state.teams!, 'giants', 2026);
+    const next = advanceOneYear({
+      ...state,
+      manager: { trust: 60, expectation, history: [] },
+    });
+    assert.equal(next.manager.history.length, 1);
+    const season = next.manager.history[0]!;
+    assert.equal(season.year, 2026);
+    assert.ok(season.finalRank >= 1 && season.finalRank <= 6);
+    assert.equal(next.manager.trust, season.trustAfter);
+    assert.equal(next.manager.expectation?.year, 2027);
+    assert.ok(next.notices.some((notice) => notice.id === 'manager:2026:giants'));
+    assert.ok(next.notices.some((notice) => notice.id === 'manager:goal:2027:giants'));
   } finally {
     resetRandom();
   }
