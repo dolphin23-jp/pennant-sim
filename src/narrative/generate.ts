@@ -75,10 +75,6 @@ function factual(text: string, factRefs: NarrativeFactRef[]): NarrativeSegment {
   return { class: 'FACTUAL', text, factRefs: uniqueRefs(factRefs) };
 }
 
-function color(text: string): NarrativeSegment {
-  return { class: 'COLOR', text, factRefs: [] };
-}
-
 function makeArticle(
   input: Omit<NarrativeArticle, 'generatorVersion' | 'factRefs'>,
 ): NarrativeArticle {
@@ -263,7 +259,6 @@ export function articleFromChampionship(record: ChampionRecord): NarrativeArticl
   if (keyPlayers.length) {
     segments.push(factual(`主力には${keyPlayers.join('、')}が名を連ねた。`, [championshipRef]));
   }
-  segments.push(color('そのシーズンの頂点に立ったチームとして、記録に刻まれる。'));
 
   return makeArticle({
     id: `championship:${record.year}`,
@@ -335,7 +330,14 @@ function articleFromTransaction(event: TransactionNarrativeEvent): NarrativeArti
   const from = event.fromTeamKey ? TINFO[event.fromTeamKey].n : null;
   const to = event.toTeamKey ? TINFO[event.toTeamKey].n : null;
   let headline = `${event.playerName}の去就が決定`;
-  let sentence = `${event.playerName}の所属に動きがあった。`;
+  let sentence =
+    from && to
+      ? `${event.playerName}が${from}から${to}へ移った。`
+      : from
+        ? `${event.playerName}が${from}を離れた。`
+        : to
+          ? `${event.playerName}が${to}に加わった。`
+          : `${event.playerName}の去就が決まった。`;
   if (event.transactionKind === 'trade' && from && to) {
     headline = `${event.playerName}、${from}から${to}へトレード`;
     sentence = `${event.playerName}が${from}から${to}へトレードで移籍した。`;
@@ -365,7 +367,9 @@ function articleFromTransaction(event: TransactionNarrativeEvent): NarrativeArti
     sentence = `${event.playerName}が${from}を退団した。`;
   } else if (event.transactionKind === 'retirement') {
     headline = `${event.playerName}が現役引退`;
-    sentence = `${event.playerName}が現役を引退した。`;
+    sentence = event.ageAtExit
+      ? `${event.playerName}が${event.ageAtExit}歳で現役を引退した。`
+      : `${event.playerName}が現役を引退した。`;
   }
   const eventRef = ref('TRANSACTION', event.id);
   if (event.movements?.length) {
@@ -463,6 +467,11 @@ function articleFromSeasonReview(event: SeasonReviewNarrativeEvent): NarrativeAr
       [standingRef],
     ),
   ];
+  if (event.rank === 1 && event.clinchedOn) {
+    segments.push(factual(`${event.clinchedOn}にリーグ優勝を決めた。`, [standingRef]));
+  } else if (event.gamesBehind !== undefined && event.rank > 1) {
+    segments.push(factual(`首位とは${event.gamesBehind}ゲーム差だった。`, [standingRef]));
+  }
   if (event.champion) {
     segments.push(factual('日本シリーズを制し、日本一となった。', [standingRef]));
   }
@@ -476,7 +485,19 @@ function articleFromSeasonReview(event: SeasonReviewNarrativeEvent): NarrativeAr
       ),
     );
   }
-  segments.push(color('ひとつのシーズンが、球団史の一頁になった。'));
+  if (event.averageAttendance) {
+    segments.push(
+      factual(`主催試合の観客動員は1試合平均${event.averageAttendance}人。`, [standingRef]),
+    );
+  }
+  if (event.ownerReview) {
+    segments.push(
+      factual(
+        `オーナーが掲げた目標「${event.ownerReview.targetLabel}」に対する評価は${event.ownerReview.grade}（${event.ownerReview.gradeLabel}）。`,
+        [standingRef],
+      ),
+    );
+  }
   return makeArticle({
     id: narrativeEventArticleId(event),
     kind: 'seasonReview',
@@ -506,8 +527,44 @@ function articleFromInjury(event: InjuryNarrativeEvent): NarrativeArticle {
     playerIds: [event.playerId],
     segments: [
       factual(`${event.playerName}は${severityLabel}で、離脱見込みは${event.days}日。`, [eventRef]),
+      ...(event.seasonLine
+        ? [factual(`離脱前までの今季成績は${event.seasonLine}。`, [eventRef])]
+        : []),
     ],
   });
+}
+
+const ABILITY_LABEL: Partial<Record<string, string>> = {
+  vel: '球速',
+  ctrl: '制球',
+  stam: 'スタミナ',
+  nobi: 'ノビ',
+  fld: '守備',
+  cf: '直球対応',
+  cb: '変化球対応',
+  pw: '長打力',
+  dc: '選球眼',
+  sp: '走力',
+  df: '守備力',
+  arm: '肩力',
+  bnt: 'バント',
+  ld: 'リード',
+};
+
+/** Which abilities rose and fell, by name: the rating scale is the game's own and not a
+ * newspaper fact, so no numbers. */
+function growthSentence(name: string, changes: Array<{ param: string; diff: number }>): string {
+  const named = (list: Array<{ param: string }>) =>
+    list
+      .slice(0, 3)
+      .map((change) => ABILITY_LABEL[change.param] ?? change.param)
+      .join('・');
+  const up = changes.filter((change) => change.diff > 0).sort((a, b) => b.diff - a.diff);
+  const down = changes.filter((change) => change.diff < 0).sort((a, b) => a.diff - b.diff);
+  if (up.length && down.length) return `${name}は${named(up)}が伸び、${named(down)}が落ちた。`;
+  if (up.length) return `${name}は${named(up)}が伸びた。`;
+  if (down.length) return `${name}は${named(down)}が落ちた。`;
+  return `${name}の能力は大きく変わらなかった。`;
 }
 
 function articleFromDevelopment(event: DevelopmentNarrativeEvent): NarrativeArticle {
@@ -530,7 +587,7 @@ function articleFromDevelopment(event: DevelopmentNarrativeEvent): NarrativeArti
     segments: [
       factual(
         event.developmentKind === 'growth'
-          ? `${event.playerName}のOVRは${event.ovrBefore}から${event.ovrAfter}になった。`
+          ? growthSentence(event.playerName, event.changes)
           : event.developmentKind === 'awakening'
             ? `${event.playerName}に${event.isBreakthrough ? '大覚醒' : '覚醒'}が発生した。${event.newSpecial ? `特殊能力「${event.newSpecial}」を獲得した。` : ''}`
             : (event.detail ?? ''),

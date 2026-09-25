@@ -75,7 +75,8 @@ function validEvent(value: unknown, year: number): value is NarrativeEvent {
         (value.terms != null && !text(value.terms)) ||
         (value.cashAmountManYen != null && !integer(value.cashAmountManYen)) ||
         (value.exitReason != null && !text(value.exitReason)) ||
-        (value.returnFromMlb != null && typeof value.returnFromMlb !== 'boolean')
+        (value.returnFromMlb != null && typeof value.returnFromMlb !== 'boolean') ||
+        (value.ageAtExit != null && !integer(value.ageAtExit))
       )
         return false;
       if (
@@ -117,7 +118,8 @@ function validEvent(value: unknown, year: number): value is NarrativeEvent {
       return (
         integer(value.days) &&
         value.days > 0 &&
-        ['light', 'mid', 'heavy'].includes(String(value.severity))
+        ['light', 'mid', 'heavy'].includes(String(value.severity)) &&
+        (value.seasonLine === undefined || text(value.seasonLine))
       );
     case 'seasonReview':
       return (
@@ -129,7 +131,15 @@ function validEvent(value: unknown, year: number): value is NarrativeEvent {
         typeof value.champion === 'boolean' &&
         (value.titleHolders === undefined ||
           (Array.isArray(value.titleHolders) &&
-            value.titleHolders.every((p) => object(p) && player(p) && text(p.titleLabel))))
+            value.titleHolders.every((p) => object(p) && player(p) && text(p.titleLabel)))) &&
+        (value.gamesBehind === undefined || number(value.gamesBehind)) &&
+        (value.clinchedOn === undefined || text(value.clinchedOn)) &&
+        (value.averageAttendance === undefined || integer(value.averageAttendance)) &&
+        (value.ownerReview === undefined ||
+          (object(value.ownerReview) &&
+            text(value.ownerReview.targetLabel) &&
+            text(value.ownerReview.grade) &&
+            text(value.ownerReview.gradeLabel)))
       );
     case 'development':
       if (value.developmentKind === undefined) return text(value.detail);

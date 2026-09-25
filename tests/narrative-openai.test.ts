@@ -11,6 +11,7 @@ import {
 import { buildFactPacket } from '../src/narrative/packet';
 import {
   canonicalJson,
+  kanjiNumeralsToDigits,
   MODELS,
   packetFactsHash,
   sha256,
@@ -569,4 +570,11 @@ test('budget reservations are shared by distinct concurrent keys and unknown pro
   const p = prose(cp);
   p.segments[0].text += '秘密の特訓が実を結んだ。';
   assert.equal(validateProse(p, cp), null, 'valid refs never legitimize invented causation');
+});
+
+test('kanji numerals before a counter are checked like digits, other kanji words are not', () => {
+  assert.equal(kanjiNumeralsToDigits('三年ぶりの十二勝'), '3年ぶりの12勝');
+  assert.equal(kanjiNumeralsToDigits('二十五本塁打で四位'), '25本塁打で4位');
+  assert.equal(kanjiNumeralsToDigits('一軍で三振を奪った'), '一軍で三振を奪った');
+  assert.equal(kanjiNumeralsToDigits('十分な'), '十分な');
 });

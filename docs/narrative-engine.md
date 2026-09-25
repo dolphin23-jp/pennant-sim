@@ -135,10 +135,26 @@ not claim a precise real-world signing date or order within that offseason.
 
 The FA market currently generates candidates; it does not release named players
 from existing clubs. FA articles therefore record joining a club without inventing
-a prior employer, contract payment, or human motives. First appearances, first
-hits/wins, origin schools, full CareerMemory/StoryArc, foreign renewal/adaptation
-news remain future work. Optional OpenAI prose rendering is described below. Historic synthetic league years are
-not backfilled with guessed transactions.
+a prior employer, contract payment, or human motives. First hits/wins, origin
+schools, full CareerMemory/StoryArc, foreign renewal/adaptation news remain future
+work.
+
+Facts frozen into events at the moment they happen (phase 26):
+
+- `seasonReview` carries the club's title holders, final games behind, the day the
+  pennant was clinched (`clinchDate`), the average home crowd, and, for the user's
+  club, the owner's goal and grade. The template states each as a FACTUAL sentence;
+  the stock COLOR line is gone.
+- `injury` carries the player's season line up to the day he was hurt.
+- `career` `debut` is emitted when a first- or second-round rookie first appears in
+  a game; `breakthrough` when a player wins his first individual title.
+- Retirements carry the player's age.
+- Growth articles name the abilities that rose and fell instead of printing the
+  internal OVR.
+- The player profile adds the live season up to `asOfDate` (passed in, since the
+  year's records only exist once it ends) and the player's popularity and
+  temperament; potential and maturity internals are no longer in the packet. Optional OpenAI prose rendering is described below. Historic synthetic league years are
+  not backfilled with guessed transactions.
 
 `npm run test:narrative:long` plays 100 full scheduled seasons with roster turnover,
 checks every year's counts and replay behavior, verifies old chunk reuse, and

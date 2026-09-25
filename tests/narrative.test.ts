@@ -229,8 +229,20 @@ test('future subsystem events enter the same article pipeline without inferred f
     losses: 62,
     draws: 5,
     champion: false,
+    gamesBehind: 4.5,
+    averageAttendance: 31250,
+    ownerReview: { targetLabel: 'CS進出', grade: 'A', gradeLabel: '好評価' },
+    titleHolders: [{ playerId: 'p-1', playerName: '本塁打王太郎', titleLabel: '本塁打王' }],
   });
   assert.equal(review.kind, 'seasonReview');
-  assert.ok(review.segments.some((segment) => segment.class === 'COLOR'));
-  assert.ok(review.segments.some((segment) => segment.text.includes('76勝62敗5分')));
+  const texts = review.segments.map((segment) => segment.text);
+  assert.ok(texts.some((text) => text.includes('76勝62敗5分')));
+  assert.ok(texts.some((text) => text.includes('首位とは4.5ゲーム差')));
+  assert.ok(texts.some((text) => text.includes('本塁打王 本塁打王太郎')));
+  assert.ok(texts.some((text) => text.includes('1試合平均31250人')));
+  assert.ok(texts.some((text) => text.includes('「CS進出」に対する評価はA（好評価）')));
+  assert.ok(
+    review.segments.every((segment) => segment.class === 'FACTUAL'),
+    'no stock COLOR line: every sentence is a fact',
+  );
 });

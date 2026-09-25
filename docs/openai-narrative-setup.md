@@ -100,8 +100,13 @@ validator first rejects unsupported names/numbers, protected-claim changes and
 forbidden pseudo-quotes/psychology. The Worker then sends the candidate article
 and exact packet through a second independent verification call. Any unsupported
 claim, causal leap, relation swap or future knowledge rejects the generated prose
-and falls back to the template. ANALYTICAL output remains disabled until typed
-derived claims and rules are introduced.
+and falls back to the template. ANALYTICAL paragraphs are required when a feature
+or cover story has at least two context claims; each must cite two or more claims.
+
+The number check also reads kanji numerals written before a counter (三年ぶり,
+十二勝, 四位), so an unsupported figure cannot slip through in kanji. ファン and 観客
+may appear only in a sentence that cites an attendance or popularity fact: the
+crowd figures are facts, the crowd's reaction never is.
 
 ## Operations and limits
 

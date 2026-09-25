@@ -126,6 +126,8 @@ export interface TransactionNarrativeEvent {
   exitReason?: string;
   /** A signing of a player coming back from MLB. */
   returnFromMlb?: boolean;
+  /** The player's age when he retired. */
+  ageAtExit?: number;
 }
 
 export interface DraftNarrativeEvent {
@@ -176,6 +178,14 @@ export interface SeasonReviewNarrativeEvent {
   draws: number;
   champion: boolean;
   titleHolders?: Array<{ playerId: string; playerName: string; titleLabel: string }>;
+  /** Final games behind the league leader (0 for the leader). */
+  gamesBehind?: number;
+  /** The day the pennant was clinched, for the league champion. */
+  clinchedOn?: string;
+  /** Average home crowd over the season. */
+  averageAttendance?: number;
+  /** The owner's goal and verdict, for the user's club. */
+  ownerReview?: { targetLabel: string; grade: string; gradeLabel: string };
 }
 
 export interface InjuryNarrativeEvent {
@@ -188,6 +198,8 @@ export interface InjuryNarrativeEvent {
   playerName: string;
   days: number;
   severity: 'light' | 'mid' | 'heavy';
+  /** The player's season to the day he was hurt, e.g. "打率.301 12本塁打 40打点". */
+  seasonLine?: string;
 }
 
 interface DevelopmentNarrativeBase {

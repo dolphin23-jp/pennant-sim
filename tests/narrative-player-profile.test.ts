@@ -314,3 +314,23 @@ test('player profile supports pitcher role standings and career context', () => 
     ),
   );
 });
+
+test('a mid-season profile says how this season is going, and leaves ratings internals out', () => {
+  const profile = buildPlayerNarrativeProfile({
+    player: player({ popularity: 72, temperament: 'bigStage' }),
+    teamKey: 'giants',
+    seasonYear: 2027,
+    asOfDate: '2027-06-15',
+    yearlyStats: {},
+    currentSeason: batterStats('架空 太郎', 60, 14, 70),
+  });
+  assert.ok(profile);
+  const claims = profile.packet.claims.map((claim) => claim.text);
+  assert.ok(claims.some((text) => text.startsWith('2027年は6月15日時点で60試合に出場')));
+  assert.ok(
+    claims.some((text) => text.includes('人気は72（全国区）') && text.includes('大舞台に強い')),
+  );
+  const packetText = canonicalJson(profile.packet);
+  for (const internal of ['materialPotentialGap', 'potentialClass', 'maturityPeakAge'])
+    assert.ok(!packetText.includes(internal), `${internal} stays out of the packet`);
+});

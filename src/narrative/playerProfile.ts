@@ -1,6 +1,14 @@
 import { MATURITY_PEAK_AGE, TINFO } from '../data';
 import { averageText, earnedRunAverage, inningsText } from '../engine/statsFormat';
-import type { Player, PlayerSeasonRecord, TeamKey, YearlyPlayerRecords } from '../engine/types';
+import { popularityLabel, popularityOf } from '../engine/popularity';
+import { TEMPERAMENT_LABEL, temperamentOf } from '../engine/temperament';
+import type {
+  Player,
+  PlayerSeasonRecord,
+  PlayerStats,
+  TeamKey,
+  YearlyPlayerRecords,
+} from '../engine/types';
 import type { ChampionRecord } from '../state/storage';
 import { validPacket, type FactPacket } from './protocol';
 import {
@@ -46,6 +54,9 @@ export interface PlayerNarrativeProfileSource {
   asOfDate: string;
   yearlyStats: YearlyPlayerRecords;
   championHistory?: ChampionRecord[];
+  /** This season's line up to asOfDate (the live season, which yearlyStats only holds once
+   * it is over). */
+  currentSeason?: PlayerStats;
 }
 
 type Trajectory = 'rising' | 'stable' | 'declining' | 'none';
@@ -629,10 +640,6 @@ function archetypeInput(
           firstRegularAge: firstRegular?.age ?? null,
           relativeRank,
           trajectory,
-          maturity: player.mat,
-          maturityPeakAge,
-          potentialClass: player.potentialClass ?? 'standard',
-          materialPotentialGap: hasMaterialPotentialGap(player),
         },
       },
     },
@@ -697,8 +704,38 @@ export function buildPlayerNarrativeProfile(
   const championship = championshipInput(source, records);
   const archetype = archetypeInput(source, records, trajectory.trajectory, standing.rank);
   const primary = [identity, ...(summary ? [summary] : [])];
+  const current = source.currentSeason;
+  const monthDay = `${Number(asOfDate.slice(5, 7))}月${Number(asOfDate.slice(8, 10))}日`;
+  const currentInput: PlayerProfileEditorialInput | null =
+    current && current.g > 0 && !records.some((record) => record.year === seasonYear)
+      ? {
+          id: 'current-season',
+          sourceClass: 'canonical',
+          text:
+            current.type === 'bat'
+              ? `${seasonYear}年は${monthDay}時点で${current.g}試合に出場し、打率${averageText(current.h, current.ab)}、${current.hr}本塁打、${current.rbi}打点。`
+              : `${seasonYear}年は${monthDay}時点で${current.g}試合に登板し、${current.w}勝${current.l}敗${current.sv ? `${current.sv}セーブ` : ''}、防御率${(earnedRunAverage(current) ?? 0).toFixed(2)}。`,
+          factRefs: [ref('PLAYER_SEASON', `${seasonYear}:${player.id}:to:${asOfDate}`)],
+          value: { sourceClass: 'canonical', asOfDate, ...structuredClone(current) },
+        }
+      : null;
+  const popularity = popularityOf(player);
+  const standingInput: PlayerProfileEditorialInput = {
+    id: 'popularity',
+    sourceClass: 'derived',
+    text: `${player.name}の人気は${popularity}（${popularityLabel(popularity)}）で、気質は「${TEMPERAMENT_LABEL[temperamentOf(player)]}」。`,
+    factRefs: [ref('PLAYER_PROFILE', `${asOfDate}:${player.id}:popularity`)],
+    value: {
+      sourceClass: 'derived',
+      popularity,
+      label: popularityLabel(popularity),
+      temperament: temperamentOf(player),
+    },
+  };
   const context = [
+    currentInput,
     latestInput,
+    standingInput,
     best,
     trajectory.input,
     standing.input,

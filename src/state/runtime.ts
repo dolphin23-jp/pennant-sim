@@ -3,7 +3,7 @@ import type { ArticleArchive } from '../narrative/protocol';
 import { appendNarrativeEventsSafe } from '../narrative/ledger';
 
 import type { NarrativeEvent, NarrativeEventLedger } from '../narrative/types';
-import { seasonReviewEvents } from '../engine/narrativeEvents';
+import { breakthroughEvents, seasonReviewEvents } from '../engine/narrativeEvents';
 import {
   aggregateTeamStats,
   assignAllActiveRosters,
@@ -500,7 +500,14 @@ export function applyOffseasonCompletion(
         completedYear,
         current.standings,
         current.championHistory.find((c) => c.year === completedYear)?.champion,
+        {
+          titles: seasonTitles,
+          schedule: current.season.schedule,
+          teams: current.teams ?? undefined,
+          ownerReview: ownerReviewFor(current, completedYear),
+        },
       ),
+      ...breakthroughEvents(completedYear, seasonTitles, current.awardHistory),
     ]),
     // A player back on a roster (returning from MLB) is no longer a departed one.
     retiredPlayers: [
@@ -547,6 +554,18 @@ export function applyOffseasonCompletion(
     autosaveSeq: nextAutosaveSeq(),
   };
   return next;
+}
+
+/** The owner's verdict on a finished season, for the season-review article. */
+function ownerReviewFor(current: RuntimeState, year: number) {
+  const season = current.manager.history.find((entry) => entry.year === year);
+  if (!season || !current.playerTeam) return undefined;
+  return {
+    teamKey: current.playerTeam,
+    targetLabel: season.targetLabel,
+    grade: season.grade,
+    gradeLabel: GRADE_LABEL[season.grade],
+  };
 }
 
 /** The owner's goal for the new season, announced on opening day. */
