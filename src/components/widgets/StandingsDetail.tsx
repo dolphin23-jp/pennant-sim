@@ -49,7 +49,7 @@ function TeamStatsLeagueTable({
   const sorted = sortByRank(teamKeys, standings);
   return (
     <Card ariaLabel={`${title}チーム成績`}>
-      <SectionTitle>{title} Team Stats</SectionTitle>
+      <SectionTitle>{title} チーム成績</SectionTitle>
       <div className="table-scroll">
         <table className="data-table" aria-label={`${title}のチーム打撃・投手成績`}>
           <thead>
@@ -97,14 +97,7 @@ export function TeamStatsComparison({
   statsSource: AccumulatedStats;
 }) {
   return (
-    <section
-      aria-label="チーム打撃・投手成績"
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))',
-        gap: 12,
-      }}
-    >
+    <section aria-label="チーム打撃・投手成績" className="card-grid">
       <TeamStatsLeagueTable
         title="セ・リーグ"
         teamKeys={CENTRAL}
@@ -198,14 +191,7 @@ export function HeadToHeadComparison({
   standings: Record<TeamKey, StandingRecord>;
 }) {
   return (
-    <section
-      aria-label="対戦成績（星取表）"
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))',
-        gap: 12,
-      }}
-    >
+    <section aria-label="対戦成績（星取表）" className="card-grid">
       <HeadToHeadLeagueTable
         title="セ・リーグ"
         teamKeys={CENTRAL}

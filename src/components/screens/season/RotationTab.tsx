@@ -262,7 +262,7 @@ function RotationEditor({
   };
 
   return (
-    <div style={{ display: 'grid', gap: 12 }}>
+    <div className="stack">
       <Card ariaLabel="投手編成の操作">
         <div
           style={{
@@ -330,7 +330,7 @@ function RotationEditor({
           alignItems: 'start',
         }}
       >
-        <div style={{ display: 'grid', gap: 12 }}>
+        <div className="stack">
           <RotationOrderList
             pitchers={rotationPitchers}
             slotCount={rotationSlotCount(team)}

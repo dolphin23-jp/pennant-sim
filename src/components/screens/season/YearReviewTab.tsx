@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 
 import { TINFO } from '../../../data';
 import { SEASON_HONOR_LABEL, type TeamKey } from '../../../engine';
@@ -19,21 +19,11 @@ const ACHIEVEMENT_KIND_LABEL: Record<'milestone' | 'seasonRecord' | 'careerRecor
   careerRecord: '球団史新記録',
 };
 
-const listStyle: CSSProperties = { display: 'grid', gap: 6, margin: 0, padding: 0 };
-const rowStyle: CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  gap: 8,
-  fontSize: 13,
-  alignItems: 'baseline',
-};
-const mutedStyle: CSSProperties = { color: 'var(--color-text-muted)', fontSize: 12 };
-
 function TeamName({ teamKey, short = false }: { teamKey: TeamKey | null; short?: boolean }) {
   if (!teamKey) return null;
   const info = TINFO[teamKey];
   return (
-    <span style={{ color: teamTextColor(info.c), fontWeight: 700 }}>
+    <span className="year-review-team-name" style={{ color: teamTextColor(info.c) }}>
       {short ? info.ab : info.n}
     </span>
   );
@@ -53,17 +43,7 @@ function PlayerLink({
       type="button"
       onClick={() => onSelect(playerId)}
       aria-label={`${name}の詳細を表示`}
-      style={{
-        background: 'none',
-        border: 'none',
-        padding: 0,
-        color: 'var(--color-text)',
-        cursor: 'pointer',
-        font: 'inherit',
-        textDecoration: 'underline',
-        textDecorationColor: 'var(--color-border-strong)',
-        textUnderlineOffset: 3,
-      }}
+      className="year-review-player-link"
     >
       {name}
     </button>
@@ -83,34 +63,23 @@ function StandingsSection({ review, playerTeam }: { review: YearReview; playerTe
   if (!review.standings.central.length && !review.standings.pacific.length) return null;
   return (
     <Section title="最終順位">
-      <div
-        style={{
-          display: 'grid',
-          gap: 12,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        }}
-      >
+      <div className="year-review-standings">
         {YEAR_REVIEW_LEAGUES.map((league) => (
           <div key={league.id}>
-            <div style={{ ...mutedStyle, fontWeight: 700, marginBottom: 4 }}>{league.label}</div>
-            <ol style={listStyle}>
+            <div className="year-review-label year-review-label--spaced">{league.label}</div>
+            <ol className="year-review-list">
               {review.standings[league.id].map((row) => (
                 <li
                   key={row.teamKey}
-                  style={{
-                    ...rowStyle,
-                    fontWeight: row.teamKey === playerTeam ? 800 : 400,
-                    background:
-                      row.teamKey === playerTeam ? 'var(--color-accent-soft)' : 'transparent',
-                    borderRadius: 6,
-                    padding: '2px 6px',
-                  }}
+                  className={`year-review-row year-review-row--standing${
+                    row.teamKey === playerTeam ? ' year-review-row--player' : ''
+                  }`}
                 >
                   <span>
                     {row.rank}. <TeamName teamKey={row.teamKey} />
                     {row.champion ? '（日本一）' : ''}
                   </span>
-                  <span style={mutedStyle}>
+                  <span className="year-review-muted">
                     {row.wins}勝{row.losses}敗{row.draws}分
                   </span>
                 </li>
@@ -203,10 +172,10 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
     );
 
   return (
-    <div style={{ display: 'grid', gap: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <h2 style={{ margin: 0, fontSize: 20 }}>{year}年の総括</h2>
-        <label style={{ ...mutedStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
+    <div className="year-review">
+      <div className="year-review__header">
+        <h2 className="year-review__title">{year}年の総括</h2>
+        <label className="year-review__year-picker">
           年度
           <select
             value={year}
@@ -227,11 +196,11 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
           ariaLabel={`${year}年 日本一`}
           style={{ borderLeft: `4px solid ${TINFO[review.champion.champion].c}` }}
         >
-          <div style={{ ...mutedStyle, fontWeight: 700 }}>日本一</div>
-          <div style={{ fontSize: 22, fontWeight: 900 }}>
+          <div className="year-review-label">日本一</div>
+          <div className="year-review-champion__name">
             <TeamName teamKey={review.champion.champion} />
           </div>
-          <div style={mutedStyle}>
+          <div className="year-review-muted">
             {review.champion.runnerUp && (
               <>
                 日本シリーズ相手：
@@ -242,7 +211,7 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
               ` / ${review.champion.record.w}勝${review.champion.record.l}敗${review.champion.record.d}分`}
           </div>
           {review.champion.keyBatters?.length || review.champion.keyPitchers?.length ? (
-            <div style={{ ...mutedStyle, marginTop: 4 }}>
+            <div className="year-review-muted year-review-champion__players">
               主力：
               {[...(review.champion.keyBatters ?? []), ...(review.champion.keyPitchers ?? [])]
                 .filter(Boolean)
@@ -254,22 +223,16 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
 
       <StandingsSection review={review} playerTeam={playerTeam} />
 
-      <div
-        style={{
-          display: 'grid',
-          gap: 12,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
-        }}
-      >
+      <div className="year-review-sections">
         {(review.titles.central.length > 0 || review.titles.pacific.length > 0) && (
           <Section title="タイトル">
             {YEAR_REVIEW_LEAGUES.map((league) =>
               review.titles[league.id].length ? (
-                <div key={league.id} style={{ marginBottom: 8 }}>
-                  <div style={{ ...mutedStyle, fontWeight: 700 }}>{league.label}</div>
-                  <ul style={listStyle}>
+                <div key={league.id} className="year-review-group">
+                  <div className="year-review-label">{league.label}</div>
+                  <ul className="year-review-list">
                     {review.titles[league.id].map((title) => (
-                      <li key={`${title.titleId}:${title.playerId}`} style={rowStyle}>
+                      <li key={`${title.titleId}:${title.playerId}`} className="year-review-row">
                         <span>
                           {title.titleLabel}{' '}
                           <PlayerLink
@@ -279,7 +242,7 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
                           />{' '}
                           <TeamName teamKey={title.teamKey} short />
                         </span>
-                        <span style={mutedStyle}>{title.displayValue}</span>
+                        <span className="year-review-muted">{title.displayValue}</span>
                       </li>
                     ))}
                   </ul>
@@ -294,13 +257,13 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
             {YEAR_REVIEW_LEAGUES.map((league) => {
               const honors = review.honors.filter((honor) => honor.league === league.id);
               return honors.length ? (
-                <div key={league.id} style={{ marginBottom: 8 }}>
-                  <div style={{ ...mutedStyle, fontWeight: 700 }}>{league.label}</div>
-                  <ul style={listStyle}>
+                <div key={league.id} className="year-review-group">
+                  <div className="year-review-label">{league.label}</div>
+                  <ul className="year-review-list">
                     {honors.map((honor) => (
                       <li
                         key={`${honor.honorId}:${honor.position ?? ''}:${honor.playerId}`}
-                        style={rowStyle}
+                        className="year-review-row"
                       >
                         <span>
                           {honor.honorId === 'bestNine' || honor.honorId === 'goldenGlove'
@@ -313,7 +276,7 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
                           />{' '}
                           <TeamName teamKey={honor.teamKey} short />
                         </span>
-                        <span style={mutedStyle}>{honor.summary}</span>
+                        <span className="year-review-muted">{honor.summary}</span>
                       </li>
                     ))}
                   </ul>
@@ -326,11 +289,11 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
         {review.leaders.length > 0 && (
           <Section title="個人成績の上位">
             {review.leaders.map((section) => (
-              <div key={section.label} style={{ marginBottom: 8 }}>
-                <div style={{ ...mutedStyle, fontWeight: 700 }}>{section.label}</div>
-                <ol style={listStyle}>
+              <div key={section.label} className="year-review-group">
+                <div className="year-review-label">{section.label}</div>
+                <ol className="year-review-list">
                   {section.entries.map((entry) => (
-                    <li key={entry.playerId} style={rowStyle}>
+                    <li key={entry.playerId} className="year-review-row">
                       <span>
                         <PlayerLink
                           playerId={entry.playerId}
@@ -339,7 +302,7 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
                         />{' '}
                         <TeamName teamKey={entry.teamKey} short />
                       </span>
-                      <span style={mutedStyle}>{entry.value}</span>
+                      <span className="year-review-muted">{entry.value}</span>
                     </li>
                   ))}
                 </ol>
@@ -350,9 +313,9 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
 
         {review.achievements.length > 0 && (
           <Section title="記録・節目">
-            <ul style={listStyle}>
+            <ul className="year-review-list">
               {review.achievements.map((event) => (
-                <li key={event.id} style={rowStyle}>
+                <li key={event.id} className="year-review-row">
                   <span>
                     <PlayerLink
                       playerId={event.playerId}
@@ -370,9 +333,9 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
 
         {review.breakouts.length > 0 && (
           <Section title="ブレイク">
-            <ul style={listStyle}>
+            <ul className="year-review-list">
               {review.breakouts.map((event) => (
-                <li key={event.id} style={rowStyle}>
+                <li key={event.id} className="year-review-row">
                   <span>
                     <PlayerLink
                       playerId={event.playerId}
@@ -381,7 +344,7 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
                     />{' '}
                     <TeamName teamKey={event.teamKey} short />
                   </span>
-                  <span style={mutedStyle}>
+                  <span className="year-review-muted">
                     {event.developmentKind === 'awakening'
                       ? event.isBreakthrough
                         ? '限界突破'
@@ -396,10 +359,12 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
 
         {review.moves.total > 0 && (
           <Section title={`主な移籍（${review.moves.total}件）`}>
-            <ul style={listStyle}>
+            <ul className="year-review-list">
               {review.moves.highlights.map((event) => (
-                <li key={event.id} style={{ ...rowStyle, justifyContent: 'flex-start' }}>
-                  <span style={{ ...mutedStyle, minWidth: 56 }}>{moveLabel(event)}</span>
+                <li key={event.id} className="year-review-row year-review-row--start">
+                  <span className="year-review-muted year-review-move-label">
+                    {moveLabel(event)}
+                  </span>
                   <span>
                     {event.movements?.length ? (
                       event.movements.map((movement, index) => (
@@ -441,9 +406,9 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
 
         {review.retirements.length > 0 && (
           <Section title="引退">
-            <ul style={listStyle}>
+            <ul className="year-review-list">
               {review.retirements.map((row) => (
-                <li key={row.playerId} style={rowStyle}>
+                <li key={row.playerId} className="year-review-row">
                   <span>
                     <PlayerLink
                       playerId={row.playerId}
@@ -452,7 +417,7 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
                     />{' '}
                     <TeamName teamKey={row.teamKey} short />
                   </span>
-                  <span style={mutedStyle}>{row.career ?? ''}</span>
+                  <span className="year-review-muted">{row.career ?? ''}</span>
                 </li>
               ))}
             </ul>
@@ -461,9 +426,9 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
 
         {review.firstRoundPicks.length > 0 && (
           <Section title="ドラフト1位">
-            <ul style={listStyle}>
+            <ul className="year-review-list">
               {review.firstRoundPicks.map((event) => (
-                <li key={event.id} style={rowStyle}>
+                <li key={event.id} className="year-review-row">
                   <span>
                     <TeamName teamKey={event.teamKey} short />{' '}
                     <PlayerLink
@@ -472,7 +437,7 @@ export function YearReviewTab({ initialYear }: { initialYear?: number }) {
                       onSelect={selectPlayer}
                     />
                   </span>
-                  <span style={mutedStyle}>{event.origin ?? ''}</span>
+                  <span className="year-review-muted">{event.origin ?? ''}</span>
                 </li>
               ))}
             </ul>

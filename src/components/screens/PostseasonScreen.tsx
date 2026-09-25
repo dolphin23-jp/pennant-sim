@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
 
 import { CENTRAL, PACIFIC, TINFO } from '../../data';
 import {
@@ -54,17 +55,11 @@ function SeasonTitlesPanel({
   return (
     <section aria-label="レギュラーシーズン個人タイトル">
       <SectionTitle>今季のタイトル</SectionTitle>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))',
-          gap: 12,
-        }}
-      >
+      <div className="postseason-titles__grid">
         {(['central', 'pacific'] as const).map((league) => (
           <Card key={league} ariaLabel={`${AWARD_LEAGUE_LABEL[league]}個人タイトル`}>
             <SectionTitle>{AWARD_LEAGUE_LABEL[league]}</SectionTitle>
-            <div style={{ display: 'grid', gap: 6 }}>
+            <div className="postseason-titles__list">
               {titles
                 .filter((record) => record.league === league)
                 .map((record) => {
@@ -72,26 +67,9 @@ function SeasonTitlesPanel({
                   return (
                     <div
                       key={`${record.titleId}:${record.playerId}`}
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'minmax(92px,auto) minmax(0,1fr) auto',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '7px 8px',
-                        border: '1px solid var(--color-border)',
-                        borderRadius: 7,
-                        background: 'var(--color-surface-raised)',
-                        fontSize: 12,
-                      }}
+                      className="postseason-titles__row"
                     >
-                      <strong
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 5,
-                          color: 'var(--color-leader)',
-                        }}
-                      >
+                      <strong className="postseason-titles__label">
                         <TitleIcon titleId={record.titleId} size={14} />
                         {record.titleLabel}
                       </strong>
@@ -108,11 +86,8 @@ function SeasonTitlesPanel({
                         <span>{record.playerName}</span>
                       )}
                       <span
-                        style={{
-                          color: teamTextColor(TINFO[record.teamKey].c),
-                          fontWeight: 900,
-                          whiteSpace: 'nowrap',
-                        }}
+                        className="postseason-titles__team"
+                        style={{ color: teamTextColor(TINFO[record.teamKey].c) }}
                       >
                         {TINFO[record.teamKey].ab} {record.displayValue}
                       </span>
@@ -131,32 +106,24 @@ function TeamPill({ teamKey, won, wins }: { teamKey: TeamKey; won: boolean; wins
   const info = TINFO[teamKey];
   return (
     <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 8,
-        padding: '6px 10px',
-        border: `1px solid ${won ? info.c : 'var(--color-border)'}`,
-        borderRadius: 8,
-        background: won
-          ? `color-mix(in srgb, ${info.c} 16%, var(--color-surface-raised))`
-          : 'var(--color-surface-raised)',
-        boxShadow: won ? `0 0 8px color-mix(in srgb, ${info.c} 45%, transparent)` : undefined,
-      }}
+      className={
+        won
+          ? 'postseason-pill postseason-pill--team postseason-pill--won'
+          : 'postseason-pill postseason-pill--team'
+      }
+      style={won ? ({ '--team-color': info.c } as CSSProperties) : undefined}
     >
-      <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800 }}>
+      <span className="postseason-pill__name">
         <span
           aria-hidden="true"
-          style={{ width: 8, height: 8, borderRadius: 2, background: info.c, flex: 'none' }}
+          className="postseason-pill__swatch"
+          style={{ background: info.c }}
         />
         {info.ab}
       </span>
       <strong
-        style={{
-          fontFamily: 'var(--font-display)',
-          color: won ? teamTextColor(info.c) : 'var(--color-text-muted)',
-        }}
+        className="postseason-pill__wins"
+        style={won ? { color: teamTextColor(info.c) } : undefined}
       >
         {wins}
       </strong>
@@ -167,23 +134,8 @@ function TeamPill({ teamKey, won, wins }: { teamKey: TeamKey; won: boolean; wins
 function PendingPill({ teamKey }: { teamKey: TeamKey }) {
   const info = TINFO[teamKey];
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        padding: '6px 10px',
-        border: '1px solid var(--color-border)',
-        borderRadius: 8,
-        background: 'var(--color-surface-raised)',
-        color: 'var(--color-text-muted)',
-        fontWeight: 800,
-      }}
-    >
-      <span
-        aria-hidden="true"
-        style={{ width: 8, height: 8, borderRadius: 2, background: info.c, flex: 'none' }}
-      />
+    <div className="postseason-pill postseason-pill--pending">
+      <span aria-hidden="true" className="postseason-pill__swatch" style={{ background: info.c }} />
       {info.ab}
     </div>
   );
@@ -209,19 +161,15 @@ function SeriesCard({
   return (
     <Card ariaLabel={title}>
       <SectionTitle>{title}</SectionTitle>
-      {note && (
-        <div style={{ color: 'var(--color-text-faint)', fontSize: 11, marginBottom: 8 }}>
-          {note}
-        </div>
-      )}
+      {note && <div className="postseason-series__note">{note}</div>}
       {!series ? (
-        <div style={{ display: 'grid', gap: 6 }}>
+        <div className="postseason-series__teams">
           <PendingPill teamKey={first} />
           <PendingPill teamKey={second} />
         </div>
       ) : (
         <>
-          <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
+          <div className="postseason-series__teams postseason-series__teams--spaced">
             <TeamPill
               teamKey={series.first}
               won={series.winner === series.first}
@@ -233,33 +181,20 @@ function SeriesCard({
               wins={series.secondWins}
             />
           </div>
-          <div style={{ display: 'grid', gap: 4 }}>
+          <div className="postseason-series__games">
             {series.games.map((game) => (
               <button
                 type="button"
                 key={game.game}
                 onClick={() => openGame(game.box)}
                 aria-label={`第${game.game}戦の試合詳細を開く`}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  padding: '5px 7px',
-                  background: 'var(--color-surface-muted)',
-                  border: 'none',
-                  borderRadius: 5,
-                  color: 'var(--color-text-muted)',
-                  fontSize: 11,
-                  font: 'inherit',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  width: '100%',
-                }}
+                className="postseason-series__game"
               >
                 <span>
                   {formatShortDate(game.date)} G{game.game} {TINFO[game.home].ab} vs{' '}
                   {TINFO[game.away].ab}
                 </span>
-                <span style={{ fontFamily: 'var(--font-display)' }}>
+                <span className="postseason-series__game-score">
                   {game.homeScore}-{game.awayScore}
                   {game.winner ? '' : '（引分）'}
                 </span>
@@ -274,16 +209,7 @@ function SeriesCard({
 
 function BracketArrow() {
   return (
-    <div
-      aria-hidden="true"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'var(--color-border-strong)',
-        fontSize: 22,
-      }}
-    >
+    <div aria-hidden="true" className="postseason-bracket__arrow">
       →
     </div>
   );
@@ -305,14 +231,7 @@ function LeagueBracketRow({
   finalSeries: SeriesResult | null;
 }) {
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'minmax(200px,1fr) 30px minmax(200px,1fr)',
-        gap: 8,
-        alignItems: 'center',
-      }}
-    >
+    <div className="postseason-bracket__row">
       <SeriesCard
         title={`${leagueLabel} CS 1st`}
         series={firstSeries}
@@ -335,27 +254,16 @@ function LeagueBracketRow({
 function ChampionPennant({ teamKey }: { teamKey: TeamKey }) {
   const info = TINFO[teamKey];
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 14,
-        padding: '14px 18px',
-        border: `1px solid ${info.c}`,
-        borderRadius: 10,
-        background: `color-mix(in srgb, ${info.c} 12%, var(--color-surface-raised))`,
-        boxShadow: `0 0 20px color-mix(in srgb, ${info.c} 35%, transparent)`,
-      }}
-    >
+    <div className="postseason-champion" style={{ '--team-color': info.c } as CSSProperties}>
       <svg width="46" height="52" viewBox="0 0 46 52" role="img" aria-label={`${info.n}が日本一`}>
         <path d="M6 2 L6 50 L40 26 Z" fill={info.c} stroke="var(--color-bg)" strokeWidth="1.5" />
         <line x1="6" y1="2" x2="6" y2="50" stroke="var(--color-text-faint)" strokeWidth="2" />
       </svg>
       <div>
-        <div style={{ color: 'var(--color-text-faint)', fontSize: 11, fontWeight: 700 }}>
-          日本一 CHAMPION
+        <div className="postseason-champion__label">日本一 CHAMPION</div>
+        <div className="postseason-champion__name" style={{ color: teamTextColor(info.c) }}>
+          {info.n}
         </div>
-        <div style={{ fontSize: 22, fontWeight: 900, color: teamTextColor(info.c) }}>{info.n}</div>
       </div>
     </div>
   );
@@ -410,23 +318,14 @@ export function PostseasonScreen() {
   return (
     <OpenGameContext.Provider value={setOpenedBox}>
       <PageShell>
-        <header
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 12,
-            alignItems: 'center',
-            marginBottom: 16,
-            flexWrap: 'wrap',
-          }}
-        >
+        <header className="postseason-header">
           <div>
-            <h1 style={{ margin: 0 }}>ポストシーズン</h1>
-            <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 5 }}>
+            <h1 className="postseason-header__title">ポストシーズン</h1>
+            <div className="postseason-header__lead">
               クライマックスシリーズと日本シリーズをまとめて実行します。
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div className="postseason-header__actions">
             {!results ? (
               <>
                 <Button
@@ -436,11 +335,7 @@ export function PostseasonScreen() {
                   全シリーズを実行
                 </Button>
                 {busy && (
-                  <span
-                    role="status"
-                    aria-live="polite"
-                    style={{ color: 'var(--color-text-muted)', fontSize: 12 }}
-                  >
+                  <span role="status" aria-live="polite" className="postseason-header__status">
                     処理中…
                   </span>
                 )}
@@ -465,7 +360,7 @@ export function PostseasonScreen() {
           </div>
         </header>
 
-        <div style={{ display: 'grid', gap: 14 }}>
+        <div className="postseason-body">
           {!results && <AutoAdvancePanel />}
           <SeasonTitlesPanel titles={titles} players={players} onSelect={game.selectPlayer} />
           <LeagueBracketRow
@@ -485,14 +380,7 @@ export function PostseasonScreen() {
             finalSeries={results?.pacificFinal ?? null}
           />
 
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'minmax(0,1fr) 30px minmax(200px,320px)',
-              gap: 8,
-              alignItems: 'center',
-            }}
-          >
+          <div className="postseason-bracket__final">
             <div />
             <BracketArrow />
             <SeriesCard
@@ -504,7 +392,7 @@ export function PostseasonScreen() {
           </div>
 
           {results && (
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
+            <div className="postseason-champion-wrap">
               <ChampionPennant teamKey={results.japanSeries.winner} />
             </div>
           )}

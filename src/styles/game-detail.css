@@ -1,0 +1,130 @@
+/* GameDetailView: box score header, batter/pitcher tables and notable events. */
+.game-detail {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.game-detail__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.game-detail__date {
+  color: var(--color-text-faint);
+  font-size: var(--text-xs);
+}
+
+.game-detail__matchup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xl);
+  font-weight: 900;
+}
+
+.game-detail__score {
+  color: var(--color-text-faint);
+  font-size: var(--text-md);
+}
+
+.game-detail__badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.game-detail__headline {
+  margin-top: var(--space-2);
+  color: var(--color-leader);
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.game-detail__section {
+  margin-top: 10px;
+}
+
+.game-detail__table-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: var(--space-3);
+}
+
+.game-detail__events {
+  display: grid;
+  gap: 6px;
+}
+
+.game-detail__event {
+  padding: 6px 9px;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  background: var(--color-surface-raised);
+  font-size: var(--text-sm);
+}
+
+.game-detail-badge {
+  padding: 3px 8px;
+  border: 1px solid currentcolor;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+.game-detail-badge--accent {
+  color: var(--color-accent);
+}
+
+.game-detail-badge--warning {
+  color: var(--color-warning);
+}
+
+.game-detail-badge--muted {
+  color: var(--color-text-muted);
+}
+
+.game-detail-decisions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.game-detail-table__player-head {
+  text-align: left;
+}
+
+/* Beats `.data-table th { font-weight: 700 }`. */
+.data-table th.game-detail-table__player {
+  text-align: left;
+  font-weight: 800;
+}
+
+.game-detail-table__cell {
+  text-align: center;
+}
+
+.game-detail-table__cell--nowrap {
+  white-space: nowrap;
+}
+
+.game-detail-table__role {
+  margin-left: 6px;
+  color: var(--color-text-faint);
+  font-size: var(--text-2xs);
+}
+
+.game-detail-table__decision {
+  text-align: center;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.game-detail-table__decision--active {
+  font-weight: 900;
+  color: var(--color-leader);
+}

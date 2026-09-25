@@ -314,7 +314,7 @@ function LineupEditor({
   };
 
   return (
-    <div style={{ display: 'grid', gap: 12 }}>
+    <div className="stack">
       <Card ariaLabel="オーダー編成の操作">
         <div
           style={{

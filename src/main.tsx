@@ -14,6 +14,7 @@ import './styles/postseason.css';
 import './styles/roster.css';
 import './styles/schedule.css';
 import './styles/season-nav.css';
+import './styles/standings.css';
 import './styles/year-review.css';
 
 const root = document.getElementById('root');

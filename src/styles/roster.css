@@ -1,0 +1,131 @@
+.roster-special-summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.roster-special-summary__none {
+  color: var(--color-text-faint);
+}
+
+.roster-special-summary__dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.roster-special-summary__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+}
+
+.roster-sort-button {
+  padding: 0;
+  border: 0;
+  color: var(--color-text-faint);
+  background: transparent;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.roster-sort-button--active {
+  color: var(--color-accent);
+}
+
+.roster-card__badges {
+  margin-top: 5px;
+}
+
+.roster-card__compare {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-xs);
+}
+
+.roster-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+  margin-bottom: var(--space-3);
+}
+
+.roster-filters__field {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.roster-filters__select {
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: var(--color-bg-soft);
+}
+
+.roster-filters__count {
+  color: var(--color-text-faint);
+  font-size: var(--text-xs);
+}
+
+.roster-cell--left {
+  text-align: left;
+}
+
+.roster-cell--center {
+  text-align: center;
+}
+
+.roster-cell--muted {
+  color: var(--color-text-muted);
+}
+
+.roster-cell--strong {
+  font-weight: 900;
+}
+
+.roster-status-normal {
+  color: var(--color-text-faint);
+}
+
+.roster-compare-bar {
+  position: fixed;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  left: var(--space-3);
+  z-index: 80;
+  display: flex;
+  width: min(720px, calc(100% - 24px));
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 auto;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 12px;
+  background: var(--color-surface-raised);
+  box-shadow: 0 14px 36px rgb(0 0 0 / 32%);
+}
+
+.roster-compare-bar__summary {
+  min-width: 0;
+}
+
+.roster-compare-bar__names {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roster-compare-bar__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}

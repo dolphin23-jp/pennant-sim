@@ -7,20 +7,7 @@ import { Button, Card, EmptyState, SectionTitle, teamTextColor } from '../../ui'
 import { DecisionsRow } from '../../widgets/GameDetailView';
 
 function StatusTag({ children }: { children: ReactNode }) {
-  return (
-    <span
-      style={{
-        padding: '2px 7px',
-        border: '1px solid var(--color-border-strong)',
-        borderRadius: 999,
-        color: 'var(--color-text-muted)',
-        fontSize: 10,
-        fontWeight: 800,
-      }}
-    >
-      {children}
-    </span>
-  );
+  return <span className="game-results-tag">{children}</span>;
 }
 
 function GameResultRow({
@@ -39,46 +26,25 @@ function GameResultRow({
 
   if (!scheduleGame.played) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 10,
-          padding: '10px 14px',
-          border: '1px solid var(--color-border)',
-          borderRadius: 10,
-          opacity: 0.55,
-        }}
-      >
-        <span style={{ fontWeight: 800 }}>
+      <div className="game-results-row game-results-row--pending">
+        <span className="game-results-row__teams">
           <span style={{ color: teamTextColor(away.c) }}>{away.ab}</span>
           {' @ '}
           <span style={{ color: teamTextColor(home.c) }}>{home.ab}</span>
         </span>
-        <span style={{ fontSize: 11, color: 'var(--color-text-faint)' }}>試合前</span>
+        <span className="game-results-row__note">試合前</span>
       </div>
     );
   }
 
   if (!summary) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 10,
-          padding: '10px 14px',
-          border: '1px solid var(--color-border)',
-          borderRadius: 10,
-        }}
-      >
-        <span style={{ fontWeight: 800 }}>
+      <div className="game-results-row">
+        <span className="game-results-row__teams">
           <span style={{ color: teamTextColor(away.c) }}>{away.ab}</span> {scheduleGame.as}-
           {scheduleGame.hs} <span style={{ color: teamTextColor(home.c) }}>{home.ab}</span>
         </span>
-        <span style={{ fontSize: 11, color: 'var(--color-text-faint)' }}>詳細ログ対象外</span>
+        <span className="game-results-row__note">詳細ログ対象外</span>
       </div>
     );
   }
@@ -88,50 +54,25 @@ function GameResultRow({
       type="button"
       onClick={onOpen}
       aria-label={`${scheduleGame.date} ${away.n}対${home.n} 試合詳細を表示`}
-      style={{
-        display: 'block',
-        width: '100%',
-        textAlign: 'left',
-        padding: '10px 14px',
-        border: isPlayerGame ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
-        borderRadius: 10,
-        background: isPlayerGame
-          ? 'color-mix(in srgb, var(--color-accent) 8%, var(--color-surface-raised))'
-          : 'var(--color-surface-raised)',
-        cursor: 'pointer',
-      }}
+      className={`game-results-card${isPlayerGame ? ' game-results-card--mine' : ''}`}
     >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 10,
-          flexWrap: 'wrap',
-        }}
-      >
-        <span
-          style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 800 }}
-        >
+      <div className="game-results-card__header">
+        <span className="game-results-card__score">
           <span style={{ color: teamTextColor(away.c) }}>{away.ab}</span>
-          <span style={{ color: 'var(--color-text-faint)', fontFamily: 'var(--font-display)' }}>
+          <span className="game-results-card__score-value">
             {summary.awayScore} - {summary.homeScore}
           </span>
           <span style={{ color: teamTextColor(home.c) }}>{home.ab}</span>
         </span>
-        <span style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+        <span className="game-results-card__tags">
           {summary.tie && <StatusTag>引分</StatusTag>}
           {summary.extraInnings && <StatusTag>延長{summary.innings.length}回</StatusTag>}
           {summary.walkoff && <StatusTag>サヨナラ</StatusTag>}
           {summary.shutoutTeam && <StatusTag>{TINFO[summary.shutoutTeam].ab}完封</StatusTag>}
         </span>
       </div>
-      {summary.headline && (
-        <div style={{ marginTop: 4, color: 'var(--color-leader)', fontSize: 12, fontWeight: 700 }}>
-          {summary.headline}
-        </div>
-      )}
-      <div style={{ marginTop: 4 }}>
+      {summary.headline && <div className="game-results-card__headline">{summary.headline}</div>}
+      <div className="game-results-card__decisions">
         <DecisionsRow decisions={summary.decisions} />
       </div>
     </button>
@@ -179,9 +120,9 @@ export function GameResultsTab() {
   }
 
   return (
-    <div style={{ display: 'grid', gap: 12 }}>
+    <div className="game-results">
       <Card ariaLabel="日付選択">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div className="game-results__date-nav">
           <Button
             onClick={() => setManualDate(playedDates[dateIndex - 1] ?? null)}
             disabled={!canGoPrev}
@@ -197,14 +138,7 @@ export function GameResultsTab() {
             max={latestPlayedDate ?? undefined}
             onChange={(event) => setManualDate(event.target.value || null)}
             aria-label="表示する日付"
-            style={{
-              padding: '8px 10px',
-              border: '1px solid var(--color-border-strong)',
-              borderRadius: 8,
-              background: 'var(--color-surface)',
-              color: 'var(--color-text)',
-              fontSize: 13,
-            }}
+            className="game-results__date-input"
           />
           <Button
             onClick={() => setManualDate(playedDates[dateIndex + 1] ?? null)}
@@ -231,7 +165,7 @@ export function GameResultsTab() {
         {!gamesForDate.length ? (
           <EmptyState>この日の試合はありません。</EmptyState>
         ) : (
-          <div role="list" aria-label="当日の試合一覧" style={{ display: 'grid', gap: 8 }}>
+          <div role="list" aria-label="当日の試合一覧" className="game-results__list">
             {gamesForDate.map((scheduleGame) => (
               <div role="listitem" key={scheduleGame.id}>
                 <GameResultRow

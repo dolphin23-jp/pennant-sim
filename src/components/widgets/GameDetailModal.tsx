@@ -71,7 +71,7 @@ export function GameDetailModal({
           </Button>
         </header>
         <div className="player-modal__body">
-          <div style={{ display: 'grid', gap: 12 }}>
+          <div className="stack">
             {playLog && <PlayByPlay log={playLog} />}
             <GameDetailView box={box} onSelectPlayer={onSelectPlayer} />
           </div>

@@ -1,0 +1,115 @@
+.year-review {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.year-review__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.year-review__title {
+  margin: 0;
+  font-size: 20px;
+}
+
+.year-review__year-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.year-review-muted {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.year-review-label {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.year-review-label--spaced {
+  margin-bottom: var(--space-1);
+}
+
+.year-review-champion__name {
+  font-size: var(--text-2xl);
+  font-weight: 900;
+}
+
+.year-review-champion__players {
+  margin-top: var(--space-1);
+}
+
+.year-review-team-name {
+  font-weight: 700;
+}
+
+.year-review-player-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--color-border-strong);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.year-review-standings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.year-review-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: var(--space-3);
+}
+
+.year-review-group {
+  margin-bottom: var(--space-2);
+}
+
+.year-review-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+}
+
+.year-review-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+}
+
+.year-review-row--start {
+  justify-content: flex-start;
+}
+
+.year-review-row--standing {
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-weight: 400;
+}
+
+.year-review-row--player {
+  background: var(--color-accent-soft);
+  font-weight: 800;
+}
+
+.year-review-move-label {
+  min-width: 56px;
+}

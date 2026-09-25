@@ -1,0 +1,210 @@
+/* PostseasonScreen: season titles, CS / Japan Series bracket and champion pennant. */
+.postseason-header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  align-items: center;
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.postseason-header__title {
+  margin: 0;
+}
+
+.postseason-header__lead {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  margin-top: 5px;
+}
+
+.postseason-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.postseason-header__status {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.postseason-body {
+  display: grid;
+  gap: 14px;
+}
+
+.postseason-titles__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-3);
+}
+
+.postseason-titles__list {
+  display: grid;
+  gap: 6px;
+}
+
+.postseason-titles__row {
+  display: grid;
+  grid-template-columns: minmax(92px, auto) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 7px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  background: var(--color-surface-raised);
+  font-size: var(--text-sm);
+}
+
+.postseason-titles__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-leader);
+}
+
+/* Team color is set inline (teamTextColor). */
+.postseason-titles__team {
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+/* Team pills; --team-color is set inline from TINFO. */
+.postseason-pill {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface-raised);
+}
+
+.postseason-pill--team {
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.postseason-pill--won {
+  border-color: var(--team-color);
+  background: color-mix(in srgb, var(--team-color) 16%, var(--color-surface-raised));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--team-color) 45%, transparent);
+}
+
+.postseason-pill--pending {
+  gap: 6px;
+  color: var(--color-text-muted);
+  font-weight: 800;
+}
+
+.postseason-pill__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 800;
+}
+
+/* Background is the team color, set inline. */
+.postseason-pill__swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
+
+/* Winner's count takes the team text color inline. */
+.postseason-pill__wins {
+  font-family: var(--font-display);
+  color: var(--color-text-muted);
+}
+
+.postseason-series__note {
+  color: var(--color-text-faint);
+  font-size: var(--text-xs);
+  margin-bottom: var(--space-2);
+}
+
+.postseason-series__teams {
+  display: grid;
+  gap: 6px;
+}
+
+.postseason-series__teams--spaced {
+  margin-bottom: 10px;
+}
+
+.postseason-series__games {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.postseason-series__game {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 7px;
+  background: var(--color-surface-muted);
+  border: none;
+  border-radius: 5px;
+  color: var(--color-text-muted);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.postseason-series__game-score {
+  font-family: var(--font-display);
+}
+
+.postseason-bracket__arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-border-strong);
+  font-size: var(--text-2xl);
+}
+
+.postseason-bracket__row {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) 30px minmax(200px, 1fr);
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.postseason-bracket__final {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px minmax(200px, 320px);
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.postseason-champion-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-2);
+}
+
+/* --team-color is set inline from TINFO. */
+.postseason-champion {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border: 1px solid var(--team-color);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--team-color) 12%, var(--color-surface-raised));
+  box-shadow: 0 0 20px color-mix(in srgb, var(--team-color) 35%, transparent);
+}
+
+.postseason-champion__label {
+  color: var(--color-text-faint);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+/* Team color is set inline (teamTextColor). */
+.postseason-champion__name {
+  font-size: var(--text-2xl);
+  font-weight: 900;
+}

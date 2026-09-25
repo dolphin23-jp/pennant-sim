@@ -1060,3 +1060,15 @@ input:focus-visible,
   white-space: nowrap;
   border: 0;
 }
+
+/* Layout utilities for the two patterns most screens repeat. */
+.stack {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  gap: var(--space-3);
+}

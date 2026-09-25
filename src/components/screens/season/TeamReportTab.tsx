@@ -169,7 +169,7 @@ export function TeamReportTab() {
     .sort((first, second) => calcOVR(second) - calcOVR(first));
 
   return (
-    <div style={{ display: 'grid', gap: 12 }}>
+    <div className="stack">
       <TeamSwitcher
         title="球団情報"
         cardAriaLabel="表示する球団を選択"

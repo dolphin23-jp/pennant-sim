@@ -11,26 +11,7 @@ function StatusBadge({
   tone: 'accent' | 'warning' | 'muted';
   children: ReactNode;
 }) {
-  const color =
-    tone === 'accent'
-      ? 'var(--color-accent)'
-      : tone === 'warning'
-        ? 'var(--color-warning)'
-        : 'var(--color-text-muted)';
-  return (
-    <span
-      style={{
-        padding: '3px 8px',
-        border: `1px solid ${color}`,
-        borderRadius: 6,
-        color,
-        fontSize: 11,
-        fontWeight: 800,
-      }}
-    >
-      {children}
-    </span>
-  );
+  return <span className={`game-detail-badge game-detail-badge--${tone}`}>{children}</span>;
 }
 
 export function DecisionsRow({ decisions }: { decisions: GameSummary['decisions'] }) {
@@ -39,15 +20,7 @@ export function DecisionsRow({ decisions }: { decisions: GameSummary['decisions'
   );
   if (!parts.length) return null;
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: 10,
-        fontSize: 12,
-        color: 'var(--color-text-muted)',
-      }}
-    >
+    <div className="game-detail-decisions">
       {parts.map((text) => (
         <span key={text}>{text}</span>
       ))}
@@ -96,7 +69,7 @@ function BatterTable({
             <thead>
               <tr>
                 <th scope="col">打順</th>
-                <th scope="col" style={{ textAlign: 'left' }}>
+                <th scope="col" className="game-detail-table__player-head">
                   選手
                 </th>
                 <th scope="col">守備</th>
@@ -111,8 +84,8 @@ function BatterTable({
             <tbody>
               {lines.map((line) => (
                 <tr key={line.playerId}>
-                  <td style={{ textAlign: 'center' }}>{line.battingOrder}</td>
-                  <th scope="row" style={{ textAlign: 'left', fontWeight: 800 }}>
+                  <td className="game-detail-table__cell">{line.battingOrder}</td>
+                  <th scope="row" className="game-detail-table__player">
                     {onSelectPlayer ? (
                       <button
                         type="button"
@@ -126,13 +99,13 @@ function BatterTable({
                       line.name
                     )}
                   </th>
-                  <td style={{ textAlign: 'center' }}>{line.position ?? '-'}</td>
+                  <td className="game-detail-table__cell">{line.position ?? '-'}</td>
                   {BATTER_COLUMNS.map((column) => (
-                    <td key={column.key} style={{ textAlign: 'center' }}>
+                    <td key={column.key} className="game-detail-table__cell">
                       {line[column.key]}
                     </td>
                   ))}
-                  <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                  <td className="game-detail-table__cell game-detail-table__cell--nowrap">
                     {line.seasonAvgAfter.toFixed(3).replace(/^0/, '')}（{line.seasonHrAfter}本
                     {line.seasonRbiAfter}点）
                   </td>
@@ -182,7 +155,7 @@ function PitcherTable({
           <table className="data-table" aria-label={`${title}投手成績`}>
             <thead>
               <tr>
-                <th scope="col" style={{ textAlign: 'left' }}>
+                <th scope="col" className="game-detail-table__player-head">
                   選手
                 </th>
                 <th scope="col">結果</th>
@@ -198,7 +171,7 @@ function PitcherTable({
             <tbody>
               {lines.map((line) => (
                 <tr key={line.playerId}>
-                  <th scope="row" style={{ textAlign: 'left', fontWeight: 800 }}>
+                  <th scope="row" className="game-detail-table__player">
                     {onSelectPlayer ? (
                       <button
                         type="button"
@@ -211,30 +184,26 @@ function PitcherTable({
                     ) : (
                       line.name
                     )}
-                    {line.role === 'start' && (
-                      <span
-                        style={{ marginLeft: 6, color: 'var(--color-text-faint)', fontSize: 10 }}
-                      >
-                        先発
-                      </span>
-                    )}
+                    {line.role === 'start' && <span className="game-detail-table__role">先発</span>}
                   </th>
                   <td
-                    style={{
-                      textAlign: 'center',
-                      fontWeight: line.decision ? 900 : 400,
-                      color: line.decision ? 'var(--color-leader)' : 'var(--color-text-muted)',
-                    }}
+                    className={
+                      line.decision
+                        ? 'game-detail-table__decision game-detail-table__decision--active'
+                        : 'game-detail-table__decision'
+                    }
                   >
                     {line.decision ?? '-'}
                   </td>
-                  <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{ipText(line.ip3)}</td>
+                  <td className="game-detail-table__cell game-detail-table__cell--nowrap">
+                    {ipText(line.ip3)}
+                  </td>
                   {PITCHER_COLUMNS.map((column) => (
-                    <td key={column.key} style={{ textAlign: 'center' }}>
+                    <td key={column.key} className="game-detail-table__cell">
                       {line[column.key]}
                     </td>
                   ))}
-                  <td style={{ textAlign: 'center' }}>
+                  <td className="game-detail-table__cell">
                     {line.seasonWAfter}勝{line.seasonLAfter}敗 {line.seasonEraAfter.toFixed(2)}
                   </td>
                 </tr>
@@ -259,36 +228,20 @@ export function GameDetailView({
   const fullBox = box.hasBoxScore ? (box as GameBoxScore) : null;
 
   return (
-    <div style={{ display: 'grid', gap: 12 }}>
+    <div className="game-detail">
       <Card ariaLabel={`${away.n}対${home.n}`}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            flexWrap: 'wrap',
-          }}
-        >
+        <div className="game-detail__header">
           <div>
-            <div style={{ color: 'var(--color-text-faint)', fontSize: 11 }}>{box.date}</div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                fontSize: 18,
-                fontWeight: 900,
-              }}
-            >
+            <div className="game-detail__date">{box.date}</div>
+            <div className="game-detail__matchup">
               <span style={{ color: teamTextColor(away.c) }}>{away.n}</span>
-              <span style={{ color: 'var(--color-text-faint)', fontSize: 13 }}>
+              <span className="game-detail__score">
                 {box.awayScore} - {box.homeScore}
               </span>
               <span style={{ color: teamTextColor(home.c) }}>{home.n}</span>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <div className="game-detail__badges">
             {box.tie && <StatusBadge tone="muted">引分</StatusBadge>}
             {box.extraInnings && (
               <StatusBadge tone="accent">延長{box.innings.length}回</StatusBadge>
@@ -299,14 +252,8 @@ export function GameDetailView({
             )}
           </div>
         </div>
-        {box.headline && (
-          <div
-            style={{ marginTop: 8, color: 'var(--color-leader)', fontSize: 13, fontWeight: 700 }}
-          >
-            {box.headline}
-          </div>
-        )}
-        <div style={{ marginTop: 10 }}>
+        {box.headline && <div className="game-detail__headline">{box.headline}</div>}
+        <div className="game-detail__section">
           <Linescore
             homeAbbreviation={home.ab}
             awayAbbreviation={away.ab}
@@ -319,7 +266,7 @@ export function GameDetailView({
             awayErrors={box.awayErrors}
           />
         </div>
-        <div style={{ marginTop: 10 }}>
+        <div className="game-detail__section">
           <DecisionsRow decisions={box.decisions} />
         </div>
       </Card>
@@ -332,13 +279,7 @@ export function GameDetailView({
         </Card>
       ) : (
         <>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,420px),1fr))',
-              gap: 12,
-            }}
-          >
+          <div className="game-detail__table-grid">
             <BatterTable
               title={`${away.n} 打者成績`}
               lines={fullBox.batterLines.filter((line) => line.teamKey === box.awayKey)}
@@ -350,13 +291,7 @@ export function GameDetailView({
               onSelectPlayer={onSelectPlayer}
             />
           </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,420px),1fr))',
-              gap: 12,
-            }}
-          >
+          <div className="game-detail__table-grid">
             <PitcherTable
               title={`${away.n} 投手成績`}
               lines={fullBox.pitcherLines.filter((line) => line.teamKey === box.awayKey)}
@@ -371,18 +306,9 @@ export function GameDetailView({
           {fullBox.notableEvents.length > 0 && (
             <Card ariaLabel="注目記録">
               <SectionTitle>試合のポイント</SectionTitle>
-              <div style={{ display: 'grid', gap: 6 }}>
+              <div className="game-detail__events">
                 {fullBox.notableEvents.map((event, index) => (
-                  <div
-                    key={`${event.type}-${index}`}
-                    style={{
-                      padding: '6px 9px',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 7,
-                      background: 'var(--color-surface-raised)',
-                      fontSize: 12,
-                    }}
-                  >
+                  <div key={`${event.type}-${index}`} className="game-detail__event">
                     {event.description}
                   </div>
                 ))}
