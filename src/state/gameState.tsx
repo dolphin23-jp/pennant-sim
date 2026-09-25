@@ -489,12 +489,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
           { ...team, fielders: team.fielders.map(replace), pitchers: team.pitchers.map(replace) },
         ]),
       ) as Teams;
+      // Retired and overseas players can be edited too (their records stay in the save).
+      const retiredPlayers = current.retiredPlayers.map(replace);
+      const overseasPlayers = current.overseasPlayers.map(replace);
       if (!found) return current;
       return {
         ...current,
         teams,
+        retiredPlayers,
+        overseasPlayers,
         selectedPlayer:
           current.selectedPlayer?.id === updated.id ? updated : current.selectedPlayer,
+        // A debug edit is a change like any other, so it reaches the save on its own.
+        autosaveSeq: nextAutosaveSeq(),
       };
     });
   }, []);
