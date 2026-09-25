@@ -153,14 +153,17 @@ export async function drawNewspaper(
   drawVertical(context, front.banner, bannerRight - 20, top + 20, bannerSize, bannerHeight - 40);
 
   // Kicker and subhead to the left of the banner.
+  // The club's name in one column when it fits at a readable size.
+  const kickerCells = Math.max(1, verticalCells(front.kicker).length);
+  const kickerSize = Math.max(44, Math.min(72, Math.floor((bannerHeight - 16) / kickerCells)));
   context.fillStyle = RED;
-  context.font = `900 72px ${SERIF}`;
+  context.font = `900 ${kickerSize}px ${SERIF}`;
   let left = drawVertical(
     context,
     front.kicker,
     bannerRight - bannerWidth - 24,
     top + 8,
-    72,
+    kickerSize,
     bannerHeight - 16,
     20,
     2,
@@ -212,18 +215,26 @@ export async function drawNewspaper(
   const bodyTop = top + Math.max(bannerHeight, photoHeight) + 36;
   context.strokeStyle = INK;
   rule(context, margin, bodyTop - 18, PAPER_WIDTH - margin, bodyTop - 18, 1.5);
-  context.fillStyle = INK;
-  context.font = `500 27px ${SERIF}`;
+  // The largest body size at which the whole story fits.
   const bodyText = [front.lead, ...front.body].join(IDEOGRAPHIC_SPACE);
+  const bodyHeight = PAPER_HEIGHT - bodyTop - 90;
+  const bodyWidth = PAPER_WIDTH - margin * 2;
+  const bodySize =
+    [40, 36, 32, 29, 27].find((size) => {
+      const columns = verticalColumns(bodyText, Math.floor(bodyHeight / size)).length;
+      return columns * (size * 1.5) <= bodyWidth;
+    }) ?? 27;
+  context.fillStyle = INK;
+  context.font = `500 ${bodySize}px ${SERIF}`;
   drawVertical(
     context,
     bodyText,
     PAPER_WIDTH - margin,
     bodyTop,
-    27,
-    PAPER_HEIGHT - bodyTop - 90,
-    14,
-    Math.floor((PAPER_WIDTH - margin * 2) / 41),
+    bodySize,
+    bodyHeight,
+    bodySize * 0.5,
+    Math.floor(bodyWidth / (bodySize * 1.5)),
   );
 
   // Footer
