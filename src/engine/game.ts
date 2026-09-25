@@ -919,6 +919,31 @@ function finalizeGame(
   return gameState;
 }
 
+/** The rotation turn's starter, or the first healthy pitcher when the rotation is empty. */
+function pickStarter(team: Team, rotationOrder: string[], starterIndex: number): Player {
+  const starters = resolveStarterRotation(team, rotationOrder);
+  return (starters[starterIndex % Math.max(1, starters.length)] ||
+    team.pitchers.find((player) => (player.injuryDays ?? 0) <= 0) ||
+    team.pitchers[0]) as Player;
+}
+
+/**
+ * Who will start the club's next game: the same choice simulateGame makes, from the same
+ * rest, pitching plan (the AI's when `pitcherPlan` is null) and rotation turn.
+ */
+export function probableStarter(
+  team: Team,
+  starterIndex: number,
+  pitcherPlan: PitcherPlanInput | null,
+  accumulatedStats: AccumulatedStats,
+  gameDate?: string,
+): Player {
+  const prepared = prepareTeamPitchersForGame(team, gameDate);
+  const plan =
+    pitcherPlan ?? strategicPitcherPlan(prepared, teamStrategyFor(team.key), accumulatedStats);
+  return pickStarter(prepared, plan.rotationOrder, starterIndex);
+}
+
 const MAXIMUM_INNINGS = 12;
 
 export function simulateGame(
@@ -944,16 +969,8 @@ export function simulateGame(
       awayPitcherPlan ?? strategicPitcherPlan(awayTeam, awayStrategy, accumulatedStats),
     resolvedHomeLineup = resolveLineup(homeTeam, homeLineup),
     resolvedAwayLineup = resolveLineup(awayTeam, awayLineup),
-    homeStarters = resolveStarterRotation(homeTeam, resolvedHomePitcherPlan.rotationOrder),
-    awayStarters = resolveStarterRotation(awayTeam, resolvedAwayPitcherPlan.rotationOrder),
-    homeStarter =
-      homeStarters[homeStarterIndex % Math.max(1, homeStarters.length)] ||
-      homeTeam.pitchers.find((player) => (player.injuryDays ?? 0) <= 0) ||
-      homeTeam.pitchers[0],
-    awayStarter =
-      awayStarters[awayStarterIndex % Math.max(1, awayStarters.length)] ||
-      awayTeam.pitchers.find((player) => (player.injuryDays ?? 0) <= 0) ||
-      awayTeam.pitchers[0];
+    homeStarter = pickStarter(homeTeam, resolvedHomePitcherPlan.rotationOrder, homeStarterIndex),
+    awayStarter = pickStarter(awayTeam, resolvedAwayPitcherPlan.rotationOrder, awayStarterIndex);
   const gameState: GameState = {
     teams: { home: homeTeam, away: awayTeam },
     lineups: { home: resolvedHomeLineup, away: resolvedAwayLineup },

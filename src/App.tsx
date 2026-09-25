@@ -1,119 +1,24 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { OffseasonScreen } from './components/screens/OffseasonScreen';
 import { PostseasonScreen } from './components/screens/PostseasonScreen';
 import { SeasonScreen } from './components/screens/SeasonScreen';
 import { TeamSelectScreen } from './components/screens/TeamSelectScreen';
-import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
+import { TitleScreen } from './components/screens/TitleScreen';
+import { ConfirmProvider } from './components/ConfirmDialog';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { Button, Card, PageShell, SettingsButton } from './components/ui';
+import { OpenSettingsContext } from './components/settingsSheetContext';
+import { PageShell, SettingsButton } from './components/ui';
 import { GameDetailModal } from './components/widgets/GameDetailModal';
 import { PlayerDetailModal } from './components/widgets/PlayerDetailModal';
-import { SaveSlotControls } from './components/widgets/SaveSlotControls';
 import { SettingsSheet } from './components/widgets/SettingsSheet';
 import { GameProvider, useGameState } from './state/gameState';
-import { SettingsProvider, useSettings } from './state/settings';
-import { setActiveSaveSlot, type SaveSlot } from './state/storage';
-
-function WelcomeScreen() {
-  const game = useGameState();
-  const { skipConfirmations } = useSettings();
-  const confirm = useConfirm();
-  const [targetSlot, setTargetSlot] = useState<SaveSlot>(1);
-  // Reachable via "タイトルへ戻る" mid-game: the previous game is still live in memory,
-  // so offer to jump straight back to it instead of only offering to reload from disk.
-  const canResume = Boolean(game.teams && game.playerTeam);
-
-  const handleStartNew = async () => {
-    if (
-      !skipConfirmations &&
-      !(await confirm({
-        title: `スロット${targetSlot}で新しいゲームを始めますか？`,
-        message: 'チームを選ぶと、そのスロットの既存のセーブは上書きされます。',
-        confirmLabel: '新しいゲームへ',
-        danger: true,
-      }))
-    )
-      return;
-    await setActiveSaveSlot(targetSlot);
-    game.startNewGame();
-  };
-
-  const handleResume = () => {
-    const seasonOver =
-      game.season.schedule.length > 0 &&
-      game.season.schedule.every((scheduled) => scheduled.played);
-    game.setScreen(seasonOver ? 'postseason' : 'season');
-  };
-
-  return (
-    <PageShell ariaLabel="スタート画面">
-      <div style={{ minHeight: 'calc(100vh - 40px)', display: 'grid', placeItems: 'center' }}>
-        <Card
-          ariaLabel="ゲーム開始とセーブスロット"
-          style={{ width: 'min(680px,100%)', padding: 34 }}
-        >
-          <div
-            style={{
-              color: 'var(--color-accent)',
-              fontSize: 11,
-              fontWeight: 900,
-              letterSpacing: 3,
-            }}
-          >
-            PENNANT SIM
-          </div>
-          <h1 style={{ fontSize: 'clamp(32px,7vw,56px)', margin: '10px 0' }}>
-            NPB ペナントシミュレーター
-          </h1>
-          <p
-            style={{
-              color: 'var(--color-text-muted)',
-              lineHeight: 1.8,
-              margin: '18px 0 20px',
-            }}
-          >
-            3つの独立したセーブ枠を利用できます。旧キーのセーブは削除せず、初回読込時にスロット1へ自動コピーします。スロットを選んだだけでは読み込まれません。「続きから読み込む」か「新規ゲーム」を押すまでこの画面のままです。
-          </p>
-          {game.loadError && (
-            <p
-              role="alert"
-              style={{
-                color: 'var(--color-danger)',
-                lineHeight: 1.8,
-                margin: '0 0 20px',
-              }}
-            >
-              {game.loadError}
-            </p>
-          )}
-          {canResume && (
-            <div style={{ marginBottom: 18 }}>
-              <Button onClick={handleResume} ariaLabel="タイトルへ戻る前のゲームを再開">
-                進行中のゲームを再開
-              </Button>
-            </div>
-          )}
-          <div style={{ marginBottom: 18 }}>
-            <SaveSlotControls deferLoad onSlotChange={setTargetSlot} />
-          </div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <Button
-              onClick={() => void handleStartNew()}
-              ariaLabel="選択中のセーブ枠で新規ゲームを開始"
-            >
-              選択中の枠で新規ゲーム
-            </Button>
-          </div>
-        </Card>
-      </div>
-    </PageShell>
-  );
-}
+import { SettingsProvider } from './state/settings';
 
 function GameRouter() {
   const game = useGameState();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
   if (game.loading) {
     return (
       <PageShell ariaLabel="セーブデータ読込中">
@@ -133,7 +38,7 @@ function GameRouter() {
     );
   }
 
-  let screen = <WelcomeScreen />;
+  let screen = <TitleScreen />;
   if (game.screen === 'teamSelect') screen = <TeamSelectScreen />;
   if (game.screen === 'season') screen = <SeasonScreen />;
   if (game.screen === 'postseason') screen = <PostseasonScreen />;
@@ -164,8 +69,8 @@ function GameRouter() {
   };
 
   return (
-    <>
-      <SettingsButton onClick={() => setSettingsOpen(true)} />
+    <OpenSettingsContext.Provider value={openSettings}>
+      {game.screen !== 'season' && <SettingsButton onClick={() => setSettingsOpen(true)} />}
       {settingsOpen && (
         <SettingsSheet
           debugMode={game.debugMode}
@@ -200,7 +105,7 @@ function GameRouter() {
         onSelectPlayer={selectBoxScorePlayer}
         onClose={() => game.selectGame(null)}
       />
-    </>
+    </OpenSettingsContext.Provider>
   );
 }
 

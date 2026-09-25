@@ -7,9 +7,11 @@ import {
   configureRandom,
   generateSchedule,
   initTeams,
+  probableStarter,
   recommendedLineup,
   repairLineup,
   resetRandom,
+  simulateGame,
   strategicBestLineup,
   type Player,
   type Teams,
@@ -199,6 +201,34 @@ test('a skip finishes the whole day its last game fell on', () => {
       (game) => !game.played && game.date <= lastDate,
     );
     assert.deepEqual(leftBehind, []);
+  } finally {
+    resetRandom();
+  }
+});
+
+test('the probable starter shown before a game is the one who starts it', () => {
+  configureRandom(mulberry32(7), () => Date.UTC(2026, 0, 1));
+  try {
+    const teams = assignAllActiveRosters(initTeams());
+    for (let turn = 0; turn < 6; turn += 1) {
+      const expectedHome = probableStarter(teams.giants, turn, null, {}, '2026-04-01');
+      const expectedAway = probableStarter(teams.tigers, turn + 2, null, {}, '2026-04-01');
+      const result = simulateGame(
+        'giants',
+        'tigers',
+        { ...teams },
+        null,
+        null,
+        turn,
+        turn + 2,
+        {},
+        null,
+        null,
+        '2026-04-01',
+      );
+      assert.equal(result.starterH.id, expectedHome.id);
+      assert.equal(result.starterA.id, expectedAway.id);
+    }
   } finally {
     resetRandom();
   }

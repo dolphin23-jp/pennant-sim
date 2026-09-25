@@ -13,8 +13,11 @@ import './styles/player-tables.css';
 import './styles/postseason.css';
 import './styles/roster.css';
 import './styles/schedule.css';
+import './styles/scoreboard.css';
 import './styles/season-nav.css';
 import './styles/standings.css';
+import './styles/team-select.css';
+import './styles/title.css';
 import './styles/year-review.css';
 
 const root = document.getElementById('root');
