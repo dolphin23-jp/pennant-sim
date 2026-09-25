@@ -270,37 +270,6 @@ export function auditPitcherCandidate(
   return { playerId: player.id, playerName: player.name, score, components, reasons };
 }
 
-export function auditTeamLineup(
-  team: Team,
-  positionScores: (player: Player, position: FieldPosition) => number,
-): Record<FieldPosition, CandidateAudit[]> {
-  const strategy = teamStrategyFor(team.key);
-  const positions: FieldPosition[] = [
-    '捕手',
-    '一塁手',
-    '二塁手',
-    '三塁手',
-    '遊撃手',
-    '左翼手',
-    '中堅手',
-    '右翼手',
-  ];
-  return Object.fromEntries(
-    positions.map((position) => [
-      position,
-      team.fielders
-        .filter(
-          (player) =>
-            player.pos === position || player.positions?.some((entry) => entry.pos === position),
-        )
-        .map((player) =>
-          auditLineupCandidate(player, position, strategy, positionScores(player, position)),
-        )
-        .sort((first, second) => second.score - first.score),
-    ]),
-  ) as Record<FieldPosition, CandidateAudit[]>;
-}
-
 export function strategyLabel(strategy: TeamStrategy): string {
   const labels: Record<TeamPhilosophy, string> = {
     balanced: '総合力重視',
@@ -600,6 +569,97 @@ export function strategicBestLineup(
     used.add(player.id);
   }
   return { lineup: strategicBattingOrder(selected.slice(0, 9), strategy), audit };
+}
+
+/** The lineup the AI would play for this club: the same strategy-driven selection CPU
+ * clubs use, so the user's "AI" button and the CPU agree. */
+export function recommendedLineup(team: Team): Player[] {
+  return strategicBestLineup(team).lineup;
+}
+
+export interface LineupSubstitution {
+  outId: string;
+  outName: string;
+  inId: string;
+  inName: string;
+  slot: string;
+  reason: 'injury' | 'farm' | 'departed';
+}
+
+/**
+ * A saved lineup made playable: every starter who is hurt, sent to the farm or gone from
+ * the club is replaced one for one in the same batting slot and position by the best
+ * available 一軍 fielder there, instead of discarding the manager's order. Returns the
+ * repaired lineup and what changed. An empty saved lineup yields the AI lineup.
+ */
+export function repairLineup(
+  team: Team,
+  saved: readonly Player[],
+): { lineup: Player[]; substitutions: LineupSubstitution[] } {
+  if (!saved.length) return { lineup: recommendedLineup(team), substitutions: [] };
+  const roster = new Map(team.fielders.map((player) => [player.id, player]));
+  const available = (player: Player) =>
+    (player.injuryDays ?? 0) <= 0 && player.activeRoster !== false;
+  const kept = saved.slice(0, 9).map((entry) => {
+    const current = roster.get(entry.id);
+    const slot: {
+      entry: Player;
+      current: Player | null;
+      reason: LineupSubstitution['reason'] | null;
+    } = !current
+      ? { entry, current: null, reason: 'departed' }
+      : (current.injuryDays ?? 0) > 0
+        ? { entry, current: null, reason: 'injury' }
+        : current.activeRoster === false
+          ? { entry, current: null, reason: 'farm' }
+          : { entry, current, reason: null };
+    return slot;
+  });
+  const used = new Set(kept.flatMap((slot) => (slot.current ? [slot.current.id] : [])));
+  const foreignCount = () =>
+    kept.filter((slot) => slot.current && isForeignPlayer(slot.current)).length;
+  const substitutions: LineupSubstitution[] = [];
+  const lineup: Player[] = [];
+  for (const slot of kept) {
+    if (slot.current) {
+      lineup.push({
+        ...slot.current,
+        _assignedPos: slot.entry._isDH ? undefined : (slot.entry._assignedPos ?? slot.current.pos),
+        _isDH: slot.entry._isDH,
+      });
+      continue;
+    }
+    const position = slot.entry._isDH ? null : (slot.entry._assignedPos ?? slot.entry.pos ?? null);
+    const candidates = team.fielders.filter(
+      (player) =>
+        available(player) &&
+        !used.has(player.id) &&
+        (!isForeignPlayer(player) ||
+          foreignCount() < FOREIGN_PLAYER_BALANCE.simultaneousHitterLimit),
+    );
+    const score = (player: Player) =>
+      position ? approximatePositionScore(player, position) : designatedHitterScore(player);
+    const replacement = [...candidates].sort((a, b) => score(b) - score(a))[0];
+    if (!replacement) continue;
+    used.add(replacement.id);
+    slot.current = replacement;
+    lineup.push({
+      ...replacement,
+      _assignedPos: position ?? undefined,
+      _isDH: slot.entry._isDH,
+    });
+    substitutions.push({
+      outId: slot.entry.id,
+      outName: slot.entry.name,
+      inId: replacement.id,
+      inName: replacement.name,
+      slot: position ?? 'DH',
+      reason: slot.reason ?? 'departed',
+    });
+  }
+  // Too few fielders left to repair the order: the AI picks the whole lineup.
+  if (lineup.length < 9) return { lineup: recommendedLineup(team), substitutions };
+  return { lineup, substitutions };
 }
 
 export function strategicPitcherOrder(

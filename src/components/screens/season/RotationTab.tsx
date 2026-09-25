@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { calcOVR, resolveCloserOrder } from '../../../engine';
-import type { Player, Team } from '../../../engine';
+import {
+  calcOVR,
+  resolveCloserOrder,
+  strategicPitcherPlan,
+  teamStrategyFor,
+} from '../../../engine';
+import type { AccumulatedStats, Player, Team } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
 import type { PitcherPlan } from '../../../state/storage';
 import { Button, Card, SectionTitle } from '../../ui';
@@ -88,9 +93,12 @@ function RotationEditor({
   onCommit,
   onSelectPlayer,
   onDirtyChange,
+  seasonStats = {},
 }: {
   team: Team;
   plan: PitcherPlan;
+  /** This season's league totals, which the AI weighs for usage. */
+  seasonStats?: AccumulatedStats;
   onCommit(plan: PitcherPlan): void;
   onSelectPlayer(player: Player): void;
   onDirtyChange(dirty: boolean): void;
@@ -233,6 +241,18 @@ function RotationEditor({
     setStatus('変更を破棄しました。');
   };
 
+  const applyAiPlan = () => {
+    const suggested = strategicPitcherPlan(team, teamStrategyFor(team.key), seasonStats);
+    const next = createEditorState(team, {
+      rotationOrder: suggested.rotationOrder,
+      closerPriority: suggested.closerPriority,
+    });
+    setEditor(next);
+    setSelectedCloserIndex(null);
+    setPromotingId(null);
+    setStatus('AIの投手編成を反映しました。保存するまで確定しません。');
+  };
+
   const restoreAutomatic = () => {
     const next = createEditorState(team, { rotationOrder: [], closerPriority: [] });
     setEditor(next);
@@ -242,7 +262,7 @@ function RotationEditor({
   };
 
   return (
-    <div style={{ display: 'grid', gap: 12 }}>
+    <div className="stack">
       <Card ariaLabel="投手編成の操作">
         <div
           style={{
@@ -254,19 +274,22 @@ function RotationEditor({
           }}
         >
           <div>
-            <SectionTitle>Pitcher Plan Editor</SectionTitle>
+            <SectionTitle>投手起用の編集</SectionTitle>
             <div style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
               ローテーションは{rotationSlotCount(team)}
               枠。先発順はドラッグまたは矢印、候補からの入れ替えは「昇格」、抑えは枠のタップで変更します。
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Button onClick={applyAiPlan} ariaLabel="AIの判断で先発と抑えの順を編成">
+              AIで投手陣を編成
+            </Button>
             <Button
               onClick={restoreAutomatic}
               color="var(--color-surface-muted)"
-              ariaLabel="先発と抑えを自動選出へ戻す"
+              ariaLabel="先発と抑えを試合ごとのAI判断に任せる"
             >
-              自動選出に戻す
+              AIに任せる（固定しない）
             </Button>
             <Button
               onClick={discardChanges}
@@ -293,8 +316,9 @@ function RotationEditor({
           {status || (dirty ? '未保存の変更があります。' : '保存済みです。')}
         </div>
         <div style={{ marginTop: 6, color: 'var(--color-text-faint)', fontSize: 11 }}>
-          {editor.rotationAutomatic ? '先発: OVR自動選出' : '先発: 指定順を使用'} /{' '}
-          {editor.closerAutomatic ? '抑え: 登録順を使用' : '抑え: 指定優先順を使用'}
+          {editor.rotationAutomatic ? '先発: 試合ごとにAIが判断' : '先発: 指定順を使用'} /{' '}
+          {editor.closerAutomatic ? '抑え: 試合ごとにAIが判断' : '抑え: 指定優先順を使用'} / 中継ぎ:
+          疲労と能力からAIが判断
         </div>
       </Card>
 
@@ -306,7 +330,7 @@ function RotationEditor({
           alignItems: 'start',
         }}
       >
-        <div style={{ display: 'grid', gap: 12 }}>
+        <div className="stack">
           <RotationOrderList
             pitchers={rotationPitchers}
             slotCount={rotationSlotCount(team)}
@@ -357,6 +381,7 @@ export function RotationTab({ onDirtyChange }: { onDirtyChange(dirty: boolean): 
       team={game.teams[game.playerTeam]}
       plan={game.pitcherPlan}
       onCommit={game.setPitcherPlan}
+      seasonStats={game.leagueAccumulated}
       onSelectPlayer={game.selectPlayer}
       onDirtyChange={onDirtyChange}
     />

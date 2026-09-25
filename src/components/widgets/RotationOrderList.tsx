@@ -42,7 +42,7 @@ export function RotationOrderList({
           marginBottom: 4,
         }}
       >
-        <SectionTitle>Starting Rotation</SectionTitle>
+        <SectionTitle>先発ローテーション</SectionTitle>
         <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
           <strong style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}>
             {pitchers.length}

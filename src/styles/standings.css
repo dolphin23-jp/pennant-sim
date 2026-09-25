@@ -1,0 +1,77 @@
+/* League standings (widgets/StandingsTable.tsx) */
+.standings-table__note {
+  margin-bottom: 6px;
+  color: var(--color-text-faint);
+  font-size: var(--text-xs);
+}
+
+.standings-table td {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.standings-table__team-heading,
+.standings-table__team {
+  text-align: left;
+}
+
+.standings-table__team {
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.standings-table__team-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.standings-table__swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.standings-table__out {
+  margin-left: 4px;
+  color: var(--color-text-faint);
+  font-size: var(--text-2xs);
+}
+
+.standings-table__rank {
+  font-weight: 900;
+}
+
+.standings-table__row--leader {
+  background: color-mix(in srgb, var(--color-leader) 10%, transparent);
+}
+
+.standings-table__row--cutoff {
+  border-bottom: 2px dashed var(--color-border-strong);
+}
+
+.standings-table__muted {
+  color: var(--color-text-muted);
+}
+
+.standings-table__streak {
+  color: var(--color-text-muted);
+  font-weight: 800;
+}
+
+.standings-table__streak--win {
+  color: var(--color-success);
+}
+
+.standings-table__streak--loss {
+  color: var(--color-danger);
+}
+
+/* On a phone the table fits without sideways scrolling: recent form and the home/away
+   split drop out (the streak stays), and are still on wider screens and in 球団情報. */
+@media (max-width: 640px) {
+  .standings-table__optional {
+    display: none;
+  }
+}

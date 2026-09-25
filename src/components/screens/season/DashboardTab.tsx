@@ -1,15 +1,62 @@
-import { useMemo } from 'react';
+import { useMemo, type CSSProperties } from 'react';
 
 import { TINFO } from '../../../data';
-import { bestLineup, deriveTeamForm } from '../../../engine';
+import { recommendedLineup, deriveTeamForm } from '../../../engine';
 import type { TeamKey } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
 import { useBusyAction } from '../../useBusyAction';
 import { Button, Card, LampFigure, SectionTitle, StatChip, teamTextColor } from '../../ui';
-import { BoxScore } from '../../widgets/BoxScore';
+import { Linescore } from '../../widgets/Linescore';
 import { AutoAdvancePanel } from '../../widgets/AutoAdvancePanel';
 import { NoticeCenter } from '../../widgets/NoticeCenter';
 import { StandingsTable } from '../../widgets/StandingsTable';
+
+/** The user's latest game, whether played one at a time or skipped, with a way into its
+ * box score and play-by-play. */
+function LatestGameCard() {
+  const game = useGameState();
+  const playerTeam = game.playerTeam;
+  const latest = [...game.season.schedule]
+    .filter(
+      (scheduled) =>
+        scheduled.played && (scheduled.homeKey === playerTeam || scheduled.awayKey === playerTeam),
+    )
+    .sort((first, second) => second.date.localeCompare(first.date))[0];
+  const box = latest ? (game.gameBoxScores[latest.id] ?? game.gameSummaries[latest.id]) : null;
+  if (!latest || !box) return null;
+  const home = TINFO[box.homeKey];
+  const away = TINFO[box.awayKey];
+  const hasPlayLog = Boolean(game.recentPlayLogs[latest.id]);
+  return (
+    <Card ariaLabel="直近の試合" className="dashboard-card">
+      <SectionTitle>直近の試合</SectionTitle>
+      <div className="dashboard-latest__date">
+        {box.date}
+        {box.headline ? ` ・ ${box.headline}` : ''}
+      </div>
+      <Linescore
+        homeAbbreviation={home.ab}
+        awayAbbreviation={away.ab}
+        innings={box.innings}
+        homeScore={box.homeScore}
+        awayScore={box.awayScore}
+        homeHits={box.homeHits}
+        awayHits={box.awayHits}
+        homeErrors={box.homeErrors}
+        awayErrors={box.awayErrors}
+      />
+      <div className="dashboard-latest__actions">
+        <Button
+          onClick={() => game.selectGame(latest.id)}
+          color="var(--color-surface-muted)"
+          ariaLabel="直近の試合の詳細を開く"
+        >
+          {hasPlayLog ? '試合詳細・プレイバイプレイ' : '試合詳細'}
+        </Button>
+      </div>
+    </Card>
+  );
+}
 
 export function DashboardTab({
   onSelectTeam,
@@ -50,16 +97,16 @@ export function DashboardTab({
 
   return (
     <>
-      <Card ariaLabel="順位状況" style={{ marginBottom: 12 }}>
-        <SectionTitle>Standings Snapshot</SectionTitle>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+      <Card ariaLabel="順位状況" className="dashboard-card">
+        <SectionTitle>順位</SectionTitle>
+        <div className="dashboard-standing">
           <LampFigure
             label={TINFO[game.playerTeam].ab}
             value={record.rank ? `${record.rank}位` : '-'}
             elite={Boolean(record.rank && record.rank <= 3)}
             ariaLabel={`${playerTeam.n} 現在${record.rank ?? '-'}位`}
           />
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="dashboard-standing__chips">
             <StatChip label="勝敗分" value={`${record.w}-${record.l}-${record.d}`} />
             <StatChip label="勝率" value={pctText} />
             <StatChip label="差" value={record.gb ?? '-'} />
@@ -69,7 +116,7 @@ export function DashboardTab({
         </div>
       </Card>
 
-      <div style={{ marginBottom: 12 }}>
+      <div className="dashboard-standings-table">
         <StandingsTable
           standings={game.standings}
           schedule={game.season.schedule}
@@ -77,71 +124,49 @@ export function DashboardTab({
         />
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))',
-          gap: 12,
-          marginBottom: 12,
-        }}
-      >
+      <div className="dashboard-grid">
         <Card ariaLabel="次の試合">
-          <SectionTitle>Next Game</SectionTitle>
+          <SectionTitle>次の試合</SectionTitle>
           {nextGame ? (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <div className="dashboard-matchup">
                 <span
-                  style={{
-                    padding: '5px 12px',
-                    border: `1px solid ${TINFO[nextGame.awayKey].c}`,
-                    borderRadius: 8,
-                    color: teamTextColor(TINFO[nextGame.awayKey].c),
-                    background: `color-mix(in srgb, ${TINFO[nextGame.awayKey].c} 12%, transparent)`,
-                    fontFamily: 'var(--font-display)',
-                    fontSize: 17,
-                    fontWeight: 700,
-                  }}
+                  className="dashboard-matchup__team"
+                  style={
+                    {
+                      '--dashboard-team-color': TINFO[nextGame.awayKey].c,
+                      color: teamTextColor(TINFO[nextGame.awayKey].c),
+                    } as CSSProperties
+                  }
                 >
                   {TINFO[nextGame.awayKey].ab}
                 </span>
+                <span className="dashboard-matchup__at">@</span>
                 <span
-                  style={{
-                    color: 'var(--color-text-faint)',
-                    fontFamily: 'var(--font-display)',
-                    fontSize: 12,
-                    fontWeight: 700,
-                  }}
-                >
-                  @
-                </span>
-                <span
-                  style={{
-                    padding: '5px 12px',
-                    border: `1px solid ${TINFO[nextGame.homeKey].c}`,
-                    borderRadius: 8,
-                    color: teamTextColor(TINFO[nextGame.homeKey].c),
-                    background: `color-mix(in srgb, ${TINFO[nextGame.homeKey].c} 12%, transparent)`,
-                    fontFamily: 'var(--font-display)',
-                    fontSize: 17,
-                    fontWeight: 700,
-                  }}
+                  className="dashboard-matchup__team"
+                  style={
+                    {
+                      '--dashboard-team-color': TINFO[nextGame.homeKey].c,
+                      color: teamTextColor(TINFO[nextGame.homeKey].c),
+                    } as CSSProperties
+                  }
                 >
                   {TINFO[nextGame.homeKey].ab}
                 </span>
               </div>
-              <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginBottom: 4 }}>
+              <div className="dashboard-next__date">
                 {nextGame.date}
                 {nextGame.doubleHeaderGame
                   ? ` / ダブルヘッダー第${nextGame.doubleHeaderGame}試合`
                   : ''}
               </div>
               {nextGame.postponedFrom && (
-                <div style={{ color: 'var(--color-warning)', fontSize: 12, marginBottom: 12 }}>
+                <div className="dashboard-next__postponed">
                   雨天順延（当初 {nextGame.postponedFrom}）
                 </div>
               )}
-              {!nextGame.postponedFrom && <div style={{ marginBottom: 12 }} />}
-              <nav aria-label="試合進行" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {!nextGame.postponedFrom && <div className="dashboard-next__spacer" />}
+              <nav aria-label="試合進行" className="dashboard-controls">
                 <Button
                   onClick={() => run(game.simulateNextGame)}
                   disabled={busy}
@@ -175,11 +200,7 @@ export function DashboardTab({
                   残り全試合
                 </Button>
                 {actionBusy && (
-                  <span
-                    role="status"
-                    aria-live="polite"
-                    style={{ alignSelf: 'center', color: 'var(--color-text-muted)', fontSize: 12 }}
-                  >
+                  <span role="status" aria-live="polite" className="dashboard-controls__status">
                     処理中…
                   </span>
                 )}
@@ -187,9 +208,7 @@ export function DashboardTab({
             </>
           ) : (
             <>
-              <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginBottom: 10 }}>
-                レギュラーシーズン終了
-              </div>
+              <div className="dashboard-next__ended">レギュラーシーズン終了</div>
               <Button
                 onClick={() => game.setScreen('postseason')}
                 disabled={busy}
@@ -202,57 +221,26 @@ export function DashboardTab({
           )}
         </Card>
         <Card ariaLabel="現在の先発オーダー">
-          <SectionTitle>Lineup</SectionTitle>
-          <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginBottom: 8 }}>
-            現在の先発野手 {game.lineup.length}名
-          </div>
-          <div
-            role="group"
-            aria-label="先発オーダーの選手詳細ボタン"
-            style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}
-          >
+          <SectionTitle>スタメン</SectionTitle>
+          <div className="dashboard-lineup__count">現在の先発野手 {game.lineup.length}名</div>
+          <div role="group" aria-label="先発オーダーの選手詳細ボタン" className="dashboard-lineup">
             {game.lineup.map((player, index) => (
               <button
                 type="button"
                 key={player.id}
                 onClick={() => game.selectPlayer(player)}
                 aria-label={`打順${index + 1}番 ${player.name}の詳細を表示`}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  background: 'var(--color-accent-soft)',
-                  color: 'var(--color-text)',
-                  border: '1px solid var(--color-border-strong)',
-                  borderRadius: 999,
-                  padding: '3px 10px 3px 3px',
-                  cursor: 'pointer',
-                  fontSize: 11,
-                }}
+                className="dashboard-lineup__player"
               >
-                <span
-                  style={{
-                    display: 'grid',
-                    width: 18,
-                    height: 18,
-                    placeItems: 'center',
-                    borderRadius: 999,
-                    background: 'var(--color-accent)',
-                    color: '#fff',
-                    fontFamily: 'var(--font-display)',
-                    fontSize: 10,
-                    fontWeight: 700,
-                  }}
-                >
-                  {index + 1}
-                </span>
+                <span className="dashboard-lineup__order">{index + 1}</span>
                 {player.name}
               </button>
             ))}
           </div>
           <Button
-            onClick={() => game.setLineup(bestLineup(playerTeam))}
+            onClick={() => game.setLineup(recommendedLineup(playerTeam))}
             color="var(--color-surface-muted)"
+            disabled={busy}
             ariaLabel="AIで最適なオーダーを自動編成"
           >
             AIで最適オーダー
@@ -260,34 +248,18 @@ export function DashboardTab({
         </Card>
       </div>
 
-      <div style={{ marginBottom: 12, display: 'grid', gap: 8 }}>
+      <div className="dashboard-auto">
         <AutoAdvancePanel onFinished={onOpenYearReview} />
         {onOpenYearReview && lastReviewedYear !== null && (
-          <div style={{ fontSize: 12 }}>
-            <button
-              type="button"
-              onClick={onOpenYearReview}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: 0,
-                color: 'var(--color-accent)',
-                cursor: 'pointer',
-                font: 'inherit',
-                textDecoration: 'underline',
-              }}
-            >
+          <div className="dashboard-review">
+            <button type="button" onClick={onOpenYearReview} className="dashboard-review__link">
               {lastReviewedYear}年の総括を見る →
             </button>
           </div>
         )}
       </div>
 
-      {game.lastGame && (
-        <div style={{ marginBottom: 12 }}>
-          <BoxScore game={game.lastGame} />
-        </div>
-      )}
+      <LatestGameCard />
 
       <NoticeCenter
         notices={game.notices}

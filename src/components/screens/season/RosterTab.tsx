@@ -13,7 +13,7 @@ export function RosterTab() {
   return (
     <>
       <TeamSwitcher
-        title="Roster Browser"
+        title="選手名簿"
         cardAriaLabel="表示する球団を選択"
         selectAriaLabel="ロスターを表示する球団"
         value={viewedKey}

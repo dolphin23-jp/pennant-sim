@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { FIELD_POSITIONS, SPECIAL_INDEX } from '../../data';
-import { calcOVR, displayOVR, effectiveOVR } from '../../engine';
+import {
+  averageText,
+  calcOVR,
+  displayOVR,
+  earnedRunAverage,
+  effectiveOVR,
+  inningsText,
+  ops,
+  whip,
+} from '../../engine';
 import type { AccumulatedStats, Player, Team } from '../../engine';
 import { Button, Card, EmptyState, SectionTitle, TermTooltip } from '../ui';
 import { DisplayOVRValue } from './DisplayOVRValue';
@@ -15,7 +24,6 @@ import {
 } from './playerFilters';
 import { hasGoldSpecial } from './specialDisplay';
 import { BatterStatLine, PitcherStatLine } from './StatLine';
-import './phaseB.css';
 
 type SortKey = 'name' | 'age' | 'ovr' | 'effective' | 'display' | 'status';
 type SortDirection = 'asc' | 'desc';
@@ -77,50 +85,51 @@ function compareValues(
 function batterValues(player: Player, accumulated: AccumulatedStats) {
   const stats = accumulated[player.id];
   if (!stats || stats.type !== 'bat') {
-    return { average: '.---', homeRuns: '-', runsBattedIn: '-' };
+    return { average: '.---', homeRuns: '-', runsBattedIn: '-', ops: '.---' };
   }
+  const onBasePlusSlugging = ops(stats);
   return {
-    average: stats.ab > 0 ? (stats.h / stats.ab).toFixed(3).replace(/^0/, '') : '.---',
+    average: averageText(stats.h, stats.ab),
     homeRuns: String(stats.hr),
     runsBattedIn: String(stats.rbi),
+    ops: onBasePlusSlugging === null ? '.---' : onBasePlusSlugging.toFixed(3).replace(/^0/, ''),
   };
 }
 
 function pitcherValues(player: Player, accumulated: AccumulatedStats) {
   const stats = accumulated[player.id];
   if (!stats || stats.type !== 'pit') {
-    return { era: '-.--', record: '-', saves: '-' };
+    return { era: '-.--', record: '-', innings: '-', whip: '-.--' };
   }
+  const era = earnedRunAverage(stats);
+  const walksHitsPerInning = whip(stats);
   return {
-    era: stats.ip3 > 0 ? ((stats.er * 27) / stats.ip3).toFixed(2) : '-.--',
-    record: `${stats.w}-${stats.l}`,
-    saves: String(stats.sv),
+    era: era === null ? '-.--' : era.toFixed(2),
+    record: `${stats.w}-${stats.l}${stats.sv > 0 ? ` ${stats.sv}S` : ''}`,
+    innings: inningsText(stats.ip3),
+    whip: walksHitsPerInning === null ? '-.--' : walksHitsPerInning.toFixed(2),
   };
 }
 
 function SpecialSummary({ player }: { player: Player }) {
   const specials = player.specials ?? [];
   const hasGold = hasGoldSpecial(player);
-  if (!specials.length) return <span style={{ color: 'var(--color-text-faint)' }}>なし</span>;
+  if (!specials.length) return <span className="roster-special-summary__none">なし</span>;
   return (
     <span
       aria-label={`特殊能力${specials.length}個${hasGold ? '、ゴールド特殊能力あり' : ''}`}
-      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+      className="roster-special-summary"
     >
       <strong>{specials.length}</strong>
-      <span aria-hidden="true" style={{ display: 'inline-flex', gap: 3 }}>
+      <span aria-hidden="true" className="roster-special-summary__dots">
         {specials.map((special) => {
           const definition = SPECIAL_INDEX[special.id] ?? special;
           return (
             <span
               key={special.id}
               title={definition.n}
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: 999,
-                background: definition.c,
-              }}
+              className="roster-special-summary__dot"
+              style={{ background: definition.c }}
             />
           );
         })}
@@ -154,14 +163,7 @@ function SortHeader({
       type="button"
       aria-label={`${label}で${nextDirection}に並べ替え`}
       onClick={() => onSort(sortKey)}
-      style={{
-        padding: 0,
-        border: 0,
-        color: selected ? 'var(--color-accent)' : 'var(--color-text-faint)',
-        background: 'transparent',
-        fontWeight: 900,
-        cursor: 'pointer',
-      }}
+      className={`roster-sort-button${selected ? ' roster-sort-button--active' : ''}`}
     >
       {label}
       {selected ? (direction === 'asc' ? ' ↑' : ' ↓') : ''}
@@ -191,12 +193,14 @@ function RosterMobileCard({
     ? [
         { label: '防御率', value: pitching.era },
         { label: '勝敗', value: pitching.record },
-        { label: 'セーブ', value: pitching.saves },
+        { label: '投球回', value: pitching.innings },
+        { label: 'WHIP', value: pitching.whip },
       ]
     : [
         { label: '打率', value: batting.average },
         { label: '本塁打', value: batting.homeRuns },
         { label: '打点', value: batting.runsBattedIn },
+        { label: 'OPS', value: batting.ops },
       ];
   return (
     <article className={`player-summary-card${gold ? ' player-summary-card--gold' : ''}`}>
@@ -214,11 +218,11 @@ function RosterMobileCard({
             {player.age}歳 / {player.isP ? player.role : (player._assignedPos ?? player.pos)}
             {gold ? ' / ★ゴールド特殊能力' : ''}
           </div>
-          <div style={{ marginTop: 5 }}>
+          <div className="roster-card__badges">
             <PlayerStatusBadges player={player} compact />
           </div>
         </div>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
+        <label className="roster-card__compare">
           <input
             type="checkbox"
             aria-label={`${player.name}を比較対象に${selected ? '選択済み' : '追加'}`}
@@ -337,19 +341,9 @@ export function RosterTable({
   return (
     <>
       <Card ariaLabel={`${team.n}のロスター`}>
-        <SectionTitle>Roster</SectionTitle>
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'end',
-            gap: 10,
-            marginBottom: 12,
-          }}
-        >
-          <label
-            style={{ display: 'grid', gap: 4, color: 'var(--color-text-muted)', fontSize: 11 }}
-          >
+        <SectionTitle>選手一覧</SectionTitle>
+        <div className="roster-filters">
+          <label className="roster-filters__field">
             投打
             <select
               aria-label="投手と野手で絞り込む"
@@ -359,23 +353,14 @@ export function RosterTable({
                 setKindFilter(next);
                 if (next === 'pitcher') setPositionFilter('all');
               }}
-              style={{
-                minHeight: 38,
-                padding: '7px 10px',
-                border: '1px solid var(--color-border)',
-                borderRadius: 8,
-                color: 'var(--color-text)',
-                background: 'var(--color-bg-soft)',
-              }}
+              className="roster-filters__select"
             >
               <option value="all">すべて</option>
               <option value="fielder">野手</option>
               <option value="pitcher">投手</option>
             </select>
           </label>
-          <label
-            style={{ display: 'grid', gap: 4, color: 'var(--color-text-muted)', fontSize: 11 }}
-          >
+          <label className="roster-filters__field">
             守備位置
             <select
               aria-label="守備位置で絞り込む"
@@ -385,14 +370,7 @@ export function RosterTable({
                 setPositionFilter(next);
                 if (next !== 'all') setKindFilter('fielder');
               }}
-              style={{
-                minHeight: 38,
-                padding: '7px 10px',
-                border: '1px solid var(--color-border)',
-                borderRadius: 8,
-                color: 'var(--color-text)',
-                background: 'var(--color-bg-soft)',
-              }}
+              className="roster-filters__select"
             >
               <option value="all">すべて</option>
               {FIELD_POSITIONS.map((position) => (
@@ -402,22 +380,13 @@ export function RosterTable({
               ))}
             </select>
           </label>
-          <label
-            style={{ display: 'grid', gap: 4, color: 'var(--color-text-muted)', fontSize: 11 }}
-          >
+          <label className="roster-filters__field">
             年齢帯
             <select
               aria-label="年齢帯で絞り込む"
               value={ageFilter}
               onChange={(event) => setAgeFilter(event.target.value as AgeFilter)}
-              style={{
-                minHeight: 38,
-                padding: '7px 10px',
-                border: '1px solid var(--color-border)',
-                borderRadius: 8,
-                color: 'var(--color-text)',
-                background: 'var(--color-bg-soft)',
-              }}
+              className="roster-filters__select"
             >
               <option value="all">すべて</option>
               <option value="under24">24歳以下</option>
@@ -425,7 +394,7 @@ export function RosterTable({
               <option value="over30">30歳以上</option>
             </select>
           </label>
-          <span style={{ color: 'var(--color-text-faint)', fontSize: 11 }}>
+          <span className="roster-filters__count">
             {filteredPlayers.length} / {players.length}名
           </span>
         </div>
@@ -474,7 +443,7 @@ export function RosterTable({
                 <thead>
                   <tr>
                     <th scope="col">比較</th>
-                    <th scope="col" style={{ textAlign: 'left' }}>
+                    <th scope="col" className="roster-cell--left">
                       <SortHeader
                         sortKey="name"
                         label="選手"
@@ -529,7 +498,7 @@ export function RosterTable({
                       />
                     </th>
                     <th scope="col">特殊</th>
-                    <th scope="col" style={{ textAlign: 'left' }}>
+                    <th scope="col" className="roster-cell--left">
                       今季
                     </th>
                   </tr>
@@ -541,7 +510,7 @@ export function RosterTable({
                     const selectionDisabled = selectedIds.length >= 3 && !selected;
                     return (
                       <tr key={player.id}>
-                        <td style={{ textAlign: 'center' }}>
+                        <td className="roster-cell--center">
                           <input
                             type="checkbox"
                             aria-label={`${player.name}を比較対象に${selected ? '選択済み' : '追加'}`}
@@ -560,37 +529,36 @@ export function RosterTable({
                             {player.name}
                           </button>
                         </td>
-                        <td style={{ textAlign: 'center' }}>{player.age}</td>
-                        <td style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                        <td className="roster-cell--center">{player.age}</td>
+                        <td className="roster-cell--center roster-cell--muted">
                           {player.isP ? player.role : (player._assignedPos ?? player.pos)}
                         </td>
                         <td
-                          className={overall >= 80 ? 'metric-highlight' : undefined}
-                          style={{ textAlign: 'center', fontWeight: 900 }}
+                          className={`roster-cell--center roster-cell--strong${overall >= 80 ? ' metric-highlight' : ''}`}
                         >
                           {overall}
                         </td>
-                        <td style={{ textAlign: 'center' }}>
+                        <td className="roster-cell--center">
                           <DisplayOVRValue
                             player={player}
                             position={player.isP ? undefined : (player._assignedPos ?? player.pos)}
                             compact
                           />
                         </td>
-                        <td style={{ textAlign: 'center' }} title={statusText(player)}>
+                        <td className="roster-cell--center" title={statusText(player)}>
                           <PlayerStatusBadges player={player} compact />
                           {!((player.injuryDays ?? 0) > 0) && !player.fatigue && (
-                            <span style={{ color: 'var(--color-text-faint)' }}>通常</span>
+                            <span className="roster-status-normal">通常</span>
                           )}
                         </td>
-                        <td style={{ textAlign: 'center' }}>
+                        <td className="roster-cell--center">
                           <SpecialSummary player={player} />
                         </td>
-                        <td style={{ color: 'var(--color-text-muted)' }}>
+                        <td className="roster-cell--muted">
                           {player.isP ? (
-                            <PitcherStatLine player={player} accumulated={accumulated} />
+                            <PitcherStatLine player={player} accumulated={accumulated} detailed />
                           ) : (
-                            <BatterStatLine player={player} accumulated={accumulated} />
+                            <BatterStatLine player={player} accumulated={accumulated} detailed />
                           )}
                         </td>
                       </tr>
@@ -626,43 +594,14 @@ export function RosterTable({
       </Card>
 
       {selectedIds.length > 0 && (
-        <div
-          role="region"
-          aria-label="選手比較の操作"
-          style={{
-            position: 'fixed',
-            right: 12,
-            bottom: 12,
-            left: 12,
-            zIndex: 80,
-            display: 'flex',
-            width: 'min(720px,calc(100% - 24px))',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 10,
-            margin: '0 auto',
-            padding: 12,
-            border: '1px solid var(--color-border-strong)',
-            borderRadius: 12,
-            background: 'var(--color-surface-raised)',
-            boxShadow: '0 14px 36px rgb(0 0 0 / 32%)',
-          }}
-        >
-          <div style={{ minWidth: 0 }}>
+        <div role="region" aria-label="選手比較の操作" className="roster-compare-bar">
+          <div className="roster-compare-bar__summary">
             <strong>{selectedIds.length}人を選択中</strong>
-            <div
-              style={{
-                overflow: 'hidden',
-                color: 'var(--color-text-muted)',
-                fontSize: 11,
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
+            <div className="roster-compare-bar__names">
               {comparePlayers.map((player) => player.name).join('、')}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, flex: '0 0 auto' }}>
+          <div className="roster-compare-bar__actions">
             <Button
               onClick={() => setSelectedIds([])}
               color="var(--color-surface-muted)"

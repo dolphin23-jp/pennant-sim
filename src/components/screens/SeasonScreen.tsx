@@ -1,6 +1,7 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useEffect, useState, type KeyboardEvent } from 'react';
 
 import { useGameState } from '../../state/gameState';
+import { useConfirm } from '../ConfirmDialog';
 import { BackToTitleButton, Button, NewGameButton, PageShell, teamTextColor } from '../ui';
 import { DashboardTab } from './season/DashboardTab';
 import { GameResultsTab } from './season/GameResultsTab';
@@ -10,6 +11,7 @@ import { NarrativeTab } from './season/NarrativeTab';
 import { RankingTab } from './season/RankingTab';
 import { RosterTab } from './season/RosterTab';
 import { RotationTab } from './season/RotationTab';
+import { ScheduleTab } from './season/ScheduleTab';
 import { SquadTab } from './season/SquadTab';
 import { StandingsTab } from './season/StandingsTab';
 import { StatsTab } from './season/StatsTab';
@@ -25,38 +27,84 @@ type SeasonTab =
   | 'stats'
   | 'ranking'
   | 'standings'
+  | 'schedule'
   | 'gameResults'
   | 'teamReport'
   | 'roster'
   | 'squad'
   | 'history';
 
-const tabs: Array<{ id: SeasonTab; label: string }> = [
-  { id: 'dashboard', label: 'ダッシュボード' },
-  { id: 'yearReview', label: '年度総括' },
-  { id: 'news', label: 'ニュース' },
-  { id: 'lineup', label: '野手編成' },
-  { id: 'rotation', label: '投手編成' },
-  { id: 'stats', label: '成績' },
-  { id: 'ranking', label: 'ランキング' },
-  { id: 'standings', label: '順位表' },
-  { id: 'gameResults', label: '試合結果' },
-  { id: 'teamReport', label: '球団情報' },
-  { id: 'roster', label: '選手一覧' },
-  { id: 'squad', label: '一軍・二軍' },
-  { id: 'history', label: '記録' },
+type TabGroup = 'home' | 'team' | 'games' | 'league' | 'records';
+
+const groups: Array<{
+  id: TabGroup;
+  label: string;
+  tabs: Array<{ id: SeasonTab; label: string }>;
+}> = [
+  { id: 'home', label: 'ホーム', tabs: [{ id: 'dashboard', label: 'ダッシュボード' }] },
+  {
+    id: 'team',
+    label: 'チーム',
+    tabs: [
+      { id: 'lineup', label: '野手編成' },
+      { id: 'rotation', label: '投手編成' },
+      { id: 'squad', label: '一軍・二軍' },
+      { id: 'roster', label: '選手一覧' },
+      { id: 'teamReport', label: '球団情報' },
+    ],
+  },
+  {
+    id: 'games',
+    label: '試合',
+    tabs: [
+      { id: 'schedule', label: '日程' },
+      { id: 'gameResults', label: '試合結果' },
+    ],
+  },
+  {
+    id: 'league',
+    label: 'リーグ',
+    tabs: [
+      { id: 'standings', label: '順位表' },
+      { id: 'stats', label: '成績' },
+      { id: 'ranking', label: 'ランキング' },
+    ],
+  },
+  {
+    id: 'records',
+    label: '記録',
+    tabs: [
+      { id: 'yearReview', label: '年度総括' },
+      { id: 'news', label: 'ニュース' },
+      { id: 'history', label: '歴代記録' },
+    ],
+  },
 ];
+
+const groupOf = (tab: SeasonTab): TabGroup =>
+  groups.find((group) => group.tabs.some((entry) => entry.id === tab))!.id;
 
 export function SeasonScreen() {
   const game = useGameState();
+  const confirm = useConfirm();
   const [saveStatus, setSaveStatus] = useState('');
   const [activeTab, setActiveTab] = useState<SeasonTab>('dashboard');
+  /** The tab last open in each group, so returning to a group lands where the user left it. */
+  const [lastInGroup, setLastInGroup] = useState<Partial<Record<TabGroup, SeasonTab>>>({});
   const [lineupDirty, setLineupDirty] = useState(false);
   const [rotationDirty, setRotationDirty] = useState(false);
+
+  // On a phone the tab row scrolls sideways; keep the open tab in view.
+  useEffect(() => {
+    document
+      .getElementById(`season-tab-${activeTab}`)
+      ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [activeTab]);
 
   if (!game.teams || !game.playerTeam) return null;
   const playerTeam = game.teams[game.playerTeam];
   const record = game.standings[game.playerTeam];
+  const activeGroup = groups.find((group) => group.id === groupOf(activeTab))!;
 
   const handleSave = async () => {
     const success = await game.saveCurrent();
@@ -64,32 +112,45 @@ export function SeasonScreen() {
     window.setTimeout(() => setSaveStatus(''), 1800);
   };
 
-  const requestTabChange = (nextTab: SeasonTab): boolean => {
+  const requestTabChange = async (nextTab: SeasonTab): Promise<boolean> => {
     if (nextTab === activeTab) return true;
     const editorDirty =
       activeTab === 'lineup' ? lineupDirty : activeTab === 'rotation' ? rotationDirty : false;
     const editorLabel = activeTab === 'rotation' ? '投手編成' : 'オーダー';
     if (
       editorDirty &&
-      !window.confirm(
-        `${editorLabel}に未保存の変更があります。変更を破棄して別のタブへ移動しますか？`,
-      )
+      !(await confirm({
+        title: `${editorLabel}に未保存の変更があります`,
+        message: '変更を破棄して別の画面へ移動しますか？',
+        confirmLabel: '破棄して移動',
+        cancelLabel: '編集に戻る',
+        danger: true,
+      }))
     ) {
       return false;
     }
     if (activeTab === 'lineup') setLineupDirty(false);
     if (activeTab === 'rotation') setRotationDirty(false);
+    setLastInGroup((current) => ({ ...current, [groupOf(nextTab)]: nextTab }));
     setActiveTab(nextTab);
     return true;
   };
 
-  const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+  const openTab = (tab: SeasonTab) => void requestTabChange(tab);
+
+  const handleTabKeyDown = async (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const tabs = activeGroup.tabs;
+    const keys: Record<string, number> = {
+      ArrowRight: (index + 1) % tabs.length,
+      ArrowLeft: (index - 1 + tabs.length) % tabs.length,
+      Home: 0,
+      End: tabs.length - 1,
+    };
+    const nextIndex = keys[event.key];
+    if (nextIndex === undefined) return;
     event.preventDefault();
-    const direction = event.key === 'ArrowRight' ? 1 : -1;
-    const nextIndex = (index + direction + tabs.length) % tabs.length;
     const nextTab = tabs[nextIndex];
-    if (!nextTab || !requestTabChange(nextTab.id)) return;
+    if (!nextTab || !(await requestTabChange(nextTab.id))) return;
     window.requestAnimationFrame(() =>
       document.getElementById(`season-tab-${nextTab.id}`)?.focus(),
     );
@@ -97,17 +158,7 @@ export function SeasonScreen() {
 
   return (
     <PageShell ariaLabel={`${game.season.year}年シーズン画面`}>
-      <header
-        aria-labelledby="season-screen-title"
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 12,
-          marginBottom: 16,
-          flexWrap: 'wrap',
-        }}
-      >
+      <header aria-labelledby="season-screen-title" className="season-header">
         <div>
           <div style={{ color: teamTextColor(playerTeam.c), fontSize: 12, fontWeight: 900 }}>
             {playerTeam.ab}
@@ -119,7 +170,7 @@ export function SeasonScreen() {
             {record.rank ?? '-'}位 / {record.w}勝 {record.l}敗 {record.d}分
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="season-header__actions">
           <span className="inline-status" role="status" aria-live="polite">
             {saveStatus}
           </span>
@@ -135,65 +186,63 @@ export function SeasonScreen() {
         </div>
       </header>
 
-      <div
-        role="tablist"
-        aria-label="シーズン画面の表示項目"
-        style={{
-          display: 'flex',
-          gap: 6,
-          marginBottom: 14,
-          paddingBottom: 4,
-          overflowX: 'auto',
-          borderBottom: '1px solid var(--color-border)',
-          WebkitOverflowScrolling: 'touch',
-        }}
-      >
-        {tabs.map((tab, index) => {
-          const selected = activeTab === tab.id;
-          return (
+      <nav className="season-nav" aria-label="シーズン画面のメニュー">
+        <div className="season-nav__groups" role="group" aria-label="表示する分類">
+          {groups.map((group) => (
             <button
-              id={`season-tab-${tab.id}`}
-              key={tab.id}
+              key={group.id}
               type="button"
-              role="tab"
-              aria-label={`${tab.label}タブを表示`}
-              aria-selected={selected}
-              aria-controls={`season-panel-${tab.id}`}
-              tabIndex={selected ? 0 : -1}
-              onClick={() => requestTabChange(tab.id)}
-              onKeyDown={(event) => handleTabKeyDown(event, index)}
-              style={{
-                flex: '0 0 auto',
-                minHeight: 42,
-                padding: '9px 13px',
-                border: '1px solid var(--color-border)',
-                borderBottom: selected ? '3px solid var(--color-accent)' : '3px solid transparent',
-                borderRadius: '8px 8px 0 0',
-                color: selected ? 'var(--color-accent)' : 'var(--color-text-muted)',
-                background: selected ? 'var(--color-accent-soft)' : 'var(--color-surface)',
-                fontWeight: 800,
-                cursor: 'pointer',
-              }}
+              className="season-nav__group"
+              aria-pressed={group.id === activeGroup.id}
+              onClick={() => openTab(lastInGroup[group.id] ?? group.tabs[0]!.id)}
             >
-              {tab.label}
+              {group.label}
             </button>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+        {activeGroup.tabs.length > 1 && (
+          <div
+            role="tablist"
+            aria-label={`${activeGroup.label}の表示項目`}
+            className="season-nav__tabs"
+          >
+            {activeGroup.tabs.map((tab, index) => {
+              const selected = activeTab === tab.id;
+              return (
+                <button
+                  id={`season-tab-${tab.id}`}
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  className="season-nav__tab"
+                  aria-selected={selected}
+                  aria-controls={`season-panel-${tab.id}`}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => openTab(tab.id)}
+                  onKeyDown={(event) => void handleTabKeyDown(event, index)}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </nav>
 
       <section
         id={`season-panel-${activeTab}`}
-        role="tabpanel"
-        aria-labelledby={`season-tab-${activeTab}`}
+        {...(activeGroup.tabs.length > 1
+          ? { role: 'tabpanel', 'aria-labelledby': `season-tab-${activeTab}` }
+          : { 'aria-label': activeGroup.tabs[0]!.label })}
         tabIndex={0}
       >
         {activeTab === 'dashboard' && (
           <DashboardTab
             onSelectTeam={(teamKey) => {
               game.setViewTeam(teamKey);
-              requestTabChange('teamReport');
+              openTab('teamReport');
             }}
-            onOpenYearReview={() => requestTabChange('yearReview')}
+            onOpenYearReview={() => openTab('yearReview')}
           />
         )}
         {activeTab === 'yearReview' && <YearReviewTab />}
@@ -206,10 +255,11 @@ export function SeasonScreen() {
           <StandingsTab
             onSelectTeam={(teamKey) => {
               game.setViewTeam(teamKey);
-              requestTabChange('teamReport');
+              openTab('teamReport');
             }}
           />
         )}
+        {activeTab === 'schedule' && <ScheduleTab />}
         {activeTab === 'gameResults' && <GameResultsTab />}
         {activeTab === 'teamReport' && <TeamReportTab />}
         {activeTab === 'roster' && <RosterTab />}

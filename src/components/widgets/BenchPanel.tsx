@@ -38,7 +38,7 @@ export function BenchPanel({
 
   return (
     <Card ariaLabel="ベンチの野手一覧">
-      <SectionTitle>Bench</SectionTitle>
+      <SectionTitle>控え</SectionTitle>
       <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginBottom: 10 }}>
         選手をタップしてから守備位置をタップすると入れ替えます。もう一度タップすると解除します。
       </div>

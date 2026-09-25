@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { bestLineup, calcOVR, effectiveOVR } from '../../../engine';
+import { calcOVR, effectiveOVR, recommendedLineup } from '../../../engine';
 import type { AccumulatedStats, FieldPosition, Player, Team } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
 import { Button, Card, SectionTitle } from '../../ui';
@@ -307,14 +307,14 @@ function LineupEditor({
   };
 
   const applyRecommended = () => {
-    const next = createEditorState(bestLineup(team), team.fielders);
+    const next = createEditorState(recommendedLineup(team), team.fielders);
     setEditor(next);
     setArmedBenchId(null);
     setStatus('AIおすすめを反映しました。保存するまで確定しません。');
   };
 
   return (
-    <div style={{ display: 'grid', gap: 12 }}>
+    <div className="stack">
       <Card ariaLabel="オーダー編成の操作">
         <div
           style={{
@@ -326,7 +326,7 @@ function LineupEditor({
           }}
         >
           <div>
-            <SectionTitle>Lineup Editor</SectionTitle>
+            <SectionTitle>オーダー編集</SectionTitle>
             <div style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
               守備位置はタップまたはグリップのドラッグ、打順はドラッグまたは矢印、ベンチ選手はタップしてから配置先をタップで変更します。
             </div>

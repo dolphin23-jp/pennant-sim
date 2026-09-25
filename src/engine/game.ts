@@ -1,4 +1,4 @@
-import { AT_BAT_BALANCE, FOREIGN_PLAYER_BALANCE, PITCHER_USAGE_BALANCE } from '../data';
+import { AT_BAT_BALANCE, PITCHER_USAGE_BALANCE } from '../data';
 import {
   sacrificeBuntAttemptRate,
   sacrificeBuntSuccessRate,
@@ -7,13 +7,13 @@ import {
   stealThirdAttemptRate,
   stealThirdSuccessRate,
   strategicBestLineup,
+  repairLineup,
   strategicPitcherOrder,
   strategicPitcherPlan,
   teamStrategyFor,
   type TeamStrategy,
 } from './aiStrategy';
 import { advBases, buildDesc, simAB } from './atBat';
-import { isForeignPlayer } from './foreign';
 import { applyPostGamePlayerEvents } from './playerEvents';
 import {
   resolveStarterRotation,
@@ -27,7 +27,7 @@ import {
   prepareTeamPitchersForGame,
 } from './pitcherUsage';
 import { clamp, random, randomChoice, randomInt } from './random';
-import { bestLineup, effectiveOVR, masteryFromAccum } from './ratings';
+import { effectiveOVR, masteryFromAccum } from './ratings';
 import { progressiveScoringEvents } from './scoring';
 import { specialLevel } from './specials';
 import type {
@@ -88,23 +88,8 @@ function normalizeDesignatedHitter(lineup: Player[]): Player[] {
 function resolveLineup(team: Team, supplied?: Player[] | null): Player[] {
   if (supplied === null || supplied === undefined)
     return normalizeDesignatedHitter(strategicBestLineup(team).lineup);
-  if (!supplied.length) return bestLineup(team);
-  const roster = new Map(team.fielders.map((player) => [player.id, player])),
-    resolved: Player[] = [];
-  for (const player of supplied) {
-    const current = roster.get(player.id);
-    if (!current || (current.injuryDays ?? 0) > 0) continue;
-    resolved.push({
-      ...current,
-      _assignedPos: player._isDH ? undefined : (player._assignedPos ?? current.pos),
-      _isDH: player._isDH,
-    });
-  }
-  const selected = resolved.slice(0, 9);
-  return resolved.length >= 9 &&
-    selected.filter(isForeignPlayer).length <= FOREIGN_PLAYER_BALANCE.simultaneousHitterLimit
-    ? normalizeDesignatedHitter(selected)
-    : bestLineup(team);
+  // The manager's order, with anyone hurt, sent down or gone replaced one for one.
+  return normalizeDesignatedHitter(repairLineup(team, supplied).lineup);
 }
 interface HalfInningManagement {
   battingStrategy: TeamStrategy;
@@ -312,6 +297,7 @@ export function simHalf(
     gameState.managementLog?.push({
       teamKey: teamKeyForSide(gameState, fieldingSide),
       inning: inning + 1,
+      playIndex: atBats.length,
       type: 'pitchingChange',
       playerId: nextPitcher.id,
       playerName: nextPitcher.name,
@@ -380,6 +366,7 @@ export function simHalf(
                   : '走力・相手バッテリー・球団方針から判断',
             runsAtDecision: runs,
           };
+        decision.playIndex = atBats.length;
         gameState.managementLog?.push(decision);
         if (attempted) {
           const successRate = stealSuccessRate(runnerPlayer, catcher, pitcher),
@@ -469,6 +456,7 @@ export function simHalf(
                   : '走力・相手バッテリー・球団方針から三塁を判断',
             runsAtDecision: runs,
           };
+        decision.playIndex = atBats.length;
         gameState.managementLog?.push(decision);
         if (attempted) {
           const successRate = stealThirdSuccessRate(runnerPlayer, catcher, pitcher),
@@ -578,6 +566,7 @@ export function simHalf(
       gameState.managementLog?.push({
         teamKey: teamKeyForSide(gameState, battingSide),
         inning: inning + 1,
+        playIndex: atBats.length,
         type: 'bunt',
         playerId: batter.id,
         playerName: batter.name,

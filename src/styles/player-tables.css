@@ -37,7 +37,7 @@
 
 .ability-radar__label {
   fill: var(--color-text-muted);
-  font-size: 10px;
+  font-size: var(--text-2xs);
   font-weight: 800;
 }
 
@@ -158,7 +158,7 @@
 
 .player-summary-card__metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin-top: 12px;
 }
@@ -256,6 +256,6 @@
   }
 
   .player-summary-card__metrics {
-    grid-template-columns: repeat(3, minmax(76px, 1fr));
+    grid-template-columns: repeat(2, minmax(76px, 1fr));
   }
 }

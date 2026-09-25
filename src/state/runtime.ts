@@ -18,10 +18,14 @@ import {
   draftOrderFromStandings,
   generateSchedule,
   postseasonNarrativeEvents,
+  postseasonBoxScores,
   postseasonRunnerUp,
+  recommendedLineup,
+  repairLineup,
   runFullOffseason,
   runPostseason,
   selectSeasonHonors,
+  toSummary,
   selectSeasonTitles,
   simCpuUntilNext,
   skipGamesWithPitcherPlan,
@@ -30,6 +34,7 @@ import type {
   AccumulatedStats,
   AchievementEvent,
   GameBoxScore,
+  GamePlayLog,
   GameState,
   GameSummary,
   Player,
@@ -48,6 +53,7 @@ import {
   createForeignLifecycleNotices,
   createFreeAgencyNotices,
   createGameResultNotice,
+  createLineupRepairNotice,
   createOffseasonDevelopmentNotices,
   createSkippedInSeasonDevelopmentNotices,
   mergeNotices,
@@ -96,6 +102,8 @@ export interface RuntimeState {
   selectedPlayer: Player | null;
   gameSummaries: Record<string, GameSummary>;
   gameBoxScores: Record<string, GameBoxScore>;
+  /** Play-by-play of the user's most recent games (kept short; not archived). */
+  recentPlayLogs: Record<string, GamePlayLog>;
   selectedGameId: string | null;
   /** Set to a fresh sequence number by any update that should be persisted; the autosave
    * effect saves whenever it changes. */
@@ -133,6 +141,7 @@ export const initialState: RuntimeState = {
   selectedPlayer: null,
   gameSummaries: {},
   gameBoxScores: {},
+  recentPlayLogs: {},
   selectedGameId: null,
   autosaveSeq: 0,
 };
@@ -168,6 +177,20 @@ export function mergeStats(base: AccumulatedStats, addition: AccumulatedStats): 
     merged[playerId] = output as unknown as PlayerStats;
   }
   return merged;
+}
+
+/** How many of the user's recent games keep their play-by-play. */
+export const RECENT_PLAY_LOG_LIMIT = 10;
+
+/** Add play logs, keeping only the newest RECENT_PLAY_LOG_LIMIT games. */
+export function withPlayLogs(
+  current: Record<string, GamePlayLog>,
+  added: Record<string, GamePlayLog>,
+): Record<string, GamePlayLog> {
+  const merged = Object.values({ ...current, ...added })
+    .sort((first, second) => first.date.localeCompare(second.date))
+    .slice(-RECENT_PLAY_LOG_LIMIT);
+  return Object.fromEntries(merged.map((log) => [log.gameId, log]));
 }
 
 let autosaveCounter = 0;
@@ -209,10 +232,13 @@ export function applySkip(
     current.playerTeam,
     mode,
     current.leagueAccumulated,
-    current.pitcherPlan,
+    // おまかせ進行 hands the lineup and staff to the AI; manual skips play the saved ones.
+    manageUserRoster ? createEmptyPitcherPlan() : current.pitcherPlan,
     current.leagueAccumulated,
     manageUserRoster,
+    manageUserRoster ? null : current.lineup,
   );
+  const repaired = repairLineup(teams[current.playerTeam], current.lineup);
   const accumulated = mergeStats(current.accumulated, result.distStats);
   const leagueAccumulated = mergeStats(current.leagueAccumulated, result.leagueDistStats);
   const leagueCareerAccumulated = mergeStats(
@@ -258,8 +284,14 @@ export function applySkip(
     ...withNarrativeEvents(current, result.narrativeEvents),
     gameSummaries: { ...current.gameSummaries, ...result.gameSummaries },
     gameBoxScores: { ...current.gameBoxScores, ...result.gameBoxScores },
+    recentPlayLogs: withPlayLogs(current.recentPlayLogs, result.playLogs),
+    lastGame: null,
+    lineup: repaired.lineup,
     notices: mergeNotices(current.notices, [
       ...gameNotices,
+      ...[createLineupRepairNotice(repaired.substitutions, current.playerTeam, noticeDate)].filter(
+        (notice): notice is Notice => notice !== null,
+      ),
       ...developmentNotices,
       ...achievementNotices,
     ]),
@@ -274,6 +306,7 @@ export function applyChampionship(
   champion: TeamKey,
   runnerUp: TeamKey,
   events: NarrativeEvent[] = [],
+  boxScores: Record<string, GameBoxScore> = {},
 ): RuntimeState {
   if (!current.teams) return current;
   const team = current.teams[champion];
@@ -310,6 +343,11 @@ export function applyChampionship(
       ...current.championHistory.filter((entry) => entry.year !== current.season.year),
       record,
     ],
+    gameBoxScores: { ...current.gameBoxScores, ...boxScores },
+    gameSummaries: {
+      ...current.gameSummaries,
+      ...Object.fromEntries(Object.entries(boxScores).map(([id, box]) => [id, toSummary(box)])),
+    },
     autosaveSeq: nextAutosaveSeq(),
   };
   return next;
@@ -381,7 +419,9 @@ export function applyOffseasonCompletion(
     screen: 'season',
     season: { year, schedule: prepared.sched },
     rotN: prepared.rotN,
-    lineup: bestLineup(nextTeams[current.playerTeam]),
+    lineup: recommendedLineup(nextTeams[current.playerTeam]),
+    // A new season starts from the AI's staff; last year's plan names departed pitchers.
+    pitcherPlan: createEmptyPitcherPlan(),
     standings: calcStandings(prepared.sched),
     accumulated: {},
     leagueAccumulated: prepared.leagueDistStats,
@@ -478,6 +518,7 @@ export function advanceOneYear(current: RuntimeState): RuntimeState {
       results.japanSeries.winner,
       postseasonRunnerUp(results),
       postseasonNarrativeEvents(results),
+      postseasonBoxScores(results),
     );
   }
   const events: NarrativeEvent[] = [];

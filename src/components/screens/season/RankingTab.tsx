@@ -302,7 +302,7 @@ export function RankingTab() {
   return (
     <div style={{ display: 'grid', gap: 18 }}>
       <Card ariaLabel="ランキングの対象リーグ">
-        <SectionTitle>League</SectionTitle>
+        <SectionTitle>リーグ</SectionTitle>
         <SegmentedControl<League>
           ariaLabel="ランキングを表示するリーグ"
           value={activeLeague}

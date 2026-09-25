@@ -1,4 +1,5 @@
 import { useSettings } from '../../state/settings';
+import { useConfirm } from '../ConfirmDialog';
 import { useGameState } from '../../state/gameState';
 import { Button, Card, SectionTitle } from '../ui';
 
@@ -15,12 +16,17 @@ export function AutoAdvancePanel({ onFinished }: { onFinished?(): void } = {}) {
   const { skipConfirmations } = useSettings();
   const progress = game.advanceProgress;
 
-  const start = (years: number) => {
+  const confirm = useConfirm();
+
+  const start = async (years: number) => {
     if (
       !skipConfirmations &&
-      !window.confirm(
-        `${years}年分をおまかせで進めますか？\n自球団のオフシーズン（引退・FA・外国人・ドラフト・戦力整理）もCPUが行います。自球団の選手がトレードに出されることはありません。`,
-      )
+      !(await confirm({
+        title: `${years}年分をおまかせで進めますか？`,
+        message:
+          '自球団のオフシーズン（引退・FA・外国人・ドラフト・戦力整理）もCPUが行います。自球団の選手がトレードに出されることはありません。',
+        confirmLabel: `${years}年進める`,
+      }))
     )
       return;
     void game.advanceYears(years).then(() => onFinished?.());
@@ -47,7 +53,7 @@ export function AutoAdvancePanel({ onFinished }: { onFinished?(): void } = {}) {
           {YEAR_OPTIONS.map((years) => (
             <Button
               key={years}
-              onClick={() => start(years)}
+              onClick={() => void start(years)}
               color="var(--color-surface-muted)"
               ariaLabel={`${years}年分をおまかせで進める`}
             >

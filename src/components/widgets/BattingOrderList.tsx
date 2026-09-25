@@ -42,7 +42,7 @@ export function BattingOrderList({
 
   return (
     <Card ariaLabel="打順の編集">
-      <SectionTitle>Batting Order</SectionTitle>
+      <SectionTitle>打順</SectionTitle>
       {!players.length ? (
         <EmptyState>打順に選手がいません。</EmptyState>
       ) : (

@@ -1,3 +1,4 @@
+import { buildPlayLog, type GamePlayLog } from './playLog';
 import { manageActiveRosters } from './activeRoster';
 import { narrativeEventsFromPostGame } from './narrativeEvents';
 import type { NarrativeEvent } from '../narrative/types';
@@ -10,6 +11,7 @@ import { random, uid } from './random';
 import { accumulateStats, accumulateStatsAll, mergeStatMaps } from './stats';
 import type {
   AccumulatedStats,
+  Player,
   ScheduleGame,
   StandingRecord,
   TeamForm,
@@ -610,6 +612,9 @@ export function skipGames(
   pitcherPlan: PitcherPlanInput | null = null,
   /** Manage the user's club's 一軍 registration too (おまかせ進行). */
   manageUserRoster = false,
+  /** The user's saved lineup, played (and repaired) in the user's games; null lets the
+   * AI pick the lineup, as おまかせ進行 does. */
+  userLineup: Player[] | null = null,
 ): {
   sched: ScheduleGame[];
   rotN: Record<TeamKey, number>;
@@ -618,6 +623,8 @@ export function skipGames(
   gameSummaries: Record<string, GameSummary>;
   gameBoxScores: Record<string, GameBoxScore>;
   narrativeEvents: NarrativeEvent[];
+  /** Play-by-play of the user's games in this run. */
+  playLogs: Record<string, GamePlayLog>;
 } {
   const nextSchedule = [...schedule],
     nextRotations = { ...rotationNumbers };
@@ -626,6 +633,7 @@ export function skipGames(
   const gameSummaries: Record<string, GameSummary> = {};
   const gameBoxScores: Record<string, GameBoxScore> = {};
   const narrativeEvents: NarrativeEvent[] = [];
+  const playLogs: Record<string, GamePlayLog> = {};
   const remaining = nextSchedule.filter(
       (game) => !game.played && (game.homeKey === playerTeam || game.awayKey === playerTeam),
     ),
@@ -638,9 +646,13 @@ export function skipGames(
             ? Math.min(25, remaining.length)
             : remaining.length;
   let skipped = 0;
+  // The day the user's last game fell on: the rest of that day's games are played too, so a
+  // skip never leaves the league half a day behind (results and standings stay whole days).
+  let lastDate: string | null = null;
   const rosterReviews = new Map<TeamKey, string>();
-  for (let index = 0; index < nextSchedule.length && skipped < target; index += 1) {
+  for (let index = 0; index < nextSchedule.length; index += 1) {
     const game = nextSchedule[index] as ScheduleGame;
+    if (skipped >= target && game.date !== lastDate) break;
     if (game.played) continue;
     manageActiveRosters(
       teams,
@@ -657,8 +669,8 @@ export function skipGames(
         game.homeKey,
         game.awayKey,
         teams,
-        null,
-        null,
+        game.homeKey === playerTeam ? userLineup : null,
+        game.awayKey === playerTeam ? userLineup : null,
         nextRotations[game.homeKey] || 0,
         nextRotations[game.awayKey] || 0,
         accumulatedStats,
@@ -679,8 +691,10 @@ export function skipGames(
     gameSummaries[game.id] = toSummary(box);
     if (playerGame || isNotableGame(box)) gameBoxScores[game.id] = box;
     if (playerGame) {
+      playLogs[game.id] = buildPlayLog(game.id, game.date, result);
       distributedStats = accumulateStats(result, playerTeam, distributedStats);
       skipped += 1;
+      if (skipped >= target) lastDate = game.date;
     }
     nextRotations[game.homeKey] = (nextRotations[game.homeKey] || 0) + 1;
     nextRotations[game.awayKey] = (nextRotations[game.awayKey] || 0) + 1;
@@ -693,5 +707,6 @@ export function skipGames(
     gameSummaries,
     gameBoxScores,
     narrativeEvents,
+    playLogs,
   };
 }

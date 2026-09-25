@@ -268,6 +268,8 @@ export type ManagementDecisionType = 'bunt' | 'steal' | 'pitchingChange';
 export interface ManagementDecision {
   teamKey: TeamKey;
   inning: number;
+  /** Plays already logged in this half-inning when the decision was made. */
+  playIndex?: number;
   type: ManagementDecisionType;
   playerId: string;
   playerName: string;

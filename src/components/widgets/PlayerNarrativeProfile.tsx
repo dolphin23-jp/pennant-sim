@@ -127,7 +127,7 @@ export function PlayerNarrativeProfile({ player }: { player: Player }) {
 
   return (
     <Card className="detail-card detail-card--wide" ariaLabel="選手Narrative Profile">
-      <SectionTitle>Narrative Profile</SectionTitle>
+      <SectionTitle>人物像</SectionTitle>
       <div style={{ display: 'grid', gap: 8 }}>
         <div style={{ color: 'var(--color-text-faint)', fontSize: 11 }}>
           {rendered.publishedAt} / as of {rendered.asOfDate}

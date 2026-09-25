@@ -210,7 +210,7 @@ export function TeamFormationOverview({
       }}
     >
       <FormationList
-        title="Batting Order"
+        title="打順"
         ariaLabel="現在の打順"
         emptyText="打順に選手がいません。"
         rows={lineup.map((player) => ({
@@ -221,7 +221,7 @@ export function TeamFormationOverview({
         onSelectPlayer={onSelectPlayer}
       />
       <FormationList
-        title="Rotation"
+        title="先発ローテーション"
         ariaLabel="現在の先発ローテーション"
         emptyText="先発ロールの投手がいません。"
         rows={rotation.map((player) => ({
@@ -232,7 +232,7 @@ export function TeamFormationOverview({
         onSelectPlayer={onSelectPlayer}
       />
       <FormationList
-        title="Bullpen"
+        title="ブルペン"
         ariaLabel="現在のブルペン編成"
         emptyText="ブルペン投手がいません。"
         rows={bullpenRows}

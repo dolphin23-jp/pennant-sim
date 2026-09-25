@@ -1,0 +1,119 @@
+/* Play-by-play (widgets/PlayByPlay.tsx) */
+.pbp-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2, 8px);
+  flex-wrap: wrap;
+}
+.pbp-toolbar__actions {
+  display: flex;
+  gap: var(--space-2, 8px);
+  flex-wrap: wrap;
+}
+.pbp-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+.pbp-half {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-surface-raised);
+  padding: 8px 10px;
+}
+.pbp-half__header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: var(--text-md);
+  margin-bottom: 6px;
+}
+.pbp-half__runs {
+  margin-left: auto;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+.pbp-events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: var(--text-sm);
+}
+.pbp-play {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+.pbp-play__situation {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-text-faint);
+  font-size: var(--text-xs);
+}
+.pbp-play__score {
+  font-weight: 800;
+  color: var(--color-leader);
+  white-space: nowrap;
+}
+.pbp-decision {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 8px;
+  padding: 3px 6px;
+  border-left: 3px solid var(--color-accent);
+  background: var(--color-accent-soft);
+  border-radius: 4px;
+}
+.pbp-decision__label {
+  font-weight: 800;
+  color: var(--color-accent);
+  font-size: var(--text-xs);
+}
+.pbp-decision__reason {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+.pbp-bases {
+  position: relative;
+  display: inline-block;
+  width: 22px;
+  height: 14px;
+}
+.pbp-base {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  border: 1px solid var(--color-border-strong);
+  background: transparent;
+}
+.pbp-base--on {
+  background: var(--color-leader);
+  border-color: var(--color-leader);
+}
+.pbp-base--1 {
+  right: 1px;
+  top: 5px;
+}
+.pbp-base--2 {
+  left: 7px;
+  top: 0;
+}
+.pbp-base--3 {
+  left: 1px;
+  top: 5px;
+}
+@media (max-width: 640px) {
+  .pbp-play {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+  .pbp-play__score {
+    grid-column: 2;
+  }
+}

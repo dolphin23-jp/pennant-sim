@@ -140,7 +140,7 @@ export function TradeScreen({
         }}
       >
         <div>
-          <SectionTitle>Trade Offers</SectionTitle>
+          <SectionTitle>トレードの申し出</SectionTitle>
           <div style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
             届いているオファーをまとめて比較できます。承諾するとその場でトレードが成立します。
           </div>

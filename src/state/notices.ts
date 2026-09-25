@@ -1,6 +1,6 @@
 import { TINFO } from '../data';
 import { calcOVR } from '../engine';
-import type { ForeignLifecycleEvent } from '../engine';
+import type { ForeignLifecycleEvent, LineupSubstitution } from '../engine';
 import type {
   AchievementEvent,
   GameBoxScore,
@@ -353,4 +353,33 @@ export function createFreeAgencyNotices(
       },
     ];
   });
+}
+
+const SUBSTITUTION_REASON: Record<LineupSubstitution['reason'], string> = {
+  injury: '故障',
+  farm: '二軍',
+  departed: '退団',
+};
+
+/** The saved lineup had to change: who went out, why, and who took the place. */
+export function createLineupRepairNotice(
+  substitutions: readonly LineupSubstitution[],
+  playerTeam: TeamKey,
+  date: string,
+): Notice | null {
+  if (!substitutions.length) return null;
+  return {
+    id: `lineup-repair:${date}:${substitutions.map((entry) => entry.outId).join('-')}`,
+    kind: 'system',
+    title: 'オーダーを自動で入れ替え',
+    body: substitutions
+      .map(
+        (entry) =>
+          `${entry.slot} ${entry.outName}（${SUBSTITUTION_REASON[entry.reason]}）→ ${entry.inName}`,
+      )
+      .join('、'),
+    tone: 'warn',
+    date,
+    teamKey: playerTeam,
+  };
 }

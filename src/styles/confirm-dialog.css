@@ -1,0 +1,39 @@
+/* Shared confirmation dialog (ConfirmDialog.tsx) */
+.confirm-backdrop {
+  z-index: 200;
+}
+
+.confirm-dialog {
+  width: min(440px, 100%);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-soft);
+  box-shadow: 0 28px 90px rgb(0 0 0 / 45%);
+}
+
+.confirm-dialog__title {
+  margin: 0 0 8px;
+  font-size: var(--text-xl);
+}
+
+.confirm-dialog__message {
+  margin: 0 0 16px;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  line-height: 1.6;
+}
+
+.confirm-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .confirm-backdrop {
+    align-items: center;
+    padding: var(--space-4);
+  }
+}

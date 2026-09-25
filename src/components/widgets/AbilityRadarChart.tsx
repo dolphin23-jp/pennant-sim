@@ -1,5 +1,4 @@
 import { PLAYER_DEVELOPMENT_BALANCE } from '../../data';
-import './phaseB.css';
 
 export interface AbilityRadarItem {
   label: string;

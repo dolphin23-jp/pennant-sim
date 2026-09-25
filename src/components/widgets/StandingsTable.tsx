@@ -33,17 +33,17 @@ function LeagueTable({
   return (
     <Card ariaLabel={`${title}順位表`}>
       <SectionTitle>{title}</SectionTitle>
-      <div style={{ color: 'var(--color-text-faint)', fontSize: 11, marginBottom: 6 }}>
+      <div className="standings-table__note">
         {showForm
           ? `上位${CLIMAX_SERIES_SPOTS}球団がクライマックスシリーズ進出圏`
           : 'セ・パ12球団を通算成績で順位付け（個人成績・MVPは対象外）'}
       </div>
       <div className="table-scroll">
-        <table className="data-table" aria-label={`${title}順位表`}>
+        <table className="data-table standings-table" aria-label={`${title}順位表`}>
           <thead>
             <tr>
               <th scope="col">順</th>
-              <th scope="col" style={{ textAlign: 'left' }}>
+              <th scope="col" className="standings-table__team-heading">
                 球団
               </th>
               <th scope="col">勝</th>
@@ -53,9 +53,13 @@ function LeagueTable({
               <th scope="col">差</th>
               {showForm && (
                 <>
-                  <th scope="col">直近10</th>
+                  <th scope="col" className="standings-table__optional">
+                    直近10
+                  </th>
                   <th scope="col">連続</th>
-                  <th scope="col">内訳</th>
+                  <th scope="col" className="standings-table__optional">
+                    内訳
+                  </th>
                 </>
               )}
             </tr>
@@ -69,107 +73,71 @@ function LeagueTable({
               return (
                 <tr
                   key={teamKey}
-                  style={{
-                    background: isLeader
-                      ? 'color-mix(in srgb, var(--color-leader) 10%, transparent)'
-                      : undefined,
-                    borderBottom:
-                      showForm && index === CLIMAX_SERIES_SPOTS - 1
-                        ? '2px dashed var(--color-border-strong)'
-                        : undefined,
-                  }}
+                  className={[
+                    isLeader && 'standings-table__row--leader',
+                    showForm && index === CLIMAX_SERIES_SPOTS - 1 && 'standings-table__row--cutoff',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
                 >
-                  <td
-                    className={isLeader ? 'rank-leader-value' : undefined}
-                    style={{ textAlign: 'center', fontWeight: 900 }}
-                  >
+                  <td className={`standings-table__rank${isLeader ? ' rank-leader-value' : ''}`}>
                     {record.rank}
                   </td>
-                  <th scope="row" style={{ textAlign: 'left', fontWeight: 800 }}>
+                  <th scope="row" className="standings-table__team">
                     {onSelectTeam ? (
                       <button
                         type="button"
-                        className="roster-player-button"
+                        className="roster-player-button standings-table__team-name"
                         aria-label={`${TINFO[teamKey].n}のロースターを表示`}
                         onClick={() => onSelectTeam(teamKey)}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          color: teamTextColor(TINFO[teamKey].c),
-                        }}
+                        style={{ color: teamTextColor(TINFO[teamKey].c) }}
                       >
                         <span
                           aria-hidden="true"
-                          style={{
-                            display: 'inline-block',
-                            width: 8,
-                            height: 8,
-                            borderRadius: 2,
-                            background: TINFO[teamKey].c,
-                          }}
+                          className="standings-table__swatch"
+                          style={{ background: TINFO[teamKey].c }}
                         />
                         {TINFO[teamKey].ab}
                       </button>
                     ) : (
                       <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          color: teamTextColor(TINFO[teamKey].c),
-                        }}
+                        className="standings-table__team-name"
+                        style={{ color: teamTextColor(TINFO[teamKey].c) }}
                       >
                         <span
                           aria-hidden="true"
-                          style={{
-                            display: 'inline-block',
-                            width: 8,
-                            height: 8,
-                            borderRadius: 2,
-                            background: TINFO[teamKey].c,
-                          }}
+                          className="standings-table__swatch"
+                          style={{ background: TINFO[teamKey].c }}
                         />
                         {TINFO[teamKey].ab}
                       </span>
                     )}
                     {showForm && !inClimaxSpots && (
-                      <span
-                        style={{ marginLeft: 4, color: 'var(--color-text-faint)', fontSize: 10 }}
-                      >
-                        圏外
-                      </span>
+                      <span className="standings-table__out">圏外</span>
                     )}
                   </th>
-                  <td style={{ textAlign: 'center' }}>{record.w}</td>
-                  <td style={{ textAlign: 'center' }}>{record.l}</td>
-                  <td style={{ textAlign: 'center' }}>{record.d}</td>
-                  <td style={{ textAlign: 'center' }}>
+                  <td>{record.w}</td>
+                  <td>{record.l}</td>
+                  <td>{record.d}</td>
+                  <td>
                     {record.pct === undefined ? '.---' : record.pct.toFixed(3).replace(/^0/, '')}
                   </td>
-                  <td style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                    {record.gb}
-                  </td>
+                  <td className="standings-table__muted">{record.gb}</td>
                   {form && (
                     <>
-                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                        {recordText(form.last10)}
-                      </td>
+                      <td className="standings-table__optional">{recordText(form.last10)}</td>
                       <td
-                        style={{
-                          textAlign: 'center',
-                          whiteSpace: 'nowrap',
-                          color: form.streak.includes('連勝')
-                            ? 'var(--color-success)'
+                        className={`standings-table__streak${
+                          form.streak.includes('連勝')
+                            ? ' standings-table__streak--win'
                             : form.streak.includes('連敗')
-                              ? 'var(--color-danger)'
-                              : 'var(--color-text-muted)',
-                          fontWeight: 800,
-                        }}
+                              ? ' standings-table__streak--loss'
+                              : ''
+                        }`}
                       >
                         {form.streak}
                       </td>
-                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                      <td className="standings-table__optional">
                         <TermTooltip
                           term="H/A"
                           description={`ホーム ${recordText(form.home)}、アウェイ ${recordText(form.away)}`}
@@ -200,24 +168,17 @@ export function StandingsTable({
   onSelectTeam?(teamKey: TeamKey): void;
 }) {
   return (
-    <div style={{ display: 'grid', gap: 12 }}>
-      <section
-        aria-label="両リーグ順位表"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))',
-          gap: 12,
-        }}
-      >
+    <div className="stack">
+      <section aria-label="両リーグ順位表" className="card-grid">
         <LeagueTable
-          title="Central League"
+          title="セ・リーグ"
           teams={CENTRAL}
           standings={standings}
           schedule={schedule}
           onSelectTeam={onSelectTeam}
         />
         <LeagueTable
-          title="Pacific League"
+          title="パ・リーグ"
           teams={PACIFIC}
           standings={standings}
           schedule={schedule}

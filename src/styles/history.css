@@ -1,0 +1,224 @@
+/* HistoryTab (season screen: franchise history, hall of fame, record watch, champions, achievements) */
+
+.history-tab {
+  display: grid;
+  gap: 18px;
+}
+
+.history-tab__nav {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.history-tab__champions {
+  display: grid;
+  gap: 10px;
+}
+
+.history-tab__achievements {
+  display: grid;
+  gap: 6px;
+}
+
+.history-note {
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+  margin-top: 0;
+}
+
+/* Shared list row */
+.history-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 6px var(--space-2);
+  border-top: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+  flex-wrap: wrap;
+}
+
+.history-row__muted {
+  color: var(--color-text-muted);
+}
+
+/* Champion card */
+.history-champion__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.history-champion__year {
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+  font-weight: 700;
+}
+
+.history-champion__name {
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.history-champion__record {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.history-champion__runner-up {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin-top: var(--space-1);
+}
+
+.history-champion__stats {
+  display: flex;
+  gap: 14px;
+  font-size: var(--text-sm);
+  margin-top: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.history-champion__key-players {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin-top: 6px;
+}
+
+.history-champion__lineup {
+  margin-top: var(--space-2);
+}
+
+.history-champion__lineup-list {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+  display: grid;
+  gap: 3px;
+  font-size: var(--text-sm);
+}
+
+/* Achievement row */
+.history-achievement {
+  display: grid;
+  grid-template-columns: minmax(78px, auto) minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: center;
+  padding: 7px var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  background: var(--color-surface-raised);
+  font-size: var(--text-sm);
+}
+
+.history-achievement__kind--milestone {
+  color: var(--color-accent);
+}
+
+.history-achievement__kind--season-record,
+.history-achievement__kind--career-record {
+  color: var(--color-leader);
+}
+
+.history-achievement__team {
+  font-weight: 800;
+}
+
+.history-achievement__previous {
+  color: var(--color-text-faint);
+}
+
+.history-achievement__date {
+  color: var(--color-text-faint);
+  white-space: nowrap;
+}
+
+/* Franchise view */
+.history-franchise {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.history-franchise__team-select {
+  font-size: var(--text-sm);
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.history-franchise__team-name {
+  font-size: var(--text-xl);
+  font-weight: 900;
+}
+
+.history-franchise__summary {
+  display: flex;
+  gap: 14px;
+  font-size: var(--text-md);
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.history-franchise__grid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+}
+
+.history-franchise__scroll {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.history-franchise__leader {
+  margin-bottom: var(--space-2);
+}
+
+.history-franchise__leader-label {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-text-faint);
+}
+
+/* Hall of fame view */
+.history-hall__list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.history-hall__header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.history-hall__name {
+  font-weight: 800;
+}
+
+.history-hall__team {
+  font-size: var(--text-sm);
+}
+
+.history-hall__retired {
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+}
+
+.history-hall__career {
+  font-size: var(--text-sm);
+  margin-top: var(--space-1);
+}
+
+.history-hall__reasons {
+  font-size: var(--text-xs);
+  margin-top: var(--space-1);
+  color: var(--color-leader);
+}
+
+/* Record watch view */
+.history-watch__team {
+  font-size: var(--text-xs);
+}

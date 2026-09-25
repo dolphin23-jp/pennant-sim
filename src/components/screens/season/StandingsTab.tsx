@@ -14,7 +14,7 @@ export function StandingsTab({ onSelectTeam }: { onSelectTeam?(teamKey: TeamKey)
   );
   if (!game.teams) return null;
   return (
-    <div style={{ display: 'grid', gap: 12 }}>
+    <div className="stack">
       <StandingsTable
         standings={game.standings}
         interleagueStandings={interleagueStandings}

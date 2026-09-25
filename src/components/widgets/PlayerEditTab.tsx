@@ -182,7 +182,7 @@ export function PlayerEditTab({ player, onSave }: { player: Player; onSave(next:
       </div>
 
       <Card className="detail-card" ariaLabel="基本情報の編集">
-        <SectionTitle>Profile</SectionTitle>
+        <SectionTitle>プロフィール</SectionTitle>
         <div className="debug-field-grid">
           <div className="debug-field">
             <label htmlFor="debug-age">年齢</label>
@@ -255,7 +255,7 @@ export function PlayerEditTab({ player, onSave }: { player: Player; onSave(next:
       </Card>
 
       <Card className="detail-card detail-card--wide" ariaLabel="能力値と潜在能力の編集">
-        <SectionTitle>Parameters（現在値 / 潜在上限）</SectionTitle>
+        <SectionTitle>能力値（現在値 / 潜在上限）</SectionTitle>
         <div className="debug-field-grid">
           {paramFields.map(({ key, label }) => {
             const potMax = potentialMax(draft.potentialClass);
@@ -300,7 +300,7 @@ export function PlayerEditTab({ player, onSave }: { player: Player; onSave(next:
 
       {!draft.isP && (
         <Card className="detail-card detail-card--wide" ariaLabel="守備適性の編集">
-          <SectionTitle>Position Aptitude</SectionTitle>
+          <SectionTitle>守備適性</SectionTitle>
           <div className="debug-field-grid">
             {FIELD_POSITIONS.map((pos) => {
               const current = draft.positions?.find((entry) => entry.pos === pos)?.apt ?? 0;
@@ -320,7 +320,7 @@ export function PlayerEditTab({ player, onSave }: { player: Player; onSave(next:
       )}
 
       <Card className="detail-card detail-card--wide" ariaLabel="特殊能力の編集">
-        <SectionTitle>Special Abilities</SectionTitle>
+        <SectionTitle>特殊能力</SectionTitle>
         <div
           className="debug-field-grid"
           style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))' }}

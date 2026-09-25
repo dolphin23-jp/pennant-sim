@@ -4,6 +4,7 @@ import { OffseasonScreen } from './components/screens/OffseasonScreen';
 import { PostseasonScreen } from './components/screens/PostseasonScreen';
 import { SeasonScreen } from './components/screens/SeasonScreen';
 import { TeamSelectScreen } from './components/screens/TeamSelectScreen';
+import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Button, Card, PageShell, SettingsButton } from './components/ui';
 import { GameDetailModal } from './components/widgets/GameDetailModal';
@@ -17,6 +18,7 @@ import { setActiveSaveSlot, type SaveSlot } from './state/storage';
 function WelcomeScreen() {
   const game = useGameState();
   const { skipConfirmations } = useSettings();
+  const confirm = useConfirm();
   const [targetSlot, setTargetSlot] = useState<SaveSlot>(1);
   // Reachable via "タイトルへ戻る" mid-game: the previous game is still live in memory,
   // so offer to jump straight back to it instead of only offering to reload from disk.
@@ -25,9 +27,12 @@ function WelcomeScreen() {
   const handleStartNew = async () => {
     if (
       !skipConfirmations &&
-      !window.confirm(
-        `スロット${targetSlot}で新しいゲームを始めますか？チームを選ぶと、そのスロットの既存のセーブは上書きされます。`,
-      )
+      !(await confirm({
+        title: `スロット${targetSlot}で新しいゲームを始めますか？`,
+        message: 'チームを選ぶと、そのスロットの既存のセーブは上書きされます。',
+        confirmLabel: '新しいゲームへ',
+        danger: true,
+      }))
     )
       return;
     await setActiveSaveSlot(targetSlot);
@@ -191,6 +196,7 @@ function GameRouter() {
       />
       <GameDetailModal
         box={selectedGameBox}
+        playLog={game.selectedGameId ? game.recentPlayLogs[game.selectedGameId] : null}
         onSelectPlayer={selectBoxScorePlayer}
         onClose={() => game.selectGame(null)}
       />
@@ -202,9 +208,11 @@ function App() {
   return (
     <ErrorBoundary>
       <SettingsProvider>
-        <GameProvider>
-          <GameRouter />
-        </GameProvider>
+        <ConfirmProvider>
+          <GameProvider>
+            <GameRouter />
+          </GameProvider>
+        </ConfirmProvider>
       </SettingsProvider>
     </ErrorBoundary>
   );
