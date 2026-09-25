@@ -2,6 +2,7 @@ import process from 'node:process';
 
 import {
   accumulateStatsAll,
+  manageActiveRosters,
   bestLineup,
   calcOVR,
   calcStandings,
@@ -102,7 +103,10 @@ function simulateSeason(seed: number) {
   ) as Record<TeamKey, { scored: number; allowed: number }>;
   let accumulated: AccumulatedStats = {};
   const played: ScheduleGame[] = [];
+  const rosterReviews = new Map<TeamKey, string>();
   for (const game of schedule) {
+    // The same weekly 一軍 moves the game makes for CPU clubs.
+    manageActiveRosters(teams, [game.homeKey, game.awayKey], game.date, rosterReviews);
     const result = simulateGame(
       game.homeKey,
       game.awayKey,

@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import process from 'node:process';
 import {
   accumulateStatsAll,
+  manageActiveRosters,
   calcOVR,
   configureRandom,
   generateSchedule,
@@ -216,7 +217,10 @@ async function simulateSeason(seasonIndex: number, baseSeed: number) {
       number
     >;
   let accumulatedStats: AccumulatedStats = {};
+  const rosterReviews = new Map<TeamKey, string>();
   for (const game of schedule) {
+    // The same weekly 一軍 moves the game makes for CPU clubs.
+    manageActiveRosters(teams, [game.homeKey, game.awayKey], game.date, rosterReviews);
     const result = simulateGame(
       game.homeKey,
       game.awayKey,

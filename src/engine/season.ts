@@ -1,3 +1,4 @@
+import { manageActiveRosters } from './activeRoster';
 import { narrativeEventsFromPostGame } from './narrativeEvents';
 import type { NarrativeEvent } from '../narrative/types';
 import { CENTRAL, PACIFIC, TINFO } from '../data';
@@ -552,10 +553,12 @@ export function simCpuUntilNext(
   const nextPlayerGame = nextSchedule.find(
     (game) => !game.played && (game.homeKey === playerTeam || game.awayKey === playerTeam),
   );
+  const rosterReviews = new Map<TeamKey, string>();
   for (let index = 0; index < nextSchedule.length; index += 1) {
     const game = nextSchedule[index] as ScheduleGame;
     if (game.played) continue;
     if (nextPlayerGame && game.id === nextPlayerGame.id) break;
+    manageActiveRosters(teams, [game.homeKey, game.awayKey], game.date, rosterReviews, playerTeam);
     const seasonStatsBeforeThisGame = mergeStatMaps(seasonStatsSoFar, leagueStats);
     const result = simulateGame(
       game.homeKey,
@@ -605,6 +608,8 @@ export function skipGames(
   accumulatedStats: AccumulatedStats = {},
   seasonStatsSoFar: AccumulatedStats = {},
   pitcherPlan: PitcherPlanInput | null = null,
+  /** Manage the user's club's 一軍 registration too (おまかせ進行). */
+  manageUserRoster = false,
 ): {
   sched: ScheduleGame[];
   rotN: Record<TeamKey, number>;
@@ -633,9 +638,17 @@ export function skipGames(
             ? Math.min(25, remaining.length)
             : remaining.length;
   let skipped = 0;
+  const rosterReviews = new Map<TeamKey, string>();
   for (let index = 0; index < nextSchedule.length && skipped < target; index += 1) {
     const game = nextSchedule[index] as ScheduleGame;
     if (game.played) continue;
+    manageActiveRosters(
+      teams,
+      [game.homeKey, game.awayKey],
+      game.date,
+      rosterReviews,
+      manageUserRoster ? null : playerTeam,
+    );
     const playerGame = game.homeKey === playerTeam || game.awayKey === playerTeam,
       homePlan = pitcherPlan && game.homeKey === playerTeam ? pitcherPlan : null,
       awayPlan = pitcherPlan && game.awayKey === playerTeam ? pitcherPlan : null,

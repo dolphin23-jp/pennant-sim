@@ -23,6 +23,7 @@ import {
   createFictionalLeagueHistory,
   detectAchievements,
   generateSchedule,
+  assignAllActiveRosters,
   initSettledWorld,
   registerExistingNames,
   simCpuUntilNext,
@@ -123,6 +124,7 @@ function snapshotFromState(state: RuntimeState): GameSaveData | null {
     championHistory: state.championHistory,
     awardHistory: state.awardHistory,
     achievementHistory: state.achievementHistory,
+    honorHistory: state.honorHistory,
     narrativeEvents: state.narrativeEvents,
     ...(state.narrativeQuarantine?.length
       ? { narrativeQuarantine: state.narrativeQuarantine }
@@ -192,6 +194,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           narrativeArticles: saved.narrativeArticles ?? {},
           narrativeEvents: saved.narrativeEvents ?? {},
           overseasPlayers: saved.overseasPlayers ?? [],
+          honorHistory: saved.honorHistory ?? [],
           lineup,
           loading: false,
           screen: resumeSeasonScreen(saved),
@@ -244,18 +247,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
         legendsPerTeam: 2,
       });
       registerExistingNames(history.teams);
+      const openingTeams = assignAllActiveRosters(history.teams);
       const schedule = generateSchedule(2026);
       const rotations = createEmptyRotations();
-      const prepared = simCpuUntilNext(schedule, history.teams, rotations, teamKey, {});
+      const prepared = simCpuUntilNext(schedule, openingTeams, rotations, teamKey, {});
       const leagueCareerAccumulated = mergeStats(history.careerStats, prepared.leagueDistStats);
       return {
         ...initialState,
         loading: false,
         screen: 'season',
-        teams: history.teams,
+        teams: openingTeams,
         playerTeam: teamKey,
         viewTeam: teamKey,
-        lineup: bestLineup(history.teams[teamKey]),
+        lineup: bestLineup(openingTeams[teamKey]),
         season: { year: 2026, schedule: prepared.sched },
         rotN: prepared.rotN,
         standings: calcStandings(prepared.sched),

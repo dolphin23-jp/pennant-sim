@@ -1,3 +1,4 @@
+import { ACTIVE_ROSTER_BALANCE } from '../../../data';
 import type { Player, TeamKey, Teams } from '../../../engine';
 import { useGameState } from '../../../state/gameState';
 import { SquadBoard } from '../../widgets/SquadBoard';
@@ -5,6 +6,10 @@ import { SquadBoard } from '../../widgets/SquadBoard';
 function withToggledActiveRoster(teams: Teams, teamKey: TeamKey, player: Player): Teams {
   const team = teams[teamKey];
   const nextActive = player.activeRoster === false;
+  const activeTotal = [...team.pitchers, ...team.fielders].filter(
+    (candidate) => candidate.activeRoster !== false,
+  ).length;
+  if (nextActive && activeTotal >= ACTIVE_ROSTER_BALANCE.limit) return teams;
   const updatePlayer = (candidate: Player): Player =>
     candidate.id === player.id ? { ...candidate, activeRoster: nextActive } : candidate;
   return {

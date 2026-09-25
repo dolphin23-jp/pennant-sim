@@ -231,11 +231,25 @@ export function simHalf(
         baseMaximumPitchCount + reliefPitchBuffer - (fieldingStrategy.bullpenAggression - 1) * 16,
       ),
     );
-    const bullpen = gameState.teams[fieldingSide].pitchers.filter(
+    const unusedBullpen = gameState.teams[fieldingSide].pitchers.filter(
       (p) =>
         p.role !== '先発' && !gameState.usedR[fieldingSide].has(p.id) && (p.injuryDays ?? 0) <= 0,
     );
+    // Relief comes from the 一軍 bullpen; the farm is a last resort in a marathon game.
+    const activeBullpen = unusedBullpen.filter((p) => p.activeRoster !== false);
+    const bullpen = activeBullpen.length ? activeBullpen : unusedBullpen;
     const rested = bullpen.filter((pitcher) => isPitcherSelectable(pitcher));
+    // With every rested arm used up, the pitcher on the mound works a little longer before
+    // a tired reliever is pressed into service.
+    if (
+      !rested.length &&
+      pitchCount <
+        maximumPitchCount +
+          (isStartingPitcher
+            ? pitchBalance.exhaustedBullpenStretch
+            : pitchBalance.exhaustedBullpenReliefStretch)
+    )
+      return;
     const available =
       rested.length > 0 ? rested : bullpen.filter((pitcher) => isPitcherSelectable(pitcher, true));
     if (!available.length) return;
@@ -250,7 +264,7 @@ export function simHalf(
       closers = available.filter((p) => p.role === 'クローザー'),
       relievers = available.filter((p) => p.role === 'リリーフ');
     const forceLateCloser =
-      inning >= 8 && close && currentPitcher.role !== 'クローザー' && closers.length > 0;
+      inning >= 9 && close && currentPitcher.role !== 'クローザー' && closers.length > 0;
     if (pitchCount < maximumPitchCount && !forceLateCloser) return;
     const strategicScores = new Map(
       strategicPitcherOrder(
