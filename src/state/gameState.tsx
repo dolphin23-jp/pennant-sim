@@ -23,6 +23,7 @@ import {
   createFictionalLeagueHistory,
   detectAchievements,
   generateSchedule,
+  assignAllActiveRosters,
   initSettledWorld,
   registerExistingNames,
   simCpuUntilNext,
@@ -246,18 +247,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
         legendsPerTeam: 2,
       });
       registerExistingNames(history.teams);
+      const openingTeams = assignAllActiveRosters(history.teams);
       const schedule = generateSchedule(2026);
       const rotations = createEmptyRotations();
-      const prepared = simCpuUntilNext(schedule, history.teams, rotations, teamKey, {});
+      const prepared = simCpuUntilNext(schedule, openingTeams, rotations, teamKey, {});
       const leagueCareerAccumulated = mergeStats(history.careerStats, prepared.leagueDistStats);
       return {
         ...initialState,
         loading: false,
         screen: 'season',
-        teams: history.teams,
+        teams: openingTeams,
         playerTeam: teamKey,
         viewTeam: teamKey,
-        lineup: bestLineup(history.teams[teamKey]),
+        lineup: bestLineup(openingTeams[teamKey]),
         season: { year: 2026, schedule: prepared.sched },
         rotN: prepared.rotN,
         standings: calcStandings(prepared.sched),

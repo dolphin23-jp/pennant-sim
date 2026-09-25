@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 
+import { ACTIVE_ROSTER_BALANCE } from '../../data';
 import { calcOVR, effectiveOVR } from '../../engine';
 import type { Player, Team } from '../../engine';
 import { Card, EmptyState, SectionTitle } from '../ui';
@@ -14,12 +15,15 @@ function SquadRow({
   player,
   onSelectPlayer,
   onToggleActive,
+  promotionBlocked,
 }: {
   player: Player;
   onSelectPlayer(player: Player): void;
   onToggleActive(player: Player): void;
+  promotionBlocked: boolean;
 }) {
   const active = player.activeRoster !== false;
+  const blocked = !active && promotionBlocked;
   return (
     <div
       style={{
@@ -53,7 +57,14 @@ function SquadRow({
       </div>
       <button
         type="button"
-        aria-label={active ? `${player.name}を二軍へ登録` : `${player.name}を一軍へ登録`}
+        aria-label={
+          blocked
+            ? `一軍登録が上限のため${player.name}を登録できません`
+            : active
+              ? `${player.name}を二軍へ登録`
+              : `${player.name}を一軍へ登録`
+        }
+        disabled={blocked}
         onClick={() => onToggleActive(player)}
         style={{
           minHeight: 30,
@@ -64,7 +75,8 @@ function SquadRow({
           background: 'var(--color-surface)',
           fontSize: 10,
           fontWeight: 900,
-          cursor: 'pointer',
+          cursor: blocked ? 'not-allowed' : 'pointer',
+          opacity: blocked ? 0.5 : 1,
           whiteSpace: 'nowrap',
         }}
       >
@@ -80,12 +92,14 @@ function SquadColumn({
   emptyText,
   onSelectPlayer,
   onToggleActive,
+  promotionBlocked = false,
 }: {
   title: string;
   players: Player[];
   emptyText: string;
   onSelectPlayer(player: Player): void;
   onToggleActive(player: Player): void;
+  promotionBlocked?: boolean;
 }) {
   return (
     <div>
@@ -127,6 +141,7 @@ function SquadColumn({
               player={player}
               onSelectPlayer={onSelectPlayer}
               onToggleActive={onToggleActive}
+              promotionBlocked={promotionBlocked}
             />
           ))}
         </div>
@@ -159,11 +174,28 @@ export function SquadBoard({
     };
   }, [team.fielders, team.pitchers]);
 
+  const activeTotal = grouped.pitchers.active.length + grouped.fielders.active.length;
+  const full = activeTotal >= ACTIVE_ROSTER_BALANCE.limit;
   return (
     <Card ariaLabel="一軍・二軍の登録状況" style={{ marginBottom: 12 }}>
       <SectionTitle>Squad Board</SectionTitle>
       <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginBottom: 12 }}>
-        選手のボタンで一軍・二軍を切り替えます。人数上限や抹消日数の制約はまだありません。
+        選手のボタンで一軍・二軍を切り替えます。一軍登録は{ACTIVE_ROSTER_BALANCE.limit}
+        人までです。開幕時とおまかせ進行中は、投手{ACTIVE_ROSTER_BALANCE.pitchers}
+        人・野手{ACTIVE_ROSTER_BALANCE.limit - ACTIVE_ROSTER_BALANCE.pitchers}
+        人を自動で登録します。CPU球団は毎週、故障者の抹消と入れ替えを行います。
+      </div>
+      <div
+        aria-live="polite"
+        style={{
+          fontSize: 13,
+          fontWeight: 800,
+          marginBottom: 10,
+          color: full ? 'var(--color-warning)' : undefined,
+        }}
+      >
+        一軍登録 {activeTotal}/{ACTIVE_ROSTER_BALANCE.limit}人（投手
+        {grouped.pitchers.active.length}・野手{grouped.fielders.active.length}）
       </div>
       <div style={{ display: 'grid', gap: 16 }}>
         <div>
@@ -193,6 +225,7 @@ export function SquadBoard({
             />
             <SquadColumn
               title="二軍"
+              promotionBlocked={full}
               players={grouped.fielders.inactive}
               emptyText="二軍登録の野手はいません。"
               onSelectPlayer={onSelectPlayer}
@@ -227,6 +260,7 @@ export function SquadBoard({
             />
             <SquadColumn
               title="二軍"
+              promotionBlocked={full}
               players={grouped.pitchers.inactive}
               emptyText="二軍登録の投手はいません。"
               onSelectPlayer={onSelectPlayer}

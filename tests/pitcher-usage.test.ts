@@ -10,6 +10,7 @@ import {
   initTeams,
   prepareTeamPitchersForGame,
   resetRandom,
+  manageActiveRosters,
   simulateGame,
   type AccumulatedStats,
   type AtBatLogEntry,
@@ -78,7 +79,9 @@ test('a fixed full season keeps pitcher usage and performance tails in diagnosti
       Object.keys(teams).map((teamKey) => [teamKey, 0]),
     ) as Record<TeamKey, number>;
     let accumulated: AccumulatedStats = {};
+    const rosterReviews = new Map<TeamKey, string>();
     for (const game of schedule) {
+      manageActiveRosters(teams, [game.homeKey, game.awayKey], game.date, rosterReviews);
       const result = simulateGame(
         game.homeKey,
         game.awayKey,

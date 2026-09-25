@@ -255,6 +255,19 @@ export const CLUB_PLAN_BALANCE = {
   rebuildRetentionPerYear: 0.8,
 } as const;
 
+/** The top-team (一軍) registration: NPB allows 31, split here between pitchers and
+ * fielders. CPU clubs review theirs weekly and whenever an active player is hurt. */
+export const ACTIVE_ROSTER_BALANCE = {
+  limit: 31,
+  pitchers: 15,
+  starters: 6,
+  closers: 2,
+  catchers: 2,
+  reviewDays: 7,
+  /** This many exhausted active relievers call for a bullpen move before the next game. */
+  tiredRelieversForMove: 3,
+} as const;
+
 export const POSITION_CONVERSION_BALANCE = {
   startingAptitude: { minimum: 15, maximum: 28 },
   ceiling: 80,
@@ -318,6 +331,8 @@ export const PITCHER_USAGE_BALANCE = {
     ironRecoveryPerLevel: 0.09,
     maximumSelectable: 65,
     emergencyMaximum: 96,
+    /** Relievers rest after this many days in a row. */
+    maximumConsecutiveDays: 2,
     selectionPenaltyPerPoint: 1.25,
     consecutiveAppearancePenalty: 12,
     starterBaseLoad: 10,
@@ -340,11 +355,14 @@ export const PITCHER_USAGE_BALANCE = {
     closerBase: 9,
     closerStaminaShare: 0.08,
     closerVariation: 4,
+    /** Extra pitches the current pitcher throws when no rested reliever is left. */
+    exhaustedBullpenStretch: 30,
+    exhaustedBullpenReliefStretch: 18,
   },
   strikeoutTail: {
     ratingDeltaSoftness: 45,
-    ratingEffectSoftness: 0.2,
-    maximumRatingEffect: 0.08,
+    ratingEffectSoftness: 0.24,
+    maximumRatingEffect: 0.1,
   },
 } as const;
 
@@ -415,7 +433,7 @@ export const AT_BAT_BALANCE = {
   // ability is applied, so they sit above the finished BABIP.
   hitOnContact: {
     /** Hit rates for a fielder of league-average defence (defenseReference). */
-    base: { ground: 0.186, line: 0.595, fly: 0.145, popup: 0.01 },
+    base: { ground: 0.183, line: 0.588, fly: 0.143, popup: 0.01 },
     /** Rating points of fielder defence needed to move the hit rate by one unit. Team
      * defence is the widest run-prevention lever, so it is kept gentle enough that a
      * club's gloves do not outweigh its pitching staff. */
@@ -431,7 +449,7 @@ export const AT_BAT_BALANCE = {
   // Stage 4b — a fly ball that carries out. Only outfield fly balls and line drives are
   // eligible; the batter's power moves this far more than anything else.
   homeRunOnFly: {
-    flyBase: 0.038,
+    flyBase: 0.0395,
     lineDriveFactor: 0.28,
     powerCurveReference: 60,
     // A slightly steeper curve moves home runs from ordinary hitters toward genuine

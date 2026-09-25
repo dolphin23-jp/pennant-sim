@@ -4,6 +4,7 @@
 import { initTeams } from '../src/engine/players';
 import { configureRandom } from '../src/engine/random';
 import { generateSchedule } from '../src/engine/season';
+import { manageActiveRosters } from '../src/engine/activeRoster';
 import { simulateGame } from '../src/engine/game';
 import { accumulateStatsAll } from '../src/engine/stats';
 import type { AccumulatedStats, GameState, PitcherStats, TeamKey } from '../src/engine/types';
@@ -238,7 +239,9 @@ function main(): void {
   >;
   let accumulated: AccumulatedStats = {};
 
+  const rosterReviews = new Map<TeamKey, string>();
   for (const game of schedule) {
+    manageActiveRosters(teams, [game.homeKey, game.awayKey], game.date, rosterReviews);
     const result = simulateGame(
       game.homeKey,
       game.awayKey,

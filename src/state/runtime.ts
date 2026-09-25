@@ -1,3 +1,4 @@
+import { ACTIVE_ROSTER_BALANCE } from '../data';
 import type { ArticleArchive } from '../narrative/protocol';
 import { appendNarrativeEventsSafe } from '../narrative/ledger';
 
@@ -5,6 +6,7 @@ import type { NarrativeEvent, NarrativeEventLedger } from '../narrative/types';
 import { seasonReviewEvents } from '../engine/narrativeEvents';
 import {
   aggregateTeamStats,
+  assignAllActiveRosters,
   bestLineup,
   calcInterleagueStandings,
   calcOVR,
@@ -195,6 +197,7 @@ function lastNewPlayerGameDate(
 export function applySkip(
   current: RuntimeState,
   mode: 'next' | 'week' | 'month' | 'season',
+  manageUserRoster = false,
 ): RuntimeState {
   if (!current.teams || !current.playerTeam) return current;
   const beforeTeam = current.teams[current.playerTeam];
@@ -208,6 +211,7 @@ export function applySkip(
     current.leagueAccumulated,
     current.pitcherPlan,
     current.leagueAccumulated,
+    manageUserRoster,
   );
   const accumulated = mergeStats(current.accumulated, result.distStats);
   const leagueAccumulated = mergeStats(current.leagueAccumulated, result.leagueDistStats);
@@ -320,7 +324,8 @@ export function applyOffseasonCompletion(
   retired: Player[] = [],
   overseas: Player[] = current.overseasPlayers,
 ): RuntimeState {
-  const nextTeams = { ...teams };
+  // Every club, the user's included, opens the season with a fresh 一軍 registration.
+  const nextTeams = assignAllActiveRosters(teams);
   if (!current.playerTeam) return current;
   // A duplicate completion callback belongs to the already committed old year.
   if (events.some((event) => event.year !== current.season.year)) return current;
@@ -394,7 +399,18 @@ export function applyOffseasonCompletion(
     ],
     gameSummaries: { ...current.gameSummaries, ...prepared.gameSummaries },
     gameBoxScores: { ...current.gameBoxScores, ...prepared.gameBoxScores },
-    notices: mergeNotices(current.notices, developmentNotices),
+    notices: mergeNotices(current.notices, [
+      ...developmentNotices,
+      {
+        id: `active-roster:${year}:${current.playerTeam}`,
+        kind: 'system',
+        title: `${year}年の開幕一軍を登録`,
+        body: `投手${ACTIVE_ROSTER_BALANCE.pitchers}人・野手${ACTIVE_ROSTER_BALANCE.limit - ACTIVE_ROSTER_BALANCE.pitchers}人を一軍に登録しました。「一軍・二軍」タブで入れ替えられます。`,
+        tone: 'info',
+        date: `${year}年開幕`,
+        teamKey: current.playerTeam,
+      },
+    ]),
     lastGame: null,
     autosaveSeq: nextAutosaveSeq(),
   };
@@ -446,7 +462,7 @@ export function advanceOneYear(current: RuntimeState): RuntimeState {
   const playerTeam = current.playerTeam;
   let state = current.season.schedule.every((game) => game.played)
     ? current
-    : applySkip(current, 'season');
+    : applySkip(current, 'season', true);
   const year = state.season.year;
   if (!state.championHistory.some((record) => record.year === year)) {
     const teams = { ...(state.teams as Teams) };

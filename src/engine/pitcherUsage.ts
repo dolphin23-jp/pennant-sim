@@ -117,7 +117,16 @@ export function isPitcherSelectable(player: Player, emergency = false): boolean 
   const maximum = emergency
     ? PITCHER_USAGE_BALANCE.fatigue.emergencyMaximum
     : PITCHER_USAGE_BALANCE.fatigue.maximumSelectable;
-  return !player.isP || ((player.injuryDays ?? 0) <= 0 && (player.fatigue ?? 0) < maximum);
+  // A reliever who pitched the last two days sits out the third (三連投回避) unless the
+  // bullpen is otherwise empty. recoverPitcherForGame has already reset the streak for
+  // anyone who had a day off, so a live streak means yesterday and the day before.
+  const streakRest =
+    !emergency &&
+    player.role !== '先発' &&
+    (player.consecutivePitchingGames ?? 0) >= PITCHER_USAGE_BALANCE.fatigue.maximumConsecutiveDays;
+  return (
+    !player.isP || ((player.injuryDays ?? 0) <= 0 && (player.fatigue ?? 0) < maximum && !streakRest)
+  );
 }
 
 export function bullpenSelectionScore(player: Player): number {

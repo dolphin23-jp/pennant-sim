@@ -5,6 +5,7 @@ import process from 'node:process';
 import { AT_BAT_BALANCE, CENTRAL, PACIFIC, PITCHER_USAGE_BALANCE } from '../src/data';
 import {
   accumulateStatsAll,
+  manageActiveRosters,
   calcInterleagueStandings,
   calcOVR,
   calcStandings,
@@ -564,7 +565,10 @@ async function simulateFranchise(options: CliOptions) {
       let accumulated: AccumulatedStats = {};
       let totalRuns = 0;
       const played: ScheduleGame[] = [];
+      const rosterReviews = new Map<TeamKey, string>();
       for (const game of schedule) {
+        // The same weekly 一軍 moves the game makes for CPU clubs.
+        manageActiveRosters(teams, [game.homeKey, game.awayKey], game.date, rosterReviews);
         const result = simulateGame(
           game.homeKey,
           game.awayKey,
