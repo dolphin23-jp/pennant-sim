@@ -8,6 +8,7 @@ import { Button, Card, SectionTitle, teamTextColor } from '../../ui';
 import { AutoAdvancePanel } from '../../widgets/AutoAdvancePanel';
 import { Linescore } from '../../widgets/Linescore';
 import { NoticeCenter } from '../../widgets/NoticeCenter';
+import { RaceCard } from '../../widgets/RaceCard';
 import { LeagueTable } from '../../widgets/StandingsTable';
 
 const shortDate = (date: string) => {
@@ -217,6 +218,8 @@ export function DashboardTab({
         <MatchupHero nextGame={nextGame} />
         <LatestGameCard />
       </div>
+
+      <RaceCard schedule={game.season.schedule} standings={game.standings} team={game.playerTeam} />
 
       <div className="dashboard-grid">
         <LeagueTable

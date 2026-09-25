@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from 'react';
 
 import { TINFO } from '../../data';
-import { deriveTeamForm } from '../../engine';
+import { deriveTeamForm, leagueRace, magicLit } from '../../engine';
 import { useGameState } from '../../state/gameState';
 import { useOpenSettings } from '../settingsSheetContext';
 import { BackToTitleButton, Button, NewGameButton } from '../ui';
@@ -19,6 +19,7 @@ export function SeasonScoreboard() {
   const team = TINFO[game.playerTeam];
   const record = game.standings[game.playerTeam];
   const form = deriveTeamForm(game.season.schedule, game.playerTeam);
+  const race = leagueRace(game.season.schedule, game.playerTeam)[game.playerTeam];
   const remaining = game.season.schedule.filter(
     (scheduled) =>
       !scheduled.played &&
@@ -45,7 +46,11 @@ export function SeasonScoreboard() {
     },
     { label: '勝敗', value: `${record.w}-${record.l}-${record.d}` },
     { label: '勝率', value: pct },
-    { label: '差', value: record.gb && record.gb !== '-' ? record.gb : '首位' },
+    race?.clinchedPennant
+      ? { label: '優勝', value: '決定', className: 'season-board__value--rank' }
+      : magicLit(race)
+        ? { label: 'マジック', value: `M${race.magic}`, className: 'season-board__value--magic' }
+        : { label: '差', value: record.gb && record.gb !== '-' ? record.gb : '首位' },
     { label: '連続', value: form.streak, className: streakTone },
     { label: '残り', value: `${remaining}` },
   ];

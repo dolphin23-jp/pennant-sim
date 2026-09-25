@@ -11,6 +11,7 @@ import {
   calcInterleagueStandings,
   calcOVR,
   calcStandings,
+  leagueRace,
   CLUB_PLAN_LABEL,
   clubPlanFor,
   createPlayerSeasonRecords,
@@ -54,6 +55,7 @@ import {
   createFreeAgencyNotices,
   createGameResultNotice,
   createLineupRepairNotice,
+  createRaceNotices,
   createOffseasonDevelopmentNotices,
   createSkippedInSeasonDevelopmentNotices,
   mergeNotices,
@@ -288,6 +290,14 @@ export function applySkip(
     lastGame: null,
     lineup: repaired.lineup,
     notices: mergeNotices(current.notices, [
+      // Race milestones lead: a month skip adds 25+ game results and the list shows 20.
+      ...createRaceNotices(
+        leagueRace(current.season.schedule, current.playerTeam)[current.playerTeam],
+        leagueRace(result.sched, current.playerTeam)[current.playerTeam],
+        current.playerTeam,
+        current.season.year,
+        noticeDate,
+      ),
       ...gameNotices,
       ...[createLineupRepairNotice(repaired.substitutions, current.playerTeam, noticeDate)].filter(
         (notice): notice is Notice => notice !== null,

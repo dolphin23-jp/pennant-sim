@@ -14,6 +14,7 @@ export * from './freeAgency';
 export { applyDraftPicks, generateDraftProspects, runCpuDraft } from './draftPrePro';
 export * from './foreign';
 export * from './game';
+export * from './pennantRace';
 export * from './growth';
 export * from './historicalRankings';
 export * from './leagueHistory';

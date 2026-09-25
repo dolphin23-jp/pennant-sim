@@ -84,6 +84,11 @@
   text-shadow: 0 0 10px color-mix(in srgb, var(--color-signature) 50%, transparent);
 }
 
+.season-board__value--magic {
+  color: var(--color-signature-elite);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--color-signature-elite) 50%, transparent);
+}
+
 .season-board__value--hot {
   color: var(--color-signature-elite);
 }

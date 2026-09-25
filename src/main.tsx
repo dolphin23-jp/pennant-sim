@@ -11,6 +11,7 @@ import './styles/history.css';
 import './styles/play-by-play.css';
 import './styles/player-tables.css';
 import './styles/postseason.css';
+import './styles/race.css';
 import './styles/roster.css';
 import './styles/schedule.css';
 import './styles/scoreboard.css';

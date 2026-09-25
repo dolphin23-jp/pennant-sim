@@ -67,7 +67,7 @@ export interface Notice {
   body: string;
   tone?: 'good' | 'warn' | 'info';
   date?: string;
-  kind?: 'system' | 'awakening' | 'growth' | 'game' | 'achievement';
+  kind?: 'system' | 'awakening' | 'growth' | 'game' | 'achievement' | 'race';
   playerId?: string;
   teamKey?: TeamKey;
   gameId?: string;
@@ -540,7 +540,8 @@ function migrateNotices(value: unknown): Notice[] {
       raw.kind === 'awakening' ||
       raw.kind === 'growth' ||
       raw.kind === 'game' ||
-      raw.kind === 'achievement'
+      raw.kind === 'achievement' ||
+      raw.kind === 'race'
         ? raw.kind
         : 'system';
     const teamKey =

@@ -22,6 +22,7 @@ import {
   repairLineup,
   buildGameBoxScore,
   calcStandings,
+  leagueRace,
   createFictionalLeagueHistory,
   detectAchievements,
   generateSchedule,
@@ -37,6 +38,7 @@ import {
   createAchievementNotices,
   createGameResultNotice,
   createLineupRepairNotice,
+  createRaceNotices,
   createInSeasonDevelopmentNotices,
   mergeNotices,
 } from './notices';
@@ -422,6 +424,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
           [nextGame.id]: buildPlayLog(nextGame.id, nextGame.date, result),
         }),
         notices: mergeNotices(current.notices, [
+          // Race milestones lead: a month skip adds 25+ game results and the list shows 20.
+          ...createRaceNotices(
+            leagueRace(current.season.schedule, current.playerTeam)[current.playerTeam],
+            leagueRace(prepared.sched, current.playerTeam)[current.playerTeam],
+            current.playerTeam,
+            current.season.year,
+            nextGame.date,
+          ),
           ...(gameNotice ? [gameNotice] : []),
           ...(repairNotice ? [repairNotice] : []),
           ...developmentNotices,

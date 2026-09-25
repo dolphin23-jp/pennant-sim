@@ -10,6 +10,7 @@ const SKIP_CONFIRMATIONS_KEY = 'pennant-sim:skipConfirmations';
 const HIDDEN_NOTICE_KINDS_KEY = 'pennant-sim:hiddenNoticeKinds';
 
 export const NOTICE_KIND_ORDER: NoticeKind[] = [
+  'race',
   'achievement',
   'awakening',
   'growth',
@@ -17,6 +18,7 @@ export const NOTICE_KIND_ORDER: NoticeKind[] = [
   'system',
 ];
 export const NOTICE_KIND_LABEL: Record<NoticeKind, string> = {
+  race: 'ペナントレース',
   achievement: '記録・メモリアル',
   awakening: '覚醒',
   growth: '成長',
